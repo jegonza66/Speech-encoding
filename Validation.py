@@ -11,7 +11,7 @@ Display_figures_Trace = False
 Save_figures_Trace = True
 save_alphas = True
 
-Stims = ['Envelope_Pitch_Spectrogram_Phonemes']
+Stims = ['Phonemes-discrete', 'Phonemes-onset']
 Bands = ['Theta']
 
 Corr_limit = 0.01

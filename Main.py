@@ -10,22 +10,36 @@ import Models
 import Plot
 import Processing
 
-
 startTime = datetime.now()
-# Define Parameters
+
+#----- Define Parameters -----#
+# Save / Display Figures
+Display_Ind_Figures = False
+Display_Total_Figures = False
+Save_Ind_Figures = True
+Save_Total_Figures = True
+Save_Results = True
+# Random permutations
+Statistical_test = False
+# Dialogue situation
+situacion = 'Escucha'
+# Model parameters ('Ridge' or 'mtrf')
+model = 'Ridge'
+# Run times
+tmin, tmax = -0.6, 0
+# preset alpha
+set_alpha = None
+
+# Run setup
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 total_subjects = len(sesiones)*2
-tmin, tmax = -0.6, 0
 sr = 128
 delays = - np.arange(np.floor(tmin * sr), np.ceil(tmax * sr), dtype=int)
 times = np.linspace(delays[0] * np.sign(tmin) * 1 / sr, np.abs(delays[-1]) * np.sign(tmax) * 1 / sr, len(delays))
 times = np.flip(-times)
-situacion = 'Escucha'
 
-# Model parameters ('Ridge' or 'mtrf')
-model = 'Ridge'
-
-set_alpha = None
+# Alpha
+default_alpha = 1000
 Alpha_Corr_limit = 0.01
 alphas_fname = 'saves/Alphas/Alphas_Corr{}_ph.pkl'.format(Alpha_Corr_limit)
 try:
@@ -36,7 +50,7 @@ except:
     print('\n\nAlphas file not found.\n\n')
 
 # Stimuli and EEG
-Stims = ['Pitch_Spectrogram_Phonemes', 'Envelope_Pitch_Spectrogram_Phonemes']
+Stims = ['Phonemes-discrete']
 
 Bands = ['Theta']
 
@@ -44,35 +58,27 @@ Bands = ['Theta']
 Stims_preprocess = 'Normalize'
 EEG_preprocess = 'Standarize'
 
-# Random permutations
-Statistical_test = False
 
-# Save / Display Figures
-Display_Ind_Figures = False
-Display_Total_Figures = False
-Save_Ind_Figures = True
-Save_Total_Figures = True
-Save_Results = True
 
-# Save mean correlations
-Mean_Correlations_fname = 'saves/{}/{}/Final_Correlation/tmin{}_tmax{}/Mean_Correlations.pkl'.format(model, situacion, tmin, tmax)
-try:
-    f = open(Mean_Correlations_fname, 'rb')
-    Mean_Correlations = pickle.load(f)
-    f.close()
-except:
-    print('\n\nMean_Correlations file not found\n\n')
-    Mean_Correlations = {}
+# # Save mean correlations
+# Mean_Correlations_fname = 'saves/{}/{}/Final_Correlation/tmin{}_tmax{}/Mean_Correlations.pkl'.format(model, situacion, tmin, tmax)
+# try:
+#     f = open(Mean_Correlations_fname, 'rb')
+#     Mean_Correlations = pickle.load(f)
+#     f.close()
+# except:
+#     print('\n\nMean_Correlations file not found\n\n')
+#     Mean_Correlations = {}
 
 f = open('saves/Subjects_Pitch.pkl', 'rb')
 subjects_pitch = pickle.load(f)
 f.close()
 
 for Band in Bands:
-    try:
-        Mean_Correlations_Band = Mean_Correlations[Band]
-    except:
-        Mean_Correlations_Band = {}
+    # try:
+    #     Mean_Correlations_Band = Mean_Correlations[Band]
+    # except:
+    #     Mean_Correlations_Band = {}
 
     for stim in Stims:
         print('\nModel: ' + model)
@@ -139,6 +145,17 @@ for Band in Bands:
                 Canales_repetidos_corr_sujeto = np.zeros(info['nchan'])
                 Canales_repetidos_rmse_sujeto = np.zeros(info['nchan'])
 
+                # Set alpha for subject
+                if set_alpha == None:
+                    try:
+                        alpha = Alphas[Band][stim][sesion][sujeto]
+                    except:
+                        alpha = default_alpha
+                        print('Alpha missing. Ussing default value: {}'.format(alpha))
+                else:
+                    alpha = set_alpha
+                    print('Ussing pre-set alpha value: {}'.format(alpha))
+
                 # Empiezo el KFold de test
                 kf_test = KFold(n_folds, shuffle=False)
                 for fold, (train_val_index, test_index) in enumerate(kf_test.split(eeg)):
@@ -156,14 +173,6 @@ for Band in Bands:
                     eeg_train_val, eeg_test, dstims_train_val, dstims_test = \
                         Processing.standarize_normalize(eeg_train_val, eeg_test, dstims_train_val, dstims_test,
                                                         Stims_preprocess, EEG_preprocess, axis, porcent)
-                    if set_alpha == None:
-                        try:
-                            alpha = Alphas[Band][stim][sesion][sujeto]
-                        except:
-                            alpha = 1000
-                            print('Alpha missing. Ussing default value: {}'.format(alpha))
-                    else:
-                        alpha = set_alpha
 
                     # Ajusto el modelo y guardo
                     if model == 'Ridge':
@@ -304,7 +313,7 @@ for Band in Bands:
                 dstims_para_sujeto_2, Sujeto_1, Sujeto_2, eeg_sujeto_1, eeg_sujeto_2
 
         # Armo cabecita con correlaciones promedio entre sujetos
-        Mean_Correlations_Band[stim], lat_test_results_corr = Plot.Cabezas_corr_promedio(Correlaciones_totales_sujetos,
+        _, lat_test_results_corr = Plot.Cabezas_corr_promedio(Correlaciones_totales_sujetos,
                                                                                          info, Display_Total_Figures,
                                                                                          Save_Total_Figures,
                                                                                          Run_graficos_path,
@@ -348,16 +357,16 @@ for Band in Bands:
                                               Save_Total_Figures, Run_graficos_path)
 
         # SAVE FINAL CORRELATION
-        Mean_Correlations[Band] = Mean_Correlations_Band
+        # Mean_Correlations[Band] = Mean_Correlations_Band
         if Save_Results and sujeto_total == 18:
             os.makedirs(save_path, exist_ok=True)
             f = open(save_path + '{}_EEG_{}.pkl'.format(stim, Band), 'wb')
             pickle.dump([Correlaciones_totales_sujetos, Canales_repetidos_corr_sujetos], f)
             f.close()
 
-            f = open(Mean_Correlations_fname, 'wb')
-            pickle.dump(Mean_Correlations, f)
-            f.close()
+            # f = open(Mean_Correlations_fname, 'wb')
+            # pickle.dump(Mean_Correlations, f)
+            # f.close()
 
             # Save final weights
             f = open(Path_original + 'Pesos_Totales_{}_{}.pkl'.format(stim, Band), 'wb')

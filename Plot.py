@@ -153,7 +153,7 @@ def plot_grafico_pesos(Display, sesion, sujeto, best_alpha, Pesos_promedio,
 
             fig.colorbar(im, ax=ax, orientation='vertical')
 
-        elif Stims_Order[i] == 'Phonemes':
+        elif Stims_Order[i] == 'Phonemes' or Stims_Order[i] == 'Phonemes-discrete' or Stims_Order[i] == 'Phonemes-onset':
             phonemes_weights = Pesos_promedio[:, sum(Len_Estimulos[j] for j in range(i)):sum(
                 Len_Estimulos[j] for j in range(i + 1))].mean(0)
             phonemes_weights = phonemes_weights.reshape(len(exp_info.ph_labels), len(times))
@@ -485,7 +485,7 @@ def regression_weights(Pesos_totales_sujetos_todos_canales, info, times, Display
 
             evoked = mne.EvokedArray(spectrogram_weights_chanels, info)
 
-        elif Stims_Order[i] == 'Phonemes':
+        elif Stims_Order[i] == 'Phonemes' or Stims_Order[i] == 'Phonemes-discrete' or Stims_Order[i] == 'Phonemes-onset':
             phoneme_weights_chanels = Pesos_totales_sujetos_todos_canales_copy[:,
                                           sum(Len_Estimulos[j] for j in range(i)):sum(
                                               Len_Estimulos[j] for j in range(i + 1))]. \
@@ -624,7 +624,7 @@ def regression_weights_matrix(Pesos_totales_sujetos_todos_canales, info, times, 
             ax0_new_box = (ax0_box[0], ax0_box[1], ax1_box[2], ax0_box[3])
             axs[0].set_position(ax0_new_box)
 
-        elif Stims_Order[i] == 'Phonemes':
+        elif Stims_Order[i] == 'Phonemes' or Stims_Order[i] == 'Phonemes-discrete' or Stims_Order[i] == 'Phonemes-onset':
             fig, axs = plt.subplots(2, 1, sharex=True, figsize=(6, 8), gridspec_kw={'height_ratios': [1, 4]})
             fig.suptitle('{} - {}'.format(Stims_Order[i], Band), fontsize=18)
 
