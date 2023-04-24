@@ -50,36 +50,15 @@ except:
     print('\n\nAlphas file not found.\n\n')
 
 # Stimuli and EEG
-Stims = ['Phonemes-discrete']
-
+Stims = ['Spectrogram']
 Bands = ['Theta']
 
 # Standarization
 Stims_preprocess = 'Normalize'
 EEG_preprocess = 'Standarize'
 
-
-
-# # Save mean correlations
-# Mean_Correlations_fname = 'saves/{}/{}/Final_Correlation/tmin{}_tmax{}/Mean_Correlations.pkl'.format(model, situacion, tmin, tmax)
-# try:
-#     f = open(Mean_Correlations_fname, 'rb')
-#     Mean_Correlations = pickle.load(f)
-#     f.close()
-# except:
-#     print('\n\nMean_Correlations file not found\n\n')
-#     Mean_Correlations = {}
-
-f = open('saves/Subjects_Pitch.pkl', 'rb')
-subjects_pitch = pickle.load(f)
-f.close()
-
+# Run
 for Band in Bands:
-    # try:
-    #     Mean_Correlations_Band = Mean_Correlations[Band]
-    # except:
-    #     Mean_Correlations_Band = {}
-
     for stim in Stims:
         print('\nModel: ' + model)
         print('Band: ' + Band)
@@ -357,16 +336,11 @@ for Band in Bands:
                                               Save_Total_Figures, Run_graficos_path)
 
         # SAVE FINAL CORRELATION
-        # Mean_Correlations[Band] = Mean_Correlations_Band
         if Save_Results and sujeto_total == 18:
             os.makedirs(save_path, exist_ok=True)
             f = open(save_path + '{}_EEG_{}.pkl'.format(stim, Band), 'wb')
             pickle.dump([Correlaciones_totales_sujetos, Canales_repetidos_corr_sujetos], f)
             f.close()
-
-            # f = open(Mean_Correlations_fname, 'wb')
-            # pickle.dump(Mean_Correlations, f)
-            # f.close()
 
             # Save final weights
             f = open(Path_original + 'Pesos_Totales_{}_{}.pkl'.format(stim, Band), 'wb')
