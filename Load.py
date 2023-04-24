@@ -605,16 +605,16 @@ class Sesion_class:
 
                 else:
                     # Match lengths of variables
-                    momentos_sujeto_1_trial, minimo_largo1 = Funciones.igualar_largos_dict2(Trial_sujeto_1, momentos_sujeto_1_trial)
-                    momentos_sujeto_2_trial, minimo_largo2 = Funciones.igualar_largos_dict2(Trial_sujeto_2, momentos_sujeto_2_trial)
+                    momentos_sujeto_1_trial, minimo_largo1 = Funciones.igualar_largos_dict(Trial_sujeto_1, momentos_sujeto_1_trial)
+                    momentos_sujeto_2_trial, minimo_largo2 = Funciones.igualar_largos_dict(Trial_sujeto_2, momentos_sujeto_2_trial)
 
                     samples_info['trial_lengths1'].append(minimo_largo1)
                     samples_info['trial_lengths2'].append(minimo_largo2)
 
                     # Preprocesamiento
-                    keep_indexes1_trial = Processing.preproc_dict2(momentos_escucha=momentos_sujeto_1_trial, delays=self.delays,
+                    keep_indexes1_trial = Processing.preproc_dict(momentos_escucha=momentos_sujeto_1_trial, delays=self.delays,
                                             situacion=self.situacion)
-                    keep_indexes2_trial = Processing.preproc_dict2(momentos_escucha=momentos_sujeto_2_trial, delays=self.delays,
+                    keep_indexes2_trial = Processing.preproc_dict(momentos_escucha=momentos_sujeto_2_trial, delays=self.delays,
                                             situacion=self.situacion)
 
                     # Add sum of all previous trials length

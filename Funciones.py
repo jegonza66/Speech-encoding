@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import scipy
 
+
 def maximo_comun_divisor(a, b):
     temporal = 0
     while b != 0:
@@ -10,17 +11,22 @@ def maximo_comun_divisor(a, b):
         a = temporal
     return a
 
+
 def minimo_comun_multiplo(a, b):
     return (a * b) / maximo_comun_divisor(a, b)
+
 
 def f_loss_Corr(x, stim, y, alpha):
     return -np.corrcoef(np.dot(stim,x), y)[0, 1] + alpha*sum(abs(x))
 
+
 def f_loss_Corr_ridge(x, stim, y):
     return -np.corrcoef(np.dot(stim,x), y)[0, 1]
 
+
 def consecutive(data, stepsize=1):
     return np.split(data, np.where(np.diff(data) > stepsize)[0]+1)
+
 
 def rename_paths(Stims_preprocess, EEG_preprocess, stim, Band, tmin, tmax, *paths):
     returns = []
@@ -29,8 +35,10 @@ def rename_paths(Stims_preprocess, EEG_preprocess, stim, Band, tmin, tmax, *path
         returns.append(path)
     return tuple(returns)
 
+
 def trunc(values, decs=0):
     return np.trunc(values * 10 ** decs) / (10 ** decs)
+
 
 def flatten_list(t):
     return [item for sublist in t for item in sublist]
@@ -63,21 +71,6 @@ def make_df(*args):
     for var in args:
         returns.append(pd.DataFrame(var))
     return tuple(returns)
-
-
-def igualar_largos_dict(dict, momentos):
-    keys = list(dict.keys())
-    keys.remove('info')
-
-    minimo_largo = min([dict[key].shape[0] for key in keys] + [len(momentos)])
-
-    for key in keys:
-            if dict[key].shape[0] > minimo_largo:
-                dict[key] = dict[key][:minimo_largo]
-    if len(momentos) > minimo_largo:
-        momentos = momentos[:minimo_largo]
-
-    return momentos
 
 
 def igualar_largos_dict2(dict, momentos):
