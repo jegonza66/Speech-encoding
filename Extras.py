@@ -5,7 +5,7 @@ import mne
 import numpy as np
 from sklearn.model_selection import KFold
 
-import Load as Load
+import Load
 import Models
 import Plot
 import Processing

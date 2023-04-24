@@ -4,8 +4,8 @@ import numpy as np
 from sklearn.model_selection import KFold
 from datetime import datetime
 
-import New_load as Load
-# import Load as Load
+import Load
+# import Load
 import Models
 import Plot
 import Processing
