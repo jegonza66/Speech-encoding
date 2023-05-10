@@ -73,7 +73,7 @@ def make_df(*args):
     return tuple(returns)
 
 
-def igualar_largos_dict2(dict, momentos):
+def igualar_largos_dict(dict, momentos):
     keys = list(dict.keys())
     keys.remove('info')
 

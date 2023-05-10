@@ -722,7 +722,7 @@ class Sesion_class:
                 ph_shift_2 = np.hstack(
                     (ph_shift_2, Processing.matriz_shifteada(Sujeto_2['Phonemes-manual'][i], self.delays)))
             Sujeto_2['Phonemes-manual'] = ph_shift_2
-        
+
         if 'Phonemes-discrete' in Sujeto_1.keys():
             Sujeto_1['Phonemes-discrete'] = Sujeto_1['Phonemes-discrete'].transpose()
             Sujeto_2['Phonemes-discrete'] = Sujeto_2['Phonemes-discrete'].transpose()
@@ -739,7 +739,7 @@ class Sesion_class:
                 ph_shift_2 = np.hstack(
                     (ph_shift_2, Processing.matriz_shifteada(Sujeto_2['Phonemes-discrete'][i], self.delays)))
             Sujeto_2['Phonemes-discrete'] = ph_shift_2
-            
+
         if 'Phonemes-onset' in Sujeto_1.keys():
             Sujeto_1['Phonemes-onset'] = Sujeto_1['Phonemes-onset'].transpose()
             Sujeto_2['Phonemes-onset'] = Sujeto_2['Phonemes-onset'].transpose()
@@ -756,7 +756,7 @@ class Sesion_class:
                 ph_shift_2 = np.hstack(
                     (ph_shift_2, Processing.matriz_shifteada(Sujeto_2['Phonemes-onset'][i], self.delays)))
             Sujeto_2['Phonemes-onset'] = ph_shift_2
-        
+
         keys = list(Sujeto_1.keys())
         keys.remove('EEG')
         for key in keys:
