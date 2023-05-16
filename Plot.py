@@ -1201,14 +1201,89 @@ def ch_heatmap_topo(total_data, info, delays, times, Display, Save, graficos_sav
 
 
 
+def plot_t_p_tfce(t, p, title, mcc, shape, graficos_save_path, Band, stim, pval_trhesh=None, axes=None, Display=False, Save=True):
 
+    if Display:
+        plt.ion()
+    else:
+        plt.ioff()
 
+    if axes is None:
+        fig = plt.figure(figsize=(12, 5))
+        gs = fig.add_gridspec(1, 5)
+        axes = [fig.add_subplot(gs[0, :3], projection="3d"), fig.add_subplot(gs[0, 3])]
+        show = True
+    else:
+        show = False
 
+    # calculate critical t-value thresholds (2-tailed)
+    # p_lims = np.array([0.1, 0.001])
+    # df = n_subjects - 1  # degrees of freedom
+    # t_lims = stats.distributions.t.ppf(1 - p_lims / 2, df=df)
+    # p_lims = [-np.log10(p) for p in p_lims]
 
+    # t plot
+    x, y = np.mgrid[0:shape[1], 0:shape[2]]
+    surf = axes[0].plot_surface(
+        x,
+        y,
+        np.reshape(t, (shape[1], shape[2])),
+        rstride=1,
+        cstride=1,
+        linewidth=0,
+        cmap="viridis",
+    )
+    axes[0].set(
+        xticks=[], yticks=[], zticks=[], xlim=[0, shape[1] - 1], ylim=[0, shape[2] - 1]
+    )
+    axes[0].view_init(30, 15)
+    cbar = plt.colorbar(
+        ax=axes[0],
+        shrink=0.5,
+        orientation="horizontal",
+        fraction=0.05,
+        pad=0.025,
+        mappable=surf,
+    )
+    # cbar.set_ticks(t_lims)
+    # cbar.set_ticklabels(["%0.1f" % t_lim for t_lim in t_lims])
+    cbar.set_label("t-value")
+    cbar.ax.get_xaxis().set_label_coords(0.5, -2)
+    if not show:
+        axes[0].set(title=title)
+        if mcc:
+            axes[0].title.set_weight("bold")
+    # p plot
+    use_p = -np.log10(np.reshape(np.maximum(p, 1e-5), (shape[1], shape[2])))
+    img = axes[1].imshow(
+        use_p, cmap="inferno", interpolation="nearest", aspect='auto', vmin=pval_trhesh)
+    axes[1].set(xticks=[], yticks=[])
+    cbar = plt.colorbar(
+        ax=axes[1],
+        shrink=1,
+        orientation="horizontal",
+        fraction=0.05,
+        pad=0.025,
+        mappable=img,
+    )
+    # cbar.set_ticks(p_lims)
+    # cbar.set_ticklabels(["%0.1f" % p_lim for p_lim in p_lims])
+    cbar.set_label(r"$-\log_{10}(p)$")
+    cbar.ax.get_xaxis().set_label_coords(0.5, -3)
+    if show:
+        text = fig.suptitle(title)
+        if mcc:
+            text.set_weight("bold")
+        plt.subplots_adjust(0, 0.05, 1, 0.9, wspace=0, hspace=0)
+        mne.viz.utils.plt_show()
 
+    fig.tight_layout()
 
-
-
+    if Save:
+        graficos_save_path += 'TFCE/'
+        os.makedirs(graficos_save_path, exist_ok=True)
+        plt.savefig(graficos_save_path + f'{Band}_{stim}_{pval_trhesh}.png')
+        plt.savefig(graficos_save_path + f'{Band}_{stim}_{pval_trhesh}.svg')
 
 
 

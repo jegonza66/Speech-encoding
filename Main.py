@@ -5,10 +5,10 @@ from sklearn.model_selection import KFold
 from datetime import datetime
 
 import Load
-# import Load
 import Models
 import Plot
 import Processing
+import Statistics
 
 startTime = datetime.now()
 
@@ -26,7 +26,7 @@ situacion = 'Escucha'
 # Model parameters ('Ridge' or 'mtrf')
 model = 'Ridge'
 # Run times
-tmin, tmax = -0.6, 0
+tmin, tmax = -0.6, -0.003
 # preset alpha
 set_alpha = None
 
@@ -61,7 +61,7 @@ EEG_preprocess = 'Standarize'
 for Band in Bands:
     for stim in Stims:
         print('\nModel: ' + model)
-        print('Band: ' + Band)
+        print('Band: ' + str(Band))
         print('Stimulus: ' + stim)
         print('Status: ' + situacion)
         print('tmin: {} - tmax: {}'.format(tmin, tmax))
@@ -322,6 +322,12 @@ for Band in Bands:
 
         Plot.regression_weights_matrix(Pesos_totales_sujetos_todos_canales, info, times, Display_Total_Figures,
                                        Save_Total_Figures, Run_graficos_path, Len_Estimulos, stim, Band, ERP=True)
+
+        # TFCE across subjects
+        t_tfce, clusters, p_tfce, H0, spctrogram_weights_subjects = Statistics.tfce(Pesos_totales_sujetos_todos_canales,
+                                                                                    times)
+
+        Plot.plot_t_p_tfce(t_tfce, p_tfce, 'TFCE', True, shape=spctrogram_weights_subjects.shape)
 
         # Matriz de Correlacion
         Plot.Matriz_corr_channel_wise(Pesos_totales_sujetos_todos_canales, stim, Len_Estimulos, info, times, sesiones, Display_Total_Figures, Save_Total_Figures,

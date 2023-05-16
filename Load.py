@@ -525,6 +525,7 @@ class Sesion_class:
         self.procesed_data_path = procesed_data_path
         self.samples_info_path = self.procesed_data_path + 'samples_info/Sit_{}/'.format(self.situacion)
         self.phn_path = "Datos/phonemes/S" + str(self.sesion) + "/"
+        self.phrases_path = "Datos/phrases/S" + str(self.sesion) + "/"
 
 
     def load_from_raw(self):
@@ -548,7 +549,7 @@ class Sesion_class:
             loaded_samples_info = False
             samples_info = {'keep_indexes1': [], 'keep_indexes2': [], 'trial_lengths1': [0], 'trial_lengths2': [0]}
 
-        trials = list(set([int(fname.split('.')[2]) for fname in os.listdir(self.phn_path) if os.path.isfile(self.phn_path + f'/{fname}')]))
+        trials = list(set([int(fname.split('.')[2]) for fname in os.listdir(self.phrases_path) if os.path.isfile(self.phrases_path + f'/{fname}')]))
 
         for trial in trials:
             try:

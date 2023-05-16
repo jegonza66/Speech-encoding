@@ -7,7 +7,7 @@ from datetime import datetime
 import Load
 import Models
 import Processing
-import Permutations
+import Statistics
 
 
 startTime = datetime.now()
@@ -134,7 +134,7 @@ for Band in Bands:
                     if model == 'Ridge':
                         Fake_Model = Models.Ridge(alpha)
                         Pesos_fake, Correlaciones_fake, Errores_fake = \
-                            Permutations.simular_iteraciones_Ridge(Fake_Model, iteraciones, sesion, sujeto, fold,
+                            Statistics.simular_iteraciones_Ridge(Fake_Model, iteraciones, sesion, sujeto, fold,
                                                                    dstims_train_val, eeg_train_val, dstims_test,
                                                                    eeg_test, Pesos_fake, Correlaciones_fake,
                                                                    Errores_fake)
@@ -142,7 +142,7 @@ for Band in Bands:
                         t_lag = np.where(times == Max_t_lags[Band])[0][0]
                         Fake_Model = Models.mne_mtrf_decoding(tmin, tmax, sr, info, alpha, t_lag)
                         Pesos_fake, Patterns_fake, Correlaciones_fake, Errores_fake = \
-                            Permutations.simular_iteraciones_decoding(Fake_Model, iteraciones, sesion, sujeto, fold,
+                            Statistics.simular_iteraciones_decoding(Fake_Model, iteraciones, sesion, sujeto, fold,
                                                                    dstims_train_val, eeg_train_val, dstims_test,
                                                                    eeg_test, Pesos_fake, Patterns_fake, Correlaciones_fake,
                                                                    Errores_fake)

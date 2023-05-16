@@ -4,9 +4,10 @@ from mne.decoding import ReceptiveField
 import os
 import pickle
 import copy
-
+from mne.stats import permutation_cluster_1samp_test
 import matplotlib.pyplot as plt
 import Models
+
 
 def simular_iteraciones_Ridge(Fake_Model, iteraciones, sesion, sujeto, fold, dstims_train_val, eeg_train_val,
                               dstims_test, eeg_test, Pesos_fake, Correlaciones_fake, Errores_fake):
@@ -211,3 +212,30 @@ def simular_iteraciones_mtrf(iteraciones, sesion, sujeto, fold, sr, info, tmin, 
     f = open(Path_it + 'Corr_Rmse_fake_ronda_it_canal_Sesion{}_Sujeto{}.pkl'.format(sesion, sujeto), 'wb')
     pickle.dump([Correlaciones_fake, Errores_fake], f)
     f.close()
+
+
+def tfce(Pesos_totales_sujetos_todos_canales, times, n_permutations=10240, threshold_tfce=dict(start=0, step=0.2)):
+
+    spctrogram_weights_subjects = Pesos_totales_sujetos_todos_canales.copy().mean(0)
+    spctrogram_weights_subjects = spctrogram_weights_subjects.reshape(16, len(times), 18)
+
+    spctrogram_weights_subjects = spctrogram_weights_subjects.swapaxes(0, 2)
+    spctrogram_weights_subjects = spctrogram_weights_subjects.swapaxes(1, 2)
+
+    spctrogram_weights_subjects = np.flip(spctrogram_weights_subjects, axis=-1)
+    spctrogram_weights_subjects = np.flip(spctrogram_weights_subjects, axis=1)
+
+    t_tfce, clusters, p_tfce, H0 = permutation_cluster_1samp_test(
+        spctrogram_weights_subjects,
+        n_jobs=1,
+        threshold=threshold_tfce,
+        adjacency=None,
+        n_permutations=n_permutations,
+        out_type="mask",
+    )
+
+    return t_tfce, clusters, p_tfce, H0, spctrogram_weights_subjects
+
+
+
+

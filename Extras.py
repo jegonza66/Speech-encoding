@@ -9,7 +9,7 @@ import Load
 import Models
 import Plot
 import Processing
-import Permutations
+import Statistics
 
 # WHAT TO DO
 Plot_EEG_PSD = False
@@ -179,7 +179,7 @@ for sesion in sesiones:
                         fmin, fmax = 3, 25
                         # SIMULACIONES PERMUTADAS PARA COMPARAR
                         toy_iterations = 1
-                        psd_rand_correlation = Permutations.simular_iteraciones_Ridge_plot(info, times, situacion,
+                        psd_rand_correlation = Statistics.simular_iteraciones_Ridge_plot(info, times, situacion,
                                                                                            alpha,
                                                                                            toy_iterations, sesion,
                                                                                            sujeto,
