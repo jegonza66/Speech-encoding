@@ -313,6 +313,7 @@ class Trial_channel:
         eeg = mne.io.read_raw_eeglab(self.eeg_fname)
         eeg_freq = eeg.info.get("sfreq")
         eeg.load_data()
+        # eeg = eeg.set_eeg_reference(ref_channels='average', projection=False)
 
         # Independent sources
         # eeg = mne.preprocessing.compute_current_source_density(eeg)

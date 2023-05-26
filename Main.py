@@ -324,10 +324,10 @@ for Band in Bands:
                                        Save_Total_Figures, Run_graficos_path, Len_Estimulos, stim, Band, ERP=True)
 
         # TFCE across subjects
-        t_tfce, clusters, p_tfce, H0, spctrogram_weights_subjects = Statistics.tfce(Pesos_totales_sujetos_todos_canales,
-                                                                                    times)
-
-        Plot.plot_t_p_tfce(t_tfce, p_tfce, 'TFCE', True, shape=spctrogram_weights_subjects.shape)
+        t_tfce, clusters, p_tfce, H0, trf_subjects = Statistics.tfce(Pesos_totales_sujetos_todos_canales,
+                                                                                    times, Len_Estimulos)
+        Plot.plot_t_p_tfce(t=t_tfce, p=p_tfce, title='TFCE', mcc=True, shape=trf_subjects.shape,
+                           graficos_save_path=Run_graficos_path, Band=Band, stim=stim, pval_trhesh=0.05, Display=True)
 
         # Matriz de Correlacion
         Plot.Matriz_corr_channel_wise(Pesos_totales_sujetos_todos_canales, stim, Len_Estimulos, info, times, sesiones, Display_Total_Figures, Save_Total_Figures,

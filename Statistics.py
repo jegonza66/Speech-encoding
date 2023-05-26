@@ -214,10 +214,12 @@ def simular_iteraciones_mtrf(iteraciones, sesion, sujeto, fold, sr, info, tmin, 
     f.close()
 
 
-def tfce(Pesos_totales_sujetos_todos_canales, times, n_permutations=10240, threshold_tfce=dict(start=0, step=0.2)):
+def tfce(Pesos_totales_sujetos_todos_canales, times, Len_Estimulos, n_permutations=1024, threshold_tfce=dict(start=0, step=0.2)):
 
-    spctrogram_weights_subjects = Pesos_totales_sujetos_todos_canales.copy().mean(0)
-    spctrogram_weights_subjects = spctrogram_weights_subjects.reshape(16, len(times), 18)
+    n_features = int(sum(Len_Estimulos)/len(times))
+    if n_features > 1:
+        spctrogram_weights_subjects = Pesos_totales_sujetos_todos_canales.copy().mean(0)
+    spctrogram_weights_subjects = spctrogram_weights_subjects.reshape(n_features, len(times), 18)
 
     spctrogram_weights_subjects = spctrogram_weights_subjects.swapaxes(0, 2)
     spctrogram_weights_subjects = spctrogram_weights_subjects.swapaxes(1, 2)

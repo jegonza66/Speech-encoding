@@ -193,7 +193,7 @@ def plot_grafico_pesos(Display, sesion, sujeto, best_alpha, Pesos_promedio,
 
             evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='ms',
                         show=False, spatial_colors=True, unit=False, units=dict(eeg='w', grad='fT/cm', mag='fT'),
-                        axes=ax)
+                        axes=ax, gfp=True)
 
             ax.plot(times * 1000, evoked._data.mean(0), 'k--', label='Mean', zorder=130, linewidth=2)
 
@@ -521,7 +521,7 @@ def regression_weights(Pesos_totales_sujetos_todos_canales, info, times, Display
 
         evoked.times = times
         evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='ms', titles=dict(eeg=''),
-                    show=False, spatial_colors=True, unit=False, units='w', axes=ax)
+                    show=False, spatial_colors=True, unit=False, units='w', axes=ax, gfp=True)
         ax.plot(times * 1000, evoked._data.mean(0), "k--", label="Mean", zorder=130, linewidth=2)
         if times[0] < 0:
             ax.axvspan(ax.get_xlim()[0], 0, alpha=0.4, color='grey', label='Pre-Stimuli')
@@ -594,7 +594,7 @@ def regression_weights_matrix(Pesos_totales_sujetos_todos_canales, info, times, 
             evoked = mne.EvokedArray(spectrogram_weights_chanels, info)
             evoked.times = times
             evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='ms', titles=dict(eeg=''),
-                        show=False, spatial_colors=True, unit=False, units='w', axes=axs[0])
+                        show=False, spatial_colors=True, unit=False, units='w', axes=axs[0], gfp=True)
             axs[0].plot(times * 1000, evoked._data.mean(0), "k--", label="Mean", zorder=130, linewidth=2)
             # if times[0] < 0:
             #     axs[0].axvspan(axs[0].get_xlim()[0], 0, alpha=0.4, color='grey', label='Pre-Stimuli')
@@ -740,7 +740,7 @@ def regression_weights_matrix(Pesos_totales_sujetos_todos_canales, info, times, 
             axs[0].axhline(0, axs[0].get_xlim()[0], axs[0].get_xlim()[1], color='grey')
             evoked.times = times
             evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='ms', titles=dict(eeg=''),
-                        show=False, spatial_colors=True, unit=False, units='w', axes=axs[0])
+                        show=False, spatial_colors=True, unit=False, units='w', axes=axs[0], gfp=True)
             axs[0].plot(times * 1000, evoked._data.mean(0), "k--", label="Mean", zorder=130, linewidth=2)
             axs[0].axis('off')
             axs[0].legend(fontsize=12)
@@ -1253,10 +1253,16 @@ def plot_t_p_tfce(t, p, title, mcc, shape, graficos_save_path, Band, stim, pval_
         axes[0].set(title=title)
         if mcc:
             axes[0].title.set_weight("bold")
+
+    if pval_trhesh:
+        # Mask p-values over threshold
+        p[p > pval_trhesh] = 1
     # p plot
     use_p = -np.log10(np.reshape(np.maximum(p, 1e-5), (shape[1], shape[2])))
+    vmin = use_p.min()
+    vmax = use_p.max()
     img = axes[1].imshow(
-        use_p, cmap="inferno", interpolation="nearest", aspect='auto', vmin=pval_trhesh)
+        use_p, cmap="inferno", interpolation="nearest", aspect='auto')
     axes[1].set(xticks=[], yticks=[])
     cbar = plt.colorbar(
         ax=axes[1],
@@ -1266,6 +1272,12 @@ def plot_t_p_tfce(t, p, title, mcc, shape, graficos_save_path, Band, stim, pval_
         pad=0.025,
         mappable=img,
     )
+    Bands_center = librosa.mel_frequencies(n_mels=18, fmin=62, fmax=8000)[1:-1]
+    ticks_positions = np.flip(np.arange(0, 16, 2)) + 1
+    ticks_labels = [int(Bands_center[i]) for i in np.arange(0, len(Bands_center), 2)]
+    axes[1].set_yticks(ticks_positions)
+    axes[1].set_yticklabels(ticks_labels)
+
     # cbar.set_ticks(p_lims)
     # cbar.set_ticklabels(["%0.1f" % p_lim for p_lim in p_lims])
     cbar.set_label(r"$-\log_{10}(p)$")
