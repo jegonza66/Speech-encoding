@@ -177,7 +177,7 @@ f.close()
 
 my_pal = {'All': 'darkgrey', 'Delta': 'darkgrey', 'Theta': 'C1', 'Alpha': 'darkgrey', 'Beta_1': 'darkgrey'}
 
-fontsize = 12
+fontsize = 14
 plt.rcParams.update({'font.size': fontsize})
 fig, axs = plt.subplots(figsize=(6, 4), nrows=2, gridspec_kw={'height_ratios': [1, 1]})
 
@@ -222,19 +222,17 @@ import os
 from scipy.stats import wilcoxon
 import mne
 from statsmodels.stats.multitest import fdrcorrection
+from Statistics import cohen_d
 
 model = 'Ridge'
 Band = 'Theta'
 stim = 'Spectrogram'
 situaciones = ['Escucha', 'Habla_Propia', 'Ambos', 'Ambos_Habla', 'Silencio']
 tmin, tmax = -0.6, -0.003
-fdr = False
-mask = False
-if fdr:
-    Run_graficos_path = 'gráficos/SIS_statistics/{}/{}/tmin{}_tmax{}/fdr'.format(Band, stim, tmin, tmax)
-else:
-    Run_graficos_path = 'gráficos/SIS_statistics/{}/{}/tmin{}_tmax{}/log'.format(Band, stim, tmin, tmax)
-if mask:
+stat_test = 'cohen'  # fdr/log/cohen
+mask = True
+Run_graficos_path = 'gráficos/SIS_statistics/{}/{}/tmin{}_tmax{}/{}'.format(Band, stim, tmin, tmax, stat_test)
+if mask and stat_test != 'cohen':
     Run_graficos_path += '_mask/'
 else:
     Run_graficos_path += '/'
@@ -280,8 +278,8 @@ for sit1, sit2 in zip(('Escucha', 'Escucha', 'Escucha', 'Escucha', 'Habla_Propia
     stats[f'{sit1}-{sit2}'] = stat
     pvals[f'{sit1}-{sit2}'] = pval
 
-    if fdr:
-        passed, corrected_pval = fdrcorrection(pvals=pval, alpha=0.05)
+    if stat_test == 'fdr':
+        passed, corrected_pval = fdrcorrection(pvals=pval, alpha=0.05, method='p')
 
         if mask:
             corrected_pval[~passed] = 1
@@ -306,7 +304,7 @@ for sit1, sit2 in zip(('Escucha', 'Escucha', 'Escucha', 'Escucha', 'Habla_Propia
             plt.savefig(Run_graficos_path + f'pval_{sit1}-{sit2}.png'.format(Band))
             plt.savefig(Run_graficos_path + f'pval_{sit1}-{sit2}.svg'.format(Band))
 
-    else:
+    elif stat_test == 'log':
         log_pval = np.log10(pval)
         if mask:
             log_pval[np.array(pval) > 0.05/128] = 0
@@ -346,6 +344,30 @@ for sit1, sit2 in zip(('Escucha', 'Escucha', 'Escucha', 'Escucha', 'Habla_Propia
             os.makedirs(Run_graficos_path, exist_ok=True)
             plt.savefig(Run_graficos_path + f'stat_{sit1}-{sit2}.png'.format(Band))
             plt.savefig(Run_graficos_path + f'stat_{sit1}-{sit2}.svg'.format(Band))
+
+    elif stat_test == 'cohen':
+        cohen_ds = []
+        for i in range(len(dist1)):
+            cohen_ds.append(cohen_d(dist1[i], dist2[i]))
+
+        # Plot pvalue
+        fig, ax = plt.subplots()
+        fig.suptitle(f'Cohen d: {sit1}-{sit2}\n'
+                     f'mean: {round(np.mean(cohen_ds), 2)} +- {round(np.std(cohen_ds), 2)} -\n'
+                     f'min: {round(np.min(cohen_ds), 2)} - '
+                     f'max: {round(np.max(cohen_ds), 2)}', fontsize=17)
+        im = mne.viz.plot_topomap(cohen_ds, vmin=0, vmax=4, pos=info, axes=ax, show=Display_fig, sphere=0.07,
+                                  cmap='Reds')
+        cbar = plt.colorbar(im[0], ax=ax, shrink=0.85)
+        cbar.ax.yaxis.set_tick_params(labelsize=17)
+        cbar.ax.set_ylabel(ylabel='Cohens d', fontsize=17)
+
+        fig.tight_layout()
+
+        if Save_fig:
+            os.makedirs(Run_graficos_path, exist_ok=True)
+            plt.savefig(Run_graficos_path + f'cohen_{sit1}-{sit2}.png'.format(Band))
+            plt.savefig(Run_graficos_path + f'cohen_{sit1}-{sit2}.svg'.format(Band))
 
 
 

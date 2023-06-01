@@ -116,7 +116,7 @@ def corr_sujeto_decoding(sesion, sujeto, Valores_promedio, Display, name, Save, 
 
 def plot_grafico_pesos(Display, sesion, sujeto, best_alpha, Pesos_promedio,
                        info, times, Corr_promedio, Rmse_promedio, Save,
-                       Run_graficos_path, Len_Estimulos, stim, title=None):
+                       Run_graficos_path, Len_Estimulos, stim, title=None, ERP=True):
     # Defino cosas que voy a graficar
     Corr_mejor_canal = Corr_promedio.max()
     Rmse_mejor_canal = Rmse_promedio.max()
@@ -132,26 +132,55 @@ def plot_grafico_pesos(Display, sesion, sujeto, best_alpha, Pesos_promedio,
     Stims_Order = stim.split('_')
     Cant_Estimulos = len(Len_Estimulos)
 
+
     for i in range(Cant_Estimulos):
         ax = fig.add_subplot(Cant_Estimulos, 1, i + 1)
 
         if Stims_Order[i] == 'Spectrogram':
 
-            spectrogram_weights = Pesos_promedio[:, sum(Len_Estimulos[j] for j in range(i)):sum(
-                Len_Estimulos[j] for j in range(i + 1))].mean(0)
-            spectrogram_weights = spectrogram_weights.reshape(16, len(times))
 
-            im = ax.pcolormesh(times * 1000, np.arange(16), spectrogram_weights, cmap='jet',
-                               vmin=-spectrogram_weights.max(), vmax=spectrogram_weights.max(), shading='auto')
+            spectrogram_weights_bands = Pesos_promedio[:,
+                                        sum(Len_Estimulos[j] for j in range(i)):sum(
+                                            Len_Estimulos[j] for j in range(i + 1))].mean(0)
+            spectrogram_weights_bands = spectrogram_weights_bands.reshape(16, len(times))
+
+            if ERP:
+                # Adapt for ERP
+                spectrogram_weights_bands = np.flip(spectrogram_weights_bands, axis=1)
+
+            im = ax.pcolormesh(times * 1000, np.arange(16), spectrogram_weights_bands, cmap='jet',
+                                   vmin=-spectrogram_weights_bands.max(), vmax=spectrogram_weights_bands.max(),
+                                   shading='auto')
+            ax.set(xlabel='Time (ms)', ylabel='Hz')
 
             Bands_center = librosa.mel_frequencies(n_mels=18, fmin=62, fmax=8000)[1:-1]
-            ax.set(xlabel='Time (ms)', ylabel='Hz')
             ticks_positions = np.arange(0, 16, 2)
-            ticks_labels = [int(Bands_center[i + 1]) for i in np.arange(0, len(Bands_center - 1), 2)]
+            ticks_labels = [int(Bands_center[i]) for i in np.arange(0, len(Bands_center), 2)]
             ax.set_yticks(ticks_positions)
             ax.set_yticklabels(ticks_labels)
+            ax.xaxis.label.set_size(14)
+            ax.yaxis.label.set_size(14)
+            ax.tick_params(axis='both', labelsize=14)
 
-            fig.colorbar(im, ax=ax, orientation='vertical')
+            cbar = fig.colorbar(im, ax=ax, orientation='vertical')
+            cbar.set_label('Amplitude (a.u.)', fontsize=14)
+            cbar.ax.tick_params(labelsize=14)
+
+            # spectrogram_weights = Pesos_promedio[:, sum(Len_Estimulos[j] for j in range(i)):sum(
+            #     Len_Estimulos[j] for j in range(i + 1))].mean(0)
+            # spectrogram_weights = spectrogram_weights.reshape(16, len(times))
+            #
+            # im = ax.pcolormesh(times * 1000, np.arange(16), spectrogram_weights, cmap='jet',
+            #                    vmin=-spectrogram_weights.max(), vmax=spectrogram_weights.max(), shading='auto')
+            #
+            # Bands_center = librosa.mel_frequencies(n_mels=18, fmin=62, fmax=8000)[1:-1]
+            # ax.set(xlabel='Time (ms)', ylabel='Hz')
+            # ticks_positions = np.arange(0, 16, 2)
+            # ticks_labels = [int(Bands_center[i + 1]) for i in np.arange(0, len(Bands_center - 1), 2)]
+            # ax.set_yticks(ticks_positions)
+            # ax.set_yticklabels(ticks_labels)
+            #
+            # fig.colorbar(im, ax=ax, orientation='vertical')
 
         elif Stims_Order[i] == 'Phonemes' or Stims_Order[i] == 'Phonemes-discrete' or Stims_Order[i] == 'Phonemes-onset':
             phonemes_weights = Pesos_promedio[:, sum(Len_Estimulos[j] for j in range(i)):sum(
@@ -193,7 +222,7 @@ def plot_grafico_pesos(Display, sesion, sujeto, best_alpha, Pesos_promedio,
 
             evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='ms',
                         show=False, spatial_colors=True, unit=False, units=dict(eeg='w', grad='fT/cm', mag='fT'),
-                        axes=ax, gfp=True)
+                        axes=ax, gfp=False)
 
             ax.plot(times * 1000, evoked._data.mean(0), 'k--', label='Mean', zorder=130, linewidth=2)
 
@@ -521,11 +550,11 @@ def regression_weights(Pesos_totales_sujetos_todos_canales, info, times, Display
 
         evoked.times = times
         evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='ms', titles=dict(eeg=''),
-                    show=False, spatial_colors=True, unit=False, units='w', axes=ax, gfp=True)
+                    show=False, spatial_colors=True, unit=False, units='w', axes=ax, gfp=False)
         ax.plot(times * 1000, evoked._data.mean(0), "k--", label="Mean", zorder=130, linewidth=2)
         if times[0] < 0:
-            ax.axvspan(ax.get_xlim()[0], 0, alpha=0.4, color='grey', label='Pre-Stimuli')
-        if decorrelation_times and times[0] < 0:
+            ax.axvspan(ax.get_xlim()[0], 0, alpha=0.4, color='grey', label='Pre-Stimulus')
+        if decorrelation_times:
             # ax.vlines(-np.mean(decorrelation_times), ax.get_ylim()[0], ax.get_ylim()[1], linestyle='dashed',
             #           color='red', label='Decorrelation time')
             ax.axvspan(-np.mean(decorrelation_times), 0, alpha=0.4, color='red', label=' Mean decorrelation time')
@@ -535,7 +564,7 @@ def regression_weights(Pesos_totales_sujetos_todos_canales, info, times, Display
 
         ax.xaxis.label.set_size(14)
         ax.yaxis.label.set_size(14)
-        # ax.set_ylim([-0.016, 0.015])
+        ax.set_ylim([-0.016, 0.015])
         ax.tick_params(axis='both', labelsize=14)
         ax.grid()
         ax.legend(fontsize=12)
@@ -594,10 +623,10 @@ def regression_weights_matrix(Pesos_totales_sujetos_todos_canales, info, times, 
             evoked = mne.EvokedArray(spectrogram_weights_chanels, info)
             evoked.times = times
             evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='ms', titles=dict(eeg=''),
-                        show=False, spatial_colors=True, unit=False, units='w', axes=axs[0], gfp=True)
+                        show=False, spatial_colors=True, unit=False, units='w', axes=axs[0], gfp=False)
             axs[0].plot(times * 1000, evoked._data.mean(0), "k--", label="Mean", zorder=130, linewidth=2)
-            # if times[0] < 0:
-            #     axs[0].axvspan(axs[0].get_xlim()[0], 0, alpha=0.4, color='grey', label='Pre-Stimuli')
+            if times[0] < 0:
+                axs[0].axvspan(axs[0].get_xlim()[0], 0, alpha=0.4, color='grey', label='Pre-Stimulus')
             axs[0].axis('off')
             axs[0].legend(fontsize=10)
 
@@ -740,7 +769,7 @@ def regression_weights_matrix(Pesos_totales_sujetos_todos_canales, info, times, 
             axs[0].axhline(0, axs[0].get_xlim()[0], axs[0].get_xlim()[1], color='grey')
             evoked.times = times
             evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='ms', titles=dict(eeg=''),
-                        show=False, spatial_colors=True, unit=False, units='w', axes=axs[0], gfp=True)
+                        show=False, spatial_colors=True, unit=False, units='w', axes=axs[0], gfp=False)
             axs[0].plot(times * 1000, evoked._data.mean(0), "k--", label="Mean", zorder=130, linewidth=2)
             axs[0].axis('off')
             axs[0].legend(fontsize=12)
@@ -1024,15 +1053,16 @@ def weights_ERP(Pesos_totales_sujetos_todos_canales, info, times, Display,
                     show=False, spatial_colors=True, unit=True, units='W', axes=ax)
 
         ax.plot(times * 1000, evoked._data.mean(0), 'k--', label='Mean', zorder=130, linewidth=2)
-        if times[-1] > 0:
-            ax.axvspan(ax.get_xlim()[0], 0, alpha=0.4, color='grey', label='Unheard stimuli')
-        if decorrelation_times and times[0] < 0:
-            ax.vlines(-np.mean(decorrelation_times), ax.get_ylim()[0], ax.get_ylim()[1], linestyle='dashed',
-                      color='red',
-                      label='Decorrelation time')
-            ax.axvspan(-np.mean(decorrelation_times) - np.std(decorrelation_times) / 2,
-                       -np.mean(decorrelation_times) + np.std(decorrelation_times) / 2,
-                       alpha=0.4, color='red', label='Decorrelation time std.')
+        if times[0] < 0:
+            ax.axvspan(ax.get_xlim()[0], 0, alpha=0.4, color='grey', label='Pre-stimulus')
+        if decorrelation_times:
+            # ax.vlines(-np.mean(decorrelation_times), ax.get_ylim()[0], ax.get_ylim()[1], linestyle='dashed',
+            #           color='red',
+            #           label='Decorrelation time')
+            ax.axvspan(-np.mean(decorrelation_times), 0, alpha=0.4, color='red', label=' Mean decorrelation time')
+            # ax.axvspan(-np.mean(decorrelation_times) - np.std(decorrelation_times) / 2,
+            #            -np.mean(decorrelation_times) + np.std(decorrelation_times) / 2,
+            #            alpha=0.4, color='red', label='Decorrelation time std.')
 
         ax.xaxis.label.set_size(23)
         ax.yaxis.label.set_size(23)

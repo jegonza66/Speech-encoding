@@ -26,7 +26,7 @@ situacion = 'Escucha'
 # Model parameters ('Ridge' or 'mtrf')
 model = 'Ridge'
 # Run times
-tmin, tmax = -0.6, -0.003
+tmin, tmax = -0.4, 0.2
 # preset alpha
 set_alpha = None
 
@@ -324,10 +324,9 @@ for Band in Bands:
                                        Save_Total_Figures, Run_graficos_path, Len_Estimulos, stim, Band, ERP=True)
 
         # TFCE across subjects
-        t_tfce, clusters, p_tfce, H0, trf_subjects = Statistics.tfce(Pesos_totales_sujetos_todos_canales,
-                                                                                    times, Len_Estimulos)
+        t_tfce, clusters, p_tfce, H0, trf_subjects = Statistics.tfce(Pesos_totales_sujetos_todos_canales, times, Len_Estimulos)
         Plot.plot_t_p_tfce(t=t_tfce, p=p_tfce, title='TFCE', mcc=True, shape=trf_subjects.shape,
-                           graficos_save_path=Run_graficos_path, Band=Band, stim=stim, pval_trhesh=0.05, Display=True)
+                           graficos_save_path=Run_graficos_path, Band=Band, stim=stim, pval_trhesh=0.05, Display=Display_Total_Figures)
 
         # Matriz de Correlacion
         Plot.Matriz_corr_channel_wise(Pesos_totales_sujetos_todos_canales, stim, Len_Estimulos, info, times, sesiones, Display_Total_Figures, Save_Total_Figures,

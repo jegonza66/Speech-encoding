@@ -217,18 +217,20 @@ def simular_iteraciones_mtrf(iteraciones, sesion, sujeto, fold, sr, info, tmin, 
 def tfce(Pesos_totales_sujetos_todos_canales, times, Len_Estimulos, n_permutations=1024, threshold_tfce=dict(start=0, step=0.2)):
 
     n_features = int(sum(Len_Estimulos)/len(times))
+    n_subjects = Pesos_totales_sujetos_todos_canales.shape[2]
+
     if n_features > 1:
-        spctrogram_weights_subjects = Pesos_totales_sujetos_todos_canales.copy().mean(0)
-    spctrogram_weights_subjects = spctrogram_weights_subjects.reshape(n_features, len(times), 18)
+        weights_subjects = Pesos_totales_sujetos_todos_canales.copy().mean(0)
+    weights_subjects = weights_subjects.reshape(n_features, len(times), n_subjects)
 
-    spctrogram_weights_subjects = spctrogram_weights_subjects.swapaxes(0, 2)
-    spctrogram_weights_subjects = spctrogram_weights_subjects.swapaxes(1, 2)
+    weights_subjects = weights_subjects.swapaxes(0, 2)
+    weights_subjects = weights_subjects.swapaxes(1, 2)
 
-    spctrogram_weights_subjects = np.flip(spctrogram_weights_subjects, axis=-1)
-    spctrogram_weights_subjects = np.flip(spctrogram_weights_subjects, axis=1)
+    weights_subjects = np.flip(weights_subjects, axis=-1)
+    weights_subjects = np.flip(weights_subjects, axis=1)
 
     t_tfce, clusters, p_tfce, H0 = permutation_cluster_1samp_test(
-        spctrogram_weights_subjects,
+        weights_subjects,
         n_jobs=1,
         threshold=threshold_tfce,
         adjacency=None,
@@ -236,7 +238,17 @@ def tfce(Pesos_totales_sujetos_todos_canales, times, Len_Estimulos, n_permutatio
         out_type="mask",
     )
 
-    return t_tfce, clusters, p_tfce, H0, spctrogram_weights_subjects
+    return t_tfce, clusters, p_tfce, H0, weights_subjects
+
+
+def cohen_d(x,y):
+    nx = len(x)
+    ny = len(y)
+    dof = nx + ny - 2
+
+    cohne_d = abs((np.mean(x) - np.mean(y))) / np.sqrt(((nx-1)*np.std(x, ddof=1) ** 2 + (ny-1)*np.std(y, ddof=1) ** 2) / dof)
+    return cohne_d
+
 
 
 
