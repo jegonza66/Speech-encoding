@@ -321,7 +321,7 @@ def Plot_PSD(sesion, sujeto, Band, situacion, Display, Save, save_path, info, da
         plt.savefig(save_path_graficos + 'Sesion{} - Sujeto{}.svg'.format(sesion, sujeto, Band))
 
 
-def Cabezas_corr_promedio(Correlaciones_totales_sujetos, info, Display, Save, Run_graficos_path, title, lat_max_chs=8):
+def Cabezas_corr_promedio(Correlaciones_totales_sujetos, info, Display, Save, Run_graficos_path, title, lat_max_chs=12):
 
     Correlaciones_promedio = Correlaciones_totales_sujetos.mean(0)
 
