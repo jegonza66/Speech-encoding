@@ -102,7 +102,7 @@ for Band in Bands:
 
 my_pal = {'All': 'darkgrey', 'Delta': 'darkgrey', 'Theta': 'C1', 'Alpha': 'darkgrey', 'Beta_1': 'darkgrey'}
 
-fontsize = 15
+fontsize = 19
 plt.rcParams.update({'font.size': fontsize})
 # fig, axs = plt.subplots(figsize=(10, 4), ncols=5, nrows=2, gridspec_kw={'wspace': 0.25})
 fig, axs = plt.subplots(figsize=(14, 5), ncols=5, nrows=2)
@@ -112,8 +112,8 @@ for i, Band in enumerate(Bands):
     fig.tight_layout()
     im = mne.viz.plot_topomap(Correlaciones[Band].ravel(), info, axes=ax, show=False, sphere=0.07, cmap='Reds',
                               vmin=Correlaciones[Band].min(), vmax=Correlaciones[Band].max())
-    # cbar = plt.colorbar(im[0], ax=ax, orientation='vertical', shrink=0.5)
-    # cbar.ax.tick_params(labelsize=fontsize)
+    cbar = plt.colorbar(im[0], ax=ax, orientation='vertical', shrink=0.5)
+    cbar.ax.tick_params(labelsize=fontsize)
 
 for ax_row in axs[1:]:
     for ax in ax_row:
@@ -124,10 +124,9 @@ ax = fig.add_subplot(2, 1, (2, 3))
 plt.suptitle(situacion)
 sn.violinplot(data=pd.DataFrame(Correlaciones), palette=my_pal, ax=ax)
 ax.set_ylabel('Correlation')
-ax.set_ylim([-0.1, 0.5])
+ax.set_ylim([0, 0.5])
 ax.grid()
-ax.set_xticklabels(['Broad band\n(0.1 - 40 Hz)', 'Delta\n(1 - 4 Hz)', 'Theta\n(4 - 8 Hz)', 'Alpha\n(8 - 13 Hz)',
-                    'Low Beta\n(13 - 19 Hz)'])
+ax.set_xticklabels(['Broad band', 'Delta', 'Theta', 'Alpha', 'Low Beta'])
 fig.tight_layout()
 
 if Save_fig:
@@ -149,15 +148,16 @@ f = open(info_path, 'rb')
 info = pickle.load(f)
 f.close()
 
-tmin, tmax = -0.6, -0.003
-delays = - np.arange(np.floor(tmin * info['sfreq']), np.ceil(tmax * info['sfreq']), dtype=int)
-times = np.linspace(delays[0] * np.sign(tmin) * 1 / info['sfreq'], np.abs(delays[-1]) * np.sign(tmax) * 1 / info['sfreq'], len(delays))
+tmin_corr, tmax_corr = -0.6, -0.003
+tmin_w, tmax_w = -0.6, 0.2
+delays = - np.arange(np.floor(tmin_w * info['sfreq']), np.ceil(tmax_w * info['sfreq']), dtype=int)
+times = np.linspace(delays[0] * np.sign(tmin_w) * 1 / info['sfreq'], np.abs(delays[-1]) * np.sign(tmax_w) * 1 / info['sfreq'], len(delays))
 times = np.flip(-times)
 
 model = 'Ridge'
-situacion = 'Escucha'
+situacion = 'Ambos_Habla'
 
-Run_graficos_path = 'gráficos/Model_Comparison/{}/{}/tmin{}_tmax{}/Violin mTRF/'.format(model, situacion, tmin, tmax)
+Run_graficos_path = 'gráficos/Model_Comparison/{}/{}/tmin{}_tmax{}/Violin mTRF/'.format(model, situacion, tmin_corr, tmax_corr)
 Save_fig = True
 Correlaciones = {}
 mTRFs = {}
@@ -166,20 +166,20 @@ stim = 'Spectrogram'
 Bands = ['All', 'Delta', 'Theta', 'Alpha', 'Beta_1']
 
 for Band in Bands:
-    f = open('saves/{}/{}/Final_Correlation/tmin{}_tmax{}/{}_EEG_{}.pkl'.format(model, situacion, tmin, tmax, stim, Band), 'rb')
+    f = open('saves/{}/{}/Final_Correlation/tmin{}_tmax{}/{}_EEG_{}.pkl'.format(model, situacion, tmin_corr, tmax_corr, stim, Band), 'rb')
     Corr, Pass = pickle.load(f)
     f.close()
     Correlaciones[Band] = Corr.mean(0)
 
-f = open('saves/{}/{}/Original/Stims_Normalize_EEG_Standarize/tmin{}_tmax{}/Stim_{}_EEG_Band_{}/Pesos_Totales_{}_{}.pkl'.format(model, situacion, tmin, tmax, stim, 'Theta', stim, 'Theta'), 'rb')
+f = open('saves/{}/{}/Original/Stims_Normalize_EEG_Standarize/tmin{}_tmax{}/Stim_{}_EEG_Band_{}/Pesos_Totales_{}_{}.pkl'.format(model, situacion, tmin_w, tmax_w, stim, 'Theta', stim, 'Theta'), 'rb')
 mTRFs_Theta = pickle.load(f)
 f.close()
 
 my_pal = {'All': 'darkgrey', 'Delta': 'darkgrey', 'Theta': 'C1', 'Alpha': 'darkgrey', 'Beta_1': 'darkgrey'}
 
-fontsize = 14
+fontsize = 17
 plt.rcParams.update({'font.size': fontsize})
-fig, axs = plt.subplots(figsize=(6, 4), nrows=2, gridspec_kw={'height_ratios': [1, 1]})
+fig, axs = plt.subplots(figsize=(8, 5), nrows=2, gridspec_kw={'height_ratios': [1, 1]})
 
 plt.suptitle(situacion)
 sn.violinplot(data=pd.DataFrame(Correlaciones), palette=my_pal, ax=axs[0])
@@ -197,13 +197,14 @@ spectrogram_weights_chanels = np.flip(spectrogram_weights_chanels, axis=1)
 evoked = mne.EvokedArray(spectrogram_weights_chanels, info)
 evoked.times = times
 evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='ms', titles=dict(eeg=''),
-            show=False, spatial_colors=True, unit=False, units='w', axes=axs[1])
-axs[1].plot(times * 1000, evoked._data.mean(0), "k--", label="Mean", zorder=130, linewidth=2)
+            show=False, spatial_colors=True, unit=True, units='TRF (a.u.)', axes=axs[1])
+# axs[1].plot(times * 1000, evoked._data.mean(0), "k--", label="Mean", zorder=130, linewidth=2)
+axs[1].set_ylim([-0.016, 0.013])
 if times[0] < 0:
-    ax.axvspan(ax.get_xlim()[0], 0, alpha=0.4, color='grey', label='Pre-Stimuli')
+    # ax.axvspan(ax.get_xlim()[0], 0, alpha=0.4, color='grey', label='Pre-Stimuli')
+    axs[1].axvline(x=0, ymin=0, ymax=1, color='grey')
 
-axs[1].set_ylim([-0.016, 0.015])
-axs[1].grid()
+# axs[1].grid()
 
 fig.tight_layout()
 plt.show()
@@ -229,8 +230,8 @@ Band = 'Theta'
 stim = 'Spectrogram'
 situaciones = ['Escucha', 'Habla_Propia', 'Ambos', 'Ambos_Habla', 'Silencio']
 tmin, tmax = -0.6, -0.003
-stat_test = 'cohen'  # fdr/log/cohen
-mask = True
+stat_test = 'log'  # fdr/log/cohen
+mask = False
 Run_graficos_path = 'gráficos/SIS_statistics/{}/{}/tmin{}_tmax{}/{}'.format(Band, stim, tmin, tmax, stat_test)
 if mask and stat_test != 'cohen':
     Run_graficos_path += '_mask/'
@@ -316,10 +317,10 @@ for sit1, sit2 in zip(('Escucha', 'Escucha', 'Escucha', 'Escucha', 'Habla_Propia
                      f'min: {round(np.min(pvals[f"{sit1}-{sit2}"]), 6)} - '
                      f'max: {round(np.max(pvals[f"{sit1}-{sit2}"]), 6)}\n'
                      f'passed: {sum(np.array(pval)< 0.05/128)}', fontsize=17)
-        im = mne.viz.plot_topomap(log_pval, vmin=-6, vmax=0, pos=info, axes=ax, show=Display_fig, sphere=0.07, cmap='Reds_r')
-        cbar = plt.colorbar(im[0], ax=ax, shrink=0.85, ticks=[-6, -5, -4, -3, -2, -1, 0])
+        im = mne.viz.plot_topomap(log_pval, vmin=-6, vmax=-2, pos=info, axes=ax, show=Display_fig, sphere=0.07, cmap='Reds_r')
+        cbar = plt.colorbar(im[0], ax=ax, shrink=0.85, ticks=[-6, -5, -4, -3, -2])
         cbar.ax.yaxis.set_tick_params(labelsize=17)
-        cbar.ax.set_yticklabels(['<10-6', '10-5', '10-4', '10-3', '10-2', '10-1', '1'])
+        cbar.ax.set_yticklabels(['<10-6', '10-5', '10-4', '10-3', '10-2'])
         cbar.ax.set_ylabel(ylabel='p-value', fontsize=17)
 
 

@@ -221,7 +221,11 @@ def tfce(Pesos_totales_sujetos_todos_canales, times, Len_Estimulos, n_permutatio
 
     if n_features > 1:
         weights_subjects = Pesos_totales_sujetos_todos_canales.copy().mean(0)
-    weights_subjects = weights_subjects.reshape(n_features, len(times), n_subjects)
+        weights_subjects = weights_subjects.reshape(n_features, len(times), n_subjects)
+    else:
+        weights_subjects = Pesos_totales_sujetos_todos_canales.copy()
+        weights_subjects = weights_subjects.reshape(128, len(times), n_subjects)
+
 
     weights_subjects = weights_subjects.swapaxes(0, 2)
     weights_subjects = weights_subjects.swapaxes(1, 2)
@@ -238,7 +242,7 @@ def tfce(Pesos_totales_sujetos_todos_canales, times, Len_Estimulos, n_permutatio
         out_type="mask",
     )
 
-    return t_tfce, clusters, p_tfce, H0, weights_subjects
+    return t_tfce, clusters, p_tfce, H0, weights_subjects, n_permutations
 
 
 def cohen_d(x,y):

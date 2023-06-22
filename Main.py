@@ -18,15 +18,18 @@ Display_Ind_Figures = False
 Display_Total_Figures = False
 Save_Ind_Figures = True
 Save_Total_Figures = True
-Save_Results = True
+Save_Results = False
 # Random permutations
 Statistical_test = False
+# Stimuli and EEG
+Stims = ['Spectrogram']
+Bands = ['Theta']
 # Dialogue situation
 situacion = 'Escucha'
 # Model parameters ('Ridge' or 'mtrf')
 model = 'Ridge'
 # Run times
-tmin, tmax = -0.4, 0.2
+tmin, tmax = -0.6, 0.2
 # preset alpha
 set_alpha = None
 
@@ -41,17 +44,13 @@ times = np.flip(-times)
 # Alpha
 default_alpha = 1000
 Alpha_Corr_limit = 0.01
-alphas_fname = 'saves/Alphas/Alphas_Corr{}_ph.pkl'.format(Alpha_Corr_limit)
+alphas_fname = 'saves/Alphas/Alphas_Corr{}.pkl'.format(Alpha_Corr_limit)
 try:
     f = open(alphas_fname, 'rb')
     Alphas = pickle.load(f)
     f.close()
 except:
     print('\n\nAlphas file not found.\n\n')
-
-# Stimuli and EEG
-Stims = ['Spectrogram']
-Bands = ['Theta']
 
 # Standarization
 Stims_preprocess = 'Normalize'
@@ -210,15 +209,16 @@ for Band in Bands:
                         topo_pvalues_corr[fold] = p_corr
                         topo_pvalues_rmse[fold] = p_rmse
 
-                # Save Model Weights and Correlations
-                os.makedirs(Path_original, exist_ok=True)
-                f = open(Path_original + 'Corr_Rmse_Sesion{}_Sujeto{}.pkl'.format(sesion, sujeto), 'wb')
-                pickle.dump([Corr_buenas_ronda_canal, Rmse_buenos_ronda_canal], f)
-                f.close()
+                if Save_Results:
+                    # Save Model Weights and Correlations
+                    os.makedirs(Path_original, exist_ok=True)
+                    f = open(Path_original + 'Corr_Rmse_Sesion{}_Sujeto{}.pkl'.format(sesion, sujeto), 'wb')
+                    pickle.dump([Corr_buenas_ronda_canal, Rmse_buenos_ronda_canal], f)
+                    f.close()
 
-                f = open(Path_original + 'Pesos_Sesion{}_Sujeto{}.pkl'.format(sesion, sujeto), 'wb')
-                pickle.dump(Pesos_ronda_canales.mean(0), f)
-                f.close()
+                    f = open(Path_original + 'Pesos_Sesion{}_Sujeto{}.pkl'.format(sesion, sujeto), 'wb')
+                    pickle.dump(Pesos_ronda_canales.mean(0), f)
+                    f.close()
 
                 # Tomo promedio de pesos Corr y Rmse entre los folds para todos los canales
                 Pesos_promedio = Pesos_ronda_canales.mean(0)
@@ -292,17 +292,11 @@ for Band in Bands:
                 dstims_para_sujeto_2, Sujeto_1, Sujeto_2, eeg_sujeto_1, eeg_sujeto_2
 
         # Armo cabecita con correlaciones promedio entre sujetos
-        _, lat_test_results_corr = Plot.Cabezas_corr_promedio(Correlaciones_totales_sujetos,
-                                                                                         info, Display_Total_Figures,
-                                                                                         Save_Total_Figures,
-                                                                                         Run_graficos_path,
-                                                                                         title='Correlation')
+        _, lat_test_results_corr = Plot.Cabezas_corr_promedio(Correlaciones_totales_sujetos, info, Display_Total_Figures,
+                                                              Save_Total_Figures, Run_graficos_path, title='Correlation', lat_max_chs=12)
 
-        _, lat_test_results_rmse = Plot.Cabezas_corr_promedio(Rmse_totales_sujetos, info,
-                                                                                         Display_Total_Figures,
-                                                                                         Save_Total_Figures,
-                                                                                         Run_graficos_path,
-                                                                                         title='Rmse')
+        _, lat_test_results_rmse = Plot.Cabezas_corr_promedio(Rmse_totales_sujetos, info, Display_Total_Figures,
+                                                              Save_Total_Figures, Run_graficos_path, title='Rmse')
 
         # Armo cabecita con canales repetidos
         if Statistical_test:
@@ -324,9 +318,18 @@ for Band in Bands:
                                        Save_Total_Figures, Run_graficos_path, Len_Estimulos, stim, Band, ERP=True)
 
         # TFCE across subjects
-        t_tfce, clusters, p_tfce, H0, trf_subjects = Statistics.tfce(Pesos_totales_sujetos_todos_canales, times, Len_Estimulos)
+        t_tfce, clusters, p_tfce, H0, trf_subjects, n_permutations = Statistics.tfce(Pesos_totales_sujetos_todos_canales, times, Len_Estimulos, n_permutations=4096)
         Plot.plot_t_p_tfce(t=t_tfce, p=p_tfce, title='TFCE', mcc=True, shape=trf_subjects.shape,
                            graficos_save_path=Run_graficos_path, Band=Band, stim=stim, pval_trhesh=0.05, Display=Display_Total_Figures)
+        Plot.plot_p_tfce(p=p_tfce, times=times, title='', mcc=True, shape=trf_subjects.shape,
+                           graficos_save_path=Run_graficos_path, Band=Band, stim=stim, pval_trhesh=0.05, fontsize=17,
+                           Display=Display_Total_Figures, Save=Save_Total_Figures)
+
+        if stim == 'Spectrogram':
+            Plot.plot_trf_tfce(Pesos_totales_sujetos_todos_canales=Pesos_totales_sujetos_todos_canales, p=p_tfce,
+                               times=times, title='', mcc=True, shape=trf_subjects.shape, n_permutations=n_permutations,
+                               graficos_save_path=Run_graficos_path, Band=Band, stim=stim,
+                               pval_trhesh=0.05, fontsize=17, Display=Display_Total_Figures, Save=Save_Total_Figures)
 
         # Matriz de Correlacion
         Plot.Matriz_corr_channel_wise(Pesos_totales_sujetos_todos_canales, stim, Len_Estimulos, info, times, sesiones, Display_Total_Figures, Save_Total_Figures,
