@@ -404,7 +404,6 @@ def Cabezas_corr_promedio(Correlaciones_totales_sujetos, info, Display, Save, Ru
 
     return (Correlaciones_promedio.mean(), Correlaciones_promedio.std()), test_results
 
-
 def violin_plot_decoding(Correlaciones_totales_sujetos, Display, Save, Run_graficos_path, title):
 
     data = pd.DataFrame({title: Correlaciones_totales_sujetos.ravel()})
