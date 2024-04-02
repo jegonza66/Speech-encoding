@@ -412,12 +412,12 @@ class Trial_channel:
 
         Returns
         -------
-        np.ndarray
-            Downsampled EEG signal.
+        mne.io.eeglab.eeglab.RawEEGLAB
+            Downsampled mne EEG LAB object. To acces data in matrix form, one can perform eeg.get_data().T
         """
         # Read the .set file
         eeg = mne.io.read_raw_eeglab(input_fname=self.eeg_fname, verbose=False) # TODO: warning of annotations and 'boundry' events -data discontinuities-.
-        
+
         # Sample frequency in Hz
         eeg_freq = eeg.info.get("sfreq")
         
@@ -434,14 +434,15 @@ class Trial_channel:
             else:
                 eeg = eeg.filter(l_freq=self.l_freq_eeg, h_freq=self.h_freq_eeg, verbose=False)
 
-        # Convert to numpy array, excluding the time column. This gives a matrix of dimension timesxchannels
-        eeg = eeg.to_data_frame()
-        eeg = np.array(eeg)[:, 1:129]  
+        # # Convert to numpy array, excluding the time column. This gives a matrix of dimension Times X n_channels. UNIT: V (creo)
+        # eeg_data = eeg.get_data().T 
 
         # Downsample to get same rate as sr
-        eeg = Processing.subsamplear(eeg, int(eeg_freq / self.sr))
+        # eeg = Processing.subsamplear(eeg, int(eeg_freq / self.sr))
 
-        return np.array(eeg)
+        # return np.array(eeg)
+        # Downsample to get same rate as sr
+        return eeg.copy().resample(sfreq=self.sr) #TODO: discutir esto. Según la página se hace un filtro pasabajo para evitar aliasing. ¿Puede esto afectar los resultados?
 
     def f_info(self):
         """Define a descriptor for the set up
