@@ -1,7 +1,85 @@
-import numpy as np
-import pandas as pd
-import scipy
+import numpy as np, pandas as pd, scipy, pickle, os, sys
 
+def load_pickle(path:str):
+    """Loads pickle file
+
+    Parameters
+    ----------
+    path : str
+        Path to pickle file
+
+    Returns
+    -------
+    _type_
+        Extracted file
+
+    Raises
+    ------
+    Exception
+        Something goes wrong, probably it's not a .pkl
+    Exception
+        The file doesn't exist
+    """
+    if os.path.isfile(path):
+        try:
+            with open(file = path, mode = "rb") as archive:
+                data = pickle.load(file = archive)
+            return data
+        except:
+            raise Exception("Something went wrong, check extension.")
+    else:
+        raise Exception(f"The file '{path}' doesn't exist.")
+    
+def dump_pickle(path:str, obj, rewrite:bool=False, verbose:bool=False):
+    """Dumps object into pickle
+
+    Parameters
+    ----------
+    path : str
+        Path to pickle file
+    obj : _type_
+        Object to save as pickle. Almost anything
+    rewrite : bool, optional
+        If already exists a file named as path it rewrites it, by default False
+    verbose : bool, optional
+        Whether to print information about rewritting, by default False
+
+    Raises
+    ------
+    Exception
+        If the file already exists and rewrite wasnt called.
+    Exception
+        Something went wrong.
+    """
+    isfile = os.path.isfile(path)
+    if isfile and not rewrite:
+        raise Exception("This file already exists, change 'rewrite=True'.")
+    try:
+        with open(file = path, mode = "wb") as archive:
+            pickle.dump(file = archive, obj=obj)
+        if isfile and verbose:
+            print(f'Atention: file overwritten in {path}')
+    except:
+        raise Exception("Something went wrong when saving")
+
+def iteration_percentage(txt:str, i:int, length_of_iterator:int):
+    """Adds a percentage bar at the bottom of a print in a loop.
+
+    Parameters
+    ----------
+    txt : str
+        Text wanted to print
+    i : int
+        i-th iteration of the loop
+    length_of_iterator : int
+        Length of the iterator
+    """
+    l = int(50*(i+1)/length_of_iterator)
+    if (i+1) == length_of_iterator:
+        percentage_bar =  f"[{'*'*(l):50s}] {(l*2)/100:.0%}\n"
+    else:
+        percentage_bar =  f"[{'·'*(l):50s}] {(l*2)/100:.0%}\n"
+    sys.stdout.write(txt+'\n'+percentage_bar)
 
 def maximo_comun_divisor(a, b):
     temporal = 0
