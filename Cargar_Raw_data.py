@@ -414,7 +414,7 @@ plt.figure()
 librosa.display.specshow(S_DB, sr=audio_sr, hop_length=hop_length, x_axis='time', y_axis='mel', )
 plt.colorbar(format='%+2.0f dB')
 
-# Shifted matrix row by row
+# Concatenates shifted matrix row by row
 spec_shift = Processing.matriz_shifteada(S_DB[0], delays)
 for i in np.arange(1, len(S_DB)):
     spec_shift = np.hstack((spec_shift, Processing.matriz_shifteada(S_DB[i], delays)))
