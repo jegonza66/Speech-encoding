@@ -1,5 +1,5 @@
 # Standard libraries
-import numpy as np, pandas as pd, os, warnings
+import numpy as np, pandas as pd, os, warnings, time
 import mne, librosa, platform, opensmile, textgrids
 
 # Specific libraries
@@ -12,7 +12,7 @@ import Processing, Funciones, setup
 
 # Review this If we want to update packages
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-
+mne.set_log_level(verbose='CRITICAL')
 exp_info = setup.exp_info()
 
 class Trial_channel:
@@ -94,20 +94,22 @@ class Trial_channel:
             EEG mne representation
         """
         # Read the .set file
-        eeg = mne.io.read_raw_eeglab(input_fname=self.eeg_fname, verbose=False) # TODO: warning of annotations and 'boundry' events -data discontinuities-.
-        eeg.load_data(verbose=False)
+        # TODO: warning of annotations and 'boundry' events -data discontinuities-.
+        eeg = mne.io.read_raw_eeglab(input_fname=self.eeg_fname) 
+        eeg.load_data()
         
         # Apply a lowpass filter
         if self.Band:
             if self.Causal_filter_EEG:
-                eeg = eeg.filter(l_freq=self.l_freq_eeg, h_freq=self.h_freq_eeg, phase='minimum', verbose=False) # TODO: preguntar la diferencia causal_filter False, tambien quite el verbose, preguntar si esta ok
+                eeg = eeg.filter(l_freq=self.l_freq_eeg, h_freq=self.h_freq_eeg, phase='minimum') # TODO: preguntar la diferencia causal_filter False, tambien quite el verbose, preguntar si esta ok
             else:
-                eeg = eeg.filter(l_freq=self.l_freq_eeg, h_freq=self.h_freq_eeg, verbose=False)
+                eeg = eeg.filter(l_freq=self.l_freq_eeg, h_freq=self.h_freq_eeg)
         
         # Store dimension mne.raw
-        self.eeg = eeg.resample(sfreq=self.sr)
+        eeg.resample(sfreq=self.sr)
 
-        # Return numpy representation Times x nchannels
+        # Return mne representation Times x nchannels
+        self.eeg = eeg.copy()
         return self.eeg
 
     def f_info(self):
@@ -123,9 +125,7 @@ class Trial_channel:
         # Define montage and info object
         montage = mne.channels.make_standard_montage('biosemi128')
         channel_names = montage.ch_names
-        info = mne.create_info(ch_names=channel_names[:], sfreq=self.sr, ch_types='eeg').set_montage(montage)
-    
-        return info
+        return mne.create_info(ch_names=channel_names[:], sfreq=self.sr, ch_types='eeg').set_montage(montage)
 
     def f_envelope(self): #TODO check self.envelope assignation
         """Takes the low pass filtered -butterworth-, downsample and smoothened envelope of .wav file. Then matches its length to the EEG.
@@ -149,13 +149,16 @@ class Trial_channel:
         elif self.Env_Filter == 'NonCausal':
             envelope = Processing.butter_filter(data=envelope, frecuencias=25, sampling_freq=self.audio_sr,
                                                 btype='lowpass', order=3, axis=0, ftype='NonCausal').reshape(-1,1)
+        else:
+            envelope = envelope.reshape(-1,1)
             
         # Creates mne raw array
-        info_envelope = mne.create_info(ch_names=['envelope'], sfreq=self.audio_sr, ch_types='misc')
-        envelope_mne_array = mne.io.RawArray(data=envelope.T, info=info_envelope, verbose=False)
+        info_envelope = mne.create_info(ch_names=['Envelope'], sfreq=self.audio_sr, ch_types='misc')
+        envelope_mne_array = mne.io.RawArray(data=envelope.T, info=info_envelope)
 
         # Resample to match EEG data
-        return envelope_mne_array.resample(sfreq=self.sr)
+        envelope_mne_array.resample(sfreq=self.sr)
+        return envelope_mne_array
 
     def f_spectrogram(self, envelope:np.ndarray):
         """Calculates spectrogram of .wav file between 16 Mel frequencies.
@@ -187,9 +190,9 @@ class Trial_channel:
         # Creates mne raw array. Note that frequency is sr now
         info_spectrogram = mne.create_info(ch_names=[f'mel_{i}' for i in range(1,17)], sfreq=self.sr, ch_types='misc')
         
-        return mne.io.RawArray(data=S_DB.T, info=info_spectrogram, verbose=False)
+        return mne.io.RawArray(data=S_DB, info=info_spectrogram)
 
-    def f_jitter_shimmer(self, envelope:np.ndarray):
+    def f_jitter_shimmer(self, envelope:np.ndarray): # NEVER USED
         """Gives the jitter and shimmer matching the size of the envelope
 
         Parameters
@@ -236,10 +239,10 @@ class Trial_channel:
         shimmer = shimmer[:min(len(shimmer), len(envelope))].reshape(-1,1)
 
         # Creates mne raw arrays
-        info_jitter = mne.create_info(ch_names=['jitter'], sfreq=int(1/(y.index[1]-y.index[0])), ch_types='misc')
-        info_shimmer = mne.create_info(ch_names=['shimmer'], sfreq=int(1/(y.index[1]-y.index[0])), ch_types='misc')
-        jitter_mne_array = mne.io.RawArray(data=jitter.T, info=info_jitter, verbose=False)
-        shimmer_mne_array = mne.io.RawArray(data=shimmer.T, info=info_shimmer, verbose=False)
+        info_jitter = mne.create_info(ch_names=['Jitter'], sfreq=int(1/(y.index[1]-y.index[0])), ch_types='misc')
+        info_shimmer = mne.create_info(ch_names=['Shimmer'], sfreq=int(1/(y.index[1]-y.index[0])), ch_types='misc')
+        jitter_mne_array = mne.io.RawArray(data=jitter.T, info=info_jitter)
+        shimmer_mne_array = mne.io.RawArray(data=shimmer.T, info=info_shimmer)
 
         return jitter_mne_array, shimmer_mne_array
     
@@ -330,7 +333,7 @@ class Trial_channel:
         # Creates mne raw array
         info_phonemes = mne.create_info(ch_names=updated_taggs, sfreq=self.sr, ch_types='misc')
 
-        return mne.io.RawArray(data=phonemes.T, info=info_phonemes, verbose=False)
+        return mne.io.RawArray(data=phonemes.T, info=info_phonemes)
 
     def f_phonemes_discrete(self, envelope:np.ndarray): #TODO: es exactamente igual a f_phonemes, salvo las últimas tres lineas. UNIFICAR
         """It makes a time-match between the phonemes and the envelope.
@@ -417,7 +420,7 @@ class Trial_channel:
         # Creates mne raw array
         info_phonemes = mne.create_info(ch_names=updated_taggs, sfreq=self.sr, ch_types='misc')
 
-        return mne.io.RawArray(data=phonemes.T, info=info_phonemes, verbose=False)
+        return mne.io.RawArray(data=phonemes.T, info=info_phonemes)
    
     def f_phonemes_onset(self, envelope:np.ndarray): #TODO: es exactamente igual a f_phonemes, salvo las últimas tres lineas. UNIFICAR
         """It makes a time-match between the phonemes and the envelope.
@@ -513,7 +516,7 @@ class Trial_channel:
         # Creates mne raw array
         info_phonemes = mne.create_info(ch_names=updated_taggs, sfreq=self.sr, ch_types='misc')
 
-        return mne.io.RawArray(data=phonemes.T, info=info_phonemes, verbose=False)
+        return mne.io.RawArray(data=phonemes.T, info=info_phonemes)
         
     def f_phonemes_manual(self, envelope:np.ndarray):#TODO: es muy parecida a f_phonemes, salvo las últimas tres lineas. UNIFICAR
         """It makes a time-match between the phonemes and the envelope. But it selects manually exclutions for certain phonemes.
@@ -603,7 +606,7 @@ class Trial_channel:
         # Creates mne raw array
         info_phonemes = mne.create_info(ch_names=updated_taggs, sfreq=self.sr, ch_types='misc')
 
-        return mne.io.RawArray(data=phonemes.T, info=info_phonemes, verbose=False)
+        return mne.io.RawArray(data=phonemes.T, info=info_phonemes)
 
     def f_calculate_pitch(self): #TODO: make it usuable in any computer. Also missing folder.
         """Calculates pitch from .wav file and stores it.
@@ -675,9 +678,9 @@ class Trial_channel:
         pitch = pitch[:min(len(pitch), len(envelope))].reshape(-1,1)
         
         # Creates mne raw array
-        info_pitch = mne.create_info(ch_names=['pitch'], sfreq=self.sr, ch_types='misc') # TODO: check sfreq
+        info_pitch = mne.create_info(ch_names=['Pitch'], sfreq=self.sr, ch_types='misc') # TODO: check sfreq
 
-        return mne.io.RawArray(data=pitch.T, info=info_pitch, verbose=False)
+        return mne.io.RawArray(data=pitch.T, info=info_pitch)
 
     def load_trial(self, stims:list): 
         """Extract EEG and calculates specified stimuli.
@@ -695,27 +698,23 @@ class Trial_channel:
         channel = {}
         channel['EEG'] = self.f_eeg()
         channel['info'] = self.f_info()
+        channel['Envelope'] = self.f_envelope()
+        env = Funciones.mne_to_numpy(channel['Envelope'])
 
         if 'Envelope' in stims:
-            channel['Envelope'] = self.f_envelope()
+            return channel
         if 'Pitch' in stims:
-            channel['Envelope'] = self.f_envelope()
-            channel['Pitch'] = self.load_pitch(envelope=self.envelope)
+            channel['Pitch'] = self.load_pitch(envelope=env)
         if 'Spectrogram' in stims:
-            channel['Envelope'] = self.f_envelope()
-            channel['Spectrogram'] = self.f_spectrogram(envelope=self.envelope)
+            channel['Spectrogram'] = self.f_spectrogram(envelope=env)
         if 'Phonemes' in stims:
-            channel['Envelope'] = self.f_envelope()
-            channel['Phonemes'] = self.f_phonemes(envelope=self.envelope)
+            channel['Phonemes'] = self.f_phonemes(envelope=env)
         if 'Phonemes-manual' in stims:
-            channel['Envelope'] = self.f_envelope()
-            channel['Phonemes-manual'] = self.f_phonemes_manual(envelope=self.envelope)
+            channel['Phonemes-manual'] = self.f_phonemes_manual(envelope=env)
         if 'Phonemes-discrete' in stims:
-            channel['Envelope'] = self.f_envelope()
-            channel['Phonemes-discrete'] = self.f_phonemes_discrete(envelope=self.envelope)
+            channel['Phonemes-discrete'] = self.f_phonemes_discrete(envelope=env)
         if 'Phonemes-onset' in stims:
-            channel['Envelope'] = self.f_envelope()
-            channel['Phonemes-onset'] = self.f_phonemes_onset(envelope=self.envelope)
+            channel['Phonemes-onset'] = self.f_phonemes_onset(envelope=env)
 
         return channel
 
@@ -792,6 +791,18 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         else:
             raise SyntaxError(f"{situacion} is not an allowed situation. Allowed situations are: {allowed_situaciones}")
         
+        # Define parameters
+        self.sesion = sesion
+        self.l_freq_eeg, self.h_freq_eeg = Processing.band_freq(Band)
+        self.sr = sr
+        self.tmin, self.tmax = tmin, tmax
+        self.delays = - np.arange(np.floor(tmin * self.sr), np.ceil(tmax * self.sr), dtype=int) # TODO: preguntar por qué se pasan así
+        self.valores_faltantes = valores_faltantes
+        self.Causal_filter_EEG = Causal_filter_EEG
+        self.Env_Filter = Env_Filter
+        self.Calculate_pitch = Calculate_pitch
+        self.SilenceThreshold = SilenceThreshold
+
         # Relevant paths
         self.procesed_data_path = procesed_data_path
         self.samples_info_path = self.procesed_data_path + f'samples_info/Sit_{self.situacion}/'
@@ -815,18 +826,6 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         self.export_paths['Phonemes-manual'] = self.procesed_data_path + f'Phonemes-manual/Sit_{self.situacion}/'
         self.export_paths['Phonemes-discrete'] = self.procesed_data_path + f'Phonemes-discrete/Sit_{self.situacion}/'
         self.export_paths['Phonemes-onset'] = self.procesed_data_path + f'Phonemes-onset/Sit_{self.situacion}/'
-
-        # Define the rest of the parameters
-        self.sesion = sesion
-        self.l_freq_eeg, self.h_freq_eeg = Processing.band_freq(Band)
-        self.sr = sr
-        self.tmin, self.tmax = tmin, tmax
-        self.delays = - np.arange(np.floor(tmin * self.sr), np.ceil(tmax * self.sr), dtype=int) # TODO: preguntar por qué se pasan así
-        self.valores_faltantes = valores_faltantes
-        self.Causal_filter_EEG = Causal_filter_EEG
-        self.Env_Filter = Env_Filter
-        self.Calculate_pitch = Calculate_pitch
-        self.SilenceThreshold = SilenceThreshold
         
     def load_from_raw(self):
         """Loads raw data, this includes EEG, info and stimuli.
@@ -854,6 +853,7 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         
         # Retrive and concatenate data of all trials
         for trial in trials:
+            print(f'Trial {trial} of {len(trials)}')
             try:
                 # Create trial for both channels in order to extract features and EEG signal
                 channel_1 = Trial_channel(
@@ -897,15 +897,16 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
                 else:
                     Trial_sujeto_1 = {key: Trial_channel_2[key] for key in Trial_channel_2.keys() if key!='EEG'} 
                     Trial_sujeto_2 = {key: Trial_channel_1[key] for key in Trial_channel_1.keys() if key!='EEG'}
+                    Trial_sujeto_1['EEG'], Trial_sujeto_2['EEG'] = Trial_channel_1['EEG'], Trial_channel_2['EEG']
 
-                # Labeling of current speaker. {3:both_speaking,2:speaks_listener,3:speaks_interlocutor,0:silence}
+                # Labeling of current speaker. {3:both_speaking,2:speaks_listener,3:speaks_interlocutor,0:silence} # TODO why are channel number interchanged, shouldn't this be inside previous else?
                 current_speaker_1 = self.labeling(trial=trial, channel=2)
                 current_speaker_2 = self.labeling(trial=trial, channel=1)
 
                 # Match length of speaker labels and trials with the info of its lengths
                 if loaded_samples_info:
-                    Trial_sujeto_1, current_speaker_1 = Sesion_class.match_lengths(dic=Trial_sujeto_1, speaker_labels=current_speaker_1, minimum_lenght=samples_info['trial_lengths1'][trial])
-                    Trial_sujeto_2, current_speaker_2 = Sesion_class.match_lengths(dic=Trial_sujeto_2, speaker_labels=current_speaker_2, minimum_lenght=samples_info['trial_lengths2'][trial])
+                    Trial_sujeto_1, current_speaker_1 = Sesion_class.match_lengths(dic=Trial_sujeto_1, speaker_labels=current_speaker_1, minimum_length=samples_info['trial_lengths1'][trial])
+                    Trial_sujeto_2, current_speaker_2 = Sesion_class.match_lengths(dic=Trial_sujeto_2, speaker_labels=current_speaker_2, minimum_length=samples_info['trial_lengths2'][trial])
 
                 else:
                     # If there isn't any data matches lengths of both variables comparing every key and speaker labels length (the Trial gets modify inside the function)
@@ -916,9 +917,9 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
 
                     # Preprocessing: calaculates the relevant indexes for the apropiate analysis
                     keep_indexes1_trial = self.shifted_indexes_to_keep(speaker_labels=current_speaker_1)
-                    keep_indexes1_trial = self.shifted_indexes_to_keep(speaker_labels=current_speaker_2)
+                    keep_indexes2_trial = self.shifted_indexes_to_keep(speaker_labels=current_speaker_2)
 
-                    # Add sum of all previous trials length # TODO porqué se suma el largo del trial length a los indexes
+                    # Add sum of all previous trials length. This is because at the end, all trials previous to the actual will be concatenated
                     keep_indexes1_trial += np.sum(samples_info['trial_lengths1'][:-1])
                     keep_indexes2_trial += np.sum(samples_info['trial_lengths2'][:-1])
                     
@@ -948,7 +949,7 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
 
             # Empty trial
             except:
-                print(f"Trial {trial} couldn't be loaded of session {self.sesion}.")
+                print(f"Trial {trial} of session {self.sesion} couldn't be loaded.")
                 samples_info['trial_lengths1'].append(0)
                 samples_info['trial_lengths2'].append(0)
 
@@ -962,7 +963,7 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
             os.makedirs(self.samples_info_path, exist_ok=True)
             Funciones.dump_pickle(path=self.samples_info_path + f'samples_info_{self.sesion}.pkl', obj=samples_info, rewrite=True)
 
-        # Construct shifted matrix
+        # Construct shifted matrix 
         specific_stimuli = ['Spectrogram', 'Phonemes', 'Phonemes-manual', 'Phonemes-discrete', 'Phonemes-onset']
         for key in Sujeto_1:
             # Drops silences phoneme column
@@ -975,34 +976,57 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
                 data_unsilence_2 = np.delete(arr=Sujeto_2[key].get_data(), obj=silence_index_2, axis=0)
                 
                 # Recreates mne array
-                Sujeto_1[key] = mne.io.RawArray(data=data_unsilence_1, info=Sujeto_1[key].info, verbose=False)
-                Sujeto_2[key] = mne.io.RawArray(data=data_unsilence_2, info=Sujeto_1[key].info, verbose=False)
+                ch_1 = Sujeto_1[key].ch_names
+                ch_2 = Sujeto_2[key].ch_names
+                ch_1.remove('')
+                ch_2.remove('')
+                info_1 = mne.create_info(ch_names=ch_1, sfreq=Sujeto_1[key].info.get('sfreq'), ch_types='misc')
+                info_2 = mne.create_info(ch_names=ch_2, sfreq=Sujeto_2[key].info.get('sfreq'), ch_types='misc')
+                Sujeto_1[key] = mne.io.RawArray(data=data_unsilence_1, info=info_1)
+                Sujeto_2[key] = mne.io.RawArray(data=data_unsilence_2, info=info_2)
             if key in specific_stimuli:
-                # Stacked shifted matrices row by row
+                # Stacked shifted matrices row by row (a given row is a feature). This is faster than hstack
                 print(f'Computing shifted matrix for the {key}')
-
-                # First row
-                shift_1 = Processing.shifted_matrix(feature=Sujeto_1[key].get_data()[0], delays=self.delays)
-                shift_2 = Processing.shifted_matrix(feature=Sujeto_2[key].get_data()[0], delays=self.delays)
+                data_1, data_2 = Sujeto_1[key].get_data(), Sujeto_2[key].get_data()
+                shift_1 = np.zeros(shape=(data_1.shape[1], data_1.shape[0]*(len(self.delays))))
+                shift_2 = np.zeros(shape=(data_2.shape[1], data_2.shape[0]*(len(self.delays))))
                 
-                # The rest
-                for i in np.arange(1, len(Sujeto_1[key].get_data())):
-                    shift_1 = np.hstack((shift_1, Processing.shifted_matrix(feature=Sujeto_1[key].get_data()[i], delays=self.delays)))
-                for i in np.arange(1, len(Sujeto_2[key].get_data())):
-                    shift_2 = np.hstack((shift_2, Processing.shifted_matrix(feature=Sujeto_2[key].get_data()[i], delays=self.delays)))
-                Sujeto_1[key], Sujeto_2[key] = shift_1, shift_2
+                for i in range(len(Sujeto_1[key].get_data())):
+                    shift_1[:,len(self.delays)*i:len(self.delays)*(i+1)] = Processing.shifted_matrix(feature=data_1[i], delays=self.delays)
+                    shift_2[:,len(self.delays)*i:len(self.delays)*(i+1)] = Processing.shifted_matrix(feature=data_2[i], delays=self.delays)
+                
+                # Return to mne arrays
+                shift_1_ch_names, shift_2_ch_names = [], []
+                for delay in self.delays:
+                    shift_1_ch_names += [ch + f'_delay_{delay}' for ch in Sujeto_1[key].ch_names]
+                    shift_2_ch_names += [ch + f'_delay_{delay}' for ch in Sujeto_2[key].ch_names]
+                shift_1_info = mne.create_info(ch_names=shift_1_ch_names, sfreq=Sujeto_1[key].info.get('sfreq'), ch_types='misc')
+                shift_2_info = mne.create_info(ch_names=shift_2_ch_names, sfreq=Sujeto_2[key].info.get('sfreq'), ch_types='misc')
+                Sujeto_1[key] = mne.io.RawArray(data=shift_1.T, info=shift_1_info)
+                Sujeto_2[key] = mne.io.RawArray(data=shift_2.T, info=shift_2_info)
+                print(f'{key} matrix computed')
 
             # The rest of the stimuli is 1D, so it's not necessary to stack them). Bassically envelope.
             elif key!= 'EEG':
-                Sujeto_1[key] = Processing.shifted_matrix(feature=Sujeto_1[key].get_data()[0], delays=self.delays)
-                Sujeto_2[key] = Processing.shifted_matrix(feature=Sujeto_2[key].get_data()[0], delays=self.delays)
+                print(f'Computing shifted matrix for the {key}')
+                shift_1 = Processing.shifted_matrix(feature=Sujeto_1[key].get_data()[0], delays=self.delays)
+                shift_2 = Processing.shifted_matrix(feature=Sujeto_2[key].get_data()[0], delays=self.delays)
+
+                # Return to mne arrays
+                shift_1_ch_names = [Sujeto_1[key].ch_names[0]+f'_delay_{delay}' for delay in self.delays]
+                shift_2_ch_names = [Sujeto_2[key].ch_names[0]+f'_delay_{delay}' for delay in self.delays]
+                shift_1_info = mne.create_info(ch_names=shift_1_ch_names, sfreq=Sujeto_1[key].info.get('sfreq'), ch_types='misc')
+                shift_2_info = mne.create_info(ch_names=shift_2_ch_names, sfreq=Sujeto_2[key].info.get('sfreq'), ch_types='misc')
+                Sujeto_1[key] = mne.io.RawArray(data=shift_1.T, info=shift_1_info)
+                Sujeto_2[key] = mne.io.RawArray(data=shift_2.T, info=shift_2_info)
+                print(f'{key} matrix computed')
 
             # Keep just relevant indexes # TODO la info puede fallar x la cantidad de samples
             relevant_1 = Sujeto_1[key].get_data().T[samples_info['keep_indexes1'], :]
-            Sujeto_1[key] = mne.io.RawArray(data=relevant_1.T, info=Sujeto_1[key].info, verbose=False)
+            Sujeto_1[key] = mne.io.RawArray(data=relevant_1.T, info=Sujeto_1[key].info)
 
             relevant_2 = Sujeto_2[key].get_data().T[samples_info['keep_indexes2'], :]
-            Sujeto_2[key] = mne.io.RawArray(data=relevant_2.T, info=Sujeto_1[key].info, verbose=False)
+            Sujeto_2[key] = mne.io.RawArray(data=relevant_2.T, info=Sujeto_1[key].info)
     
             # Save preprocesed data
             os.makedirs(self.export_paths[key], exist_ok=True)
@@ -1151,22 +1175,24 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
             Updated dictionary, speaker_labels and minimum_length are returned.
 
         """
-        
-        # Make a list with keys, removing 'info', because its length doesn't matter
-        keys = list(dic.keys())
-        keys.remove('info')
-
         # Get minimum array length (this includes features and EEG data)
         if minimum_length:
             minimum = minimum_length
         else:
-            minimum = min([dic[key].get_data().T.shape[0] for key in keys] + [len(speaker_labels)])
+            minimum = min([dic[key].get_data().T.shape[0] for key in dic if key!='info'] + [len(speaker_labels)])
 
         # Correct length and update mne array
-        for key in keys:
-            data = dic[key].get_data().T
-            if data.shape[0] > minimum:
-                dic[key] = mne.io.RawArray(data=data[:minimum].T, info=dic[key].info, verbose=False)
+        for key in dic:
+            if key!= 'info' and key!='EEG':
+                data = dic[key].get_data().T
+                if data.shape[0] > minimum:
+                    dic[key] = mne.io.RawArray(data=data[:minimum].T, info=dic[key].info)
+            elif key=='EEG':
+                data = dic[key].get_data().T
+                if data.shape[0] > minimum:
+                    eeg_times = dic[key].times.tolist()
+                    dic[key].crop(tmin=eeg_times[0], tmax=eeg_times[minimum], verbose=True)
+
         if len(speaker_labels) > minimum:
             speaker_labels = speaker_labels[:minimum]
         if minimum_length:
@@ -1245,8 +1271,11 @@ def Load_Data(sesion:int, stim:str, Band:str, sr:float, tmin:float, tmax:float,
 
         # Try to load procesed data, if it fails it loads raw data
         try:
+            print('Loading preprocesed data\n')
             Sesion = sesion_obj.load_procesed()
+            print('Data loaded succesfully\n')
         except:
+            print("Couldn't load data, compute it from raw\n")
             Sesion = sesion_obj.load_from_raw()
         return Sesion['Sujeto_1'], Sesion['Sujeto_2']
     else:
@@ -1279,3 +1308,16 @@ def Estimulos(stim:str, Sujeto_1:dict, Sujeto_2:dict):
         dfinal_para_sujeto_2.append(Sujeto_2[stimulus])
 
     return dfinal_para_sujeto_1, dfinal_para_sujeto_2
+
+if __name__=='__main__':
+    sesion, stim, Band, sr, tmin, tmax, situacion = 22, 'Spectrogram', 'Theta', 128, -.6,.2,'Escucha'
+    procesed_data_path = f'saves/Preprocesed_Data/tmin{tmin}_tmax{tmax}/'
+    Sujeto_1, Sujeto_2 = Load_Data(sesion=sesion, 
+                                                stim=stim, 
+                                                Band=Band, 
+                                                sr=sr, 
+                                                tmin=tmin, 
+                                                tmax=tmax,
+                                                procesed_data_path=procesed_data_path, 
+                                                situacion=situacion,
+                                                SilenceThreshold=0.03)

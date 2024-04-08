@@ -29,7 +29,7 @@ Stims_preprocess = 'Normalize'
 EEG_preprocess = 'Standarize'
 
 # Stimuli and EEG frecuency band
-Stims = ['Envelope']
+Stims = ['Spectrogram']
 Bands = ['Theta']
 
 # Dialogue situation
@@ -51,7 +51,7 @@ except:
     print('\n\nAlphas file not found.\n\n')
 
 # Run setup
-sesiones = [21,22,23] #[21, 22, 23, 24, 25, 26, 27, 29, 30]
+sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 total_subjects = len(sesiones)*2
 
 # EEG sample rate
@@ -72,16 +72,20 @@ times = np.flip(-times)
 # delays = np.arange(np.floor(tmin * sr), np.ceil(tmax * sr), dtype=int) 
 # times = delays/sr 
 
+# ============
+# RUN ANALYSIS
+# ============
 
-# Run
 for Band in Bands:
     for stim in Stims:
-        print('\nPARAMETERS')
+        print('\n==========================')
+        print('\tPARAMETERS')
         print('\nModel: ' + model)
         print('Band: ' + str(Band))
         print('Stimulus: ' + stim)
         print('Status: ' + situacion)
         print(f'tmin: {tmin} - tmax: {tmax}')
+        print('\n==========================')
 
         # Paths
         save_path = f'saves/{model}/{situacion}/Final_Correlation/tmin{tmin}_tmax{tmax}/'
@@ -93,7 +97,7 @@ for Band in Bands:
         # Iterate over sessions
         sujeto_total = 0
         for sesion in sesiones:
-            print(f'\n\tSession {sesion}\n')
+            print(f'\n------->\tStart of session {sesion}\n')
             
             # Load data by subject, EEG and info
             Sujeto_1, Sujeto_2 = Load.Load_Data(sesion=sesion, 
@@ -107,13 +111,19 @@ for Band in Bands:
                                                 SilenceThreshold=0.03)
             eeg_sujeto_1, eeg_sujeto_2, info = Sujeto_1['EEG'], Sujeto_2['EEG'], Sujeto_1['info']
 
-            # Load stimulus by subject
-            dstims_para_sujeto_1, dstims_para_sujeto_2 = Load.Estimulos(stim=stim, Sujeto_1=Sujeto_1, Sujeto_2=Sujeto_2)
-            Len_Estimulos = [len(dstims_para_sujeto_1[i][0]) for i in range(len(dstims_para_sujeto_1))]
+            # Load delayed stimulus by subject (i.e: concatenated shifted matrices of each stimulus)
+            delayed_stims_sujeto_1, delayed_stims_sujeto_2 = Load.Estimulos(stim=stim, Sujeto_1=Sujeto_1, Sujeto_2=Sujeto_2)
 
+            # Transform mne objects to np.ndarrays # TODO está bien que salte el warning si ya hay data guardada pq no está en formato mne
+            eeg_sujeto_1, eeg_sujeto_2 = Funciones.mne_to_numpy(obj=[eeg_sujeto_1, eeg_sujeto_2])
+            delayed_stims_sujeto_1, delayed_stims_sujeto_2 = Funciones.mne_to_numpy(obj=delayed_stims_sujeto_1), Funciones.mne_to_numpy(obj=delayed_stims_sujeto_2)
+
+            # Get number of samples of each delayed_stim 
+            len_estimulos = [len(delayed_stims_sujeto_1[i][0]) for i in range(len(delayed_stims_sujeto_1))]
+            
             # Run model for each subject
-            for sujeto, eeg, dstims in zip((1, 2), (eeg_sujeto_1, eeg_sujeto_2), (dstims_para_sujeto_1, dstims_para_sujeto_2)):
-                print(f'\t\tSubject {sujeto}\n')
+            for sujeto, eeg, dstims in zip((1, 2), (eeg_sujeto_1, eeg_sujeto_2), (delayed_stims_sujeto_1, delayed_stims_sujeto_2)):
+                print(f'\n\t······  Running model for Subject {sujeto}\n')
 
                 # Make k-fold test with 5 folds (remain 20% as validation set, then interchange to cross validate)
                 Predicciones = {}
@@ -121,12 +131,12 @@ for Band in Bands:
                 iteraciones = 3000
 
                 # Initialize empty variables to store relevant data of each fold
-                Pesos_ronda_canales = np.zeros((n_folds, info['nchan'], sum(Len_Estimulos)), dtype=np.float16)
+                Pesos_ronda_canales = np.zeros((n_folds, info['nchan'], sum(len_estimulos)), dtype=np.float16)
                 Corr_buenas_ronda_canal = np.zeros((n_folds, info['nchan']))
                 Rmse_buenos_ronda_canal = np.zeros((n_folds, info['nchan']))
 
                 if Statistical_test:
-                    Pesos_fake = np.zeros((n_folds, iteraciones, info['nchan'], sum(Len_Estimulos)), dtype=np.float16)
+                    Pesos_fake = np.zeros((n_folds, iteraciones, info['nchan'], sum(len_estimulos)), dtype=np.float16)
                     Correlaciones_fake = np.zeros((n_folds, iteraciones, info['nchan']))
                     Errores_fake = np.zeros((n_folds, iteraciones, info['nchan']))
 
@@ -164,7 +174,7 @@ for Band in Bands:
                     dstims_train_val = list()
                     dstims_test = list()
 
-                    for stimulus in list(dstims):
+                    for stimulus in dstims:
                         dstims_train_val.append(stimulus[train_val_index])
                         dstims_test.append(stimulus[test_index])
 
@@ -284,7 +294,7 @@ for Band in Bands:
                 # Plot weights
                 Plot.plot_grafico_pesos(Display_Ind_Figures, sesion, sujeto, alpha, Pesos_promedio,
                                         info, times, Corr_promedio, Rmse_promedio, Save_Ind_Figures,
-                                        Run_graficos_path, Len_Estimulos, stim)
+                                        Run_graficos_path, len_estimulos, stim)
 
                 # Saves average correlation, RMSE and weights between folds of each channel of each subject to take average above subjects channels
                 if not sujeto_total:
@@ -314,11 +324,11 @@ for Band in Bands:
                 sujeto_total += 1
             
             # Print the progress of the iteration
-            Funciones.iteration_percentage(txt=f'\tEnd of session {sesion}', i=sesiones.index(sesion), length_of_iterator=len(sesiones))
+            Funciones.iteration_percentage(txt=f'\n------->\tEnd of session {sesion}\n', i=sesiones.index(sesion), length_of_iterator=len(sesiones))
 
             del Pesos_promedio, Rmse_promedio, Corr_promedio, Corr_buenas_ronda_canal, Rmse_buenos_ronda_canal, Rcorr, Rmse, \
-                eeg_train_val, eeg_test, dstims_train_val, dstims_test, eeg, dstims, dstims_para_sujeto_1, \
-                dstims_para_sujeto_2, Sujeto_1, Sujeto_2, eeg_sujeto_1, eeg_sujeto_2
+                eeg_train_val, eeg_test, dstims_train_val, dstims_test, eeg, dstims, delayed_stims_sujeto_1, \
+                delayed_stims_sujeto_2, Sujeto_1, Sujeto_2, eeg_sujeto_1, eeg_sujeto_2
 
         # Armo cabecita con correlaciones promedio entre sujetos
         _, lat_test_results_corr = Plot.Cabezas_corr_promedio(Correlaciones_totales_sujetos, info, Display_Total_Figures,
@@ -341,13 +351,13 @@ for Band in Bands:
 
         # Grafico Pesos
         Pesos_totales = Plot.regression_weights(Pesos_totales_sujetos_todos_canales, info, times, Display_Total_Figures,
-                                                Save_Total_Figures, Run_graficos_path, Len_Estimulos, stim, ERP=True)
+                                                Save_Total_Figures, Run_graficos_path, len_estimulos, stim, ERP=True)
 
         Plot.regression_weights_matrix(Pesos_totales_sujetos_todos_canales, info, times, Display_Total_Figures,
-                                       Save_Total_Figures, Run_graficos_path, Len_Estimulos, stim, Band, ERP=True)
+                                       Save_Total_Figures, Run_graficos_path, len_estimulos, stim, Band, ERP=True)
 
         # TFCE across subjects
-        t_tfce, clusters, p_tfce, H0, trf_subjects, n_permutations = Statistics.tfce(Pesos_totales_sujetos_todos_canales, times, Len_Estimulos, n_permutations=4096)
+        t_tfce, clusters, p_tfce, H0, trf_subjects, n_permutations = Statistics.tfce(Pesos_totales_sujetos_todos_canales, times, len_estimulos, n_permutations=4096)
         Plot.plot_t_p_tfce(t=t_tfce, p=p_tfce, title='TFCE', mcc=True, shape=trf_subjects.shape,
                            graficos_save_path=Run_graficos_path, Band=Band, stim=stim, pval_trhesh=0.05, Display=Display_Total_Figures)
         Plot.plot_p_tfce(p=p_tfce, times=times, title='', mcc=True, shape=trf_subjects.shape,
@@ -361,11 +371,11 @@ for Band in Bands:
                                pval_trhesh=0.05, fontsize=17, Display=Display_Total_Figures, Save=Save_Total_Figures)
 
         # Matriz de Correlacion
-        Plot.Matriz_corr_channel_wise(Pesos_totales_sujetos_todos_canales, stim, Len_Estimulos, info, times, sesiones, Display_Total_Figures, Save_Total_Figures,
+        Plot.Matriz_corr_channel_wise(Pesos_totales_sujetos_todos_canales, stim, len_estimulos, info, times, sesiones, Display_Total_Figures, Save_Total_Figures,
                                       Run_graficos_path)
         try:
             _ = Plot.Plot_cabezas_instantes(Pesos_totales_sujetos_todos_canales, info, Band, stim, times, sr, Display_Total_Figures,
-                                            Save_Total_Figures, Run_graficos_path, Len_Estimulos)
+                                            Save_Total_Figures, Run_graficos_path, len_estimulos)
         except:
             pass
         # Cabezas de correlacion de pesos por canal

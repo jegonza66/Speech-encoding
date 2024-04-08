@@ -17,27 +17,26 @@ def shifted_matrix(feature:list, delays:np.ndarray):
         Concatenated shifted matrix of size len(features)Xlen(delayes)
     """
     # Is asumed this is a one dimensional feature with number of samples as length
+    shifted_matrix = np.zeros(shape=(len(feature), len(delays)))
     feature = np.array(feature).reshape(len(feature), 1)
 
-    shifted_matrix_per_delay = []
-    for delay in delays:
+    for i, delay in enumerate(delays):
         # Create delayed_stim matrix
         delayed_stim = np.zeros(shape=feature.shape)
 
-        # Put last elements at the begining. For ex.: feature, delay = [1,2,3,4], -1 --> [2,3,4,0]
+        # Put last elements at the begining. For ex.: feature, delay = [1,2,3,4].T, -1 --> [2,3,4,0].T
         if delay < 0:             
             delayed_stim[:delay, :] = feature[-delay:, :]  
-        # Put the first elements at the end. For ex.: feature, delay = [1,2,3,4], 1 --> [0,1,2,3]
+        # Put the first elements at the end. For ex.: feature, delay = [1,2,3,4].T, 1 --> [0,1,2,3].T
         elif delay > 0:
             delayed_stim[delay:, :] = feature[:-delay, :]
         # Leave it exactly the same
         else:
             delayed_stim = feature.copy()
-
-        shifted_matrix_per_delay.append(delayed_stim)
+        
+        shifted_matrix[:,i] = delayed_stim.reshape(-1)
    
-    return np.hstack(shifted_matrix_per_delay)
-
+    return shifted_matrix
 
 def butter_filter(data, frecuencias, sampling_freq, btype, order, axis, ftype):
     if btype == 'lowpass' or btype == 'highpass':

@@ -225,7 +225,7 @@ def plot_grafico_pesos(Display, sesion, sujeto, best_alpha, Pesos_promedio,
             evoked = mne.EvokedArray(
                 Pesos_promedio[:, sum(Len_Estimulos[j] for j in range(i)):sum(Len_Estimulos[j] for j in range(i + 1))],
                 info)
-            evoked.times = times
+            evoked.shift_time(times[0], relative=True)
 
             evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='ms',
                         show=False, spatial_colors=True, unit=False, units=dict(eeg='w', grad='fT/cm', mag='fT'),
@@ -402,6 +402,8 @@ def Cabezas_corr_promedio(Correlaciones_totales_sujetos, info, Display, Save, Ru
     else:
         test_results = None
 
+    # Close Figures to avoid saving them in memory
+    plt.close()
     return (Correlaciones_promedio.mean(), Correlaciones_promedio.std()), test_results
 
 def violin_plot_decoding(Correlaciones_totales_sujetos, Display, Save, Run_graficos_path, title):
