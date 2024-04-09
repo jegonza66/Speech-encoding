@@ -7,7 +7,7 @@ praatio==4.3.0
 praat-parselmouth
 praat-textgrids==1.4.0
 opensmile==2.2.0
-seaborn
+seaborn>=0.8.1
 statannot
 matplotlib-venn
 ipython
