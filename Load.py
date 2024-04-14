@@ -90,8 +90,8 @@ class Trial_channel:
 
         Returns
         -------
-        mne.io.eeglab.eeglab.RawEEGLAB
-            EEG mne representation
+        np.ndarray
+            Matrix representation of EEG per channel
         """
         # Read the .set file
         # TODO: warning of annotations and 'boundry' events -data discontinuities-.
@@ -110,7 +110,7 @@ class Trial_channel:
 
         # Return mne representation Times x nchannels
         self.eeg = eeg.copy()
-        return self.eeg
+        return self.eeg.get_data().T
 
     def f_info(self):
         """A montage is define as a descriptor for the set up: EEG channel names and relative positions of sensors on the scalp. 
@@ -132,7 +132,7 @@ class Trial_channel:
 
         Returns
         -------
-        mne.io.array.array.RawArray
+        np.ndarray
             Envelope of wav signal with desire dimensions
         """
         # Read file
@@ -158,7 +158,7 @@ class Trial_channel:
 
         # Resample to match EEG data
         envelope_mne_array.resample(sfreq=self.sr)
-        return envelope_mne_array
+        return envelope_mne_array.get_data().T
 
     def f_spectrogram(self, envelope:np.ndarray):
         """Calculates spectrogram of .wav file between 16 Mel frequencies.
@@ -170,8 +170,8 @@ class Trial_channel:
 
         Returns
         -------
-        mne.io.array.array.RawArray
-            Matrix with sprectrogram in given mel frequncies of dimension (Mel X Samples)
+        np.ndarray
+            Matrix with sprectrogram in given mel frequncies of dimension (Samples X Mel)
         """
         # Read file
         wav = wavfile.read(self.wav_fname)[1]
@@ -186,12 +186,9 @@ class Trial_channel:
                                            n_mels=16)
         # Transform to dB using normalization to 1
         S_DB = librosa.power_to_db(S=S, ref=np.max)
-
-        # Creates mne raw array. Note that frequency is sr now
-        info_spectrogram = mne.create_info(ch_names=[f'mel_{i}' for i in range(1,17)], sfreq=self.sr, ch_types='misc')
         
-        return mne.io.RawArray(data=S_DB, info=info_spectrogram)
-
+        return S_DB.T
+    
     def f_jitter_shimmer(self, envelope:np.ndarray): # NEVER USED
         """Gives the jitter and shimmer matching the size of the envelope
 
@@ -203,7 +200,7 @@ class Trial_channel:
         Returns
         -------
         tuple
-            jitter and shimmer mne arrays with length smaller or equal to envelope length.
+            jitter and shimmer arrays with length smaller or equal to envelope length.
         """
         # Processing object to extract audio features
         smile = opensmile.Smile(
@@ -237,14 +234,7 @@ class Trial_channel:
         # Reassurance that the count is correct
         jitter = jitter[:min(len(jitter), len(envelope))].reshape(-1,1)
         shimmer = shimmer[:min(len(shimmer), len(envelope))].reshape(-1,1)
-
-        # Creates mne raw arrays
-        info_jitter = mne.create_info(ch_names=['Jitter'], sfreq=int(1/(y.index[1]-y.index[0])), ch_types='misc')
-        info_shimmer = mne.create_info(ch_names=['Shimmer'], sfreq=int(1/(y.index[1]-y.index[0])), ch_types='misc')
-        jitter_mne_array = mne.io.RawArray(data=jitter.T, info=info_jitter)
-        shimmer_mne_array = mne.io.RawArray(data=shimmer.T, info=info_shimmer)
-
-        return jitter_mne_array, shimmer_mne_array
+        return jitter, shimmer
     
     def f_phonemes(self, envelope:np.ndarray):
         """It makes a time-match between the phonemes and the envelope.
@@ -256,10 +246,8 @@ class Trial_channel:
 
         Returns
         -------
-        # pandas.DataFrame
-        #     Columns given by phonemes and index given by samples. The values are the amplitude of the envolpe at the given sample.
-        mne.io.array.array.RawArray
-            Matrix with envelope amplitude at given sample. The matrix dimension is Phonemes_labels(in order)XSamples.
+        np.ndarray
+            Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhonemes_labels(in order).
         """
 
         # Get trial total time length
@@ -330,10 +318,7 @@ class Trial_channel:
         for i, tagg in enumerate(phonemes_tgrid):
             phonemes[i, updated_taggs.index(tagg)] = envelope[i]
 
-        # Creates mne raw array
-        info_phonemes = mne.create_info(ch_names=updated_taggs, sfreq=self.sr, ch_types='misc')
-
-        return mne.io.RawArray(data=phonemes.T, info=info_phonemes)
+        return phonemes
 
     def f_phonemes_discrete(self, envelope:np.ndarray): #TODO: es exactamente igual a f_phonemes, salvo las últimas tres lineas. UNIFICAR
         """It makes a time-match between the phonemes and the envelope.
@@ -345,8 +330,8 @@ class Trial_channel:
 
         Returns
         -------
-        mne.io.array.array.RawArray
-            Matrix with dimensions Phonemes_labels(in order)XSamples. The value of a given element is 1 if the phoneme is being pronounced and 0 elsewise.
+        np.ndarray
+            Matrix with dimensions Samples X Phonemes_labels(in order). The value of a given element is 1 if the phoneme is being pronounced and 0 elsewise.
         """
 
         # Get trial total time length
@@ -416,11 +401,7 @@ class Trial_channel:
         # Match phoneme with envelope
         for i, tagg in enumerate(phonemes_tgrid):
             phonemes[i, updated_taggs.index(tagg)] = 1
-
-        # Creates mne raw array
-        info_phonemes = mne.create_info(ch_names=updated_taggs, sfreq=self.sr, ch_types='misc')
-
-        return mne.io.RawArray(data=phonemes.T, info=info_phonemes)
+        return phonemes
    
     def f_phonemes_onset(self, envelope:np.ndarray): #TODO: es exactamente igual a f_phonemes, salvo las últimas tres lineas. UNIFICAR
         """It makes a time-match between the phonemes and the envelope.
@@ -432,8 +413,8 @@ class Trial_channel:
 
         Returns
         -------
-        mne.io.array.array.RawArray
-            Matrix with dimensions Phonemes_labels(in order)XSamples. The value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
+        mp.ndarray
+            Matrix with dimensions SamplesXPhonemes_labels(in order). The value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
         """
 
         # Get trial total time length
@@ -513,10 +494,7 @@ class Trial_channel:
             if tagg!=0:
                 phonemes[i, updated_taggs.index(tagg)] = 1
 
-        # Creates mne raw array
-        info_phonemes = mne.create_info(ch_names=updated_taggs, sfreq=self.sr, ch_types='misc')
-
-        return mne.io.RawArray(data=phonemes.T, info=info_phonemes)
+        return phonemes
         
     def f_phonemes_manual(self, envelope:np.ndarray):#TODO: es muy parecida a f_phonemes, salvo las últimas tres lineas. UNIFICAR
         """It makes a time-match between the phonemes and the envelope. But it selects manually exclutions for certain phonemes.
@@ -528,8 +506,8 @@ class Trial_channel:
 
         Returns
         -------
-        mne.io.array.array.RawArray
-            Matrix with dimensions Phonemes_labels(in order)XSamples. The value of a given element is 1 if the phoneme is being pronounced and 0 elsewise.
+        np.ndarray
+            Matrix with dimensions Samples X Phonemes_labels(in order). The value of a given element is 1 if the phoneme is being pronounced and 0 elsewise.
         """
 
         # Get trial total time length
@@ -602,11 +580,7 @@ class Trial_channel:
         # Match phoneme with envelope
         for i, tagg in enumerate(phonemes_tgrid):
             phonemes[i, updated_taggs.index(tagg)] = 1
-
-        # Creates mne raw array
-        info_phonemes = mne.create_info(ch_names=updated_taggs, sfreq=self.sr, ch_types='misc')
-
-        return mne.io.RawArray(data=phonemes.T, info=info_phonemes)
+        return phonemes
 
     def f_calculate_pitch(self): #TODO: make it usuable in any computer. Also missing folder.
         """Calculates pitch from .wav file and stores it.
@@ -649,7 +623,7 @@ class Trial_channel:
 
         Returns
         -------
-        mne.io.array.array.RawArray
+        np.ndarray
             Array containing pitch of the audio signal
         """
         # Reads the file and transform it in a np.ndarray
@@ -676,11 +650,7 @@ class Trial_channel:
         
         pitch = Processing.subsamplear(pitch, int(self.audio_sr/self.sr))
         pitch = pitch[:min(len(pitch), len(envelope))].reshape(-1,1)
-        
-        # Creates mne raw array
-        info_pitch = mne.create_info(ch_names=['Pitch'], sfreq=self.sr, ch_types='misc') # TODO: check sfreq
-
-        return mne.io.RawArray(data=pitch.T, info=info_pitch)
+        return pitch
 
     def load_trial(self, stims:list): 
         """Extract EEG and calculates specified stimuli.
@@ -715,7 +685,6 @@ class Trial_channel:
             channel['Phonemes-discrete'] = self.f_phonemes_discrete(envelope=env)
         if 'Phonemes-onset' in stims:
             channel['Phonemes-onset'] = self.f_phonemes_onset(envelope=env)
-
         return channel
 
 class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it if pitch is a stimulus
