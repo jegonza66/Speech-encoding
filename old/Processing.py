@@ -1,13 +1,14 @@
 import numpy as np, copy
 from scipy import signal
+from typing import Union
 
-def shifted_matrix(feature:list, delays:np.ndarray):
+def shifted_matrix(features:np.ndarray, delays:np.ndarray):
     """Computes shifted matrix for a given array of delayes
 
     Parameters
     ----------
-    feature : list
-        Feature to delay
+    features : array, shape (n_times[, n_epochs], n_features) or list of length n_times
+        The time series to delay must be 2D or 3D if array.
     delays : np.ndarray
         Index delayes
 
@@ -16,26 +17,25 @@ def shifted_matrix(feature:list, delays:np.ndarray):
     np.ndarray
         Concatenated shifted matrix of size len(features)Xlen(delayes)
     """
+    if isinstance(features, list):
+        features = np.array(features).reshape(-1,1)
     # Is asumed this is a one dimensional feature with number of samples as length
-    shifted_matrix = np.zeros(shape=(len(feature), len(delays)))
-    feature = np.array(feature).reshape(len(feature), 1)
+    shifted_matrix = np.zeros(features.shape + (len(delays),))
 
     for i, delay in enumerate(delays):
-        # Create delayed_stim matrix
-        delayed_stim = np.zeros(shape=feature.shape)
-
         # Put last elements at the begining. For ex.: feature, delay = [1,2,3,4].T, -1 --> [2,3,4,0].T
-        if delay < 0:             
-            delayed_stim[:delay, :] = feature[-delay:, :]  
+        if delay < 0:
+            out = shifted_matrix[:delay, ..., i]
+            use_X = features[-delay:]             
         # Put the first elements at the end. For ex.: feature, delay = [1,2,3,4].T, 1 --> [0,1,2,3].T
         elif delay > 0:
-            delayed_stim[delay:, :] = feature[:-delay, :]
+            out = shifted_matrix[delay:, ..., i]
+            use_X = features[:-delay]
         # Leave it exactly the same
         else:
-            delayed_stim = feature.copy()
-        
-        shifted_matrix[:,i] = delayed_stim.reshape(-1)
-   
+            out = shifted_matrix[..., i]
+            use_X = features
+        out[:] = use_X
     return shifted_matrix
 
 def butter_filter(data, frecuencias, sampling_freq, btype, order, axis, ftype):
