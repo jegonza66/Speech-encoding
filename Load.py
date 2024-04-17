@@ -46,6 +46,7 @@ class Trial_channel:
             Whether to use or not an envelope filter, by default False
         SilenceThreshold : float, optional
             Silence threshold of the dialogue, by default 0.03
+            
 
         Raises
         ------
@@ -652,13 +653,15 @@ class Trial_channel:
         pitch = pitch[:min(len(pitch), len(envelope))].reshape(-1,1)
         return pitch
 
-    def load_trial(self, stims:list): 
+    def load_trial(self, stims:list, calculate_pitch:bool=False): 
         """Extract EEG and calculates specified stimuli.
         Parameters
         ----------
         stims : list
             A list containing possible stimuli. Possible input values are: 
             ['Envelope', 'Pitch', 'Spectrogram', 'Phonemes', 'Phonemes-manual', 'Phonemes-discrete', 'Phonemes-onset']
+        Calculate_pitch : bool, optional
+            Pitch of speaker signal, perform on envelope, by default False
 
         Returns
         -------
@@ -671,9 +674,9 @@ class Trial_channel:
         channel['Envelope'] = self.f_envelope()
         env = Funciones.mne_to_numpy(channel['Envelope'])
 
-        if 'Envelope' in stims:
-            return channel
         if 'Pitch' in stims:
+            if calculate_pitch:
+                self.calculate_pitch()
             channel['Pitch'] = self.load_pitch(envelope=env)
         if 'Spectrogram' in stims:
             channel['Spectrogram'] = self.f_spectrogram(envelope=env)
@@ -849,13 +852,10 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
                     Causal_filter_EEG=self.Causal_filter_EEG,
                     Env_Filter=self.Env_Filter,
                     SilenceThreshold=self.SilenceThreshold)
-                if self.Calculate_pitch:# TODO calculate pitch must be inside Trial_channel, only do it if pitch is a stimulus. If that is done, then its not necessary to store channel_i, instead Trial_channel_i can be creted at first
-                    channel_1.f_calculate_pitch()
-                    channel_2.f_calculate_pitch()
 
                 # Extract dictionaries with the data
-                Trial_channel_1 = channel_1.load_trial(stims=self.stim.split('_'))
-                Trial_channel_2 = channel_2.load_trial(stims=self.stim.split('_'))
+                Trial_channel_1 = channel_1.load_trial(stims=self.stim.split('_'), calculate_pitch=self.Calculate_pitch)
+                Trial_channel_2 = channel_2.load_trial(stims=self.stim.split('_'), calculate_pitch=self.Calculate_pitch)
     
                 # Load data to dictionary taking stimuli and eeg from speaker. I.e: each subject predicts its own EEG
                 if self.situacion == 'Habla_Propia' or self.situacion == 'Ambos_Habla':
@@ -868,7 +868,7 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
                     Trial_sujeto_2 = {key: Trial_channel_1[key] for key in Trial_channel_1.keys() if key!='EEG'}
                     Trial_sujeto_1['EEG'], Trial_sujeto_2['EEG'] = Trial_channel_1['EEG'], Trial_channel_2['EEG']
 
-                # Labeling of current speaker. {3:both_speaking,2:speaks_listener,3:speaks_interlocutor,0:silence} # TODO why are channel number interchanged, shouldn't this be inside previous else?
+                # Labeling of current speaker. {3:both_speaking,2:speaks_listener,3:speaks_interlocutor,0:silence} 
                 current_speaker_1 = self.labeling(trial=trial, channel=2)
                 current_speaker_2 = self.labeling(trial=trial, channel=1)
 
@@ -1163,22 +1163,18 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         if minimum_length:
             minimum = minimum_length
         else:
-            minimum = min([dic[key].get_data().T.shape[0] for key in dic if key!='info'] + [len(speaker_labels)])
+            minimum = min([dic[key].shape[0] for key in dic if key!='info'] + [len(speaker_labels)])
 
-        # Correct length and update mne array
+        # Correct length 
         for key in dic:
-            if key!= 'info' and key!='EEG':
-                data = dic[key].get_data().T
+            if key != 'info':
+                data = dic[key]
                 if data.shape[0] > minimum:
-                    dic[key] = mne.io.RawArray(data=data[:minimum].T, info=dic[key].info)
-            elif key=='EEG':
-                data = dic[key].get_data().T
-                if data.shape[0] > minimum:
-                    eeg_times = dic[key].times.tolist()
-                    dic[key].crop(tmin=eeg_times[0], tmax=eeg_times[minimum], verbose=True)
+                    dic[key] = data[:minimum]
 
         if len(speaker_labels) > minimum:
             speaker_labels = speaker_labels[:minimum]
+            
         if minimum_length:
             return dic, speaker_labels
         else:
