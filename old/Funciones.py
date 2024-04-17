@@ -1,172 +1,6 @@
-import numpy as np, pandas as pd, scipy, pickle, os, sys, mne, warnings
-from typing import Union
-
-def load_pickle(path:str):
-    """Loads pickle file
-
-    Parameters
-    ----------
-    path : str
-        Path to pickle file
-
-    Returns
-    -------
-    _type_
-        Extracted file
-
-    Raises
-    ------
-    Exception
-        Something goes wrong, probably it's not a .pkl
-    Exception
-        The file doesn't exist
-    """
-    if os.path.isfile(path):
-        try:
-            with open(file = path, mode = "rb") as archive:
-                data = pickle.load(file = archive)
-            return data
-        except:
-            raise Exception("Something went wrong, check extension.")
-    else:
-        raise Exception(f"The file '{path}' doesn't exist.")
-    
-def dump_pickle(path:str, obj, rewrite:bool=False, verbose:bool=False):
-    """Dumps object into pickle
-
-    Parameters
-    ----------
-    path : str
-        Path to pickle file
-    obj : _type_
-        Object to save as pickle. Almost anything
-    rewrite : bool, optional
-        If already exists a file named as path it rewrites it, by default False
-    verbose : bool, optional
-        Whether to print information about rewritting, by default False
-
-    Raises
-    ------
-    Exception
-        If the file already exists and rewrite wasnt called.
-    Exception
-        Something went wrong.
-    """
-    isfile = os.path.isfile(path)
-    if isfile and not rewrite:
-        raise Exception("This file already exists, change 'rewrite=True'.")
-    try:
-        with open(file = path, mode = "wb") as archive:
-            pickle.dump(file = archive, obj=obj)
-        if isfile and verbose:
-            print(f'Atention: file overwritten in {path}')
-    except:
-        raise Exception("Something went wrong when saving")
-
-def iteration_percentage(txt:str, i:int, length_of_iterator:int):
-    """Adds a percentage bar at the bottom of a print in a loop.
-
-    Parameters
-    ----------
-    txt : str
-        Text wanted to print
-    i : int
-        i-th iteration of the loop
-    length_of_iterator : int
-        Length of the iterator
-    """
-    l = int(50*(i+1)/length_of_iterator)
-    if (i+1) == length_of_iterator:
-        percentage_bar =  f"[{'*'*(l):50s}] {(l*2)/100:.0%}\n"
-    else:
-        percentage_bar =  f"[{'·'*(l):50s}] {(l*2)/100:.0%}\n"
-    sys.stdout.write(txt+'\n'+percentage_bar)
-
-def mne_to_numpy(obj:Union[mne.io.array.array.RawArray,mne.io.eeglab.eeglab.RawEEGLAB,list], verbose:bool=True):
-    """Transform mne arrays and Raw EEG objects to numpy ndarrays. If obj is 1D, returns a flatten array.
-
-    Parameters
-    ----------
-    obj : Union[mne.io.array.array.RawArray,mne.io.eeglab.eeglab.RawEEGLAB,lisr]
-        mne Array, RawEEGLAB or list of them.
-    verbose : bool
-        Wether to print warning that data already is np.ndarray.
-
-    Returns
-    -------
-    np.array
-        Array representation of object if it's not a list
-    list
-        A list of arrays representation of given list of objects
-    """
-    def to_numpy(obj_sub:Union[mne.io.array.array.RawArray,mne.io.eeglab.eeglab.RawEEGLAB]):
-        
-        # Check is it's already a np.ndarray
-        if isinstance(obj_sub, np.ndarray):
-            if verbose:
-                warnings.warn(f'The object passed already is a np.ndarray')
-            return obj_sub
-
-        # In general, mne objects are shaped as #chann X #samples, and usually we use #samples X #chann
-        data = obj_sub.get_data().T
-        # Assuming object doesn't have more than 2D. For 1D data, makes it flatten
-        if data.shape[1]==1:
-            return data.flatten()
-        else:
-            return data
-
-    if isinstance(obj, list):
-        output_list = []
-        for arr in obj:
-            output_list.append(to_numpy(obj_sub=arr))
-        return output_list
-    else:
-        return to_numpy(obj_sub=obj)
-    
-def match_lengths(dic, speaker_labels, minimum_length):
-        """Match length of speaker labels and trial dictionary.
-
-        Parameters
-        ----------
-        dic : dict
-            Trial dictionary containing data of stimuli and EEG
-        speaker_labels : np.ndarray
-            Labels of current speaker.
-        minimum_length : int, optional
-            Length to match data length with. If not passed, takes the minimum length between dic and speaker_labels
-
-        Returns
-        -------
-        tuple
-            Updated dictionary, speaker_labels if minimum_length is passed. Elsewhise
-            Updated dictionary, speaker_labels and minimum_length are returned.
-
-        """
-        # Get minimum array length (this includes features and EEG data)
-        if minimum_length:
-            minimum = minimum_length
-        else:
-            minimum = min([dic[key].get_data().T.shape[0] for key in dic] + [len(speaker_labels)])
-
-        # Correct length and update mne array
-        for key in dic:
-            if key!= 'info' and key!='EEG':
-                data = dic[key].get_data().T
-                if data.shape[0] > minimum:
-                    dic[key] = mne.io.RawArray(data=data[:minimum].T, info=dic[key].info, verbose=True)
-            elif key=='EEG':
-                if dic[key].get_data().shape[1]>minimum:
-                    eeg_times = dic[key].times.tolist()
-                    dic[key].crop(tmin=eeg_times[0], tmax=eeg_times[minimum], verbose=False)
-
-        if len(speaker_labels) > minimum:
-            speaker_labels = speaker_labels[:minimum]
-        if minimum_length:
-            print(dic, speaker_labels)
-            return dic, speaker_labels
-        else:
-            print(dic, speaker_labels, minimum)
-            return dic, speaker_labels, minimum
+import numpy as np
+import pandas as pd
+import scipy
 
 
 def maximo_comun_divisor(a, b):
@@ -237,6 +71,34 @@ def make_df(*args):
     for var in args:
         returns.append(pd.DataFrame(var))
     return tuple(returns)
+
+
+def igualar_largos_dict(dict, momentos):
+    keys = list(dict.keys())
+    keys.remove('info')
+
+    minimo_largo = min([dict[key].shape[0] for key in keys] + [len(momentos)])
+
+    for key in keys:
+        if dict[key].shape[0] > minimo_largo:
+                dict[key] = dict[key][:minimo_largo]
+    if len(momentos) > minimo_largo:
+        momentos = momentos[:minimo_largo]
+
+    return momentos, minimo_largo
+
+
+def igualar_largos_dict_sample_data(dict, momentos, minimo_largo):
+    keys = list(dict.keys())
+    keys.remove('info')
+
+    for key in keys:
+        if dict[key].shape[0] > minimo_largo:
+            dict[key] = dict[key][:minimo_largo]
+    if len(momentos) > minimo_largo:
+        momentos = momentos[:minimo_largo]
+
+    return momentos
 
 
 def correlacion(x, y, axis=0):

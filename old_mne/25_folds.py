@@ -8,41 +8,23 @@ import Load
 import Models
 import Plot
 import Processing
-import Statistics
+
 
 startTime = datetime.now()
-
-#----- Define Parameters -----#
-# Save / Display Figures
-Display_Ind_Figures = False
-Display_Total_Figures = False
-Save_Ind_Figures = True
-Save_Total_Figures = True
-Save_Results = False
-# Random permutations
-Statistical_test = False
-# Stimuli and EEG
-Stims = ['Spectrogram']
-Bands = ['Theta']
-# Dialogue situation
-situacion = 'Escucha'
-# Model parameters ('Ridge' or 'mtrf')
-model = 'Ridge'
-# Run times
-tmin, tmax = -0.6, 0.2
-# preset alpha
-set_alpha = None
-
-# Run setup
+# Define Parameters
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 total_subjects = len(sesiones)*2
+tmin, tmax = -0.6, -0.003
 sr = 128
 delays = - np.arange(np.floor(tmin * sr), np.ceil(tmax * sr), dtype=int)
 times = np.linspace(delays[0] * np.sign(tmin) * 1 / sr, np.abs(delays[-1]) * np.sign(tmax) * 1 / sr, len(delays))
 times = np.flip(-times)
+situacion = 'Escucha'
 
-# Alpha
-default_alpha = 1000
+# Model parameters ('Ridge' or 'mtrf')
+model = 'Ridge'
+
+set_alpha = None
 Alpha_Corr_limit = 0.01
 alphas_fname = 'saves/Alphas/Alphas_Corr{}.pkl'.format(Alpha_Corr_limit)
 try:
@@ -52,26 +34,58 @@ try:
 except:
     print('\n\nAlphas file not found.\n\n')
 
+# Stimuli and EEG
+Stims = ['Spectrogram']
+Bands = ['Theta']
+
 # Standarization
 Stims_preprocess = 'Normalize'
 EEG_preprocess = 'Standarize'
 
-# Run
+# Random permutations
+Statistical_test = False
+
+# Save / Display Figures
+Display_Ind_Figures = False
+Display_Total_Figures = False
+Save_Ind_Figures = True
+Save_Total_Figures = True
+Save_Final_Correlation = True
+
+# Save mean correlations
+Mean_Correlations_fname = 'saves/25_folds/{}/{}/Final_Correlation/tmin{}_tmax{}/Mean_Correlations.pkl'.format(model, situacion, tmin, tmax)
+try:
+    f = open(Mean_Correlations_fname, 'rb')
+    Mean_Correlations = pickle.load(f)
+    f.close()
+except:
+    print('\n\nMean_Correlations file not found\n\n')
+    Mean_Correlations = {}
+
+f = open('saves/Subjects_Pitch.pkl', 'rb')
+subjects_pitch = pickle.load(f)
+f.close()
+
 for Band in Bands:
+    try:
+        Mean_Correlations_Band = Mean_Correlations[Band]
+    except:
+        Mean_Correlations_Band = {}
+
     for stim in Stims:
         print('\nModel: ' + model)
-        print('Band: ' + str(Band))
+        print('Band: ' + Band)
         print('Stimulus: ' + stim)
         print('Status: ' + situacion)
         print('tmin: {} - tmax: {}'.format(tmin, tmax))
         # Paths
-        save_path = 'saves/{}/{}/Final_Correlation/tmin{}_tmax{}/'.format(model, situacion, tmin, tmax)
+        save_path = 'saves/25_folds/{}/{}/Final_Correlation/tmin{}_tmax{}/'.format(model, situacion, tmin, tmax)
         procesed_data_path = 'saves/Preprocesed_Data/tmin{}_tmax{}/'.format(tmin, tmax)
-        Run_graficos_path = 'gráficos/{}/{}/Stims_{}_EEG_{}/tmin{}_tmax{}/Stim_{}_EEG_Band_{}/'.format(
+        Run_graficos_path = 'gráficos/25_folds/{}/{}/Stims_{}_EEG_{}/tmin{}_tmax{}/Stim_{}_EEG_Band_{}/'.format(
             model, situacion, Stims_preprocess, EEG_preprocess, tmin, tmax, stim, Band)
-        Path_original = 'saves/{}/{}/Original/Stims_{}_EEG_{}/tmin{}_tmax{}/Stim_{}_EEG_Band_{}/'.format(
+        Path_original = 'saves/25_folds/{}/{}/Original/Stims_{}_EEG_{}/tmin{}_tmax{}/Stim_{}_EEG_Band_{}/'.format(
             model, situacion, Stims_preprocess, EEG_preprocess, tmin, tmax, stim, Band)
-        Path_it = 'saves/{}/{}/Fake_it/Stims_{}_EEG_{}/tmin{}_tmax{}/Stim_{}_EEG_Band_{}/'.format(
+        Path_it = 'saves/25_folds/{}/{}/Fake_it/Stims_{}_EEG_{}/tmin{}_tmax{}/Stim_{}_EEG_Band_{}/'.format(
             model, situacion, Stims_preprocess, EEG_preprocess, tmin, tmax, stim, Band)
 
         # Start Run
@@ -83,8 +97,6 @@ for Band in Bands:
             Sujeto_1, Sujeto_2 = Load.Load_Data(sesion=sesion, stim=stim, Band=Band, sr=sr, tmin=tmin, tmax=tmax,
                                                 procesed_data_path=procesed_data_path, situacion=situacion,
                                                 SilenceThreshold=0.03)
-
-
             # LOAD EEG BY SUBJECT
             eeg_sujeto_1, eeg_sujeto_2, info = Sujeto_1['EEG'], Sujeto_2['EEG'], Sujeto_1['info']
 
@@ -98,7 +110,7 @@ for Band in Bands:
                 print('Subject {}'.format(sujeto))
                 # Separo los datos en 5 y tomo test set de 20% de datos con kfold (5 iteraciones)
                 Predicciones = {}
-                n_folds = 5
+                n_folds = 25
                 iteraciones = 3000
 
                 # Defino variables donde voy a guardar mil cosas
@@ -123,34 +135,31 @@ for Band in Bands:
                 Canales_repetidos_corr_sujeto = np.zeros(info['nchan'])
                 Canales_repetidos_rmse_sujeto = np.zeros(info['nchan'])
 
-                # Set alpha for subject
-                if set_alpha == None:
-                    try:
-                        alpha = Alphas[Band][stim][sesion][sujeto]
-                    except:
-                        alpha = default_alpha
-                        print('Alpha missing. Ussing default value: {}'.format(alpha))
-                else:
-                    alpha = set_alpha
-                    print('Ussing pre-set alpha value: {}'.format(alpha))
-
                 # Empiezo el KFold de test
                 kf_test = KFold(n_folds, shuffle=False)
                 for fold, (train_val_index, test_index) in enumerate(kf_test.split(eeg)):
-                    eeg_train_val, eeg_test = eeg[train_val_index], eeg[test_index]
+                    eeg_train_val, eeg_test = eeg[test_index], eeg[train_val_index]
 
                     dstims_train_val = list()
                     dstims_test = list()
 
                     for stimulus in list(dstims):
-                        dstims_train_val.append(stimulus[train_val_index])
-                        dstims_test.append(stimulus[test_index])
+                        dstims_train_val.append(stimulus[test_index])
+                        dstims_test.append(stimulus[train_val_index])
 
                     axis = 0
                     porcent = 5
                     eeg_train_val, eeg_test, dstims_train_val, dstims_test = \
                         Processing.standarize_normalize(eeg_train_val, eeg_test, dstims_train_val, dstims_test,
                                                         Stims_preprocess, EEG_preprocess, axis, porcent)
+                    if set_alpha == None:
+                        try:
+                            alpha = Alphas[Band][stim][sesion][sujeto]
+                        except:
+                            alpha = 1000
+                            print('Alpha missing. Ussing default value: {}'.format(alpha))
+                    else:
+                        alpha = set_alpha
 
                     # Ajusto el modelo y guardo
                     if model == 'Ridge':
@@ -209,16 +218,15 @@ for Band in Bands:
                         topo_pvalues_corr[fold] = p_corr
                         topo_pvalues_rmse[fold] = p_rmse
 
-                if Save_Results:
-                    # Save Model Weights and Correlations
-                    os.makedirs(Path_original, exist_ok=True)
-                    f = open(Path_original + 'Corr_Rmse_Sesion{}_Sujeto{}.pkl'.format(sesion, sujeto), 'wb')
-                    pickle.dump([Corr_buenas_ronda_canal, Rmse_buenos_ronda_canal], f)
-                    f.close()
+                # Save Model Weights and Correlations
+                os.makedirs(Path_original, exist_ok=True)
+                f = open(Path_original + 'Corr_Rmse_Sesion{}_Sujeto{}.pkl'.format(sesion, sujeto), 'wb')
+                pickle.dump([Corr_buenas_ronda_canal, Rmse_buenos_ronda_canal], f)
+                f.close()
 
-                    f = open(Path_original + 'Pesos_Sesion{}_Sujeto{}.pkl'.format(sesion, sujeto), 'wb')
-                    pickle.dump(Pesos_ronda_canales.mean(0), f)
-                    f.close()
+                f = open(Path_original + 'Pesos_Sesion{}_Sujeto{}.pkl'.format(sesion, sujeto), 'wb')
+                pickle.dump(Pesos_ronda_canales.mean(0), f)
+                f.close()
 
                 # Tomo promedio de pesos Corr y Rmse entre los folds para todos los canales
                 Pesos_promedio = Pesos_ronda_canales.mean(0)
@@ -287,16 +295,14 @@ for Band in Bands:
                     Canales_repetidos_rmse_sujetos = np.vstack((Canales_repetidos_rmse_sujetos, Canales_repetidos_rmse_sujeto))
                 sujeto_total += 1
 
-            del Pesos_promedio, Rmse_promedio, Corr_promedio, Corr_buenas_ronda_canal, Rmse_buenos_ronda_canal, Rcorr, Rmse, \
-                eeg_train_val, eeg_test, dstims_train_val, dstims_test, eeg, dstims, dstims_para_sujeto_1, \
-                dstims_para_sujeto_2, Sujeto_1, Sujeto_2, eeg_sujeto_1, eeg_sujeto_2
-
         # Armo cabecita con correlaciones promedio entre sujetos
-        _, lat_test_results_corr = Plot.Cabezas_corr_promedio(Correlaciones_totales_sujetos, info, Display_Total_Figures,
-                                                              Save_Total_Figures, Run_graficos_path, title='Correlation', lat_max_chs=12)
+        Mean_Correlations_Band[stim], lat_test_results_corr = Plot.Cabezas_corr_promedio(Correlaciones_totales_sujetos, info,
+                                                                  Display_Total_Figures, Save_Total_Figures,
+                                                                  Run_graficos_path, title='Correlation')
 
-        _, lat_test_results_rmse = Plot.Cabezas_corr_promedio(Rmse_totales_sujetos, info, Display_Total_Figures,
-                                                              Save_Total_Figures, Run_graficos_path, title='Rmse')
+        Mean_Correlations_Band[stim], lat_test_results_rmse = Plot.Cabezas_corr_promedio(Rmse_totales_sujetos, info,
+                                                                  Display_Total_Figures, Save_Total_Figures,
+                                                                  Run_graficos_path, title='Rmse')
 
         # Armo cabecita con canales repetidos
         if Statistical_test:
@@ -317,22 +323,8 @@ for Band in Bands:
         Plot.regression_weights_matrix(Pesos_totales_sujetos_todos_canales, info, times, Display_Total_Figures,
                                        Save_Total_Figures, Run_graficos_path, Len_Estimulos, stim, Band, ERP=True)
 
-        # TFCE across subjects
-        t_tfce, clusters, p_tfce, H0, trf_subjects, n_permutations = Statistics.tfce(Pesos_totales_sujetos_todos_canales, times, Len_Estimulos, n_permutations=4096)
-        Plot.plot_t_p_tfce(t=t_tfce, p=p_tfce, title='TFCE', mcc=True, shape=trf_subjects.shape,
-                           graficos_save_path=Run_graficos_path, Band=Band, stim=stim, pval_trhesh=0.05, Display=Display_Total_Figures)
-        Plot.plot_p_tfce(p=p_tfce, times=times, title='', mcc=True, shape=trf_subjects.shape,
-                           graficos_save_path=Run_graficos_path, Band=Band, stim=stim, pval_trhesh=0.05, fontsize=17,
-                           Display=Display_Total_Figures, Save=Save_Total_Figures)
-
-        if stim == 'Spectrogram':
-            Plot.plot_trf_tfce(Pesos_totales_sujetos_todos_canales=Pesos_totales_sujetos_todos_canales, p=p_tfce,
-                               times=times, title='', mcc=True, shape=trf_subjects.shape, n_permutations=n_permutations,
-                               graficos_save_path=Run_graficos_path, Band=Band, stim=stim,
-                               pval_trhesh=0.05, fontsize=17, Display=Display_Total_Figures, Save=Save_Total_Figures)
-
         # Matriz de Correlacion
-        Plot.Matriz_corr_channel_wise(Pesos_totales_sujetos_todos_canales, stim, Len_Estimulos, info, times, sesiones, Display_Total_Figures, Save_Total_Figures,
+        Plot.Matriz_corr_channel_wise(Pesos_totales_sujetos_todos_canales, stim, Len_Estimulos, info, times, Display_Total_Figures, Save_Total_Figures,
                                       Run_graficos_path)
         try:
             _ = Plot.Plot_cabezas_instantes(Pesos_totales_sujetos_todos_canales, info, Band, stim, times, sr, Display_Total_Figures,
@@ -343,18 +335,21 @@ for Band in Bands:
         Plot.Channel_wise_correlation_topomap(Pesos_totales_sujetos_todos_canales, info, Display_Total_Figures,
                                               Save_Total_Figures, Run_graficos_path)
 
+        # Save final weights
+        f = open(Path_original + 'Pesos_Totales_{}_{}.pkl'.format(stim, Band), 'wb')
+        pickle.dump(Pesos_totales, f)
+        f.close()
+
         # SAVE FINAL CORRELATION
-        if Save_Results and sujeto_total == 18:
+        Mean_Correlations[Band] = Mean_Correlations_Band
+        if Save_Final_Correlation and sujeto_total == 18:
             os.makedirs(save_path, exist_ok=True)
             f = open(save_path + '{}_EEG_{}.pkl'.format(stim, Band), 'wb')
             pickle.dump([Correlaciones_totales_sujetos, Canales_repetidos_corr_sujetos], f)
             f.close()
 
-            # Save final weights
-            f = open(Path_original + 'Pesos_Totales_{}_{}.pkl'.format(stim, Band), 'wb')
-            pickle.dump(Pesos_totales, f)
+            f = open(Mean_Correlations_fname, 'wb')
+            pickle.dump(Mean_Correlations, f)
             f.close()
-
-        del Pesos_totales
 
 print(datetime.now() - startTime)

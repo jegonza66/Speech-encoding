@@ -1,64 +1,42 @@
-import numpy as np
-import pandas as pd
+import numpy as np, copy
 from scipy import signal
-import copy
+from typing import Union
 
-def matriz_shifteada(features, delays):
-    features = np.array(features).reshape(len(features), 1)
-    nt, ndim = features.shape
-    dstims = []
-    for di, d in enumerate(delays):
-        dstim = np.zeros((nt, ndim))
-        if d < 0:  # negative delay
-            dstim[:d, :] = features[-d:, :]  # The last d elements until the end
-        elif d > 0:
-            dstim[d:, :] = features[:-d, :]  # All but the last d elements
+def shifted_matrix(features:np.ndarray, delays:np.ndarray):
+    """Computes shifted matrix for a given array of delayes
+
+    Parameters
+    ----------
+    features : array, shape (n_times[, n_epochs], n_features) or list of length n_times
+        The time series to delay must be 2D or 3D if array.
+    delays : np.ndarray
+        Index delayes
+
+    Returns
+    -------
+    np.ndarray
+        Concatenated shifted matrix of size len(features)Xlen(delayes)
+    """
+    if isinstance(features, list):
+        features = np.array(features).reshape(-1,1)
+    # Is asumed this is a one dimensional feature with number of samples as length
+    shifted_matrix = np.zeros(features.shape + (len(delays),))
+
+    for i, delay in enumerate(delays):
+        # Put last elements at the begining. For ex.: feature, delay = [1,2,3,4].T, -1 --> [2,3,4,0].T
+        if delay < 0:
+            out = shifted_matrix[:delay, ..., i]
+            use_X = features[-delay:]             
+        # Put the first elements at the end. For ex.: feature, delay = [1,2,3,4].T, 1 --> [0,1,2,3].T
+        elif delay > 0:
+            out = shifted_matrix[delay:, ..., i]
+            use_X = features[:-delay]
+        # Leave it exactly the same
         else:
-            dstim = features.copy()
-        dstims.append(dstim)
-    dstims = np.hstack(dstims)
-    # print("Stimulus matrix is now %d time points by %d features (should be # original features \
-    # (%d) x # delays (%d))" % (dstims.shape[0], dstims.shape[1], features.shape[1], len(delays)))
-    return dstims
-
-
-def labeling(s, trial, canal_hablante, sr):
-    ubi = "Datos/phrases/S" + str(s) + "/s" + str(s) + ".objects." + "{:02d}".format(trial) + ".channel" + str(
-        canal_hablante) + ".phrases"
-    h1t = pd.read_table(ubi, header=None, sep="\t")
-    # paso los numerales a vacío. Cambio texto por 1 y silencio por 0
-    h1t.iloc[:, 2] = (h1t.iloc[:, 2].replace("#", "").apply(len) > 0).apply(int)
-    # tomo la diferencia entre el tiempo en el que empieza a hablar y el tiempo que termina de hablar
-    # lo multiplico por el sampling rate (128) y lo redondeo. Me va a quedar muy parecido al largo del envelope
-    # pero con una pequeña diferencia de una o dos samples
-    veces = np.round((h1t[1] - h1t[0]) * sr).astype("int")
-    hablante = np.repeat(h1t.iloc[:, 2], veces)
-    hablante = hablante.ravel()
-
-    # hago lo mismo con el oyente
-    oyente = (canal_hablante - 3) * -1
-    ubi = "Datos/phrases/S" + str(s) + "/s" + str(s) + ".objects." + "{:02d}".format(trial) + ".channel" + str(
-        oyente) + ".phrases"
-    h2t = pd.read_table(ubi, header=None, sep="\t")
-    # paso los numerales a vacío. Cambio texto por 1 y silencio por 0
-    h2t.iloc[:, 2] = (h2t.iloc[:, 2].replace("#", "").apply(len) > 0).apply(int)
-    veces = np.round((h2t[1] - h2t[0]) * sr).astype("int")
-    oyente = np.repeat(h2t.iloc[:, 2], veces)
-    oyente = oyente.ravel()
-
-    # hay diferencias de largos entre los hablantes? corrijo con 0-padding
-    diferencia = len(hablante) - len(oyente)
-    if diferencia > 0:
-        oyente = np.concatenate([oyente, np.repeat(0, diferencia)])
-    elif diferencia < 0:
-        hablante = np.concatenate([hablante, np.repeat(0, np.abs(diferencia))])
-
-    # sumo ambos, así tengo un vectorcito de 3(hablan ambos), 2 (solo habla oyente),
-    # 1 (solo habla interlocutor) y 0 (silencio).
-    hablantes = hablante + oyente * 2
-
-    return hablantes
-
+            out = shifted_matrix[..., i]
+            use_X = features
+        out[:] = use_X
+    return shifted_matrix
 
 def butter_filter(data, frecuencias, sampling_freq, btype, order, axis, ftype):
     if btype == 'lowpass' or btype == 'highpass':
@@ -124,29 +102,6 @@ def band_freq(band):
         return None, None
 
     return l_freq, h_freq
-
-
-def preproc_dict(momentos_escucha, delays, situacion):
-    momentos_escucha_matriz = matriz_shifteada(momentos_escucha, delays).astype(float)
-
-    if situacion == 'Todo':
-        return
-
-    elif situacion == 'Silencio':
-        situacion = 0
-    elif situacion == 'Escucha':
-        situacion = 1
-    elif situacion == 'Habla' or situacion == 'Habla_Propia':
-        situacion = 2
-    elif situacion == 'Ambos' or situacion == 'Ambos_Habla':
-        situacion = 3
-
-    momentos_escucha_matriz[momentos_escucha_matriz == situacion] = float("nan")
-
-    keep_indexes = pd.isnull(momentos_escucha_matriz).all(1).nonzero()[0]
-
-    return keep_indexes
-
 
 class estandarizar():
 

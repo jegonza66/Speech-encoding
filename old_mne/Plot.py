@@ -12,8 +12,10 @@ import librosa
 from statannot import add_stat_annotation
 from scipy.stats import wilcoxon
 import setup
+import warnings
+warnings.filterwarnings("ignore", message="This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.")
+warnings.filterwarnings("ignore", message="More than 20 figures have been opened. Figures created through the pyplot interface (`matplotlib.pyplot.figure`) are retained until explicitly closed and may consume too much memory. (To control this warning, see the rcParam `figure.max_open_warning`). Consider using `matplotlib.pyplot.close()`.")
 exp_info = setup.exp_info()
-
 
 def highlight_cell(x, y, ax=None, **kwargs):
     rect = plt.Rectangle((x - .5, y - .5), 1, 1, **kwargs)
@@ -37,11 +39,11 @@ def lateralized_channels(info, channels_right=None, channels_left=None, path=Non
 
     # Plot masked channels
     mask = [i in channels_right + channels_left for i in info['ch_names']]
-    plt.ion()
     fig = plt.figure()
+    ax = plt.subplot()
     plt.title('Masked channels for lateralization comparisson', fontsize=19)
     mne.viz.plot_topomap(np.zeros(info['nchan']), info, show=Display, sphere=0.07, mask=np.array(mask),
-                         mask_params=dict(marker='o', markerfacecolor='k', markeredgecolor='k', linewidth=0, markersize=12))
+                         mask_params=dict(marker='o', markerfacecolor='k', markeredgecolor='k', linewidth=0, markersize=12), axes=ax)
     fig.tight_layout()
 
     if Save:
@@ -225,7 +227,7 @@ def plot_grafico_pesos(Display, sesion, sujeto, best_alpha, Pesos_promedio,
             evoked = mne.EvokedArray(
                 Pesos_promedio[:, sum(Len_Estimulos[j] for j in range(i)):sum(Len_Estimulos[j] for j in range(i + 1))],
                 info)
-            evoked.times = times
+            evoked.shift_time(times[0], relative=True)
 
             evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='ms',
                         show=False, spatial_colors=True, unit=False, units=dict(eeg='w', grad='fT/cm', mag='fT'),
@@ -332,11 +334,12 @@ def Cabezas_corr_promedio(Correlaciones_totales_sujetos, info, Display, Save, Ru
 
     fontsize = 24
     fig = plt.figure(figsize=(5, 4))
+    ax = plt.subplot()
     plt.suptitle('{} = {:.3f} +/- {:.3f}'.format(title, Correlaciones_promedio.mean(), Correlaciones_promedio.std()), fontsize=fontsize)
     # cmap = matplotlib.colors.LinearSegmentedColormap.from_list("", ['greenyellow', 'yellow', 'orange', 'red'])
     im = mne.viz.plot_topomap(Correlaciones_promedio, info, cmap='OrRd',
                               vmin=Correlaciones_promedio.min(), vmax=Correlaciones_promedio.max(),
-                              show=False, sphere=0.07)
+                              show=False, sphere=0.07, axes = ax)
     cb = plt.colorbar(im[0], shrink=0.85, orientation='vertical')
     cb.ax.tick_params(labelsize=fontsize)
     fig.tight_layout()
@@ -475,9 +478,10 @@ def Cabezas_canales_rep(Canales_repetidos_sujetos, info, Display, Save, Run_graf
     plt.suptitle("Channels passing 5 test per subject - {}".format(title), fontsize=19)
     plt.title('Mean: {:.3f} +/- {:.3f}'.format(Canales_repetidos_sujetos.mean(), Canales_repetidos_sujetos.std()),
               fontsize=19)
+    ax = plt.subplot()
     im = mne.viz.plot_topomap(Canales_repetidos_sujetos, info, cmap='OrRd',
                               vmin=0, vmax=18,
-                              show=False, sphere=0.07)
+                              show=False, sphere=0.07, axes=ax)
     cb = plt.colorbar(im[0], shrink=0.85, orientation='vertical')
     cb.ax.tick_params(labelsize=19)
     cb.set_label(label='Number of subjects passed', size=21)
@@ -501,9 +505,10 @@ def topo_pval(topo_pval, info, Display, Save, Run_graficos_path, title):
     plt.suptitle("Mean p-values - {}".format(title), fontsize=19)
     plt.title('Mean: {:.3f} +/- {:.3f}'.format(topo_pval.mean(), topo_pval.std()),
               fontsize=19)
+    ax = plt.subplot()
     im = mne.viz.plot_topomap(topo_pval, info, cmap='OrRd',
                               vmin=0, vmax=topo_pval.max(),
-                              show=False, sphere=0.07)
+                              show=False, sphere=0.07, axes=ax)
     cb = plt.colorbar(im[0], shrink=0.85, orientation='vertical')
     cb.ax.tick_params(labelsize=19)
     cb.set_label(label='p-value', size=21)
@@ -581,7 +586,7 @@ def regression_weights(Pesos_totales_sujetos_todos_canales, info, times, Display
 
             evoked = mne.EvokedArray(mean_coefs, info)
 
-        evoked.times = times
+        evoked.shift_time(times[0], relative=True)
         evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='ms', titles=dict(eeg=''),
                     show=False, spatial_colors=True, unit=True, units='mTRF (a.u.)', axes=ax, gfp=False)
         # ax.plot(times * 1000, evoked._data.mean(0), "k--", label="Mean", zorder=130, linewidth=2)
@@ -595,6 +600,8 @@ def regression_weights(Pesos_totales_sujetos_todos_canales, info, times, Display
             # ax.axvspan(-np.mean(decorrelation_times) - np.std(decorrelation_times) / 2,
             #            -np.mean(decorrelation_times) + np.std(decorrelation_times) / 2,
             #            alpha=0.4, color='red', label='Decorrelation time std.')
+            ax.legend(fontsize=fontsize)
+
 
         ax.xaxis.label.set_size(fontsize)
         ax.yaxis.label.set_size(fontsize)
@@ -603,7 +610,6 @@ def regression_weights(Pesos_totales_sujetos_todos_canales, info, times, Display
             # ax.set_ylim([-0.013, 0.02])
         ax.tick_params(axis='both', labelsize=fontsize)
         # ax.grid()
-        ax.legend(fontsize=fontsize)
         fig.tight_layout()
 
         if Save:
@@ -657,7 +663,7 @@ def regression_weights_matrix(Pesos_totales_sujetos_todos_canales, info, times, 
             axs[0].axvline(0, axs[0].get_ylim()[0], axs[0].get_ylim()[1], color='grey')
             # axs[0].axhline(0, axs[0].get_xlim()[0], axs[0].get_xlim()[1], color='grey')
             evoked = mne.EvokedArray(spectrogram_weights_chanels, info)
-            evoked.times = times
+            evoked.shift_time(times[0], relative=True)
             evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='ms', titles=dict(eeg=''),
                         show=False, spatial_colors=True, unit=False, units='w', axes=axs[0], gfp=False)
             # axs[0].plot(times * 1000, evoked._data.mean(0), "k--", label="Mean", zorder=130, linewidth=2)
@@ -712,7 +718,7 @@ def regression_weights_matrix(Pesos_totales_sujetos_todos_canales, info, times, 
             axs[0].axvline(0, axs[0].get_ylim()[0], axs[0].get_ylim()[1], color='grey')
             axs[0].axhline(0, axs[0].get_xlim()[0], axs[0].get_xlim()[1], color='grey')
             evoked = mne.EvokedArray(phoneme_weights_chanels, info)
-            evoked.times = times
+            evoked.shift_time(times[0], relative=True)
             evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='ms', titles=dict(eeg=''),
                         show=False, spatial_colors=True, unit=False, units='w', axes=axs[0])
             axs[0].plot(times * 1000, evoked._data.mean(0), "k--", label="Mean", zorder=130, linewidth=2)
@@ -762,7 +768,7 @@ def regression_weights_matrix(Pesos_totales_sujetos_todos_canales, info, times, 
             axs[0].axvline(0, axs[0].get_ylim()[0], axs[0].get_ylim()[1], color='grey')
             axs[0].axhline(0, axs[0].get_xlim()[0], axs[0].get_xlim()[1], color='grey')
             evoked = mne.EvokedArray(phoneme_weights_chanels, info)
-            evoked.times = times
+            evoked.shift_time(times[0], relative=True)
             evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='ms', titles=dict(eeg=''),
                         show=False, spatial_colors=True, unit=False, units='w', axes=axs[0])
             axs[0].plot(times * 1000, evoked._data.mean(0), "k--", label="Mean", zorder=130, linewidth=2)
@@ -801,10 +807,9 @@ def regression_weights_matrix(Pesos_totales_sujetos_todos_canales, info, times, 
                 # Adapt for ERP
                 mean_coefs = np.flip(mean_coefs, axis=1)
             evoked = mne.EvokedArray(mean_coefs, info)
-
+            evoked.shift_time(times[0], relative=True)
             axs[0].axvline(0, axs[0].get_ylim()[0], axs[0].get_ylim()[1], color='grey')
             axs[0].axhline(0, axs[0].get_xlim()[0], axs[0].get_xlim()[1], color='grey')
-            evoked.times = times
             evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='ms', titles=dict(eeg=''),
                         show=False, spatial_colors=True, unit=False, units='w', axes=axs[0], gfp=False)
             axs[0].plot(times * 1000, evoked._data.mean(0), "k--", label="Mean", zorder=130, linewidth=2)
@@ -885,7 +890,7 @@ def Plot_cabezas_instantes(Pesos_totales_sujetos_todos_canales, info, Band, stim
             else:
                 ax = axs
             ax.set_title('{} ms'.format(int(instantes_de_interes[j] * 1000)), fontsize=18)
-            fig.tight_layout()
+            # fig.tight_layout()
             im = mne.viz.plot_topomap(Pesos[:, instantes_index[j]].ravel(), info, axes=ax,
                                       show=False,
                                       sphere=0.07, cmap=cmaps[j],
@@ -1081,8 +1086,7 @@ def weights_ERP(Pesos_totales_sujetos_todos_canales, info, times, Display,
 
         evoked = mne.EvokedArray(
             np.flip(Pesos_totales_sujetos_todos_canales_copy[:, j * len(times):(j + 1) * len(times)], axis=1), info)
-        times = -np.flip(times)
-        evoked.times = times
+        evoked.shift_time(-times[0], relative=True)
 
         fig, ax = plt.subplots(figsize=(15, 5))
         fig.suptitle('{}'.format(Stims_Order[j] if Cant_Estimulos > 1 else stim), fontsize=23)
@@ -1536,7 +1540,7 @@ def Plot_instantes_interes(Pesos_totales_sujetos_todos_canales, info, Band, time
                 fig.savefig(save_path_graficos + 'Weights Autocorrelation.png')
 
         evoked = mne.EvokedArray(Pesos_totales_sujetos_todos_canales_copy[:, j * len(times):(j + 1) * len(times)], info)
-        evoked.times = times
+        evoked.shift_time(times[0], relative=True)
 
         instantes_index = sgn.find_peaks(np.abs(evoked._data.mean(0)), height=np.abs(evoked._data.mean(0)).max() * 0.4)[
             0]
@@ -1713,7 +1717,8 @@ def Cabezas_corr_promedio_scaled(Correlaciones_totales_sujetos, info, Display, S
     plt.suptitle("Mean {} per channel among subjects".format(title), fontsize=19)
     plt.title('{} = {:.3f} +/- {:.3f}'.format(title, Correlaciones_promedio.mean(), Correlaciones_promedio.std()),
               fontsize=19)
-    im = mne.viz.plot_topomap(Correlaciones_promedio, info, cmap='Greys', vmin=0, vmax=0.41, show=Display, sphere=0.07)
+    ax = plt.subplot()
+    im = mne.viz.plot_topomap(Correlaciones_promedio, info, cmap='Greys', vmin=0, vmax=0.41, show=Display, sphere=0.07, axes=ax)
     cb = plt.colorbar(im[0], shrink=0.85, orientation='vertical')
     cb.ax.tick_params(labelsize=23)
     fig.tight_layout()
@@ -1772,7 +1777,8 @@ def Plot_instantes_casera(Pesos_totales_sujetos_todos_canales, info, Band, times
 
     ax = fig.add_subplot(3, 1, (2, 3))
     evoked = mne.EvokedArray(Pesos_totales_sujetos_todos_canales_copy.transpose(), info)
-    evoked.times = times
+    evoked.shift_time(times[0], relative=True)
+
 
     evoked.plot(show=False, spatial_colors=True, scalings=dict(eeg=1, grad=1, mag=1),
                 unit=True, units=dict(eeg='$w$'), axes=ax, zorder='unsorted', selectable=False,
