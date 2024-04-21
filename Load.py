@@ -102,7 +102,7 @@ class Trial_channel:
         # Apply a lowpass filter
         if self.Band:
             if self.Causal_filter_EEG:
-                eeg = eeg.filter(l_freq=self.l_freq_eeg, h_freq=self.h_freq_eeg, phase='minimum') # TODO: preguntar la diferencia causal_filter False, tambien quite el verbose, preguntar si esta ok
+                eeg = eeg.filter(l_freq=self.l_freq_eeg, h_freq=self.h_freq_eeg, phase='minimum')
             else:
                 eeg = eeg.filter(l_freq=self.l_freq_eeg, h_freq=self.h_freq_eeg)
         
@@ -237,19 +237,36 @@ class Trial_channel:
         shimmer = shimmer[:min(len(shimmer), len(envelope))].reshape(-1,1)
         return jitter, shimmer
     
-    def f_phonemes(self, envelope:np.ndarray):
-        """It makes a time-match between the phonemes and the envelope.
+    def f_phonemes(self, envelope:np.ndarray, kind:str='Envelope'):
+        """It makes a time-match matrix between the phonemes and the envelope. The values of given matrix depend on kind.
 
         Parameters
         ----------
         envelope : np.ndarray
             Envelope of the audio signal using Hilbert transform.
+        kind : str, optional
+           Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
+            'Envelope', 'Discrete', 'Onset'
 
         Returns
         -------
         np.ndarray
-            Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhonemes_labels(in order).
+            if kind=='Envelope':
+                Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhonemes_labels(in order)
+            elif kind=='Discrete':
+                Also a matrix but it has 1s and 0s instead of envelope amplitude.
+            elif kind=='Onset':
+                In this case the value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
+            
+        Raises
+        ------
+        SyntaxError
+            Whether the input value of 'kind' is passed correctly. It must be a string among ['Envelope', 'Discrete', 'Onset'].
         """
+        # Check if given kind is a permited input value
+        allowed_kind = ['Envelope', 'Discrete', 'Onset']
+        if kind not in allowed_kind:
+            raise SyntaxError(f"{kind} is not an allowed band frecuency. Allowed bands are: {allowed_kind}")
 
         # Get trial total time length
         phrases = pd.read_table(self.phrases_fname, header=None, sep="\t")
@@ -268,267 +285,7 @@ class Trial_channel:
         labels = []
         times = []
         samples = []
-
-        for ph in phonemes_grid:
-            label = ph.text.transcode()
-            
-            # Rename silences
-            if label == 'sil' or label == 'sp':
-                label = ""
-            
-            # Check if the phoneme is in the list
-            if not(label in exp_info.ph_labels or label==""):
-                print(f'"{label}" is not in not a recognized phoneme. Will be added as silence.')
-                label = ""
-            labels.append(label)
-            times.append((ph.xmin, ph.xmax))
-            samples.append(np.round((ph.xmax - ph.xmin) * self.sr).astype("int"))
-
-        # Extend on more phoneme of silence till end of trial 
-        labels.append("")
-        times.append((ph.xmin, trial_tmax))
-        samples.append(np.round((trial_tmax - ph.xmax) * self.sr).astype("int"))
-
-        # If use envelope amplitude to make continuous stimuli: the total number of samples must match the samples use for stimuli
-        diferencia = np.sum(samples) - len(envelope)
-
-        if diferencia > 0:
-            # Making the way back checking when does the number of samples of the ith phoneme exceed diferencia
-            for ith_phoneme in [-i-1 for i in range(len(samples))]:
-                if diferencia > samples[ith_phoneme]:
-                    diferencia -= samples[ith_phoneme]
-                    samples[ith_phoneme] = 0
-                # When samples is greater than the difference, takes the remaining samples to match the envelope
-                else:
-                    samples[ith_phoneme] -= diferencia
-                    break
-        elif diferencia < 0:
-            # In this case, the last silence is prolonged
-            samples[-1] -= diferencia
         
-        # Make a list with phoneme labels tha already are in the known set
-        updated_taggs = exp_info.ph_labels + [ph for ph in np.unique(labels) if ph not in exp_info.ph_labels]
-
-        # Repeat each label the number of times it was sampled
-        phonemes_tgrid = np.repeat(labels, samples)
-        
-        # Make empty array of phonemes
-        phonemes = np.zeros(shape = (np.sum(samples), len(updated_taggs)))
-        
-        # Match phoneme with envelope
-        for i, tagg in enumerate(phonemes_tgrid):
-            phonemes[i, updated_taggs.index(tagg)] = envelope[i]
-
-        return phonemes
-
-    def f_phonemes_discrete(self, envelope:np.ndarray): #TODO: es exactamente igual a f_phonemes, salvo las últimas tres lineas. UNIFICAR
-        """It makes a time-match between the phonemes and the envelope.
-
-        Parameters
-        ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform.
-
-        Returns
-        -------
-        np.ndarray
-            Matrix with dimensions Samples X Phonemes_labels(in order). The value of a given element is 1 if the phoneme is being pronounced and 0 elsewise.
-        """
-
-        # Get trial total time length
-        phrases = pd.read_table(self.phrases_fname, header=None, sep="\t")
-        trial_tmax = phrases[1].iloc[-1]
-
-        # Load transcription
-        grid = textgrids.TextGrid(self.phn_fname)
-
-        # Get phonemes
-        phonemes_grid = grid['transcription : phones']
-
-        # Extend first silence time to trial start time
-        phonemes_grid[0].xmin = 0.
-
-        # Parse for labels, times and number of samples within each phoneme
-        labels = []
-        times = []
-        samples = []
-
-        for ph in phonemes_grid:
-            label = ph.text.transcode()
-            
-            # Rename silences
-            if label == 'sil' or label == 'sp':
-                label = ""
-            
-            # Check if the phoneme is in the list
-            if not(label in exp_info.ph_labels or label==""):
-                print(f'"{label}" is not in not a recognized phoneme. Will be added as silence.')
-                label = ""
-            labels.append(label)
-            times.append((ph.xmin, ph.xmax))
-            samples.append(np.round((ph.xmax - ph.xmin) * self.sr).astype("int"))
-
-        # Extend on more phoneme of silence till end of trial 
-        labels.append("")
-        times.append((ph.xmin, trial_tmax))
-        samples.append(np.round((trial_tmax - ph.xmax) * self.sr).astype("int"))
-
-        # If use envelope amplitude to make continuous stimuli: the total number of samples must match the samples use for stimuli
-        diferencia = np.sum(samples) - len(envelope)
-
-        if diferencia > 0:
-            # Making the way back checking when does the number of samples of the ith phoneme exceed diferencia
-            for ith_phoneme in [-i-1 for i in range(len(samples))]:
-                if diferencia > samples[ith_phoneme]:
-                    diferencia -= samples[ith_phoneme]
-                    samples[ith_phoneme] = 0
-                # When samples is greater than the difference, takes the remaining samples to match the envelope
-                else:
-                    samples[ith_phoneme] -= diferencia
-                    break
-        elif diferencia < 0:
-            # In this case, the last silence is prolonged
-            samples[-1] -= diferencia
-
-        # Make a list with phoneme labels tha already are in the known set
-        updated_taggs = exp_info.ph_labels + [ph for ph in np.unique(labels) if ph not in exp_info.ph_labels]
-
-        # Repeat each label the number of times it was sampled
-        phonemes_tgrid = np.repeat(labels, samples)
-        
-        # Make empty array of phonemes
-        phonemes = np.zeros(shape = (np.sum(samples), len(updated_taggs)))
-        
-        # Match phoneme with envelope
-        for i, tagg in enumerate(phonemes_tgrid):
-            phonemes[i, updated_taggs.index(tagg)] = 1
-        return phonemes
-   
-    def f_phonemes_onset(self, envelope:np.ndarray): #TODO: es exactamente igual a f_phonemes, salvo las últimas tres lineas. UNIFICAR
-        """It makes a time-match between the phonemes and the envelope.
-
-        Parameters
-        ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform.
-
-        Returns
-        -------
-        mp.ndarray
-            Matrix with dimensions SamplesXPhonemes_labels(in order). The value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
-        """
-
-        # Get trial total time length
-        phrases = pd.read_table(self.phrases_fname, header=None, sep="\t")
-        trial_tmax = phrases[1].iloc[-1]
-
-        # Load transcription
-        grid = textgrids.TextGrid(self.phn_fname)
-
-        # Get phonemes
-        phonemes_grid = grid['transcription : phones']
-
-        # Extend first silence time to trial start time
-        phonemes_grid[0].xmin = 0.
-
-        # Parse for labels, times and number of samples within each phoneme
-        labels = []
-        times = []
-        samples = []
-
-        for ph in phonemes_grid:
-            label = ph.text.transcode()
-            
-            # Rename silences
-            if label == 'sil' or label == 'sp':
-                label = ""
-            
-            # Check if the phoneme is in the list
-            if label in exp_info.ph_labels or label=="":
-                labels.append(label)
-                times.append((ph.xmin, ph.xmax))
-                samples.append(np.round((ph.xmax - ph.xmin) * self.sr).astype("int"))
-            else:
-                print(f'{label} is not in not a recognized phoneme.')
-
-        # Extend on more phoneme of silence till end of trial 
-        labels.append("")
-        times.append((ph.xmin, trial_tmax))
-        samples.append(np.round((trial_tmax - ph.xmax) * self.sr).astype("int"))
-
-        # If use envelope amplitude to make continuous stimuli: the total number of samples must match the samples use for stimuli
-        diferencia = np.sum(samples) - len(envelope)
-
-        if diferencia > 0:
-            # Making the way back checking when does the number of samples of the ith phoneme exceed diferencia
-            for ith_phoneme in [-i-1 for i in range(len(samples))]:
-                if diferencia > samples[ith_phoneme]:
-                    diferencia -= samples[ith_phoneme]
-                    samples[ith_phoneme] = 0
-                # When samples is greater than the difference, takes the remaining samples to match the envelope
-                else:
-                    samples[ith_phoneme] -= diferencia
-                    break
-        elif diferencia < 0:
-            # In this case, the last silence is prolonged
-            samples[-1] -= diferencia
-
-        # Make a list with phoneme labels tha already are in the known set
-        updated_taggs = exp_info.ph_labels + [ph for ph in np.unique(labels) if ph not in exp_info.ph_labels]
-
-        # Repeat each label the number of times it was sampled
-        phonemes_tgrid = np.repeat(labels, samples)
-
-        # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
-        phonemes_onset = [phonemes_tgrid[0]]
-        for i in range(1, len(phonemes_tgrid)):
-            if phonemes_tgrid[i] == phonemes_tgrid[i-1]:
-                phonemes_onset.append(0)
-            else:
-                phonemes_onset.append(phonemes_tgrid[i])
-        
-        # Make empty array of phonemes
-        phonemes = np.zeros(shape = (np.sum(samples), len(updated_taggs)))
-        
-        # Match phoneme with envelope
-        for i, tagg in enumerate(phonemes_onset):
-            if tagg!=0:
-                phonemes[i, updated_taggs.index(tagg)] = 1
-
-        return phonemes
-        
-    def f_phonemes_manual(self, envelope:np.ndarray):#TODO: es muy parecida a f_phonemes, salvo las últimas tres lineas. UNIFICAR
-        """It makes a time-match between the phonemes and the envelope. But it selects manually exclutions for certain phonemes.
-
-        Parameters
-        ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform.
-
-        Returns
-        -------
-        np.ndarray
-            Matrix with dimensions Samples X Phonemes_labels(in order). The value of a given element is 1 if the phoneme is being pronounced and 0 elsewise.
-        """
-
-        # Get trial total time length
-        phrases = pd.read_table(self.phrases_fname, header=None, sep="\t")
-        trial_tmax = phrases[1].iloc[-1]
-
-        # Load transcription
-        grid = textgrids.TextGrid(self.phn_fname)
-
-        # Get phonemes
-        phonemes_grid = grid['transcription : phones']
-
-        # Extend first silence time to trial start time
-        phonemes_grid[0].xmin = 0.
-
-        # Parse for labels, times and number of samples within each phoneme
-        labels = []
-        times = []
-        samples = []
-       
         for ph in phonemes_grid:
             label = ph.text.transcode()
             label = label.replace(' ', '')
@@ -538,7 +295,7 @@ class Trial_channel:
             # Rename silences
             if label in ['sil','sp','sile','silsil','SP','s¡p','sils']:
                 label = ""
-
+            
             # Check if the phoneme is in the list
             if not(label in exp_info.ph_labels or label==""):
                 print(f'"{label}" is not in not a recognized phoneme. Will be added as silence.')
@@ -568,7 +325,7 @@ class Trial_channel:
         elif diferencia < 0:
             # In this case, the last silence is prolonged
             samples[-1] -= diferencia
-
+        
         # Make a list with phoneme labels tha already are in the known set
         updated_taggs = exp_info.ph_labels + [ph for ph in np.unique(labels) if ph not in exp_info.ph_labels]
 
@@ -578,11 +335,27 @@ class Trial_channel:
         # Make empty array of phonemes
         phonemes = np.zeros(shape = (np.sum(samples), len(updated_taggs)))
         
-        # Match phoneme with envelope
-        for i, tagg in enumerate(phonemes_tgrid):
-            phonemes[i, updated_taggs.index(tagg)] = 1
+        # Match phoneme with kind
+        if kind=='Envelope':
+            for i, tagg in enumerate(phonemes_tgrid):
+                phonemes[i, updated_taggs.index(tagg)] = envelope[i]
+        elif kind=='Discrete':
+            for i, tagg in enumerate(phonemes_tgrid):
+                phonemes[i, updated_taggs.index(tagg)] = 1
+        elif kind=='Onset':
+            # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
+            phonemes_onset = [phonemes_tgrid[0]]
+            for i in range(1, len(phonemes_tgrid)):
+                if phonemes_tgrid[i] == phonemes_tgrid[i-1]:
+                    phonemes_onset.append(0)
+                else:
+                    phonemes_onset.append(phonemes_tgrid[i])
+            # Match phoneme with envelope
+            for i, tagg in enumerate(phonemes_onset):
+                if tagg!=0:
+                    phonemes[i, updated_taggs.index(tagg)] = 1
         return phonemes
-
+      
     def f_calculate_pitch(self): #TODO: make it usuable in any computer. Also missing folder.
         """Calculates pitch from .wav file and stores it.
         """
@@ -812,17 +585,21 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         Sujeto_1 = {}
         Sujeto_2 = {}
 
+        # Retrive number of files, i.e: trials#TODO CHEQUEAr
+        trials = list(set([int(fname.split('.')[2]) for fname in os.listdir(self.phrases_path) if os.path.isfile(self.phrases_path + f'/{fname}')]))
+        
         # Try to open preprocessed info of samples, if not crates raw
         try:
             samples_info = Funciones.load_pickle(path=self.samples_info_path + f'samples_info_{self.sesion}.pkl')
             loaded_samples_info = True
         except:
             loaded_samples_info = False
-            samples_info = {'keep_indexes1': [], 'keep_indexes2': [], 'trial_lengths1': [0], 'trial_lengths2': [0]}
+            empty_dic = {trial:None for trial in trials}
+            samples_info = {'keep_indexes_per_trial1': empty_dic.copy(),
+                            'keep_indexes_per_trial2': empty_dic.copy(),
+                            'trial_lengths1': empty_dic.copy(),
+                            'trial_lengths2': empty_dic.copy()}
 
-        # Retrive number of files, i.e: trials#TODO CHEQUEAr
-        trials = list(set([int(fname.split('.')[2]) for fname in os.listdir(self.phrases_path) if os.path.isfile(self.phrases_path + f'/{fname}')]))
-        
         # Retrive and concatenate data of all trials
         for trial in trials:
             print(f'Trial {trial} of {len(trials)}')
@@ -881,20 +658,20 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
                     # If there isn't any data matches lengths of both variables comparing every key and speaker labels length (the Trial gets modify inside the function)
                     Trial_sujeto_1, current_speaker_1, minimo_largo1 = Sesion_class.match_lengths(dic=Trial_sujeto_1, speaker_labels=current_speaker_1)
                     Trial_sujeto_2, current_speaker_2, minimo_largo2 = Sesion_class.match_lengths(dic=Trial_sujeto_2, speaker_labels=current_speaker_2)
-                    samples_info['trial_lengths1'].append(minimo_largo1)
-                    samples_info['trial_lengths2'].append(minimo_largo2)
+                    samples_info['trial_lengths1'][trial] = minimo_largo1
+                    samples_info['trial_lengths2'][trial] = minimo_largo2
 
                     # Preprocessing: calaculates the relevant indexes for the apropiate analysis
-                    keep_indexes1_trial = self.shifted_indexes_to_keep(speaker_labels=current_speaker_1)
-                    keep_indexes2_trial = self.shifted_indexes_to_keep(speaker_labels=current_speaker_2)
+                    samples_info['keep_indexes_per_trial1'][trial] = self.shifted_indexes_to_keep(speaker_labels=current_speaker_1)
+                    samples_info['keep_indexes_per_trial2'][trial] = self.shifted_indexes_to_keep(speaker_labels=current_speaker_2)
 
-                    # Add sum of all previous trials length. This is because at the end, all trials previous to the actual will be concatenated
-                    keep_indexes1_trial += np.sum(samples_info['trial_lengths1'][:-1])
-                    keep_indexes2_trial += np.sum(samples_info['trial_lengths2'][:-1])
+                    # # Add sum of all previous trials length. This is because at the end, all trials previous to the actual will be concatenated
+                    # samples_info['keep_indexes_per_trial1'][trial] += np.sum(samples_info['trial_lengths1'][:-1])
+                    # samples_info['keep_indexes_per_trial1'][trial] += np.sum(samples_info['trial_lengths2'][:-1])
                     
                     # Append relevant indexes to sample_info
-                    samples_info['keep_indexes1'].append(keep_indexes1_trial)
-                    samples_info['keep_indexes2'].append(keep_indexes2_trial)
+                    samples_info['keep_indexes1'][trial] = keep_indexes1_trial
+                    samples_info['keep_indexes2'][trial] = keep_indexes2_trial
 
                 # Concatenates data of each subject #TODO la versión vieja excluía pitch preguntar por que
                 for key in Trial_sujeto_1:
@@ -962,10 +739,10 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
                 shift_2 = np.zeros(shape=(data_2.shape[1], data_2.shape[0]*(len(self.delays))))
                 
                 for i in range(len(data_1)):
-                    shift_1_i = Processing.shifted_matrix(feature=data_1[i], delays=self.delays)
+                    shift_1_i = Processing.shifted_matrix(features=data_1[i], delays=self.delays)
                     shift_1[:,len(self.delays)*i:len(self.delays)*(i+1)] = shift_1_i
                 for i in range(len(data_2)):
-                    shift_2_i = Processing.shifted_matrix(feature=data_2[i], delays=self.delays)
+                    shift_2_i = Processing.shifted_matrix(features=data_2[i], delays=self.delays)
                     shift_2[:,len(self.delays)*i:len(self.delays)*(i+1)] = shift_2_i
 
                 # Return to mne arrays
@@ -987,8 +764,8 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
             # The rest of the stimuli is 1D, so it's not necessary to stack them). Bassically envelope.
             elif key!= 'EEG':
                 print(f'Computing shifted matrix for the {key}')
-                shift_1 = Processing.shifted_matrix(feature=Sujeto_1[key].get_data()[0], delays=self.delays)
-                shift_2 = Processing.shifted_matrix(feature=Sujeto_2[key].get_data()[0], delays=self.delays)
+                shift_1 = Processing.shifted_matrix(features=Sujeto_1[key].get_data()[0], delays=self.delays)
+                shift_2 = Processing.shifted_matrix(features=Sujeto_2[key].get_data()[0], delays=self.delays)
 
                 # Return to mne arrays
                 shift_1_ch_names = [Sujeto_1[key].ch_names[0]+f'_delay_{delay}' for delay in self.delays]
@@ -1062,9 +839,9 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         Parameters
         ----------
         trial : int
-            _description_
+            Number of trial
         channel : int
-            _description_
+            Channel of audio signal
 
         Returns
         -------
@@ -1100,7 +877,7 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         elif diff < 0:
             speaker = np.concatenate([speaker, np.repeat(0, np.abs(diff))])
 
-        # Return an array with envelope length, with values 3 if both speak; 2, just listener; 1, speaker and 0 silence 
+        # Return an array with envelope length, with values 3 if both speak; 2, just listener; 1, speaker and 0 silence
         return speaker + listener * 2
     
     def shifted_indexes_to_keep(self, speaker_labels:np.ndarray):
@@ -1118,8 +895,8 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         """
         
         # Computes shifted matrix
-        shifted_matrix_speaker_labels = Processing.shifted_matrix(feature=speaker_labels, delays=self.delays).astype(float)
-        
+        shifted_matrix_speaker_labels = Processing.shifted_matrix(features=speaker_labels, delays=self.delays).astype(float)
+
         # Make the appropiate label
         if self.situacion == 'Todo':
             return
@@ -1132,12 +909,9 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
             situacion_label = 2
         elif self.situacion == 'Ambos' or self.situacion == 'Ambos_Habla':
             situacion_label = 3
-
-        # Change the value of situacion_label by 'nan
-        shifted_matrix_speaker_labels[shifted_matrix_speaker_labels == situacion_label] = float("nan")
         
-        # Shifted matrix index where the given situation is ocurring in all row
-        return pd.isnull(shifted_matrix_speaker_labels).all(axis=1).nonzero()[0]
+        # Shifted matrix index where the given situation is ocurring in all row (number of samples dimension)
+        return (shifted_matrix_speaker_labels==situacion_label).all(axis=1).nonzero()[0]
 
     @staticmethod
     def match_lengths(dic:dict, speaker_labels:np.ndarray, minimum_length:int=None):
