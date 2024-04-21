@@ -445,22 +445,22 @@ class Trial_channel:
         channel['EEG'] = self.f_eeg()
         channel['info'] = self.f_info()
         channel['Envelope'] = self.f_envelope()
-        env = Funciones.mne_to_numpy(channel['Envelope'])
+        # env = Funciones.mne_to_numpy(channel['Envelope'])
 
         if 'Pitch' in stims:
             if calculate_pitch:
                 self.calculate_pitch()
-            channel['Pitch'] = self.load_pitch(envelope=env)
+            channel['Pitch'] = self.load_pitch(envelope=channel['Envelope'])
         if 'Spectrogram' in stims:
-            channel['Spectrogram'] = self.f_spectrogram(envelope=env)
+            channel['Spectrogram'] = self.f_spectrogram(envelope=channel['Envelope'])
         if 'Phonemes' in stims:
-            channel['Phonemes'] = self.f_phonemes(envelope=env)
+            channel['Phonemes'] = self.f_phonemes(envelope=channel['Envelope'])
         if 'Phonemes-manual' in stims:
-            channel['Phonemes-manual'] = self.f_phonemes_manual(envelope=env)
+            channel['Phonemes-manual'] = self.f_phonemes_manual(envelope=channel['Envelope'])
         if 'Phonemes-discrete' in stims:
-            channel['Phonemes-discrete'] = self.f_phonemes_discrete(envelope=env)
+            channel['Phonemes-discrete'] = self.f_phonemes_discrete(envelope=channel['Envelope'])
         if 'Phonemes-onset' in stims:
-            channel['Phonemes-onset'] = self.f_phonemes_onset(envelope=env)
+            channel['Phonemes-onset'] = self.f_phonemes_onset(envelope=channel['Envelope'])
         return channel
 
 class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it if pitch is a stimulus
@@ -585,10 +585,11 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         Sujeto_1 = {}
         Sujeto_2 = {}
 
-        # Retrive number of files, i.e: trials#TODO CHEQUEAr
-        trials = list(set([int(fname.split('.')[2]) for fname in os.listdir(self.phrases_path) if os.path.isfile(self.phrases_path + f'/{fname}')]))
-        
-        # Try to open preprocessed info of samples, if not crates raw
+        # Retrive number of files, i.e: trials. This is done this way because there are missing phonemes values
+        trials = [int(fname.split('.')[2]) for fname in os.listdir(self.phn_path) if fname.endswith('TextGrid')]
+        trials = list(set([tr for tr in trials if trials.count(tr) > 1]))
+
+        # Try to open preprocessed info of samples, if not crates raw. This dictionary contains data of trial lengths and indexes to keep up to given trial
         try:
             samples_info = Funciones.load_pickle(path=self.samples_info_path + f'samples_info_{self.sesion}.pkl')
             loaded_samples_info = True
@@ -893,15 +894,18 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         np.ndarray
             Indexes to keep for the analysis
         """
+        if self.situacion == 'Todo':
+            return [i for i in range(len(speaker_labels))]
         
+        # Change 0 with 4s, because shifted matrix pad zeros that could be mistaken with situacion 0    
+        speaker_labels = np.array(speaker_labels)
+        speaker_labels = np.where(speaker_labels==0, 4, speaker_labels)        
+
         # Computes shifted matrix
         shifted_matrix_speaker_labels = Processing.shifted_matrix(features=speaker_labels, delays=self.delays).astype(float)
 
         # Make the appropiate label
-        if self.situacion == 'Todo':
-            return
-
-        elif self.situacion == 'Silencio':
+        if self.situacion == 'Silencio':
             situacion_label = 0
         elif self.situacion == 'Escucha':
             situacion_label = 1
@@ -911,7 +915,7 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
             situacion_label = 3
         
         # Shifted matrix index where the given situation is ocurring in all row (number of samples dimension)
-        return (shifted_matrix_speaker_labels==situacion_label).all(axis=1).nonzero()[0]
+        return ((shifted_matrix_speaker_labels==situacion_label) | (shifted_matrix_speaker_labels==0)).all(axis=1).nonzero()[0]
 
     @staticmethod
     def match_lengths(dic:dict, speaker_labels:np.ndarray, minimum_length:int=None):
