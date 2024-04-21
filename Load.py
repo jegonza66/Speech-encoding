@@ -454,13 +454,13 @@ class Trial_channel:
         if 'Spectrogram' in stims:
             channel['Spectrogram'] = self.f_spectrogram(envelope=channel['Envelope'])
         if 'Phonemes' in stims:
-            channel['Phonemes'] = self.f_phonemes(envelope=channel['Envelope'])
-        if 'Phonemes-manual' in stims:
-            channel['Phonemes-manual'] = self.f_phonemes_manual(envelope=channel['Envelope'])
+            channel['Phonemes'] = self.f_phonemes(envelope=channel['Envelope'], kind='Envelope')
+        if 'Phonemes-manual' in stims: #Same as before
+            channel['Phonemes-manual'] = self.f_phonemes(envelope=channel['Envelope'], kind='Envelope')
         if 'Phonemes-discrete' in stims:
-            channel['Phonemes-discrete'] = self.f_phonemes_discrete(envelope=channel['Envelope'])
+            channel['Phonemes-discrete'] = self.f_phonemes(envelope=channel['Envelope'], kind='Discrete')
         if 'Phonemes-onset' in stims:
-            channel['Phonemes-onset'] = self.f_phonemes_onset(envelope=channel['Envelope'])
+            channel['Phonemes-onset'] =  self.f_phonemes(envelope=channel['Envelope'], kind='Onset')
         return channel
 
 class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it if pitch is a stimulus
@@ -670,43 +670,35 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
                     # samples_info['keep_indexes_per_trial1'][trial] += np.sum(samples_info['trial_lengths1'][:-1])
                     # samples_info['keep_indexes_per_trial1'][trial] += np.sum(samples_info['trial_lengths2'][:-1])
                     
-                    # Append relevant indexes to sample_info
-                    samples_info['keep_indexes1'][trial] = keep_indexes1_trial
-                    samples_info['keep_indexes2'][trial] = keep_indexes2_trial
+                    # # Append relevant indexes to sample_info
+                    # samples_info['keep_indexes1'][trial] = keep_indexes1_trial
+                    # samples_info['keep_indexes2'][trial] = keep_indexes2_trial
 
-                # Concatenates data of each subject #TODO la versión vieja excluía pitch preguntar por que
+                # Concatenates data of each subject, keeping just relevant indexes #TODO la versión vieja excluía pitch preguntar por que
                 for key in Trial_sujeto_1:
                     if key != 'info':
                         if key not in Sujeto_1:
-                            Sujeto_1[key] = Trial_sujeto_1[key]
+                            Sujeto_1[key] = Trial_sujeto_1[key][samples_info['keep_indexes_per_trial1'][trial]]
                         else:
-                            if key=='EEG':
-                                Sujeto_1[key] = mne.concatenate_raws(raws=[Sujeto_1[key], Trial_sujeto_1[key]])
-                            else:
-                                Sujeto_1[key].append([Trial_sujeto_1[key]]) 
+                            Sujeto_1[key] = np.concatenate((Sujeto_1[key], Trial_sujeto_1[key][samples_info['keep_indexes_per_trial1'][trial]]), axis=0)
                 for key in Trial_sujeto_2:
                     if key != 'info':
                         if key not in Sujeto_2:
-                            Sujeto_2[key] = Trial_sujeto_2[key]
+                            Sujeto_2[key] = Trial_sujeto_2[key][samples_info['keep_indexes_per_trial2'][trial]]
                         else:
-                            if key=='EEG':
-                                Sujeto_2[key] = mne.concatenate_raws(raws=[Sujeto_2[key], Trial_sujeto_2[key]])
-                            else:
-                                Sujeto_2[key].append([Trial_sujeto_2[key]]) 
+                            Sujeto_2[key] = np.concatenate((Sujeto_2[key], Trial_sujeto_2[key][samples_info['keep_indexes_per_trial2'][trial]]), axis=0)
 
             # Empty trial
             except:
                 print(f"Trial {trial} of session {self.sesion} couldn't be loaded.")
-                samples_info['trial_lengths1'].append(0)
-                samples_info['trial_lengths2'].append(0)
+                samples_info['trial_lengths1'][trial] = 0
+                samples_info['trial_lengths2'][trial] = 0
 
         # Get info of the setup that was exluded in the previous iteration
         info = Trial_channel_1['info']
 
         # Saves flatten relevant indexes 
         if not loaded_samples_info:
-            samples_info['keep_indexes1'] = [item for sublist in samples_info['keep_indexes1'] for item in sublist]
-            samples_info['keep_indexes2'] = [item for sublist in samples_info['keep_indexes2'] for item in sublist]
             os.makedirs(self.samples_info_path, exist_ok=True)
             Funciones.dump_pickle(path=self.samples_info_path + f'samples_info_{self.sesion}.pkl', obj=samples_info, rewrite=True)
 
@@ -715,80 +707,35 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         for key in Sujeto_1:
             # Drops silences phoneme column
             if key.startswith('Phonemes'):
-                # Remove silence row 
-                silence_index_1 = Sujeto_1[key].info.get('ch_names').index('')
-                data_unsilence_1 = np.delete(arr=Sujeto_1[key].get_data(), obj=silence_index_1, axis=0)
+                # Remove silence column, the last one by construction
+                Sujeto_1[key] = np.delete(arr=Sujeto_1[key], obj=-1, axis=1)
+                Sujeto_2[key] = np.delete(arr=Sujeto_2[key], obj=-1, axis=1)
 
-                silence_index_2 = Sujeto_2[key].info.get('ch_names').index('')
-                data_unsilence_2 = np.delete(arr=Sujeto_2[key].get_data(), obj=silence_index_2, axis=0)
-                
-                # Recreates mne array
-                ch_1 = Sujeto_1[key].ch_names
-                ch_2 = Sujeto_2[key].ch_names
-                ch_1.remove('')
-                ch_2.remove('')
-                info_1 = mne.create_info(ch_names=ch_1, sfreq=Sujeto_1[key].info.get('sfreq'), ch_types='misc')
-                info_2 = mne.create_info(ch_names=ch_2, sfreq=Sujeto_2[key].info.get('sfreq'), ch_types='misc')
-                Sujeto_1[key] = mne.io.RawArray(data=data_unsilence_1, info=info_1)
-                Sujeto_2[key] = mne.io.RawArray(data=data_unsilence_2, info=info_2)
-
-            # Stacked shifted matrices row by row (a given row is a feature). This is faster than hstack, also is convient to make loop separated
+            # Stacked shifted matrices (samples X features*delay) by column. This is faster than stack, also is convient to make loop separated
             if key in specific_stimuli:
                 print(f'Computing shifted matrix for the {key}')
-                data_1, data_2 = Sujeto_1[key].get_data(), Sujeto_2[key].get_data()
-                shift_1 = np.zeros(shape=(data_1.shape[1], data_1.shape[0]*(len(self.delays))))
-                shift_2 = np.zeros(shape=(data_2.shape[1], data_2.shape[0]*(len(self.delays))))
-                
+                data_1, data_2 = Sujeto_1[key], Sujeto_2[key]
+
+                shift_1 = np.zeros(shape=(data_1.shape[0], data_1.shape[1]*(len(self.delays))))
+                shift_2 = np.zeros(shape=(data_2.shape[0], data_2.shape[1]*(len(self.delays))))
+
                 for i in range(len(data_1)):
-                    shift_1_i = Processing.shifted_matrix(features=data_1[i], delays=self.delays)
+                    shift_1_i = Processing.shifted_matrix(features=data_1[:,i], delays=self.delays)
                     shift_1[:,len(self.delays)*i:len(self.delays)*(i+1)] = shift_1_i
                 for i in range(len(data_2)):
-                    shift_2_i = Processing.shifted_matrix(features=data_2[i], delays=self.delays)
+                    shift_2_i = Processing.shifted_matrix(features=data_2[:,i], delays=self.delays)
                     shift_2[:,len(self.delays)*i:len(self.delays)*(i+1)] = shift_2_i
 
-                # Return to mne arrays
-                shift_1_ch_names, shift_2_ch_names = [], []
-                for delay in self.delays:
-                    shift_1_ch_names += [ch + f'_delay_{delay}' for ch in Sujeto_1[key].ch_names]
-                    shift_2_ch_names += [ch + f'_delay_{delay}' for ch in Sujeto_2[key].ch_names]
-
-                 # Keep just relevant indexes 
-                relevant_1 = shift_1[samples_info['keep_indexes1'], :]
-                shift_1_info = mne.create_info(ch_names=shift_1_ch_names, sfreq=Sujeto_1[key].info.get('sfreq'), ch_types='misc')
-                Sujeto_1[key] = mne.io.RawArray(data=relevant_1.T, info=shift_1_info)
-
-                relevant_2 = shift_2[samples_info['keep_indexes2'], :]
-                shift_2_info = mne.create_info(ch_names=shift_2_ch_names, sfreq=Sujeto_2[key].info.get('sfreq'), ch_types='misc')
-                Sujeto_2[key] = mne.io.RawArray(data=relevant_2.T, info=shift_2_info)
+                Sujeto_1[key] = shift_1
+                Sujeto_2[key] = shift_2
                 print(f'{key} matrix computed')
 
             # The rest of the stimuli is 1D, so it's not necessary to stack them). Bassically envelope.
             elif key!= 'EEG':
                 print(f'Computing shifted matrix for the {key}')
-                shift_1 = Processing.shifted_matrix(features=Sujeto_1[key].get_data()[0], delays=self.delays)
-                shift_2 = Processing.shifted_matrix(features=Sujeto_2[key].get_data()[0], delays=self.delays)
-
-                # Return to mne arrays
-                shift_1_ch_names = [Sujeto_1[key].ch_names[0]+f'_delay_{delay}' for delay in self.delays]
-                shift_2_ch_names = [Sujeto_2[key].ch_names[0]+f'_delay_{delay}' for delay in self.delays]
-                
-                # Keep just relevant indexes 
-                relevant_1 = shift_1[samples_info['keep_indexes1'], :]
-                shift_1_info = mne.create_info(ch_names=shift_1_ch_names, sfreq=Sujeto_1[key].info.get('sfreq'), ch_types='misc')
-                Sujeto_1[key] = mne.io.RawArray(data=relevant_1.T, info=shift_1_info)
-
-                relevant_2 = shift_2[samples_info['keep_indexes2'], :]
-                shift_2_info = mne.create_info(ch_names=shift_2_ch_names, sfreq=Sujeto_2[key].info.get('sfreq'), ch_types='misc')
-                Sujeto_2[key] = mne.io.RawArray(data=relevant_2.T, info=shift_2_info)
+                Sujeto_1[key] = Processing.shifted_matrix(features=Sujeto_1[key], delays=self.delays)
+                Sujeto_2[key] = Processing.shifted_matrix(features=Sujeto_2[key], delays=self.delays)
                 print(f'{key} matrix computed')
-            
-            elif key=='EEG':
-                # Keep just relevant indexes 
-                relevant_1 = Sujeto_1[key].get_data().T[samples_info['keep_indexes1'], :]
-                Sujeto_1[key] = mne.io.RawArray(data=relevant_1.T, info=Sujeto_1[key].info)
-
-                relevant_2 = Sujeto_2[key].get_data().T[samples_info['keep_indexes2'], :]
-                Sujeto_2[key] = mne.io.RawArray(data=relevant_2.T, info=Sujeto_1[key].info)
 
             # Save preprocesed data
             os.makedirs(self.export_paths[key], exist_ok=True)
