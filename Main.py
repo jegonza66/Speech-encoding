@@ -51,7 +51,7 @@ except:
     print('\n\nAlphas file not found.\n\n')
 
 # Run setup
-sesiones = [21, 30]#, 23, 24, 25, 26, 27, 29, 30]
+sesiones = [21]#, 22, 23, 24, 25, 26, 27, 29, 30]
 total_subjects = len(sesiones)*2
 
 # EEG sample rate
@@ -113,10 +113,6 @@ for Band in Bands:
 
             # Load delayed stimulus by subject (i.e: concatenated shifted matrices of each stimulus)
             delayed_stims_sujeto_1, delayed_stims_sujeto_2 = Load.Estimulos(stim=stim, Sujeto_1=Sujeto_1, Sujeto_2=Sujeto_2)
-
-            # Transform mne objects to np.ndarrays # TODO está bien que salte el warning si ya hay data guardada pq no está en formato mne
-            eeg_sujeto_1, eeg_sujeto_2 = Funciones.mne_to_numpy(obj=[eeg_sujeto_1, eeg_sujeto_2])
-            delayed_stims_sujeto_1, delayed_stims_sujeto_2 = Funciones.mne_to_numpy(obj=delayed_stims_sujeto_1), Funciones.mne_to_numpy(obj=delayed_stims_sujeto_2)
 
             # Get number of samples of each delayed_stim 
             len_estimulos = [len(delayed_stims_sujeto_1[i][0]) for i in range(len(delayed_stims_sujeto_1))]
@@ -190,7 +186,7 @@ for Band in Bands:
 
                     # Fit model and save results
                     if model == 'Ridge':
-                        Model = Models.Ridge(alpha)
+                        Model = Models.Ridge_model(alpha)
                         Model.fit(dstims_train_val, eeg_train_val)
                         
                         # Predict and save
@@ -202,7 +198,7 @@ for Band in Bands:
                         # Get the time lag index of the present to take from the delayed matrix stimuli
                         present_stim_index = np.where(delays==0)[0][0]
 
-                        Model = Models.mne_mtrf(-tmax, -tmin, sr, alpha, present_stim_index) # TODO acá quedan dados vuelta!
+                        Model = Models.mne_mtrf(-tmax, -tmin, sr, alpha, present_stim_index, weight) # TODO acá quedan dados vuelta!
                         Model.fit(dstims_train_val, eeg_train_val)
 
                         # Predict and save
@@ -355,9 +351,12 @@ for Band in Bands:
 
         Plot.regression_weights_matrix(Pesos_totales_sujetos_todos_canales, info, times, Display_Total_Figures,
                                        Save_Total_Figures, Run_graficos_path, len_estimulos, stim, Band, ERP=True)
+        
 
-        # TFCE across subjects
-        t_tfce, clusters, p_tfce, H0, trf_subjects, n_permutations = Statistics.tfce(Pesos_totales_sujetos_todos_canales, times, len_estimulos, n_permutations=4096)
+        t_int = datetime.now()
+        # TFCE across subjects # TODO TARDA UN SIGLO ESTA FUNCION Q ONDA, AUMENTA CON sujeto_total
+        t_tfce, clusters, p_tfce, H0, trf_subjects, n_permutations = Statistics.tfce(Pesos_totales_sujetos_todos_canales, times, len_estimulos, n_permutations=4096)#, verbose=None)
+        print(datetime.now()-t_int)
         Plot.plot_t_p_tfce(t=t_tfce, p=p_tfce, title='TFCE', mcc=True, shape=trf_subjects.shape,
                            graficos_save_path=Run_graficos_path, Band=Band, stim=stim, pval_trhesh=0.05, Display=Display_Total_Figures)
         Plot.plot_p_tfce(p=p_tfce, times=times, title='', mcc=True, shape=trf_subjects.shape,
