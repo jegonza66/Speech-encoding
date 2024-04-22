@@ -18,7 +18,7 @@ def shifted_matrix(features:np.ndarray, delays:np.ndarray):
         Concatenated shifted matrix of size len(features)Xlen(delayes)
     """
     if isinstance(features, list):
-        features = np.array(features).reshape(-1,1)
+        features = np.array(features)
     # Is asumed this is a one dimensional feature with number of samples as length
     shifted_matrix = np.zeros(features.shape + (len(delays),))
 

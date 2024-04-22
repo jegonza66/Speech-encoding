@@ -389,7 +389,7 @@ def Cabezas_corr_promedio(Correlaciones_totales_sujetos, info, Display, Save, Ru
         ax.set_ylabel('Correlation', fontsize=fontsize)
 
         add_stat_annotation(ax, data=data, box_pairs=[('Left', 'Right')],
-                            test='Wilcoxon', text_format='full', loc='outside', fontsize='xx-large')
+                            test='Wilcoxon', text_format='full', loc='outside', fontsize='xx-large', verbose=0)
         test_results = wilcoxon(data['Left'], data['Right'])
 
         fig.tight_layout()

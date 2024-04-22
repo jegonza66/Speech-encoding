@@ -1,12 +1,21 @@
-from sklearn import linear_model
+import numpy as np
 from mne.decoding import ReceptiveField
+from sklearn.linear_model import Ridge
+from sklearn.base import BaseEstimator, RegressorMixin
 
+class RidgeRegression(Ridge):
+    def __init__(self, weight:np.ndarray=None, alpha=1.0):
+        super().__init__(alpha)
+        self.weight = weight
 
-class Ridge:
+    def fit(self, X, y):        
+        return super().fit(X, y, weight=self.weight)
+
+class Ridge_model:
     
     def __init__(self, alpha):
         self.alpha = alpha
-        self.model = linear_model.Ridge(self.alpha)
+        self.model = Ridge(self.alpha)
         
     def fit(self, dstims_train_val, eeg_train_val):  
         self.model.fit(dstims_train_val, eeg_train_val)
@@ -19,9 +28,10 @@ class Ridge:
 
 class mne_mtrf:
 
-    def __init__(self, tmin, tmax, sr, alpha, present_stim_index):
+    def __init__(self, tmin, tmax, sr, alpha, present_stim_index, weight):
         self.sr = sr
-        self.rf = ReceptiveField(tmin, tmax, sr, estimator=alpha, scoring='corrcoef', verbose=False)
+        # self.rf = ReceptiveField(tmin, tmax, sr, estimator=alpha, scoring='corrcoef', verbose=False)
+        self.rf = ReceptiveField(tmin, tmax, sr, estimator=RidgeRegression(alpha=alpha, weight=weight), scoring='corrcoef', verbose=False)
         self.present_stim_index = present_stim_index
 
     def fit(self, dstims_train_val, eeg_train_val):
