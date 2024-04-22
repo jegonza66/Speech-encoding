@@ -602,10 +602,23 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
                             'trial_lengths2': empty_dic.copy()}
 
         # Retrive and concatenate data of all trials
-        for trial in trials:
-            print(f'Trial {trial} of {len(trials)}')
+        for p, trial in enumerate(trials):
+            # Update on number of trials
+            if (trials[p-1]+1!=trial) and p!=0:
+                missing_trials = []
+                t = trial
+                while trials[p-1]+1!=t:
+                    missing_trials.append(t-1)
+                    t-=1
+                missing_trials.sort()
+                print(f'Trial {trial} of {trials[-1]}. Missing trials {", ".join(str(i) for i in missing_trials)}.')
+            elif (p==0) and (trials[0]!=1):
+                print(f'Trial {trial} of {trials[-1]}. Missing trial 1.')
+            else:
+                print(f'Trial {trial} of {trials[-1]}.')
+
+            # Create trial for both channels in order to extract features and EEG signal
             try:
-                # Create trial for both channels in order to extract features and EEG signal
                 channel_1 = Trial_channel(
                     s=self.sesion, 
                     trial=trial, 
@@ -733,8 +746,8 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
             # The rest of the stimuli is 1D, so it's not necessary to stack them). Bassically envelope.
             elif key!= 'EEG':
                 print(f'Computing shifted matrix for the {key}')
-                Sujeto_1[key] = Processing.shifted_matrix(features=Sujeto_1[key], delays=self.delays)
-                Sujeto_2[key] = Processing.shifted_matrix(features=Sujeto_2[key], delays=self.delays)
+                Sujeto_1[key] = Processing.shifted_matrix(features=Sujeto_1[key].flatten(), delays=self.delays)
+                Sujeto_2[key] = Processing.shifted_matrix(features=Sujeto_2[key].flatten(), delays=self.delays)
                 print(f'{key} matrix computed')
 
             # Save preprocesed data
