@@ -2,14 +2,7 @@ import numpy as np
 from mne.decoding import ReceptiveField
 from sklearn.linear_model import Ridge
 from sklearn.base import BaseEstimator, RegressorMixin
-
-class RidgeRegression(Ridge):
-    def __init__(self, weight:np.ndarray=None, alpha=1.0):
-        super().__init__(alpha)
-        self.weight = weight
-
-    def fit(self, X, y):        
-        return super().fit(X, y, weight=self.weight)
+import Processing
 
 class Ridge_model:
     
@@ -25,26 +18,55 @@ class Ridge_model:
         predicted = self.model.predict(dstims_test)
         return predicted
 
+class RidgeRegression(Ridge):
+    def __init__(self, relevant_indexes_train:np.ndarray=None, relevant_indexes_test:np.ndarray=None, Stims_preprocess:str='Normalize', EEG_preprocess:str='Standarize', alpha=1.0):
+        super().__init__(alpha)
+        self.relevant_indexes_train = relevant_indexes_train
+        self.relevant_indexes_test = relevant_indexes_test
+        self.stims_preprocess=Stims_preprocess
+        self.eeg_preprocess=EEG_preprocess
 
-class mne_mtrf:
+    def fit(self, X, y):
+        # Keep just relevant indexes
+        X_train=X[self.relevant_indexes_train]        
+        y_train=y[self.relevant_indexes_train]     
+        X_test=X[self.relevant_indexes_test]        
+        y_test=y[self.relevant_indexes_test]     
+        
+        # Standarize and normalize
+        eeg_train_val, eeg_test, dstims_train_val, dstims_test = Processing.standarize_normalize(eeg_train_val=y_train,
+                                        eeg_test=y_test,
+                                        dstims_train_val=X_train,
+                                        dstims_test=X_test,
+                                        self.stims_preprocess,
+                                        self.eeg_preprocess,
+                                        axis=0,
+                                        porcent=5)
+        return super().fit(X, y)
+    
+    def predict(self, X):
+        X=X[self.relevant_indexes_test]
+        return super().predict(X)
 
-    def __init__(self, tmin, tmax, sr, alpha, present_stim_index, weight):
+class MNE_MTRF:
+    def __init__(self, tmin, tmax, sr, alpha, relevant_indexes_train, relevant_indexes_test, Stims_preprocess, EEG_preprocess):
         self.sr = sr
-        # self.rf = ReceptiveField(tmin, tmax, sr, estimator=alpha, scoring='corrcoef', verbose=False)
-        self.rf = ReceptiveField(tmin, tmax, sr, estimator=RidgeRegression(alpha=alpha, weight=weight), scoring='corrcoef', verbose=False)
-        self.present_stim_index = present_stim_index
+        self.rf = ReceptiveField(tmin, tmax, sr,
+            estimator=RidgeRegression(
+                alpha=alpha,
+                relevant_indexes_train=relevant_indexes_train,
+                relevant_indexes_test=relevant_indexes_test,
+                Stims_preprocess, 
+                EEG_preprocess), 
+            scoring='corrcoef', 
+            verbose=False)
 
-    def fit(self, dstims_train_val, eeg_train_val):
-        stim = dstims_train_val[:, self.present_stim_index]
-        stim = stim.reshape([stim.shape[0], 1])
-
-        self.rf.fit(stim, eeg_train_val)
+    def fit(self, stims, eeg):
+        self.rf.fit(stims, eeg)
         self.coefs = self.rf.coef_[:, 0, :]
 
     def predict(self, dstims_test):
-        stim = dstims_test[:, self.present_stim_index]
-        stim = stim.reshape([stim.shape[0], 1])
-        predicted = self.rf.predict(stim)
+        predicted = self.rf.predict(dstims_test)
         return predicted
 
 

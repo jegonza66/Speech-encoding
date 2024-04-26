@@ -595,11 +595,10 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
             loaded_samples_info = True
         except:
             loaded_samples_info = False
-            empty_dic = {trial:None for trial in trials}
-            samples_info = {'keep_indexes_per_trial1': empty_dic.copy(),
-                            'keep_indexes_per_trial2': empty_dic.copy(),
-                            'trial_lengths1': empty_dic.copy(),
-                            'trial_lengths2': empty_dic.copy()}
+            samples_info = {'trial_lengths1': [0],
+                            'trial_lengths2': [0],
+                            'keep_indexes1':[],
+                            'keep_indexes2':[]}
 
         # Retrive and concatenate data of all trials
         for p, trial in enumerate(trials):
@@ -672,34 +671,27 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
                     # If there isn't any data matches lengths of both variables comparing every key and speaker labels length (the Trial gets modify inside the function)
                     Trial_sujeto_1, current_speaker_1, minimo_largo1 = Sesion_class.match_lengths(dic=Trial_sujeto_1, speaker_labels=current_speaker_1)
                     Trial_sujeto_2, current_speaker_2, minimo_largo2 = Sesion_class.match_lengths(dic=Trial_sujeto_2, speaker_labels=current_speaker_2)
-                    samples_info['trial_lengths1'][trial] = minimo_largo1
-                    samples_info['trial_lengths2'][trial] = minimo_largo2
+                    samples_info['trial_lengths1'].append(minimo_largo1)
+                    samples_info['trial_lengths2'].append(minimo_largo2)
 
-                    # Preprocessing: calaculates the relevant indexes for the apropiate analysis
-                    samples_info['keep_indexes_per_trial1'][trial] = self.shifted_indexes_to_keep(speaker_labels=current_speaker_1)
-                    samples_info['keep_indexes_per_trial2'][trial] = self.shifted_indexes_to_keep(speaker_labels=current_speaker_2)
+                    # Preprocessing: calaculates the relevant indexes for the apropiate analysis. Add sum of all previous trials length. This is because at the end, all trials previous to the actual will be concatenated
+                    samples_info['keep_indexes1'] += (self.shifted_indexes_to_keep(speaker_labels=current_speaker_1) + np.sum(samples_info['trial_lengths1'][:-1])).tolist()
+                    samples_info['keep_indexes2'] += (self.shifted_indexes_to_keep(speaker_labels=current_speaker_2) + np.sum(samples_info['trial_lengths2'][:-1])).tolist()
 
-                    # # Add sum of all previous trials length. This is because at the end, all trials previous to the actual will be concatenated
-                    # samples_info['keep_indexes_per_trial1'][trial] += np.sum(samples_info['trial_lengths1'][:-1])
-                    # samples_info['keep_indexes_per_trial1'][trial] += np.sum(samples_info['trial_lengths2'][:-1])
-                    
-                    # # Append relevant indexes to sample_info
-                    # samples_info['keep_indexes1'][trial] = keep_indexes1_trial
-                    # samples_info['keep_indexes2'][trial] = keep_indexes2_trial
 
-                # Concatenates data of each subject, keeping just relevant indexes #TODO la versión vieja excluía pitch preguntar por que
+                # Concatenates data of each subject #TODO la versión vieja excluía pitch preguntar por que
                 for key in Trial_sujeto_1:
                     if key != 'info':
                         if key not in Sujeto_1:
-                            Sujeto_1[key] = Trial_sujeto_1[key][samples_info['keep_indexes_per_trial1'][trial]]
+                            Sujeto_1[key] = Trial_sujeto_1[key]
                         else:
-                            Sujeto_1[key] = np.concatenate((Sujeto_1[key], Trial_sujeto_1[key][samples_info['keep_indexes_per_trial1'][trial]]), axis=0)
+                            Sujeto_1[key] = np.concatenate((Sujeto_1[key], Trial_sujeto_1[key]), axis=0)
                 for key in Trial_sujeto_2:
                     if key != 'info':
                         if key not in Sujeto_2:
-                            Sujeto_2[key] = Trial_sujeto_2[key][samples_info['keep_indexes_per_trial2'][trial]]
+                            Sujeto_2[key] = Trial_sujeto_2[key]
                         else:
-                            Sujeto_2[key] = np.concatenate((Sujeto_2[key], Trial_sujeto_2[key][samples_info['keep_indexes_per_trial2'][trial]]), axis=0)
+                            Sujeto_2[key] = np.concatenate((Sujeto_2[key], Trial_sujeto_2[key]), axis=0)
 
             # Empty trial
             except:
@@ -710,13 +702,13 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         # Get info of the setup that was exluded in the previous iteration
         info = Trial_channel_1['info']
 
-        # Saves flatten relevant indexes 
+        # Saves relevant indexes 
         if not loaded_samples_info:
             os.makedirs(self.samples_info_path, exist_ok=True)
             Funciones.dump_pickle(path=self.samples_info_path + f'samples_info_{self.sesion}.pkl', obj=samples_info, rewrite=True)
 
         # Construct shifted matrix 
-        specific_stimuli = ['Spectrogram', 'Phonemes', 'Phonemes-manual', 'Phonemes-discrete', 'Phonemes-onset']
+        # specific_stimuli = ['Spectrogram', 'Phonemes', 'Phonemes-manual', 'Phonemes-discrete', 'Phonemes-onset']
         for key in Sujeto_1:
             # Drops silences phoneme column
             if key.startswith('Phonemes'):
@@ -724,31 +716,31 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
                 Sujeto_1[key] = np.delete(arr=Sujeto_1[key], obj=-1, axis=1)
                 Sujeto_2[key] = np.delete(arr=Sujeto_2[key], obj=-1, axis=1)
 
-            # Stacked shifted matrices (samples X features*delay) by column. This is faster than stack, also is convient to make loop separated
-            if key in specific_stimuli:
-                print(f'Computing shifted matrix for the {key}')
-                data_1, data_2 = Sujeto_1[key], Sujeto_2[key]
+            # # Stacked shifted matrices (samples X features*delay) by column. This is faster than stack, also is convient to make loop separated
+            # if key in specific_stimuli:
+            #     print(f'Computing shifted matrix for the {key}')
+            #     data_1, data_2 = Sujeto_1[key], Sujeto_2[key]
 
-                shift_1 = np.zeros(shape=(data_1.shape[0], data_1.shape[1]*(len(self.delays))))
-                shift_2 = np.zeros(shape=(data_2.shape[0], data_2.shape[1]*(len(self.delays))))
+            #     shift_1 = np.zeros(shape=(data_1.shape[0], data_1.shape[1]*(len(self.delays))))
+            #     shift_2 = np.zeros(shape=(data_2.shape[0], data_2.shape[1]*(len(self.delays))))
 
-                for i in range(len(data_1)):
-                    shift_1_i = Processing.shifted_matrix(features=data_1[:,i], delays=self.delays)
-                    shift_1[:,len(self.delays)*i:len(self.delays)*(i+1)] = shift_1_i
-                for i in range(len(data_2)):
-                    shift_2_i = Processing.shifted_matrix(features=data_2[:,i], delays=self.delays)
-                    shift_2[:,len(self.delays)*i:len(self.delays)*(i+1)] = shift_2_i
+            #     for i in range(len(data_1)):
+            #         shift_1_i = Processing.shifted_matrix(features=data_1[:,i], delays=self.delays)
+            #         shift_1[:,len(self.delays)*i:len(self.delays)*(i+1)] = shift_1_i
+            #     for i in range(len(data_2)):
+            #         shift_2_i = Processing.shifted_matrix(features=data_2[:,i], delays=self.delays)
+            #         shift_2[:,len(self.delays)*i:len(self.delays)*(i+1)] = shift_2_i
 
-                Sujeto_1[key] = shift_1
-                Sujeto_2[key] = shift_2
-                print(f'{key} matrix computed')
+            #     Sujeto_1[key] = shift_1[samples_info['keep_indexes1'],:]
+            #     Sujeto_2[key] = shift_2[samples_info['keep_indexes2'],:]
+            #     print(f'{key} matrix computed')
 
-            # The rest of the stimuli is 1D, so it's not necessary to stack them). Bassically envelope.
-            elif key!= 'EEG':
-                print(f'Computing shifted matrix for the {key}')
-                Sujeto_1[key] = Processing.shifted_matrix(features=Sujeto_1[key].flatten(), delays=self.delays)
-                Sujeto_2[key] = Processing.shifted_matrix(features=Sujeto_2[key].flatten(), delays=self.delays)
-                print(f'{key} matrix computed')
+            # # The rest of the stimuli is 1D, so it's not necessary to stack them). Bassically envelope.
+            # elif key!= 'EEG':
+            #     print(f'Computing shifted matrix for the {key}')
+            #     Sujeto_1[key] = Processing.shifted_matrix(features=Sujeto_1[key].flatten(), delays=self.delays)[samples_info['keep_indexes1'],:]
+            #     Sujeto_2[key] = Processing.shifted_matrix(features=Sujeto_2[key].flatten(), delays=self.delays)[samples_info['keep_indexes2'],:]
+            #     print(f'{key} matrix computed')
 
             # Save preprocesed data
             os.makedirs(self.export_paths[key], exist_ok=True)
@@ -763,7 +755,7 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         Sujeto_1_return['info'] = info
         Sujeto_2_return['info'] = info
 
-        return {'Sujeto_1': Sujeto_1_return, 'Sujeto_2': Sujeto_2_return}
+        return {'Sujeto_1': Sujeto_1_return, 'Sujeto_2': Sujeto_2_return}, samples_info
     
     def load_procesed(self):
         """Loads procesed data, this includes EEG, info and stimuli.
@@ -779,6 +771,7 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         # Load EEGs and procesed data
         eeg_sujeto_1, eeg_sujeto_2 = Funciones.load_pickle(path=EEG_path)
         info = Funciones.load_pickle(path=self.procesed_data_path + 'EEG/info.pkl')
+        samples_info = Funciones.load_pickle(path=self.samples_info_path + f'samples_info_{self.sesion}.pkl')
         Sujeto_1 = {'EEG': eeg_sujeto_1, 'info': info}
         Sujeto_2 = {'EEG': eeg_sujeto_2, 'info': info}
         
@@ -791,7 +784,7 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
                     Sujeto_1[stimulus], Sujeto_2[stimulus] = Sujeto_1[stimulus][Sujeto_1[stimulus]!=0], Sujeto_2[stimulus][Sujeto_2[stimulus]!=0]
                 elif self.valores_faltantes:
                     Sujeto_1[stimulus], Sujeto_2[stimulus] = Sujeto_1[stimulus][Sujeto_1[stimulus]==0], Sujeto_2[stimulus][Sujeto_2[stimulus]==0]
-        return {'Sujeto_1': Sujeto_1, 'Sujeto_2': Sujeto_2}
+        return {'Sujeto_1': Sujeto_1, 'Sujeto_2': Sujeto_2}, samples_info
     
     def labeling(self, trial:int, channel:int):
         """Gives an array with speaking channel: 
@@ -866,7 +859,7 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
 
         # Make the appropiate label
         if self.situacion == 'Silencio':
-            situacion_label = 0
+            situacion_label = 4
         elif self.situacion == 'Escucha':
             situacion_label = 1
         elif self.situacion == 'Habla' or self.situacion == 'Habla_Propia':
@@ -877,6 +870,42 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         # Shifted matrix index where the given situation is ocurring in all row (number of samples dimension)
         return ((shifted_matrix_speaker_labels==situacion_label) | (shifted_matrix_speaker_labels==0)).all(axis=1).nonzero()[0]
 
+    def shifted_weights(self, speaker_labels:np.ndarray):
+        """Obtain shifted weigths that match situacion
+
+        Parameters
+        ----------
+        speaker_labels : np.ndarray
+            Labels of type of speaking for given sample
+
+        Returns
+        -------
+        np.ndarray
+            Weights to pass to mne.ReceptiveField
+        """
+        # Make the appropiate label
+        if self.situacion == 'Todo':
+            return [i for i in range(len(speaker_labels))]
+
+        # Change 0 with 4s, because shifted matrix padd zeros that could be mistaken with situacion 0    
+        speaker_labels = np.array(speaker_labels)
+        speaker_labels = np.where(speaker_labels==0, 4, speaker_labels)
+
+        # Computes shifted matrix
+        shifted_matrix_speaker_labels = Processing.shifted_matrix(features=speaker_labels, delays=self.delays).astype(float)
+
+        if self.situacion == 'Silencio':
+            situacion_label = 4
+        elif self.situacion == 'Escucha':
+            situacion_label = 1
+        elif self.situacion == 'Habla' or self.situacion == 'Habla_Propia':
+            situacion_label = 2
+        elif self.situacion == 'Ambos' or self.situacion == 'Ambos_Habla':
+            situacion_label = 3
+
+        # Shifted matrix index where the given situation is ocurring in all row (number of samples dimension)
+        return ((shifted_matrix_speaker_labels==situacion_label) | (shifted_matrix_speaker_labels==0)).all(axis=1).astype(float).tolist()
+    
     @staticmethod
     def match_lengths(dic:dict, speaker_labels:np.ndarray, minimum_length:int=None):
         """Match length of speaker labels and trial dictionary.
@@ -990,12 +1019,12 @@ def Load_Data(sesion:int, stim:str, Band:str, sr:float, tmin:float, tmax:float,
         # Try to load procesed data, if it fails it loads raw data
         try:
             print('Loading preprocesed data\n')
-            Sesion = sesion_obj.load_procesed()
+            Sesion, samples_info = sesion_obj.load_procesed()
             print('Data loaded succesfully\n')
         except:
             print("Couldn't load data, compute it from raw\n")
-            Sesion = sesion_obj.load_from_raw()
-        return Sesion['Sujeto_1'], Sesion['Sujeto_2']
+            Sesion, samples_info = sesion_obj.load_from_raw()
+        return Sesion['Sujeto_1'], Sesion['Sujeto_2'], samples_info
     else:
         raise SyntaxError(f"{stim} is not an allowed stimulus. Allowed stimuli are: {allowed_stims}. If more than one stimulus is wanted, the separator should be '_'.")
 
@@ -1008,9 +1037,9 @@ def Estimulos(stim:str, Sujeto_1:dict, Sujeto_2:dict):
         Stimuli to use in the analysis. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
             ['Envelope','Pitch','PitchMask','Spectrogram','Phonemes','Phonemes-manual','Phonemes-discrete','Phonemes-onset']
     Sujeto_1 : dict
-        _description_
+        Dictionary containing EEG and stimuli for subject 1
     Sujeto_2 : dict
-        _description_
+        Dictionary containing EEG and stimuli for subject 2
 
     Returns
     -------
