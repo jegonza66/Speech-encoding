@@ -707,40 +707,13 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
             os.makedirs(self.samples_info_path, exist_ok=True)
             Funciones.dump_pickle(path=self.samples_info_path + f'samples_info_{self.sesion}.pkl', obj=samples_info, rewrite=True)
 
-        # Construct shifted matrix 
-        # specific_stimuli = ['Spectrogram', 'Phonemes', 'Phonemes-manual', 'Phonemes-discrete', 'Phonemes-onset']
+        # Save results
         for key in Sujeto_1:
             # Drops silences phoneme column
             if key.startswith('Phonemes'):
                 # Remove silence column, the last one by construction
                 Sujeto_1[key] = np.delete(arr=Sujeto_1[key], obj=-1, axis=1)
                 Sujeto_2[key] = np.delete(arr=Sujeto_2[key], obj=-1, axis=1)
-
-            # # Stacked shifted matrices (samples X features*delay) by column. This is faster than stack, also is convient to make loop separated
-            # if key in specific_stimuli:
-            #     print(f'Computing shifted matrix for the {key}')
-            #     data_1, data_2 = Sujeto_1[key], Sujeto_2[key]
-
-            #     shift_1 = np.zeros(shape=(data_1.shape[0], data_1.shape[1]*(len(self.delays))))
-            #     shift_2 = np.zeros(shape=(data_2.shape[0], data_2.shape[1]*(len(self.delays))))
-
-            #     for i in range(len(data_1)):
-            #         shift_1_i = Processing.shifted_matrix(features=data_1[:,i], delays=self.delays)
-            #         shift_1[:,len(self.delays)*i:len(self.delays)*(i+1)] = shift_1_i
-            #     for i in range(len(data_2)):
-            #         shift_2_i = Processing.shifted_matrix(features=data_2[:,i], delays=self.delays)
-            #         shift_2[:,len(self.delays)*i:len(self.delays)*(i+1)] = shift_2_i
-
-            #     Sujeto_1[key] = shift_1[samples_info['keep_indexes1'],:]
-            #     Sujeto_2[key] = shift_2[samples_info['keep_indexes2'],:]
-            #     print(f'{key} matrix computed')
-
-            # # The rest of the stimuli is 1D, so it's not necessary to stack them). Bassically envelope.
-            # elif key!= 'EEG':
-            #     print(f'Computing shifted matrix for the {key}')
-            #     Sujeto_1[key] = Processing.shifted_matrix(features=Sujeto_1[key].flatten(), delays=self.delays)[samples_info['keep_indexes1'],:]
-            #     Sujeto_2[key] = Processing.shifted_matrix(features=Sujeto_2[key].flatten(), delays=self.delays)[samples_info['keep_indexes2'],:]
-            #     print(f'{key} matrix computed')
 
             # Save preprocesed data
             os.makedirs(self.export_paths[key], exist_ok=True)
@@ -867,45 +840,10 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         elif self.situacion == 'Ambos' or self.situacion == 'Ambos_Habla':
             situacion_label = 3
         
-        # Shifted matrix index where the given situation is ocurring in all row (number of samples dimension)
-        return ((shifted_matrix_speaker_labels==situacion_label) | (shifted_matrix_speaker_labels==0)).all(axis=1).nonzero()[0]
+        # Shifted matrix index where the given situation is ocurring in all row (number of samples dimension) # TODO: discutir si dejar 0 o no.
+        # return ((shifted_matrix_speaker_labels==situacion_label) | (shifted_matrix_speaker_labels==0)).all(axis=1).nonzero()[0]
+        return ((shifted_matrix_speaker_labels==situacion_label)).all(axis=1).nonzero()[0]
 
-    def shifted_weights(self, speaker_labels:np.ndarray):
-        """Obtain shifted weigths that match situacion
-
-        Parameters
-        ----------
-        speaker_labels : np.ndarray
-            Labels of type of speaking for given sample
-
-        Returns
-        -------
-        np.ndarray
-            Weights to pass to mne.ReceptiveField
-        """
-        # Make the appropiate label
-        if self.situacion == 'Todo':
-            return [i for i in range(len(speaker_labels))]
-
-        # Change 0 with 4s, because shifted matrix padd zeros that could be mistaken with situacion 0    
-        speaker_labels = np.array(speaker_labels)
-        speaker_labels = np.where(speaker_labels==0, 4, speaker_labels)
-
-        # Computes shifted matrix
-        shifted_matrix_speaker_labels = Processing.shifted_matrix(features=speaker_labels, delays=self.delays).astype(float)
-
-        if self.situacion == 'Silencio':
-            situacion_label = 4
-        elif self.situacion == 'Escucha':
-            situacion_label = 1
-        elif self.situacion == 'Habla' or self.situacion == 'Habla_Propia':
-            situacion_label = 2
-        elif self.situacion == 'Ambos' or self.situacion == 'Ambos_Habla':
-            situacion_label = 3
-
-        # Shifted matrix index where the given situation is ocurring in all row (number of samples dimension)
-        return ((shifted_matrix_speaker_labels==situacion_label) | (shifted_matrix_speaker_labels==0)).all(axis=1).astype(float).tolist()
-    
     @staticmethod
     def match_lengths(dic:dict, speaker_labels:np.ndarray, minimum_length:int=None):
         """Match length of speaker labels and trial dictionary.
@@ -1027,44 +965,3 @@ def Load_Data(sesion:int, stim:str, Band:str, sr:float, tmin:float, tmax:float,
         return Sesion['Sujeto_1'], Sesion['Sujeto_2'], samples_info
     else:
         raise SyntaxError(f"{stim} is not an allowed stimulus. Allowed stimuli are: {allowed_stims}. If more than one stimulus is wanted, the separator should be '_'.")
-
-def Estimulos(stim:str, Sujeto_1:dict, Sujeto_2:dict):
-    """Extracts both subjects stimuli
-
-    Parameters
-    ----------
-    stim : str
-        Stimuli to use in the analysis. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
-            ['Envelope','Pitch','PitchMask','Spectrogram','Phonemes','Phonemes-manual','Phonemes-discrete','Phonemes-onset']
-    Sujeto_1 : dict
-        Dictionary containing EEG and stimuli for subject 1
-    Sujeto_2 : dict
-        Dictionary containing EEG and stimuli for subject 2
-
-    Returns
-    -------
-    tuple
-        lists with asked stimuli for both subjects
-    """
-    # By this time, stimuli are already checked. So it just get a list with stimuli of both subjects
-    dfinal_para_sujeto_1 = []
-    dfinal_para_sujeto_2 = []
-
-    for stimulus in stim.split('_'):
-        dfinal_para_sujeto_1.append(Sujeto_1[stimulus])
-        dfinal_para_sujeto_2.append(Sujeto_2[stimulus])
-
-    return dfinal_para_sujeto_1, dfinal_para_sujeto_2
-
-if __name__=='__main__':
-    sesion, stim, Band, sr, tmin, tmax, situacion = 25, 'Spectrogram', 'Theta', 128, -.6,.2,'Escucha'
-    procesed_data_path = f'saves/Preprocesed_Data/tmin{tmin}_tmax{tmax}/'
-    Sujeto_1, Sujeto_2 = Load_Data(sesion=sesion, 
-                                                stim=stim, 
-                                                Band=Band, 
-                                                sr=sr, 
-                                                tmin=tmin, 
-                                                tmax=tmax,
-                                                procesed_data_path=procesed_data_path, 
-                                                situacion=situacion,
-                                                SilenceThreshold=0.03)

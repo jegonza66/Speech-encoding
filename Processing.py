@@ -2,6 +2,182 @@ import numpy as np, copy
 from scipy import signal
 from typing import Union
 
+class Estandarizar():
+    def __init__(self, axis:int=0):
+        """Standarize train and test data to be used in a linear regressor model. 
+
+        Parameters
+        ----------
+        axis : int, optional
+            Axis to perform standrize, by default 0
+        """
+        self.axis = axis
+
+    def fit_standarize_train(self, train_data:np.ndarray):
+        """Standarize train data, also define mean and std to standarize future data.
+
+        Parameters
+        ----------
+        train_data : np.ndarray
+            Train data to be standarize
+        """
+        # Fix mean and standard deviation with train data
+        self.mean = np.mean(train_data, axis=self.axis)
+        self.std = np.std(train_data, axis=self.axis)
+
+        # Standarize data
+        train_data -= self.mean
+        train_data /= self.std
+
+    def fit_standarize_test(self, test_data:np.ndarray):
+        """Standarize test data with mean and std of train data.
+
+        Parameters
+        ----------
+        test_data : np.ndarray
+            Test data to be standarize with mean and standard deviation of train data
+        """
+        # Standarize with mean and standard deviation of train
+        test_data -= self.mean
+        test_data /= self.std
+
+    def standarize_data(self, data:np.ndarray):
+        """Standarize data with own mean and standard deviation.
+
+        Parameters
+        ----------
+        data : np.ndarray
+            Data to be standarized
+        """
+        # Standarize data with own mean and standard deviation
+        data -= np.mean(data, axis=self.axis)
+        data /= np.std(data, axis=self.axis)
+
+class Normalizar():
+    def __init__(self, axis:int=0, porcent:float=5):
+        """Normalize train and test data to be used in a linear regressor model.
+
+        Parameters
+        ----------
+        axis : int, optional
+            Axis to perform normalize, by default 0
+        porcent : float, optional
+            _description_, by default 5
+        """
+        self.axis = axis
+        self.porcent = porcent
+
+    def fit_normalize_train(self, train_data:np.ndarray):
+        """Normalize train data, also define min and max to normalize future data.
+
+        Parameters
+        ----------
+        train_data : np.ndarray
+            Train data to be normalize by maximum and minimum (offset)
+        """
+        
+        # Remove offset by minimum
+        self.min = np.min(train_data, axis=self.axis)
+        train_data -= self.min
+
+        # Normalize by maximum
+        self.max = np.max(train_data, axis=self.axis)
+        train_data = np.divide(train_data, self.max, out=np.zeros_like(train_data), where=self.max != 0)
+
+    def fit_normlize_test(self, test_data:np.ndarray):
+        """Normalize test data with min and max of train data.
+
+        Parameters
+        ----------
+        test_data : np.ndarray
+            Test data to be normalize with train data parameters
+        """
+        test_data -= self.min
+        test_data = np.divide(test_data, self.max, out=np.zeros_like(test_data), where=self.max != 0)
+        return test_data
+
+    def normalize_data(self, data:np.ndarray, kind:str="1"):
+        """_summary_# TODO no queda claro para qué es la kind 2, creo que es para que esté centrada en 0
+
+        Parameters
+        ----------
+        data : np.ndarray
+            _description_
+        kind : str, optional
+            _description_, by default "1"
+        """
+        # Los estimulos los normalizo todos entre 0 y 1 estricto, la envolvente no tiene picos
+        data -= np.min(data, axis=self.axis)
+        data /= np.max(data, axis=self.axis)
+        if kind=='2':
+            data *= 2
+            data -= 1
+
+    def fit_normalize_percent(self, data:np.ndarray):
+        """_summary_# TODO no queda claro qué es lo que sucede
+
+        Parameters
+        ----------
+        data : np.ndarray
+            Data to be normalize
+        """
+        # Find n 
+        # n = int((self.porcent/100)*len(data)) 
+        n = int((self.porcent * len(data) - 1) / 100) # TODO para mí va lo de arriba
+        
+        
+        # Find the n-th minimum and offset that value
+        sorted_data = copy.deepcopy(data)
+        sorted_data.sort(self.axis)
+        min_data_n = sorted_data[n]
+        data -= min_data_n
+
+        # Find the n-th maximum
+        sorted_data = copy.deepcopy(data)
+        sorted_data.sort(self.axis)
+        max_data_n = sorted_data[-n]
+        
+        # Normalize data
+        data = np.divide(data, self.max, out=np.zeros_like(data), where=max_data_n!=0)
+        data /= max_data_n
+
+def standarize_normalize(eeg_train_val, eeg_test, dstims_train_val, dstims_test, Stims_preprocess, EEG_preprocess, axis=0, porcent=5):
+    norm = Normalizar(axis, porcent)
+    estandar = Estandarizar(axis)
+
+    if isinstance(dstims_train_val, list):
+        if Stims_preprocess == 'Standarize':
+            for i in range(len(dstims_train_val)):
+                estandar.fit_standarize_train(train_data=dstims_train_val[i])
+                estandar.fit_standarize_test(test_data=dstims_test[i])
+            dstims_train_val = np.hstack([dstims_train_val[i] for i in range(len(dstims_train_val))])
+            dstims_test = np.hstack([dstims_test[i] for i in range(len(dstims_test))])
+
+        if Stims_preprocess == 'Normalize':
+            for i in range(len(dstims_train_val)):
+                norm.fit_normalize_train(train_data=dstims_train_val[i])
+                norm.fit_normlize_test(test_data=dstims_test[i])
+            dstims_train_val = np.hstack([dstims_train_val[i] for i in range(len(dstims_train_val))])
+            dstims_test = np.hstack([dstims_test[i] for i in range(len(dstims_test))])
+    else:
+        if Stims_preprocess == 'Standarize':
+            for i in range(dstims_train_val.shape[1]):
+                estandar.fit_standarize_train(train_data=dstims_train_val[:,i])
+                estandar.fit_standarize_test(test_data=dstims_test[:,i])
+        if Stims_preprocess == 'Normalize':
+            for i in range(dstims_train_val.shape[1]):
+                norm.fit_normalize_train_data(dstims_train_val[:,i])
+                norm.normlize_test_data(dstims_test[:,i])
+
+    if EEG_preprocess == 'Standarize':
+        estandar.fit_standarize_train(train_data=eeg_train_val)
+        estandar.fit_standarize_test(test_data=eeg_test)
+    if EEG_preprocess == 'Normalize':
+        norm.fit_normalize_percent(data=eeg_train_val)
+        norm.fit_normlize_test(test_data=eeg_test) # TODO OJO SE ESTA NORMALIZANDO CON EL LOS DATOS DE LOS FEATURES, EEG SOLO EN ESTE CASO
+
+    return eeg_train_val, eeg_test, dstims_train_val, dstims_test
+
 def shifted_matrix(features:np.ndarray, delays:np.ndarray):
     """Computes shifted matrix for a given array of delayes
 
@@ -52,19 +228,16 @@ def butter_filter(data, frecuencias, sampling_freq, btype, order, axis, ftype):
         y = signal.filtfilt(b, a, data, axis=axis, padlen=None)
     return y
 
-
 def butter_bandpass_filter(data, frecuencia, sampling_freq, order, axis):
     frecuencia /= (sampling_freq / 2)
     b, a = signal.butter(order, frecuencia, btype='lowpass')
     y = signal.filtfilt(b, a, data, axis=axis, padlen=None)
     return y
 
-
 def subsamplear(x, cada_cuanto):
     x = np.array(x)
     tomar = np.arange(0, len(x), int(cada_cuanto))
     return x[tomar]
-
 
 def band_freq(band):
     if type(band) == str:
@@ -103,143 +276,3 @@ def band_freq(band):
 
     return l_freq, h_freq
 
-class estandarizar():
-
-    def __init__(self, axis=0):
-        self.axis = axis
-
-    def fit_standarize_train_data(self, train_data):
-        self.mean = np.mean(train_data, axis=self.axis)
-        self.std = np.std(train_data, axis=self.axis)
-
-        train_data -= self.mean
-        train_data /= self.std
-
-    def standarize_test_data(self, data):
-        data -= self.mean
-        data /= self.std
-
-    def standarize_data(self, data):
-        data -= np.mean(data, axis=self.axis)
-        data /= np.std(data, axis=self.axis)
-
-
-class normalizar():
-
-    def __init__(self, axis=0, porcent=5):
-        self.axis = axis
-        self.porcent = porcent
-
-    def fit_normalize_train_data(self, train_matrix):
-        self.min = np.min(train_matrix, axis=self.axis)
-        train_matrix -= self.min
-
-        self.max = np.max(train_matrix, axis=self.axis)
-        train_matrix = np.divide(train_matrix, self.max, out=np.zeros_like(train_matrix), where=self.max != 0)
-        # train_matrix /= self.max
-        return train_matrix
-
-    def normlize_test_data(self, test_matrix):
-        test_matrix -= self.min
-        test_matrix = np.divide(test_matrix, self.max, out=np.zeros_like(test_matrix), where=self.max != 0)
-        # test_matrix /= self.max
-        return test_matrix
-
-    def fit_normalize_percent(self, matrix):
-        # Defino el termino a agarrar
-        self.n = int((self.porcent * len(matrix) - 1) / 100)
-
-        # Busco el nesimo minimo y lo resto
-        sorted_matrix = copy.deepcopy(matrix)
-        sorted_matrix.sort(self.axis)
-        self.minn_matrix = sorted_matrix[self.n]
-        matrix -= self.minn_matrix
-
-        # Vuelvo a sortear la matriz porque cambio, y busco el nesimo maximo y lo divido
-        sorted_matrix = copy.deepcopy(matrix)
-        sorted_matrix.sort(self.axis)
-        self.maxn_matrix = sorted_matrix[-self.n]
-        matrix = np.divide(matrix, self.max, out=np.zeros_like(matrix), where=self.maxn_matrix != 0)
-        matrix /= self.maxn_matrix
-
-    def normalize_01(self, matrix):
-        # Los estimulos los normalizo todos entre 0 y 1 estricto, la envolvente no tiene picos
-        matrix -= np.min(matrix, axis=self.axis)
-        matrix /= np.max(matrix, axis=self.axis)
-
-    def normalize_11(self, matrix):
-        # Los estimulos los normalizo todos entre 0 y 1 estricto, la envolvente no tiene picos
-        matrix -= np.min(matrix, axis=self.axis)
-        matrix /= np.max(matrix, axis=self.axis)
-        matrix *= 2
-        matrix -= 1
-
-
-def standarize_normalize(eeg_train_val, eeg_test, dstims_train_val, dstims_test, Stims_preprocess, EEG_preprocess, axis=0, porcent=5):
-    norm = normalizar(axis, porcent)
-    estandar = estandarizar(axis)
-
-    if isinstance(dstims_train_val, list):
-        if Stims_preprocess == 'Standarize':
-            for i in range(len(dstims_train_val)):
-                estandar.fit_standarize_train_data(dstims_train_val[i])
-                estandar.standarize_test_data(dstims_test[i])
-            dstims_train_val = np.hstack([dstims_train_val[i] for i in range(len(dstims_train_val))])
-            dstims_test = np.hstack([dstims_test[i] for i in range(len(dstims_test))])
-
-        if Stims_preprocess == 'Normalize':
-            for i in range(len(dstims_train_val)):
-                dstims_train_val[i] = norm.fit_normalize_train_data(dstims_train_val[i])
-                dstims_test[i] = norm.normlize_test_data(dstims_test[i])
-            dstims_train_val = np.hstack([dstims_train_val[i] for i in range(len(dstims_train_val))])
-            dstims_test = np.hstack([dstims_test[i] for i in range(len(dstims_test))])
-    else:
-        if Stims_preprocess == 'Standarize':
-            # Iterate over columns(features)
-            for i in range(dstims_train_val.shape[1]):
-                estandar.fit_standarize_train_data(dstims_train_val[:,i])
-                estandar.standarize_test_data(dstims_test[:,i])
-            # dstims_train_val = np.hstack([dstims_train_val[i] for i in range(len(dstims_train_val))])
-            # dstims_test = np.hstack([dstims_test[i] for i in range(len(dstims_test))])
-
-        if Stims_preprocess == 'Normalize':
-            for i in range(dstims_train_val.shape[1]):
-                dstims_train_val[:,i] = norm.fit_normalize_train_data(dstims_train_val[:,i])
-                dstims_test[:,i] = norm.normlize_test_data(dstims_test[:,i])
-
-    if EEG_preprocess == 'Standarize':
-        estandar.fit_standarize_train_data(eeg_train_val)
-        estandar.standarize_test_data(eeg_test)
-
-    if EEG_preprocess == 'Normalize':
-        norm.fit_normalize_percent(eeg_train_val)
-        norm.normlize_test_data(eeg_test)
-
-    return eeg_train_val, eeg_test, dstims_train_val, dstims_test
-
-# def std_normalize(eeg, stims, Stims_preprocess, EEG_preprocess, axis=0, porcent=5):
-#     norm = normalizar(axis, porcent)
-#     estandar = estandarizar(axis)
-
-#     if Stims_preprocess == 'Standarize':
-#         # Iterate over columns(features)
-#         for i in range(stims.shape[1]):
-#             estandar.fit_standarize_train_data(stims[:,i])
-#             estandar.standarize_test_data(dstims_test[:,i])
-#         # dstims_train_val = np.hstack([dstims_train_val[i] for i in range(len(dstims_train_val))])
-#         # dstims_test = np.hstack([dstims_test[i] for i in range(len(dstims_test))])
-
-#     if Stims_preprocess == 'Normalize':
-#         for i in range(dstims_train_val.shape[1]):
-#             dstims_train_val[:,i] = norm.fit_normalize_train_data(dstims_train_val[:,i])
-#             dstims_test[:,i] = norm.normlize_test_data(dstims_test[:,i])
-
-#     if EEG_preprocess == 'Standarize':
-#         estandar.fit_standarize_train_data(eeg_train_val)
-#         estandar.standarize_test_data(eeg_test)
-
-#     if EEG_preprocess == 'Normalize':
-#         norm.fit_normalize_percent(eeg_train_val)
-#         norm.normlize_test_data(eeg_test)
-
-#     return eeg_train_val, eeg_test, dstims_train_val, dstims_test
