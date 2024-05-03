@@ -71,8 +71,8 @@ times = np.flip(-times)
 # tmin, tmax = -.2, .6
 # delays = np.arange(np.floor(tmin * sr), np.ceil(tmax * sr), dtype=int) 
 # times = delays/sr 
-delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
-times = -np.flip(delays/sr)
+# delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
+# times = -np.flip(delays/sr)
 # ============
 # RUN ANALYSIS
 # ============
@@ -188,7 +188,7 @@ for Band in Bands:
                     # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
                     Pesos_ronda_canales[fold] = mtrf.fit(stims, eeg)
                     
-                    # Predict and save.
+                    # Predict and save
                     predicted = mtrf.predict(stims)
                     Predicciones[fold] = predicted
 
