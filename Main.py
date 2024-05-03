@@ -57,22 +57,22 @@ total_subjects = len(sesiones)*2
 # EEG sample rate
 sr = 128
 
-# Run times
-tmin, tmax = -0.6, 0.2
-delays = - np.arange(np.floor(tmin * sr), np.ceil(tmax * sr)+1, dtype=int)
-times = np.linspace(delays[0] * np.sign(tmin) * 1 / sr, np.abs(delays[-1]) * np.sign(tmax) * 1 / sr, len(delays))
-times = np.flip(-times)
+# # Run times
+# tmin, tmax = -0.6, 0.2
+# delays = - np.arange(np.floor(tmin * sr), np.ceil(tmax * sr)+1, dtype=int)
+# times = np.linspace(delays[0] * np.sign(tmin) * 1 / sr, np.abs(delays[-1]) * np.sign(tmax) * 1 / sr, len(delays))
+# times = np.flip(-times)
 
 # delays = -np.arange(np.floor(tmin * sr), np.ceil(tmax * sr), dtype=int) 
 # times = np.flip(delays)/sr 
 # TODO: no entiendo por qué está el menos en el delay; # tampoco por qué queda alrevés el tiempo. Yo esperaría que vata del tmin al tmax, sampleando cada 1/sr
 # De hecho, cuando se usan tmin y tmax en el modelo de mtrf, se invierten los signos y el orden (osea se usan exactamente alrevés)
 # # Siguiendo los graficos que se crean la logica que usaria es:
-# tmin, tmax = -.2, .6
+tmin, tmax = -.6, .2
 # delays = np.arange(np.floor(tmin * sr), np.ceil(tmax * sr), dtype=int) 
 # times = delays/sr 
-# delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
-# times = -np.flip(delays/sr)
+delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
+times = -np.flip(delays/sr)
 # ============
 # RUN ANALYSIS
 # ============
