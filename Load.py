@@ -16,8 +16,8 @@ mne.set_log_level(verbose='CRITICAL')
 exp_info = setup.exp_info()
 
 class Trial_channel:
-    def __init__(self, s:int=21, trial:int=1, channel:int=1, Band:str='All', sr:float=128, tmin:float=-0.6,
-                 tmax:float=-0.003, valores_faltantes:int=0, Causal_filter_EEG:bool=True, 
+    def __init__(self, s:int=21, trial:int=1, channel:int=1, Band:str='All', sr:float=128,
+                 delays:np.ndarray=None,  valores_faltantes:int=0, Causal_filter_EEG:bool=True, 
                  Env_Filter:bool=False, SilenceThreshold:float=0.03):
         """Extract transcriptions, audio signal and EEG signal of given session and channel to calculate specific features.
 
@@ -34,10 +34,8 @@ class Trial_channel:
             ['Delta','Theta',Alpha','Beta_1','Beta_2','All','Delta_Theta','Delta_Theta_Alpha']
         sr : float, optional
             Sample rate in Hz of the EEG, by default 128
-        tmin : float, optional
-            Minimimum window time, by default -0.6
-        tmax : float, optional
-            Maximum window time, by default -0.003
+        delays : np.ndarray, optional
+            Delay array to construct shifted matrix, by default np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
         valores_faltantes : int, optional
             Number to replace the missing values (nans), by default 0
         Causal_filter_EEG : bool, optional
@@ -68,8 +66,7 @@ class Trial_channel:
         self.sampleStep = 0.01
         self.SilenceThreshold = SilenceThreshold
         self.audio_sr = 16000
-        self.tmin, self.tmax = tmin, tmax #TODO: referenced but never used
-        self.delays = - np.arange(np.floor(tmin * self.sr), np.ceil(tmax * self.sr), dtype=int)
+        self.delays = delays
         self.valores_faltantes = valores_faltantes
         self.sex = sex_list[(s - 21) * 2 + channel - 1]
         self.Causal_filter_EEG = Causal_filter_EEG
@@ -464,9 +461,9 @@ class Trial_channel:
         return channel
 
 class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it if pitch is a stimulus
-    def __init__(self, sesion:int=21, stim:str='Envelope', Band:str='All', sr:float=128, tmin:float=-0.6, 
-                 tmax:float=-0.003, valores_faltantes:int=0, Causal_filter_EEG:bool=True, Env_Filter:bool=False,
-                 situacion:str='Escucha', Calculate_pitch:bool=False, SilenceThreshold:float=0.03,
+    def __init__(self, sesion:int=21, stim:str='Envelope', Band:str='All', sr:float=128, valores_faltantes:int=0, 
+                 Causal_filter_EEG:bool=True, Env_Filter:bool=False, situacion:str='Escucha', 
+                 Calculate_pitch:bool=False, SilenceThreshold:float=0.03, delays:np.ndarray=None,
                  procesed_data_path:str=f'saves/Preprocesed_Data/tmin{-0.6}_tmax{-.003}/'
                  ):
         """Construct an object for the given session containing all concerning data.
@@ -483,10 +480,6 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
             ['Delta','Theta',Alpha','Beta_1','Beta_2','All','Delta_Theta','Delta_Theta_Alpha']
         sr : float, optional
             Sample rate in Hz of the EEG, by default 128
-        tmin : float, optional
-            Minimimum window time, by default -0.6
-        tmax : float, optional
-            Maximum window time, by default -0.003
         valores_faltantes : int, optional
             Number to replace the missing values (nans), by default 0
         Causal_filter_EEG : bool, optional
@@ -500,6 +493,8 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
             Pitch of speaker signal, perform on envelope, by default False
         SilenceThreshold : float, optional
             Silence threshold of the dialogue, by default 0.03
+        delays : np.ndarray, optional
+            Delay array to construct shifted matrix, by default np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
         procesed_data_path : str, optional
             Path directing to procesed data, by default f'saves/Preprocesed_Data/tmin{-0.6}_tmax{-0.003}/'
 
@@ -540,8 +535,7 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         self.sesion = sesion
         self.l_freq_eeg, self.h_freq_eeg = Processing.band_freq(Band)
         self.sr = sr
-        self.tmin, self.tmax = tmin, tmax
-        self.delays = - np.arange(np.floor(tmin * self.sr), np.ceil(tmax * self.sr), dtype=int) # TODO: preguntar por qué se pasan así
+        self.delays = delays
         self.valores_faltantes = valores_faltantes
         self.Causal_filter_EEG = Causal_filter_EEG
         self.Env_Filter = Env_Filter
@@ -626,6 +620,7 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
                     sr=self.sr, 
                     tmin=self.tmin, 
                     tmax=self.tmax,
+                    delays=self.delays,
                     valores_faltantes=self.valores_faltantes,
                     Causal_filter_EEG=self.Causal_filter_EEG,
                     Env_Filter=self.Env_Filter,
@@ -638,6 +633,7 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
                     sr=self.sr,
                     tmin=self.tmin,
                     tmax=self.tmax,
+                    delays=self.delays,
                     valores_faltantes=self.valores_faltantes,
                     Causal_filter_EEG=self.Causal_filter_EEG,
                     Env_Filter=self.Env_Filter,
@@ -885,10 +881,10 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         else:
             return dic, speaker_labels, minimum
 
-def Load_Data(sesion:int, stim:str, Band:str, sr:float, tmin:float, tmax:float, 
-              procesed_data_path:str, situacion:str='Escucha', Causal_filter_EEG:bool=True, 
+def Load_Data(sesion:int, stim:str, Band:str, sr:float, procesed_data_path:str, 
+              situacion:str='Escucha', Causal_filter_EEG:bool=True, 
               Env_Filter:bool=False, valores_faltantes:int=0, Calculate_pitch:bool=False, 
-              SilenceThreshold:float=0.03):
+              SilenceThreshold:float=0.03, delays:np.ndarray=None):
     """Loads sessions of both subjects
 
     Parameters
@@ -922,6 +918,9 @@ def Load_Data(sesion:int, stim:str, Band:str, sr:float, tmin:float, tmax:float,
         Pitch of speaker signal, perform on envelope, by default False
     SilenceThreshold : float, optional
         Silence threshold of the dialogue, by default 0.03
+    delays : np.ndarray, optional
+            Delay array to construct shifted matrix, by default np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
+    
 
     Returns
     -------
@@ -944,15 +943,14 @@ def Load_Data(sesion:int, stim:str, Band:str, sr:float, tmin:float, tmax:float,
                                   stim=stim, 
                                   Band=Band, 
                                   sr=sr, 
-                                  tmin=tmin, 
-                                  tmax=tmax,
                                   valores_faltantes=valores_faltantes, 
                                   Causal_filter_EEG=Causal_filter_EEG,
                                   Env_Filter=Env_Filter, 
                                   situacion=situacion, 
                                   Calculate_pitch=Calculate_pitch,
                                   SilenceThreshold=SilenceThreshold, 
-                                  procesed_data_path=procesed_data_path)
+                                  procesed_data_path=procesed_data_path, 
+                                  delays=delays)
 
         # Try to load procesed data, if it fails it loads raw data
         try:

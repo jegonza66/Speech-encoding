@@ -6,7 +6,7 @@ from datetime import datetime
 from sklearn.model_selection import KFold
 
 # Modules
-import Load, Models, Plot, Processing, Statistics, Funciones
+import Load, Models, Plot, Statistics, Funciones
 
 startTime = datetime.now()
 
@@ -57,21 +57,9 @@ total_subjects = len(sesiones)*2
 # EEG sample rate
 sr = 128
 
-# # Run times
-# tmin, tmax = -0.6, 0.2
-# delays = - np.arange(np.floor(tmin * sr), np.ceil(tmax * sr)+1, dtype=int)
-# times = np.linspace(delays[0] * np.sign(tmin) * 1 / sr, np.abs(delays[-1]) * np.sign(tmax) * 1 / sr, len(delays))
-# times = np.flip(-times)
-
-# delays = -np.arange(np.floor(tmin * sr), np.ceil(tmax * sr), dtype=int) 
-# times = np.flip(delays)/sr 
-# TODO: no entiendo por qué está el menos en el delay; # tampoco por qué queda alrevés el tiempo. Yo esperaría que vata del tmin al tmax, sampleando cada 1/sr
-# De hecho, cuando se usan tmin y tmax en el modelo de mtrf, se invierten los signos y el orden (osea se usan exactamente alrevés)
-# # Siguiendo los graficos que se crean la logica que usaria es:
+# Run times
 tmin, tmax = -.6, .2
-# delays = np.arange(np.floor(tmin * sr), np.ceil(tmax * sr), dtype=int) 
-# times = delays/sr 
-delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
+delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1)) # Original is -delays
 times = -np.flip(delays/sr)
 # ============
 # RUN ANALYSIS
@@ -104,9 +92,8 @@ for Band in Bands:
             Sujeto_1, Sujeto_2, samples_info = Load.Load_Data(sesion=sesion, 
                                                 stim=stim, 
                                                 Band=Band, 
-                                                sr=sr, 
-                                                tmin=tmin, 
-                                                tmax=tmax,
+                                                sr=sr,
+                                                delays=delays,
                                                 procesed_data_path=procesed_data_path, 
                                                 situacion=situacion,
                                                 SilenceThreshold=0.03)
@@ -122,6 +109,13 @@ for Band in Bands:
             # Get relevant indexes
             relevant_indexes_1 = samples_info['keep_indexes1'].copy()
             relevant_indexes_2 = samples_info['keep_indexes2'].copy()
+
+            #TODO to check whether Load runs smoothhly
+            # dic = {'stims_1':stims_sujeto_1,
+            #        'stims_2':stims_sujeto_2,
+            #        'samples_info':samples_info
+            #        }
+            # Funciones.dump_pickle('C:/Users/jocta/Desktop/datos_mne.pkl', obj=dic, verbose=True)
 
             # Run model for each subject
             for sujeto, eeg, stims, relevant_indexes in zip((1, 2), (eeg_sujeto_1, eeg_sujeto_2), (stims_sujeto_1, stims_sujeto_2), (relevant_indexes_1, relevant_indexes_2)):
@@ -175,18 +169,21 @@ for Band in Bands:
 
                     # Implement mne model
                     mtrf = Models.MNE_MTRF(
-                        tmin=-tmax, 
-                        tmax=-tmin, 
+                        tmin=tmin, 
+                        tmax=tmax, 
                         sample_rate=sr, 
                         alpha=alpha, 
                         relevant_indexes_train=np.array(relevant_indexes_train_val), 
                         relevant_indexes_test=np.array(relevant_indexes_test), 
                         stims_preprocess=Stims_preprocess, 
                         eeg_preprocess=EEG_preprocess,
-                        fit_intercept=False) # TODO acá quedan dados vuelta!
+                        fit_intercept=False)
                     
                     # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
-                    Pesos_ronda_canales[fold] = mtrf.fit(stims, eeg)
+                    mtrf.fit(stims, eeg)
+                    
+                    # Flip coefficients to get wright order #TODO
+                    Pesos_ronda_canales[fold] = np.flip(mtrf.coefs, axis=0)
                     
                     # Predict and save
                     predicted = mtrf.predict(stims)

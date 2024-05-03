@@ -107,7 +107,7 @@ class MNE_MTRF:
     def fit(self, stims, eeg):
         self.rf.fit(stims, eeg)
         self.coefs = self.rf.coef_[:, 0, :]
-        return self.coefs
+        # return self.coefs
 
     def predict(self, stims):
         predicted = self.rf.predict(stims)
