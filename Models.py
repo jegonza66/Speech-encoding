@@ -220,7 +220,7 @@ class RidgeRegression(TimeDelayingRidge):
         alpha : float, optional
             _description_, by default 1.0
         """
-        super().__init__(tmin, tmax, sfreq, alpha, fit_intercept=fit_intercept)
+        super().__init__(tmin=tmin, tmax=tmax, sfreq=sfreq, alpha=alpha, fit_intercept=fit_intercept)
         self.relevant_indexes = relevant_indexes
         self.train_indexes = train_indexes
         self.test_indexes = test_indexes
