@@ -58,9 +58,9 @@ total_subjects = len(sesiones)*2
 sr = 128
 
 # Run times
-tmin, tmax = -.6, .2
-delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1)) # Original is -delays
-times = -np.flip(delays/sr)
+tmin, tmax = -.2, .6
+delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
+times = (delays/sr)
 # ============
 # RUN ANALYSIS
 # ============
@@ -161,11 +161,13 @@ for Band in Bands:
                
                 # Make the Kfold test
                 kf_test = KFold(n_folds, shuffle=False)
-                for fold, (train_val_index, test_index) in enumerate(kf_test.split(eeg)):
+                for fold, (train_val_index, test_index) in enumerate(kf_test.split(eeg[relevant_indexes])):
                     
                     # Keep relevant indexes that are also included in the split
-                    relevant_indexes_train_val = list(set(train_val_index)&set(relevant_indexes))
-                    relevant_indexes_test = list(set(test_index)&set(relevant_indexes))
+                    # relevant_indexes_train_val = list(set(train_val_index)&set(relevant_indexes))
+                    # relevant_indexes_test = list(set(test_index)&set(relevant_indexes))
+                    relevant_indexes_train_val = train_val_index
+                    relevant_indexes_test = test_index
 
                     # Implement mne model
                     mtrf = Models.MNE_MTRF(
@@ -173,8 +175,9 @@ for Band in Bands:
                         tmax=tmax, 
                         sample_rate=sr, 
                         alpha=alpha, 
-                        relevant_indexes_train=np.array(relevant_indexes_train_val), 
-                        relevant_indexes_test=np.array(relevant_indexes_test), 
+                        relevant_indexes=np.array(relevant_indexes),
+                        train_indexes=relevant_indexes_train_val, 
+                        test_indexes=relevant_indexes_test, 
                         stims_preprocess=Stims_preprocess, 
                         eeg_preprocess=EEG_preprocess,
                         fit_intercept=False)
@@ -183,14 +186,15 @@ for Band in Bands:
                     mtrf.fit(stims, eeg)
                     
                     # Flip coefficients to get wright order #TODO
-                    Pesos_ronda_canales[fold] = np.flip(mtrf.coefs, axis=0)
-                    
+                    # Pesos_ronda_canales[fold] = np.flip(mtrf.coefs, axis=0)
+                    Pesos_ronda_canales[fold] = mtrf.coefs
+
                     # Predict and save
                     predicted = mtrf.predict(stims)
                     Predicciones[fold] = predicted
 
                     # Calculates and saves correlation of each channel
-                    eeg_test = eeg[relevant_indexes_test]
+                    eeg_test = eeg[relevant_indexes][relevant_indexes_test]
                     Rcorr = np.array([np.corrcoef(eeg_test[:, j], predicted[:, j])[0,1] for j in range(eeg_test.shape[1])])
                     Corr_buenas_ronda_canal[fold] = Rcorr
 
@@ -235,10 +239,10 @@ for Band in Bands:
                                           verbose=False)
                     
                 # Take average weights, correlation and RMSE between folds of all channels
-                Pesos_promedio = Pesos_ronda_canales.mean(0)
+                Pesos_promedio = np.flip(Pesos_ronda_canales.mean(0), axis=1)
                 Corr_promedio = Corr_buenas_ronda_canal.mean(0)
                 Rmse_promedio = Rmse_buenos_ronda_canal.mean(0)
-
+                
                 # Channels that pass the tests
                 Canales_sobrevivientes_corr = []
                 Canales_sobrevivientes_rmse = []
