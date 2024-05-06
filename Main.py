@@ -203,7 +203,7 @@ for Band in Bands:
                         ridge_model.fit(X_train, y_train)
                         
                         # Flip coefficients to get wright order #TODO
-                        Pesos_ronda_canales[fold] = np.flip(ridge_model.coefs, axis=0)
+                        Pesos_ronda_canales[fold] = np.flip(ridge_model.coef_, axis=0)
                         
 
                         # Predict and save
