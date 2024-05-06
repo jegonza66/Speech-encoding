@@ -107,7 +107,7 @@ class Trial_channel:
 
         # Return mne representation Times x nchannels
         self.eeg = eeg.copy()
-        return self.eeg.get_data().T
+        return self.eeg.get_data().T*1e6
 
     def f_info(self):
         """A montage is define as a descriptor for the set up: EEG channel names and relative positions of sensors on the scalp. 

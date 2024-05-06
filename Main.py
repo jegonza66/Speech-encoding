@@ -62,6 +62,10 @@ tmin, tmax = -.2, .6
 delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
 times = (delays/sr)
 
+# tmin, tmax = -.6, .2
+# delays = - np.arange(np.floor(tmin * sr), np.ceil(tmax * sr) + 1, dtype=int)
+# times = np.flip(-np.linspace(delays[0] * np.sign(tmin) * 1 / sr, np.abs(delays[-1]) * np.sign(tmax) * 1 / sr, len(delays)))
+
 # ============
 # RUN ANALYSIS
 # ============
@@ -157,7 +161,6 @@ for Band in Bands:
                 kf_test = KFold(n_folds, shuffle=False)
 
                 # Keep relevant indexes for eeg
-                # relevant_indexes = np.arange(eeg.shape[0])
                 relevant_eeg = eeg[relevant_indexes]
                 for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
                     if model=='mtrf':
@@ -200,8 +203,8 @@ for Band in Bands:
                         ridge_model.fit(X_train, y_train)
                         
                         # Flip coefficients to get wright order #TODO
-                        # Pesos_ronda_canales[fold] = np.flip(ridge_model.coefs, axis=0)
-                        Pesos_ronda_canales[fold] = ridge_model.coef_
+                        Pesos_ronda_canales[fold] = np.flip(ridge_model.coefs, axis=0)
+                        
 
                         # Predict and save
                         predicted = ridge_model.predict(X_pred)

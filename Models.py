@@ -26,8 +26,8 @@ class ManualRidge(Ridge):
 
         # Keep training indexes
         X_train = X_[self.train_indexes]
-        X_pred = X_[self.test_indexes]
         y_train = y_[self.train_indexes]
+        X_pred = X_[self.test_indexes]
         y_test = y_[self.test_indexes]
 
         # Standarize and normalize
