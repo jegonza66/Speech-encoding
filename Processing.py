@@ -84,7 +84,7 @@ class Normalizar():
         self.max = np.max(train_data, axis=self.axis)
         train_data = np.divide(train_data, self.max, out=np.zeros_like(train_data), where=self.max != 0)
 
-    def fit_normlize_test(self, test_data:np.ndarray):
+    def fit_normalize_test(self, test_data:np.ndarray):
         """Normalize test data with min and max of train data.
 
         Parameters
@@ -114,7 +114,7 @@ class Normalizar():
             data -= 1
 
     def fit_normalize_percent(self, data:np.ndarray):
-        """_summary_# TODO no queda claro qué es lo que sucede
+        """_summary_# TODO no queda claro qué es lo que sucede, creo que corta el 5 porciento de los datos hacia adelante y hacia atras y trabaja con los maximos alli descritos
 
         Parameters
         ----------

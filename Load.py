@@ -17,7 +17,7 @@ exp_info = setup.exp_info()
 
 class Trial_channel:
     def __init__(self, s:int=21, trial:int=1, channel:int=1, Band:str='All', sr:float=128,
-                 delays:np.ndarray=None,  valores_faltantes:int=0, Causal_filter_EEG:bool=True, 
+                 valores_faltantes:int=0, Causal_filter_EEG:bool=True, 
                  Env_Filter:bool=False, SilenceThreshold:float=0.03):
         """Extract transcriptions, audio signal and EEG signal of given session and channel to calculate specific features.
 
@@ -66,7 +66,6 @@ class Trial_channel:
         self.sampleStep = 0.01
         self.SilenceThreshold = SilenceThreshold
         self.audio_sr = 16000
-        self.delays = delays
         self.valores_faltantes = valores_faltantes
         self.sex = sex_list[(s - 21) * 2 + channel - 1]
         self.Causal_filter_EEG = Causal_filter_EEG
@@ -158,7 +157,7 @@ class Trial_channel:
         envelope_mne_array.resample(sfreq=self.sr)
         return envelope_mne_array.get_data().T
 
-    def f_spectrogram(self, envelope:np.ndarray):
+    def f_spectrogram(self):
         """Calculates spectrogram of .wav file between 16 Mel frequencies.
 
         Parameters
@@ -442,14 +441,13 @@ class Trial_channel:
         channel['EEG'] = self.f_eeg()
         channel['info'] = self.f_info()
         channel['Envelope'] = self.f_envelope()
-        # env = Funciones.mne_to_numpy(channel['Envelope'])
 
         if 'Pitch' in stims:
             if calculate_pitch:
                 self.calculate_pitch()
             channel['Pitch'] = self.load_pitch(envelope=channel['Envelope'])
         if 'Spectrogram' in stims:
-            channel['Spectrogram'] = self.f_spectrogram(envelope=channel['Envelope'])
+            channel['Spectrogram'] = self.f_spectrogram()
         if 'Phonemes' in stims:
             channel['Phonemes'] = self.f_phonemes(envelope=channel['Envelope'], kind='Envelope')
         if 'Phonemes-manual' in stims: #Same as before
@@ -596,19 +594,9 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
 
         # Retrive and concatenate data of all trials
         for p, trial in enumerate(trials):
+
             # Update on number of trials
-            if (trials[p-1]+1!=trial) and p!=0:
-                missing_trials = []
-                t = trial
-                while trials[p-1]+1!=t:
-                    missing_trials.append(t-1)
-                    t-=1
-                missing_trials.sort()
-                print(f'Trial {trial} of {trials[-1]}. Missing trials {", ".join(str(i) for i in missing_trials)}.')
-            elif (p==0) and (trials[0]!=1):
-                print(f'Trial {trial} of {trials[-1]}. Missing trial 1.')
-            else:
-                print(f'Trial {trial} of {trials[-1]}.')
+            Sesion_class.print_trials(p, trial, trials)
 
             # Create trial for both channels in order to extract features and EEG signal
             try:
@@ -618,7 +606,6 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
                     channel=1,
                     Band=self.Band, 
                     sr=self.sr,
-                    delays=self.delays,
                     valores_faltantes=self.valores_faltantes,
                     Causal_filter_EEG=self.Causal_filter_EEG,
                     Env_Filter=self.Env_Filter,
@@ -629,7 +616,6 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
                     channel=2,
                     Band=self.Band,
                     sr=self.sr,
-                    delays=self.delays,
                     valores_faltantes=self.valores_faltantes,
                     Causal_filter_EEG=self.Causal_filter_EEG,
                     Env_Filter=self.Env_Filter,
@@ -813,7 +799,7 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
             Indexes to keep for the analysis
         """
         if self.situacion == 'Todo':
-            return [i for i in range(len(speaker_labels))]
+            return np.arange(len(speaker_labels))
         
         # Change 0 with 4s, because shifted matrix pad zeros that could be mistaken with situacion 0    
         speaker_labels = np.array(speaker_labels)
@@ -835,6 +821,33 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         # Shifted matrix index where the given situation is ocurring in all row (number of samples dimension) # TODO: discutir si dejar 0 o no.
         # return ((shifted_matrix_speaker_labels==situacion_label) | (shifted_matrix_speaker_labels==0)).all(axis=1).nonzero()[0]
         return ((shifted_matrix_speaker_labels==situacion_label)).all(axis=1).nonzero()[0]
+    
+    @staticmethod
+    def print_trials(p:int, trial:int, trials:list):
+        """Make print for trial update
+
+        Parameters
+        ----------
+        p : int
+            index of given trial inside trials
+        trial : int
+            given trial
+        trials : list
+            list of trials
+        """
+        if (trials[p-1]+1!=trial) and p!=0:
+            missing_trials = []
+            t = trial
+            while trials[p-1]+1!=t:
+                missing_trials.append(t-1)
+                t-=1
+            missing_trials.sort()
+            print(f'Trial {trial} of {trials[-1]}. Missing trials {", ".join(str(i) for i in missing_trials)}.')
+        elif (p==0) and (trials[0]!=1):
+            print(f'Trial {trial} of {trials[-1]}. Missing trial 1.')
+        else:
+            print(f'Trial {trial} of {trials[-1]}.')
+
 
     @staticmethod
     def match_lengths(dic:dict, speaker_labels:np.ndarray, minimum_length:int=None):

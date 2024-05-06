@@ -36,7 +36,7 @@ Bands = ['Theta']
 situacion = 'Escucha'
 
 # Model parameters ('Ridge' or 'mtrf')
-model = 'mtrf'
+model = 'Ridge'
 
 # Preset alpha (penalization parameter)
 set_alpha = None
@@ -61,6 +61,7 @@ sr = 128
 tmin, tmax = -.2, .6
 delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
 times = (delays/sr)
+
 # ============
 # RUN ANALYSIS
 # ============
@@ -109,14 +110,7 @@ for Band in Bands:
             # Get relevant indexes
             relevant_indexes_1 = samples_info['keep_indexes1'].copy()
             relevant_indexes_2 = samples_info['keep_indexes2'].copy()
-
-            #TODO to check whether Load runs smoothhly
-            # dic = {'stims_1':stims_sujeto_1,
-            #        'stims_2':stims_sujeto_2,
-            #        'samples_info':samples_info
-            #        }
-            # Funciones.dump_pickle('C:/Users/jocta/Desktop/datos_mne.pkl', obj=dic, verbose=True)
-
+            
             # Run model for each subject
             for sujeto, eeg, stims, relevant_indexes in zip((1, 2), (eeg_sujeto_1, eeg_sujeto_2), (stims_sujeto_1, stims_sujeto_2), (relevant_indexes_1, relevant_indexes_2)):
                 print(f'\n\t······  Running model for Subject {sujeto}\n')
@@ -161,45 +155,66 @@ for Band in Bands:
                
                 # Make the Kfold test
                 kf_test = KFold(n_folds, shuffle=False)
-                for fold, (train_val_index, test_index) in enumerate(kf_test.split(eeg[relevant_indexes])):
-                    
-                    # Keep relevant indexes that are also included in the split
-                    # relevant_indexes_train_val = list(set(train_val_index)&set(relevant_indexes))
-                    # relevant_indexes_test = list(set(test_index)&set(relevant_indexes))
-                    relevant_indexes_train_val = train_val_index
-                    relevant_indexes_test = test_index
 
-                    # Implement mne model
-                    mtrf = Models.MNE_MTRF(
-                        tmin=tmin, 
-                        tmax=tmax, 
-                        sample_rate=sr, 
-                        alpha=alpha, 
-                        relevant_indexes=np.array(relevant_indexes),
-                        train_indexes=relevant_indexes_train_val, 
-                        test_indexes=relevant_indexes_test, 
-                        stims_preprocess=Stims_preprocess, 
-                        eeg_preprocess=EEG_preprocess,
-                        fit_intercept=False)
-                    
-                    # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
-                    mtrf.fit(stims, eeg)
-                    
-                    # Flip coefficients to get wright order #TODO
-                    # Pesos_ronda_canales[fold] = np.flip(mtrf.coefs, axis=0)
-                    Pesos_ronda_canales[fold] = mtrf.coefs
+                # Keep relevant indexes for eeg
+                # relevant_indexes = np.arange(eeg.shape[0])
+                relevant_eeg = eeg[relevant_indexes]
+                for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
+                    if model=='mtrf':
+                        # Implement mne model
+                        mtrf = Models.MNE_MTRF(
+                            tmin=tmin, 
+                            tmax=tmax, 
+                            sample_rate=sr, 
+                            alpha=alpha, 
+                            relevant_indexes=np.array(relevant_indexes),
+                            train_indexes=train_indexes, 
+                            test_indexes=test_indexes, 
+                            stims_preprocess=Stims_preprocess, 
+                            eeg_preprocess=EEG_preprocess,
+                            fit_intercept=False)
+                        
+                        # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
+                        mtrf.fit(stims, eeg)
+                        
+                        # Flip coefficients to get wright order #TODO
+                        # Pesos_ronda_canales[fold] = np.flip(mtrf.coefs, axis=0)
+                        Pesos_ronda_canales[fold] = mtrf.coefs
 
-                    # Predict and save
-                    predicted = mtrf.predict(stims)
-                    Predicciones[fold] = predicted
+                        # Predict and save
+                        predicted = mtrf.predict(stims)
+                        Predicciones[fold] = predicted
+                    else:
+                        ridge_model = Models.ManualRidge(
+                            delays=delays, 
+                            relevant_indexes=np.array(relevant_indexes),
+                            train_indexes=train_indexes,
+                            test_indexes=test_indexes,
+                            stims_preprocess=Stims_preprocess, 
+                            eeg_preprocess=EEG_preprocess,
+                            alpha=alpha)
+                        
+                        X_train, y_train, X_pred, eeg_test = ridge_model.normalization(stims, eeg)
+                        
+                        # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
+                        ridge_model.fit(X_train, y_train)
+                        
+                        # Flip coefficients to get wright order #TODO
+                        # Pesos_ronda_canales[fold] = np.flip(ridge_model.coefs, axis=0)
+                        Pesos_ronda_canales[fold] = ridge_model.coef_
+
+                        # Predict and save
+                        predicted = ridge_model.predict(X_pred)
+                        Predicciones[fold] = predicted
+                        
 
                     # Calculates and saves correlation of each channel
-                    eeg_test = eeg[relevant_indexes][relevant_indexes_test]
+                    # eeg_test = relevant_eeg[test_indexes]
                     Rcorr = np.array([np.corrcoef(eeg_test[:, j], predicted[:, j])[0,1] for j in range(eeg_test.shape[1])])
                     Corr_buenas_ronda_canal[fold] = Rcorr
 
                     # Calculates and saves root mean square error of each channel
-                    Rmse =np.array(np.sqrt(np.power((predicted - eeg_test), 2).mean(0)))
+                    Rmse = np.array(np.sqrt(np.power((predicted - eeg_test), 2).mean(0)))
                     Rmse_buenos_ronda_canal[fold] = Rmse
                     
                     # Perform statistical test #TODO porque se llaman fake? Jamas se crean en ninguno archivo estos datos, donde los saco?
