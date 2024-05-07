@@ -319,7 +319,7 @@ for band in bands:
         
 
         t_int = datetime.now()
-        # TFCE across subjects # TODO TARDA UN SIGLO ESTA FUNCION Q ONDA, AUMENTA CON sujeto_total
+        # TFCE across subjects # TODO TARDA UN SIGLO ESTA FUNCION Q ONDA, AUMENTA CON sujeto_total. Para Envelope todas las sesiones tardo 27 min
         t_tfce, clusters, p_tfce, H0, trf_subjects, n_permutations = Statistics.tfce(Pesos_totales_sujetos_todos_canales, times, delayed_length_per_stimuli, n_permutations=4096)#, verbose=None)
         print(datetime.now()-t_int)
         Plot.plot_t_p_tfce(t=t_tfce, p=p_tfce, title='TFCE', mcc=True, shape=trf_subjects.shape,
