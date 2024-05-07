@@ -16,7 +16,7 @@ mne.set_log_level(verbose='CRITICAL')
 exp_info = setup.exp_info()
 
 class Trial_channel:
-    def __init__(self, s:int=21, trial:int=1, channel:int=1, Band:str='All', sr:float=128,
+    def __init__(self, s:int=21, trial:int=1, channel:int=1, band:str='All', sr:float=128,
                  valores_faltantes:int=0, Causal_filter_EEG:bool=True, 
                  Env_Filter:bool=False, SilenceThreshold:float=0.03):
         """Extract transcriptions, audio signal and EEG signal of given session and channel to calculate specific features.
@@ -29,7 +29,7 @@ class Trial_channel:
             Number of trial, by default 1
         channel : int, optional
             Channel used to record the audio (it can be from subject 1 and 2), by default 1
-        Band : str, optional
+        band : str, optional
             Neural frequency band, by default 'All'. It could be one of:
             ['Delta','Theta',Alpha','Beta_1','Beta_2','All','Delta_Theta','Delta_Theta_Alpha']
         sr : float, optional
@@ -49,19 +49,19 @@ class Trial_channel:
         Raises
         ------
         SyntaxError
-            If 'Band' is not an allowed band frecuency. Allowed bands are:
+            If 'band' is not an allowed band frecuency. Allowed bands are:
             ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Delta_Theta_Alpha']
         """
         # Participants sex, ordered by session
         sex_list = ['M', 'M', 'M', 'F', 'F', 'F', 'F', 'M', 'M', 'M', 'F', 'F', 'F', 'F', 'M', 'M', 'M', 'F', 'F', 'M']
         allowed_band_frequencies = ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Delta_Theta_Alpha']
-        if Band in allowed_band_frequencies:
-            self.Band= Band
+        if band in allowed_band_frequencies:
+            self.band= band
         else:
-            raise SyntaxError(f"{Band} is not an allowed band frecuency. Allowed bands are: {allowed_band_frequencies}")
+            raise SyntaxError(f"{band} is not an allowed band frecuency. Allowed bands are: {allowed_band_frequencies}")
 
         # Minimum and maximum frequency allowed within specified band
-        self.l_freq_eeg, self.h_freq_eeg = Processing.band_freq(self.Band)
+        self.l_freq_eeg, self.h_freq_eeg = Processing.band_freq(self.band)
         self.sr = sr
         self.sampleStep = 0.01
         self.SilenceThreshold = SilenceThreshold
@@ -96,7 +96,7 @@ class Trial_channel:
         eeg.load_data()
         
         # Apply a lowpass filter
-        if self.Band:
+        if self.band:
             if self.Causal_filter_EEG:
                 eeg = eeg.filter(l_freq=self.l_freq_eeg, h_freq=self.h_freq_eeg, phase='minimum')
             else:
@@ -459,8 +459,8 @@ class Trial_channel:
         return channel
 
 class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it if pitch is a stimulus
-    def __init__(self, sesion:int=21, stim:str='Envelope', Band:str='All', sr:float=128, valores_faltantes:int=0, 
-                 Causal_filter_EEG:bool=True, Env_Filter:bool=False, situacion:str='Escucha', 
+    def __init__(self, sesion:int=21, stim:str='Envelope', band:str='All', sr:float=128, valores_faltantes:int=0, 
+                 Causal_filter_EEG:bool=True, Env_Filter:bool=False, situation:str='Escucha', 
                  Calculate_pitch:bool=False, SilenceThreshold:float=0.03, delays:np.ndarray=None,
                  procesed_data_path:str=f'saves/Preprocesed_Data/tmin{-0.6}_tmax{-.003}/'
                  ):
@@ -473,7 +473,7 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         stim : str, optional
             Stimuli to use in the analysis, by default 'Envelope'. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
             ['Envelope','Pitch','PitchMask','Spectrogram','Phonemes','Phonemes-manual','Phonemes-discrete','Phonemes-onset'].
-        Band : str, optional
+        band : str, optional
             Neural frequency band, by default 'All'. It could be one of:
             ['Delta','Theta',Alpha','Beta_1','Beta_2','All','Delta_Theta','Delta_Theta_Alpha']
         sr : float, optional
@@ -484,7 +484,7 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
             Whether to use or not a cusal filter, by default True
         Env_Filter : bool, optional
             Whether to use or not an envelope filter, by default False
-        situacion : str, optional
+        situation : str, optional
             Situation considerer when performing the analysis, by default 'Escucha'. Allowed sitations are:
             ['Habla_Propia','Ambos_Habla','Escucha']
         Calculate_pitch : bool, optional
@@ -503,35 +503,35 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
             ['Envelope','Pitch','PitchMask','Spectrogram','Phonemes','Phonemes-manual','Phonemes-discrete','Phonemes-onset']. 
             If more than one stimulus is wanted, the separator should be '_'.
         SyntaxError
-            If 'Band' is not an allowed band frecuency. Allowed bands are:
+            If 'band' is not an allowed band frecuency. Allowed bands are:
             ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Delta_Theta_Alpha']
         SyntaxError
-            If situacion is not an allowed situation. Allowed situations are: 
+            If situation is not an allowed situation. Allowed situations are: 
             ['Habla_Propia','Ambos_Habla','Escucha']
         """
        
-        # Check if band, stim and situacion parameters where passed with the right syntax
+        # Check if band, stim and situation parameters where passed with the right syntax
         allowed_stims = ['Envelope','Pitch','PitchMask','Spectrogram','Phonemes','Phonemes-manual','Phonemes-discrete','Phonemes-onset']
         allowed_band_frequencies = ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Delta_Theta_Alpha']
-        allowed_situaciones = ['Habla_Propia','Ambos_Habla','Escucha']
+        allowed_situationes = ['Habla_Propia','Ambos_Habla','Escucha']
         for st in stim.split('_'):
             if st in allowed_stims:
                 pass
             else:
                 raise SyntaxError(f"{st} is not an allowed stimulus. Allowed stimuli are: {allowed_stims}. If more than one stimulus is wanted, the separator should be '_'.")
         self.stim = stim
-        if Band in allowed_band_frequencies:
-            self.Band = Band
+        if band in allowed_band_frequencies:
+            self.band = band
         else:
-            raise SyntaxError(f"{Band} is not an allowed band frecuency. Allowed bands are: {allowed_band_frequencies}")
-        if situacion in allowed_situaciones:
-            self.situacion = situacion
+            raise SyntaxError(f"{band} is not an allowed band frecuency. Allowed bands are: {allowed_band_frequencies}")
+        if situation in allowed_situationes:
+            self.situation = situation
         else:
-            raise SyntaxError(f"{situacion} is not an allowed situation. Allowed situations are: {allowed_situaciones}")
+            raise SyntaxError(f"{situation} is not an allowed situation. Allowed situations are: {allowed_situationes}")
         
         # Define parameters
         self.sesion = sesion
-        self.l_freq_eeg, self.h_freq_eeg = Processing.band_freq(Band)
+        self.l_freq_eeg, self.h_freq_eeg = Processing.band_freq(band)
         self.sr = sr
         self.delays = delays
         self.valores_faltantes = valores_faltantes
@@ -542,27 +542,27 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
 
         # Relevant paths
         self.procesed_data_path = procesed_data_path
-        self.samples_info_path = self.procesed_data_path + f'samples_info/Sit_{self.situacion}/'
+        self.samples_info_path = self.procesed_data_path + f'samples_info/Sit_{self.situation}/'
         self.phn_path = f"Datos/phonemes/S{self.sesion}/"
         self.phrases_path = f"Datos/phrases/S{self.sesion}/"
 
         # Define paths to export data
         self.export_paths = {}
         if self.Causal_filter_EEG:
-            self.export_paths['EEG'] = self.procesed_data_path + f'EEG/Causal_Sit_{self.situacion}_Band_{self.Band}/'
+            self.export_paths['EEG'] = self.procesed_data_path + f'EEG/Causal_Sit_{self.situation}_band_{self.band}/'
         else:
-            self.export_paths['EEG'] = self.procesed_data_path + f'EEG/Sit_{self.situacion}_Band_{self.Band}/'
+            self.export_paths['EEG'] = self.procesed_data_path + f'EEG/Sit_{self.situation}_band_{self.band}/'
         if self.Env_Filter:
-            self.export_paths['Envelope'] = self.procesed_data_path + f'Envelope/{self.Env_Filter}_Sit_{self.situacion}/'
+            self.export_paths['Envelope'] = self.procesed_data_path + f'Envelope/{self.Env_Filter}_Sit_{self.situation}/'
         else:
-            self.export_paths['Envelope'] = self.procesed_data_path + f'Envelope/Sit_{self.situacion}/'
-        self.export_paths['PitchMask']= self.procesed_data_path + f'Pitch_mask_threshold_{self.SilenceThreshold}/Sit_{self.situacion}_Faltantes_{self.valores_faltantes}/'
-        self.export_paths['Pitch'] = self.procesed_data_path + f'Pitch_threshold_{self.SilenceThreshold}/Sit_{self.situacion}_Faltantes_{self.valores_faltantes}/'
-        self.export_paths['Spectrogram'] = self.procesed_data_path + f'Spectrogram/Sit_{self.situacion}/'
-        self.export_paths['Phonemes'] = self.procesed_data_path + f'Phonemes/Sit_{self.situacion}/'
-        self.export_paths['Phonemes-manual'] = self.procesed_data_path + f'Phonemes-manual/Sit_{self.situacion}/'
-        self.export_paths['Phonemes-discrete'] = self.procesed_data_path + f'Phonemes-discrete/Sit_{self.situacion}/'
-        self.export_paths['Phonemes-onset'] = self.procesed_data_path + f'Phonemes-onset/Sit_{self.situacion}/'
+            self.export_paths['Envelope'] = self.procesed_data_path + f'Envelope/Sit_{self.situation}/'
+        self.export_paths['PitchMask']= self.procesed_data_path + f'Pitch_mask_threshold_{self.SilenceThreshold}/Sit_{self.situation}_Faltantes_{self.valores_faltantes}/'
+        self.export_paths['Pitch'] = self.procesed_data_path + f'Pitch_threshold_{self.SilenceThreshold}/Sit_{self.situation}_Faltantes_{self.valores_faltantes}/'
+        self.export_paths['Spectrogram'] = self.procesed_data_path + f'Spectrogram/Sit_{self.situation}/'
+        self.export_paths['Phonemes'] = self.procesed_data_path + f'Phonemes/Sit_{self.situation}/'
+        self.export_paths['Phonemes-manual'] = self.procesed_data_path + f'Phonemes-manual/Sit_{self.situation}/'
+        self.export_paths['Phonemes-discrete'] = self.procesed_data_path + f'Phonemes-discrete/Sit_{self.situation}/'
+        self.export_paths['Phonemes-onset'] = self.procesed_data_path + f'Phonemes-onset/Sit_{self.situation}/'
         
     def load_from_raw(self):
         """Loads raw data, this includes EEG, info and stimuli.
@@ -604,7 +604,7 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
                     s=self.sesion, 
                     trial=trial, 
                     channel=1,
-                    Band=self.Band, 
+                    band=self.band, 
                     sr=self.sr,
                     valores_faltantes=self.valores_faltantes,
                     Causal_filter_EEG=self.Causal_filter_EEG,
@@ -614,7 +614,7 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
                     s=self.sesion,
                     trial=trial,
                     channel=2,
-                    Band=self.Band,
+                    band=self.band,
                     sr=self.sr,
                     valores_faltantes=self.valores_faltantes,
                     Causal_filter_EEG=self.Causal_filter_EEG,
@@ -626,7 +626,7 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
                 Trial_channel_2 = channel_2.load_trial(stims=self.stim.split('_'), calculate_pitch=self.Calculate_pitch)
     
                 # Load data to dictionary taking stimuli and eeg from speaker. I.e: each subject predicts its own EEG
-                if self.situacion == 'Habla_Propia' or self.situacion == 'Ambos_Habla':
+                if self.situation == 'Habla_Propia' or self.situation == 'Ambos_Habla':
                     Trial_sujeto_1 = {key: Trial_channel_1[key] for key in Trial_channel_1.keys()}
                     Trial_sujeto_2 = {key: Trial_channel_2[key] for key in Trial_channel_2.keys()}
                 
@@ -786,7 +786,7 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         return speaker + listener * 2
     
     def shifted_indexes_to_keep(self, speaker_labels:np.ndarray):
-        """Obtain shifted matrix indexes that match situacion
+        """Obtain shifted matrix indexes that match situation
 
         Parameters
         ----------
@@ -798,10 +798,10 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         np.ndarray
             Indexes to keep for the analysis
         """
-        if self.situacion == 'Todo':
+        if self.situation == 'Todo':
             return np.arange(len(speaker_labels))
         
-        # Change 0 with 4s, because shifted matrix pad zeros that could be mistaken with situacion 0    
+        # Change 0 with 4s, because shifted matrix pad zeros that could be mistaken with situation 0    
         speaker_labels = np.array(speaker_labels)
         speaker_labels = np.where(speaker_labels==0, 4, speaker_labels)        
 
@@ -809,18 +809,18 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         shifted_matrix_speaker_labels = Processing.shifted_matrix(features=speaker_labels, delays=self.delays).astype(float)
 
         # Make the appropiate label
-        if self.situacion == 'Silencio':
-            situacion_label = 4
-        elif self.situacion == 'Escucha':
-            situacion_label = 1
-        elif self.situacion == 'Habla' or self.situacion == 'Habla_Propia':
-            situacion_label = 2
-        elif self.situacion == 'Ambos' or self.situacion == 'Ambos_Habla':
-            situacion_label = 3
+        if self.situation == 'Silencio':
+            situation_label = 4
+        elif self.situation == 'Escucha':
+            situation_label = 1
+        elif self.situation == 'Habla' or self.situation == 'Habla_Propia':
+            situation_label = 2
+        elif self.situation == 'Ambos' or self.situation == 'Ambos_Habla':
+            situation_label = 3
         
         # Shifted matrix index where the given situation is ocurring in all row (number of samples dimension) # TODO: discutir si dejar 0 o no.
-        # return ((shifted_matrix_speaker_labels==situacion_label) | (shifted_matrix_speaker_labels==0)).all(axis=1).nonzero()[0]
-        return ((shifted_matrix_speaker_labels==situacion_label)).all(axis=1).nonzero()[0]
+        # return ((shifted_matrix_speaker_labels==situation_label) | (shifted_matrix_speaker_labels==0)).all(axis=1).nonzero()[0]
+        return ((shifted_matrix_speaker_labels==situation_label)).all(axis=1).nonzero()[0]
     
     @staticmethod
     def print_trials(p:int, trial:int, trials:list):
@@ -890,8 +890,8 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         else:
             return dic, speaker_labels, minimum
 
-def Load_Data(sesion:int, stim:str, Band:str, sr:float, procesed_data_path:str, 
-              situacion:str='Escucha', Causal_filter_EEG:bool=True, 
+def Load_Data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str, 
+              situation:str='Escucha', Causal_filter_EEG:bool=True, 
               Env_Filter:bool=False, valores_faltantes:int=0, Calculate_pitch:bool=False, 
               SilenceThreshold:float=0.03, delays:np.ndarray=None):
     """Loads sessions of both subjects
@@ -903,7 +903,7 @@ def Load_Data(sesion:int, stim:str, Band:str, sr:float, procesed_data_path:str,
     stim : str
         Stimuli to use in the analysis. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
             ['Envelope','Pitch','PitchMask','Spectrogram','Phonemes','Phonemes-manual','Phonemes-discrete','Phonemes-onset'].
-    Band : str
+    band : str
         Neural frequency band. It could be one of:
             ['Delta','Theta',Alpha','Beta_1','Beta_2','All','Delta_Theta','Delta_Theta_Alpha']
     sr : float
@@ -914,7 +914,7 @@ def Load_Data(sesion:int, stim:str, Band:str, sr:float, procesed_data_path:str,
         Maximum window time
     procesed_data_path : str
         Path directing to procesed data
-    situacion : str, optional
+    situation : str, optional
         Situation considerer when performing the analysis, by default 'Escucha'. Allowed sitations are:
             ['Habla_Propia','Ambos_Habla','Escucha']
     Causal_filter_EEG : bool, optional
@@ -950,12 +950,12 @@ def Load_Data(sesion:int, stim:str, Band:str, sr:float, procesed_data_path:str,
     if all(stimulus in allowed_stims for stimulus in stim.split('_')):
         sesion_obj = Sesion_class(sesion=sesion, 
                                   stim=stim, 
-                                  Band=Band, 
+                                  band=band, 
                                   sr=sr, 
                                   valores_faltantes=valores_faltantes, 
                                   Causal_filter_EEG=Causal_filter_EEG,
                                   Env_Filter=Env_Filter, 
-                                  situacion=situacion, 
+                                  situation=situation, 
                                   Calculate_pitch=Calculate_pitch,
                                   SilenceThreshold=SilenceThreshold, 
                                   procesed_data_path=procesed_data_path, 

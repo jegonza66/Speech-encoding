@@ -28,6 +28,7 @@ class Estandarizar():
         # Standarize data
         train_data -= self.mean
         train_data /= self.std
+        return train_data
 
     def fit_standarize_test(self, test_data:np.ndarray):
         """Standarize test data with mean and std of train data.
@@ -40,6 +41,7 @@ class Estandarizar():
         # Standarize with mean and standard deviation of train
         test_data -= self.mean
         test_data /= self.std
+        return test_data
 
     def standarize_data(self, data:np.ndarray):
         """Standarize data with own mean and standard deviation.
@@ -52,6 +54,7 @@ class Estandarizar():
         # Standarize data with own mean and standard deviation
         data -= np.mean(data, axis=self.axis)
         data /= np.std(data, axis=self.axis)
+        return data
 
 class Normalizar():
     def __init__(self, axis:int=0, porcent:float=5):
@@ -82,7 +85,7 @@ class Normalizar():
 
         # Normalize by maximum
         self.max = np.max(train_data, axis=self.axis)
-        train_data = np.divide(train_data, self.max, out=np.zeros_like(train_data), where=self.max != 0)
+        return np.divide(train_data, self.max, out=np.zeros_like(train_data), where=self.max != 0)
 
     def fit_normalize_test(self, test_data:np.ndarray):
         """Normalize test data with min and max of train data.
@@ -93,8 +96,7 @@ class Normalizar():
             Test data to be normalize with train data parameters
         """
         test_data -= self.min
-        test_data = np.divide(test_data, self.max, out=np.zeros_like(test_data), where=self.max != 0)
-        return test_data
+        return np.divide(test_data, self.max, out=np.zeros_like(test_data), where=self.max != 0)
 
     def normalize_data(self, data:np.ndarray, kind:str="1"):
         """_summary_# TODO no queda claro para qué es la kind 2, creo que es para que esté centrada en 0
@@ -112,6 +114,7 @@ class Normalizar():
         if kind=='2':
             data *= 2
             data -= 1
+        return data
 
     def fit_normalize_percent(self, data:np.ndarray):
         """_summary_# TODO no queda claro qué es lo que sucede, creo que corta el 5 porciento de los datos hacia adelante y hacia atras y trabaja con los maximos alli descritos
@@ -140,6 +143,7 @@ class Normalizar():
         # Normalize data
         data = np.divide(data, self.max, out=np.zeros_like(data), where=max_data_n!=0)
         data /= max_data_n
+        return data
 
 def standarize_normalize(eeg_train_val, eeg_test, dstims_train_val, dstims_test, Stims_preprocess, EEG_preprocess, axis=0, porcent=5):
     norm = Normalizar(axis, porcent)
