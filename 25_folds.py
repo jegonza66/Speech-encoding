@@ -245,23 +245,24 @@ for Band in Bands:
                     Canales_repetidos_rmse_sujeto[Canales_sobrevivientes_rmse] += 1
 
                     # Grafico Shadows
-                    Plot.plot_grafico_shadows(Display_Ind_Figures, sesion, sujeto, alpha,
-                                              Canales_sobrevivientes_corr, info, sr,
-                                              Corr_promedio, Save_Ind_Figures, Run_graficos_path,
-                                              Corr_buenas_ronda_canal, Correlaciones_fake)
+                    Plot.null_correlation_vs_correlation_good_channels(display_interactive_mode=Display_Ind_Figures, sesion=sesion, sujeto=sujeto,
+                                              save_path=Run_graficos_path, good_channels_indexes=Canales_sobrevivientes_corr,
+                                              average_correlation=Corr_promedio, save=Save_Ind_Figures, 
+                                              correlaciones_por_canal=Corr_buenas_ronda_canal, null_correlation_per_channel=Correlaciones_fake)
+                    
 
                 # Adapt to yield p-values
                 topo_pval_corr_sujeto = topo_pvalues_corr.mean(0)
                 topo_pval_rmse_sujeto = topo_pvalues_rmse.mean(0)
 
                 # Grafico cabezas y canales
-                Plot.plot_cabezas_canales(info.ch_names, info, sesion, sujeto, Corr_promedio, Display_Ind_Figures,
-                                          info['nchan'], 'Correlación', Save_Ind_Figures, Run_graficos_path,
-                                          Canales_sobrevivientes_corr)
-                Plot.plot_cabezas_canales(info.ch_names, info, sesion, sujeto, Rmse_promedio, Display_Ind_Figures,
-                                          info['nchan'], 'Rmse', Save_Ind_Figures, Run_graficos_path,
-                                          Canales_sobrevivientes_rmse)
-
+                Plot.topomap(good_channels_indexes=Canales_sobrevivientes_corr, average_coefficient=Corr_promedio, info=info,
+                             coefficient_name='correlation', save=Save_Ind_Figures, display_interactive_mode=Display_Ind_Figures, 
+                             save_path=Run_graficos_path, sujeto=sujeto, sesion=sesion)
+                Plot.topomap(good_channels_indexes=Canales_sobrevivientes_rmse, average_coefficient=Rmse_promedio, info=info,
+                             coefficient_name='RMSE', save=Save_Ind_Figures, display_interactive_mode=Display_Ind_Figures, 
+                             save_path=Run_graficos_path, sujeto=sujeto, sesion=sesion)
+                                
                 # Grafico Pesos
                 Plot.plot_grafico_pesos(Display_Ind_Figures, sesion, sujeto, alpha, Pesos_promedio,
                                         info, times, Corr_promedio, Rmse_promedio, Save_Ind_Figures,
