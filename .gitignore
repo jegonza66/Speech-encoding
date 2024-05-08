@@ -2,6 +2,7 @@
 .pylint.d/
 Datos/
 figures/
+gráficos/
 saves/
 Praat/
 __pycache__/
