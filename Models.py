@@ -45,7 +45,7 @@ class ManualRidge(Ridge):
         Parameters
         ----------
         X_train : np.ndarray
-            Fatures to be normalized. Its dimensions should be samples x features #TODO rever
+            Fatures to be normalized. Its dimensions should be samples x features 
         y_train : np.ndarray
             EEG samples to be normalized. Its dimensions should be samples x features
 
@@ -58,7 +58,7 @@ class ManualRidge(Ridge):
         norm = Processing.Normalizar(axis=0, porcent=5)
         estandar = Processing.Estandarizar(axis=0)
         
-        # Normalize|Standarize data # TODO DISYUNTIVA: normalizar cada feature x separado o todo junto? hasta ahora x columnas, incluso si dichas cols pertenecen al mismo feature. Tal vez cambiar dimension para diferenciar entre features y que no queden aglutinadas.
+        # Normalize|Standarize data 
         if self.stims_preprocess=='Standarize':
             # for i in range(X_train.shape[1]):
             #     estandar.fit_standarize_train(train_data=X_train[:,i]) 
@@ -142,7 +142,7 @@ class RidgeRegression(Ridge):
         Parameters
         ----------
         X_train : np.ndarray
-            Fatures to be normalized. Its dimensions should be samples x features #TODO rever
+            Fatures to be normalized. Its dimensions should be samples x features 
         y_train : np.ndarray
             EEG samples to be normalized. Its dimensions should be samples x features
 

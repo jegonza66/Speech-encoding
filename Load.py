@@ -90,8 +90,7 @@ class Trial_channel:
         np.ndarray
             Matrix representation of EEG per channel
         """
-        # Read the .set file
-        # TODO: warning of annotations and 'boundry' events -data discontinuities-.
+        # Read the .set file. warning of annotations and 'boundry' events -data discontinuities-.
         eeg = mne.io.read_raw_eeglab(input_fname=self.eeg_fname) 
         eeg.load_data()
         
@@ -458,7 +457,7 @@ class Trial_channel:
                 channel[stim] = self.f_phonemes(envelope=channel['Envelope'], kind=stim)
         return channel
 
-class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it if pitch is a stimulus
+class Sesion_class: 
     def __init__(self, sesion:int=21, stim:str='Envelope', band:str='All', sr:float=128, valores_faltantes:int=0, 
                  Causal_filter_EEG:bool=True, Env_Filter:bool=False, situation:str='Escucha', 
                  Calculate_pitch:bool=False, SilenceThreshold:float=0.03, delays:np.ndarray=None,

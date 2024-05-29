@@ -114,7 +114,7 @@ def null_correlation_vs_correlation_good_channels(good_channels_indexes:np.ndarr
         os.makedirs(save_path_graficos, exist_ok=True)
         fig.savefig(save_path_graficos + f'session{session}_subject{subject}.png')
 
-# CHECK DESCRIPTION
+# TODO CHECK DESCRIPTION
 def lateralized_channels(info:mne.io.meas_info.Info, 
                          save_path:str, 
                          channels_right:list=['B27', 'B28', 'B29', 'B30', 'C4', 'C5', 'C6', 'C7', 'C9', 'C10', 'B31', 'C3'], 
@@ -174,7 +174,7 @@ def lateralized_channels(info:mne.io.meas_info.Info,
         fig.savefig(save_path + f'masked_left_vs_right_chs_{len(channels_right)}_channels.png')
         fig.savefig(save_path + f'masked_left_vs_right_chs_{len(channels_right)}_channels.svg')
 
-# CHECK DESCRIPTION
+#TODO CHECK DESCRIPTION
 def topomap(good_channels_indexes:np.ndarray,
             average_coefficient:np.ndarray, 
             info:mne.io.meas_info.Info,
@@ -280,7 +280,7 @@ def topomap(good_channels_indexes:np.ndarray,
         os.makedirs(save_path_topo, exist_ok=True)
         fig.savefig(save_path_topo + f'{coefficient_name.lower()}_topomap_session_{session}_subject_{subject}.png')
 
-# CHECK DESCRIPTION
+#TODO CHECK DESCRIPTION
 def average_topomap(average_coefficient_subjects:np.ndarray, 
                           info:mne.io.meas_info.Info,
                           save:bool, 
@@ -425,7 +425,7 @@ def average_topomap(average_coefficient_subjects:np.ndarray,
     if test_result:
         return test_results
 
-# CHECK DESCRIPTION
+#TODO CHECK DESCRIPTION
 def topo_average_pval(pvalues_coefficient_subjects:np.ndarray, 
               info:mne.io.meas_info.Info, 
               save:bool, 
@@ -487,7 +487,7 @@ def topo_average_pval(pvalues_coefficient_subjects:np.ndarray,
         fig.savefig(save_path + f'p-value_topo_{coefficient_name.lower()}.png')
         fig.savefig(save_path + f'p-value_topo_{coefficient_name.lower()}.svg')
 
-# CHECK DESCRIPTION
+#TODO CHECK DESCRIPTION
 def topo_repeated_channels(repeated_good_coefficients_channels_subjects:np.ndarray, 
                       info:mne.io.meas_info.Info, 
                       save:bool, 
@@ -547,7 +547,7 @@ def topo_repeated_channels(repeated_good_coefficients_channels_subjects:np.ndarr
         fig.savefig(save_path + f'topo_repeated_channels_{coefficient_name.lower()}.png')
         fig.savefig(save_path + f'topo_repeated_channels_{coefficient_name.lower()}.svg')
 
-# CHECK DESCRIPTION
+#TODO CHECK DESCRIPTION
 def topo_map_relevant_times(average_weights_subjects:np.ndarray, 
                             info:mne.io.meas_info.Info,
                             n_feats:list, 
@@ -659,7 +659,7 @@ def topo_map_relevant_times(average_weights_subjects:np.ndarray,
             fig.savefig(save_path + 'relevant_times.png')
             fig.savefig(save_path + 'relevant_times.svg')
 
-# CHECK DESCRIPTION
+#TODO CHECK DESCRIPTION
 def channel_wise_correlation_topomap(average_weights_subjects:np.ndarray, 
                                      info:mne.io.meas_info.Info, 
                                      save:bool, 
@@ -731,6 +731,7 @@ def channel_wise_correlation_topomap(average_weights_subjects:np.ndarray,
         fig.savefig(save_path + 'channelwise_correlation_topo.png')
         fig.savefig(save_path + 'channelwise_correlation_topo.svg')
 
+#TODO CHECK DESCRIPTION
 def channel_weights(info:mne.io.meas_info.Info,
                     save:bool, 
                     save_path:str, 
@@ -890,6 +891,7 @@ def channel_weights(info:mne.io.meas_info.Info,
         os.makedirs(save_path_graficos, exist_ok=True)
         fig.savefig(save_path_graficos + f'session_{session}_subject_{subject}.png')
 
+#TODO CHECK DESCRIPTION
 def average_regression_weights(average_weights_subjects:np.ndarray, 
                                info:mne.io.meas_info.Info,
                                save:bool, 
@@ -1040,7 +1042,7 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
                 fig.savefig(save_path + f'average_weights_{feat.lower()}.svg')
                 fig.savefig(save_path + f'average_weights_{feat.lower()}.png')
 
-# CHECK DESCRIPTION
+#TODO CHECK DESCRIPTION E Y LABEL
 def correlation_matrix_subjects(average_weights_subjects:np.ndarray, 
                              stim:str, 
                              n_feats:list, 
@@ -1142,7 +1144,7 @@ def correlation_matrix_subjects(average_weights_subjects:np.ndarray,
             fig.savefig(save_path + f'TRF_correlation_matrix_{feat}.png')
             fig.savefig(save_path + f'TRF_correlation_matrix_{feat}.svg')
 
-# PENDIENTES
+#TODO CHECK DESCRIPTION E Y LABEL
 def plot_t_p_tfce(t:np.ndarray,
                   p:np.ndarray, 
                   trf_subjects_shape:tuple, 
@@ -1236,7 +1238,7 @@ def plot_t_p_tfce(t:np.ndarray,
         plt.savefig(save_path + f'{band}_{stim}_{pval_tresh}.png')
         plt.savefig(save_path + f'{band}_{stim}_{pval_tresh}.svg')
 
-def plot_p_tfce(p:np.ndarray,
+#TODO CHECK DESCRIPTIONdef plot_p_tfce(p:np.ndarray,
                 times:np.ndarray, 
                 trf_subjects_shape:tuple, 
                 band:str, 
@@ -1297,6 +1299,7 @@ def plot_p_tfce(p:np.ndarray,
         plt.savefig(save_path + f'pval_{band}_{stim}_{pval_tresh}.png')
         plt.savefig(save_path + f'pval_{band}_{stim}_{pval_tresh}.svg')
 
+#TODO CHECK DESCRIPTION E Y LABEL
 def plot_trf_tfce(average_weights_subjects:np.ndarray, 
                   p:np.ndarray, 
                   times:np.ndarray,
@@ -1385,7 +1388,7 @@ def plot_trf_tfce(average_weights_subjects:np.ndarray,
 
 
 
-#############
+##############################################################
 
 def highlight_cell(x, y, ax=None, **kwargs):
     rect = plt.Rectangle((x - .5, y - .5), 1, 1, **kwargs)

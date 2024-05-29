@@ -111,7 +111,7 @@ for band in bands:
             if just_load_data:
                 continue
 
-            # Load stimuli by subject (i.e: concatenated stimuli features)#TODO PENSAR COMO IMPLEMENTAR EN CASO DE SER MÁS DE UN ESTIMULO. XEJ.: 'Envelope_Phonemes'. En ese caso, la delayed matrix de features que usa el modelo estará compuesta por el delayed de envelope y luego el de phonemes. Como está ahora toma como si todo fuera la misma variable
+            # Load stimuli by subject (i.e: concatenated stimuli features)
             stims_sujeto_1 = np.hstack([sujeto_1[stimulus] for stimulus in stim.split('_')]) 
             stims_sujeto_2 = np.hstack([sujeto_2[stimulus] for stimulus in stim.split('_')])
             n_feats = [sujeto_1[stimulus].shape[1] for stimulus in stim.split('_')]
@@ -315,7 +315,7 @@ for band in bands:
         Plot.topo_map_relevant_times(average_weights_subjects=average_weights_subjects, info=info, n_feats=n_feats, band=band, stim=stim, times=times, 
                                 sample_rate=sr, save_path=path_figures, save=save_figures, display_interactive_mode=display_interactive_mode)
 
-        # Plot channel-wise correlation topomap # TODO CHECK DIMENSIONS
+        # Plot channel-wise correlation topomap 
         Plot.channel_wise_correlation_topomap(average_weights_subjects=average_weights_subjects, info=info, save=save_figures, 
                                               save_path=path_figures, display_interactive_mode=display_interactive_mode)      
 
@@ -325,7 +325,7 @@ for band in bands:
                                         times=times, n_feats=n_feats, stim=stim, display_interactive_mode=display_interactive_mode, 
                                         colormesh_form=condition_of_mesh.any())
         
-        # Plot correlation matrix between subjects # TODO ROTA
+        # Plot correlation matrix between subjects # TODO ROTA LA DIAGONAL
         Plot.correlation_matrix_subjects(average_weights_subjects=average_weights_subjects, stim=stim, n_feats=n_feats, save=save_figures, 
                                          save_path=path_figures, display_interactive_mode=display_interactive_mode)
 
@@ -348,14 +348,14 @@ for band in bands:
         n_permutations = 256#4096
         t_tfce, clusters, p_tfce, H0, trf_subjects = Statistics.tfce(average_weights_subjects=average_weights_subjects, n_permutations=n_permutations)
                 
-        # TODO CHECAR ESTO
+        # TODO CHECAR ESTO TICK LABELS y
         Plot.plot_t_p_tfce(t=t_tfce,p=p_tfce, trf_subjects_shape=trf_subjects.shape, band=band, stim=stim, pval_tresh=.05,
                            save_path=path_figures, display_interactive_mode=display_interactive_mode, save=save_figures)
-        # TODO CHECAR ESTO
+        # TODO CHECAR ESTO TICK LABELS y
         Plot.plot_p_tfce(p=p_tfce, times=times, trf_subjects_shape=trf_subjects.shape, band=band, stim=stim, pval_tresh=.05,
                          save_path=path_figures, display_interactive_mode=display_interactive_mode, save=save_figures)
 
-        # TODO CHECAR ESTO
+        # TODO CHECAR ESTO TICK LABELS y
         if 'Spectrogram' in stim:
             Plot.plot_trf_tfce(average_weights_subjects=average_weights_subjects, p=p_tfce, times=times,
                                trf_subjects_shape=trf_subjects.shape, save_path=path_figures, band=band,
