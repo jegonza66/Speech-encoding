@@ -44,7 +44,7 @@ stims_preprocess = 'Normalize'
 eeg_preprocess = 'Standarize'
 
 # Stimuli and EEG frecuency band
-stims = ['Envelope','Spectrogram']
+stims = ['Envelope']#,'Spectrogram']
 bands = ['Theta']
 
 # Dialogue situation
@@ -79,7 +79,7 @@ for band in bands:
         
         # Relevant paths
         save_path = f'saves/{model}/{situation}/Final_Correlation/tmin{tmin}_tmax{tmax}/'
-        procesed_data_path = f'saves/Preprocesed_Data/tmin{tmin}_tmax{tmax}/'
+        procesed_data_path = f'saves/{model}/Preprocesed_Data/tmin{tmin}_tmax{tmax}/'
         path_original = f'saves/{model}/{situation}/Original/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'
         path_null = f'saves/{model}/{situation}/Fake_it/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'
         path_figures = f'figures/{model}/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'

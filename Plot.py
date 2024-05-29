@@ -1042,7 +1042,7 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
                 fig.savefig(save_path + f'average_weights_{feat.lower()}.svg')
                 fig.savefig(save_path + f'average_weights_{feat.lower()}.png')
 
-#TODO CHECK DESCRIPTION E Y LABEL
+#TODO CHECK DESCRIPTION
 def correlation_matrix_subjects(average_weights_subjects:np.ndarray, 
                              stim:str, 
                              n_feats:list, 
@@ -1083,24 +1083,18 @@ def correlation_matrix_subjects(average_weights_subjects:np.ndarray,
         # Make slicing to get corresponding features of given feat
         index_slice = sum(n_feats[:i_feat]),  sum(n_feats[:i_feat]) + n_feat
         weights_across_features = average_weights_subjects[:,:,index_slice[0]:index_slice[1],:].mean(axis=2)
+        mean_across_subjects = weights_across_features.mean(axis=0) # nchans, ndelays
 
         # To store correlation matrix of each channel
-        correlation_matrices_of_each_channel = np.zeros(shape=(n_chan, n_subjects, n_subjects)) 
+        correlation_matrices_of_each_channel = np.zeros(shape=(n_chan, n_subjects+1, n_subjects+1)) 
+        weights_across_features_plus_mean = np.concatenate((weights_across_features, mean_across_subjects.reshape(1, n_chan, n_delays)), axis=0)
         for channel in range(n_chan):
-            matrix = weights_across_features[:,channel,:] 
+            matrix = weights_across_features_plus_mean[:,channel,:] 
             correlation_matrices_of_each_channel[channel] = np.corrcoef(matrix)
 
-        # Get correlation of each subject against mean
-        correlation_of_channel_vs_average_chann = np.zeros(shape=(n_chan, n_subjects)) 
-        mean_across_subjects = weights_across_features.mean(axis=0) # nchans, ndelays
-        for chan in range(n_chan):
-            for subject in range(n_subjects):
-                delays_per_subject_per_channel = weights_across_features[subject, chan, :]
-                correlation_of_channel_vs_average_chann[chan] = np.corrcoef(delays_per_subject_per_channel, mean_across_subjects)[0,1]
-
         # Take average across all channels
-        correlation_matrix = correlation_matrices_of_each_channel.mean(axis=0)
-        correlation_of_channel_vs_average = correlation_of_channel_vs_average_chann.mean(axis=0)
+        correlation_matrix = correlation_matrices_of_each_channel.mean(axis=0)[:-1, :-1]
+        correlation_of_channel_vs_average = correlation_matrices_of_each_channel.mean(axis=0)[-1][:-1]
 
         # Change diagonal for values of last row. 
         for i in range(n_subjects):
@@ -1125,7 +1119,7 @@ def correlation_matrix_subjects(average_weights_subjects:np.ndarray,
                    annot=True, 
                    center=0, 
                    xticklabels=True, 
-                   annot_kws={"size": 12},
+                   annot_kws={"size": 15},
                    cbar=False)
 
         ax.set_yticklabels(['Subjects mean'] + subject_names[1:], rotation=35, fontsize='xx-large')
@@ -1238,7 +1232,8 @@ def plot_t_p_tfce(t:np.ndarray,
         plt.savefig(save_path + f'{band}_{stim}_{pval_tresh}.png')
         plt.savefig(save_path + f'{band}_{stim}_{pval_tresh}.svg')
 
-#TODO CHECK DESCRIPTIONdef plot_p_tfce(p:np.ndarray,
+#TODO CHECK DESCRIPTION E Y LABEL
+def plot_p_tfce(p:np.ndarray,
                 times:np.ndarray, 
                 trf_subjects_shape:tuple, 
                 band:str, 
