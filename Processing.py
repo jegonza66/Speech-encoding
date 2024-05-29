@@ -195,7 +195,7 @@ def shifted_matrix(features:np.ndarray, delays:np.ndarray):
     Returns
     -------
     np.ndarray
-        Concatenated shifted matrix of size len(features)Xlen(delayes)
+        Concatenated shifted matrix of shape samples, [epochs,features], delays
     """
     if isinstance(features, list):
         features = np.array(features)
@@ -267,7 +267,7 @@ def band_freq(band):
         elif band == 'Delta_Theta':
             l_freq = 1
             h_freq = 8
-        elif band == 'Delta_Theta_Alpha':
+        elif band == 'Alpha_Delta_Theta':
             l_freq = 1
             h_freq = 13
 

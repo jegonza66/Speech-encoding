@@ -213,28 +213,42 @@ def simular_iteraciones_mtrf(iteraciones, sesion, sujeto, fold, sr, info, tmin, 
     pickle.dump([Correlaciones_fake, Errores_fake], f)
     f.close()
 
+# TODO CHECK DESCRIPTION
+def tfce(average_weights_subjects:np.ndarray, 
+         n_permutations:int=1024, 
+         threshold_tfce:dict=dict(start=0, step=0.2)):
+    """_summary_
 
-def tfce(Pesos_totales_sujetos_todos_canales, times, Len_Estimulos, n_permutations=1024, threshold_tfce=dict(start=0, step=0.2)):
+    Parameters
+    ----------
+    average_weights_subjects : np.ndarray
+        _description_
+    n_permutations : int, optional
+        _description_, by default 1024
+    threshold_tfce : dict, optional
+        _description_, by default dict(start=0, step=0.2)
 
-    n_features = int(sum(Len_Estimulos)/len(times))
-    n_subjects = Pesos_totales_sujetos_todos_canales.shape[2]
+    Returns
+    -------
+    _type_
+        _description_
+    """
 
-    if n_features > 1:
-        weights_subjects = Pesos_totales_sujetos_todos_canales.copy().mean(0)
-        weights_subjects = weights_subjects.reshape(n_features, len(times), n_subjects)
+    # Get relevant parameters
+    n_subjects, n_chan, total_number_features, n_delays  = average_weights_subjects.shape
+
+    # Get desire shape
+    if total_number_features > 1:
+        weights_subjects_mean_across_channels = average_weights_subjects.copy().mean(axis=1)
+        weights_subjects = weights_subjects_mean_across_channels.reshape(n_subjects, total_number_features, n_delays)
     else:
-        weights_subjects = Pesos_totales_sujetos_todos_canales.copy()
-        weights_subjects = weights_subjects.reshape(128, len(times), n_subjects)
+        weights_subjects = average_weights_subjects.copy().reshape(n_subjects, n_chan, n_delays)
 
-
-    weights_subjects = weights_subjects.swapaxes(0, 2)
-    weights_subjects = weights_subjects.swapaxes(1, 2)
-
-    weights_subjects = np.flip(weights_subjects, axis=-1)
-    weights_subjects = np.flip(weights_subjects, axis=1)
+    # weights_subjects = np.flip(weights_subjects, axis=-1)
+    # weights_subjects = np.flip(weights_subjects, axis=1)
 
     t_tfce, clusters, p_tfce, H0 = permutation_cluster_1samp_test(
-        weights_subjects,
+        X=weights_subjects,
         n_jobs=1,
         threshold=threshold_tfce,
         adjacency=None,
@@ -242,8 +256,7 @@ def tfce(Pesos_totales_sujetos_todos_canales, times, Len_Estimulos, n_permutatio
         out_type="mask",
     )
 
-    return t_tfce, clusters, p_tfce, H0, weights_subjects, n_permutations
-
+    return t_tfce, clusters, p_tfce, H0, weights_subjects
 
 def cohen_d(x,y):
     nx = len(x)
