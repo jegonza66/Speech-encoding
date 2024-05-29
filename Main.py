@@ -18,7 +18,7 @@ Display_Ind_Figures = False
 Display_Total_Figures = False
 Save_Ind_Figures = True
 Save_Total_Figures = True
-Save_Results = False
+Save_Results = True
 # Random permutations
 Statistical_test = False
 # Stimuli and EEG
@@ -66,7 +66,7 @@ for Band in Bands:
         print('tmin: {} - tmax: {}'.format(tmin, tmax))
         # Paths
         save_path = 'saves/{}/{}/Final_Correlation/tmin{}_tmax{}/'.format(model, situacion, tmin, tmax)
-        procesed_data_path = 'saves/Preprocesed_Data/tmin{}_tmax{}/'.format(tmin, tmax)
+        procesed_data_path = 'saves/{}/Preprocesed_Data/tmin{}_tmax{}/'.format(model, tmin, tmax)
         Run_graficos_path = 'gráficos/{}/{}/Stims_{}_EEG_{}/tmin{}_tmax{}/Stim_{}_EEG_Band_{}/'.format(
             model, situacion, Stims_preprocess, EEG_preprocess, tmin, tmax, stim, Band)
         Path_original = 'saves/{}/{}/Original/Stims_{}_EEG_{}/tmin{}_tmax{}/Stim_{}_EEG_Band_{}/'.format(
