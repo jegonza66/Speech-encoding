@@ -31,7 +31,7 @@ class Trial_channel:
             Channel used to record the audio (it can be from subject 1 and 2), by default 1
         band : str, optional
             Neural frequency band, by default 'All'. It could be one of:
-            ['Delta','Theta',Alpha','Beta_1','Beta_2','All','Delta_Theta','Delta_Theta_Alpha']
+            ['Delta','Theta',Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
         sr : float, optional
             Sample rate in Hz of the EEG, by default 128
         delays : np.ndarray, optional
@@ -50,11 +50,11 @@ class Trial_channel:
         ------
         SyntaxError
             If 'band' is not an allowed band frecuency. Allowed bands are:
-            ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Delta_Theta_Alpha']
+            ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
         """
         # Participants sex, ordered by session
         sex_list = ['M', 'M', 'M', 'F', 'F', 'F', 'F', 'M', 'M', 'M', 'F', 'F', 'F', 'F', 'M', 'M', 'M', 'F', 'F', 'M']
-        allowed_band_frequencies = ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Delta_Theta_Alpha']
+        allowed_band_frequencies = ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
         if band in allowed_band_frequencies:
             self.band= band
         else:
@@ -233,8 +233,8 @@ class Trial_channel:
         shimmer = shimmer[:min(len(shimmer), len(envelope))].reshape(-1,1)
         return jitter, shimmer
     
-    def f_phonemes(self, envelope:np.ndarray, kind:str='Envelope'):
-        """It makes a time-match matrix between the phonemes and the envelope. The values of given matrix depend on kind.
+    def f_phonemes(self, envelope:np.ndarray, kind:str='Envelope-manual'):
+        """It makes a time-match matrix between the phonemes and the envelope. The values and shape of given matrix depend on kind.
 
         Parameters
         ----------
@@ -242,16 +242,16 @@ class Trial_channel:
             Envelope of the audio signal using Hilbert transform.
         kind : str, optional
            Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
-            'Envelope', 'Discrete', 'Onset'
+            'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete', 'Phonemes-Discrete-Manual', 'Phonemes-Onset', 'Phonemes-Onset-Manual'
 
         Returns
         -------
         np.ndarray
-            if kind=='Envelope':
+            if kind.startswith('Phonemes-Envelope'):
                 Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhonemes_labels(in order)
-            elif kind=='Discrete':
+            elif kind.startswith('Phonemes-Discrete'):
                 Also a matrix but it has 1s and 0s instead of envelope amplitude.
-            elif kind=='Onset':
+            elif kind.startswith('Phonemes-Onset'):
                 In this case the value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
             
         Raises
@@ -259,10 +259,15 @@ class Trial_channel:
         SyntaxError
             Whether the input value of 'kind' is passed correctly. It must be a string among ['Envelope', 'Discrete', 'Onset'].
         """
+        if kind.endswith('anual'):
+            exp_info_labels = exp_info.ph_labels_man
+        else: 
+            exp_info_labels = exp_info.ph_labels            
+
         # Check if given kind is a permited input value
-        allowed_kind = ['Envelope', 'Discrete', 'Onset']
+        allowed_kind = ['Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete', 'Phonemes-Discrete-manual', 'Phonemes-Onset', 'Phonemes-Onset-Manual']
         if kind not in allowed_kind:
-            raise SyntaxError(f"{kind} is not an allowed band frecuency. Allowed bands are: {allowed_kind}")
+            raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
 
         # Get trial total time length
         phrases = pd.read_table(self.phrases_fname, header=None, sep="\t")
@@ -293,7 +298,7 @@ class Trial_channel:
                 label = ""
             
             # Check if the phoneme is in the list
-            if not(label in exp_info.ph_labels or label==""):
+            if not(label in exp_info_labels or label==""):
                 print(f'"{label}" is not in not a recognized phoneme. Will be added as silence.')
                 label = ""
             labels.append(label)
@@ -323,7 +328,7 @@ class Trial_channel:
             samples[-1] -= diferencia
         
         # Make a list with phoneme labels tha already are in the known set
-        updated_taggs = exp_info.ph_labels + [ph for ph in np.unique(labels) if ph not in exp_info.ph_labels]
+        updated_taggs = exp_info_labels + [ph for ph in np.unique(labels) if ph not in exp_info_labels]
 
         # Repeat each label the number of times it was sampled
         phonemes_tgrid = np.repeat(labels, samples)
@@ -332,13 +337,13 @@ class Trial_channel:
         phonemes = np.zeros(shape = (np.sum(samples), len(updated_taggs)))
         
         # Match phoneme with kind
-        if kind=='Envelope':
+        if kind.startswith('Phonemes-Envelope'):
             for i, tagg in enumerate(phonemes_tgrid):
                 phonemes[i, updated_taggs.index(tagg)] = envelope[i]
-        elif kind=='Discrete':
+        elif kind.startswith('Phonemes-Discrete'):
             for i, tagg in enumerate(phonemes_tgrid):
                 phonemes[i, updated_taggs.index(tagg)] = 1
-        elif kind=='Onset':
+        elif kind.startswith('Phonemes-Onset'):
             # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
             phonemes_onset = [phonemes_tgrid[0]]
             for i in range(1, len(phonemes_tgrid)):
@@ -442,20 +447,15 @@ class Trial_channel:
         channel['info'] = self.f_info()
         channel['Envelope'] = self.f_envelope()
 
-        if 'Pitch' in stims:
-            if calculate_pitch:
-                self.calculate_pitch()
+        if calculate_pitch:
+            self.calculate_pitch()
             channel['Pitch'] = self.load_pitch(envelope=channel['Envelope'])
-        if 'Spectrogram' in stims:
-            channel['Spectrogram'] = self.f_spectrogram()
-        if 'Phonemes' in stims:
-            channel['Phonemes'] = self.f_phonemes(envelope=channel['Envelope'], kind='Envelope')
-        if 'Phonemes-manual' in stims: #Same as before
-            channel['Phonemes-manual'] = self.f_phonemes(envelope=channel['Envelope'], kind='Envelope')
-        if 'Phonemes-discrete' in stims:
-            channel['Phonemes-discrete'] = self.f_phonemes(envelope=channel['Envelope'], kind='Discrete')
-        if 'Phonemes-onset' in stims:
-            channel['Phonemes-onset'] =  self.f_phonemes(envelope=channel['Envelope'], kind='Onset')
+            
+        for stim in stims:
+            if stim=='Spectrogram':
+                channel['Spectrogram'] = self.f_spectrogram()
+            elif stim.startswith('Phonemes'):
+                channel[stim] = self.f_phonemes(envelope=channel['Envelope'], kind=stim)
         return channel
 
 class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it if pitch is a stimulus
@@ -472,10 +472,10 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
             Session number, by default 21
         stim : str, optional
             Stimuli to use in the analysis, by default 'Envelope'. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
-            ['Envelope','Pitch','PitchMask','Spectrogram','Phonemes','Phonemes-manual','Phonemes-discrete','Phonemes-onset'].
+            ['Envelope', 'Pitch', 'PitchMask', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual']
         band : str, optional
             Neural frequency band, by default 'All'. It could be one of:
-            ['Delta','Theta',Alpha','Beta_1','Beta_2','All','Delta_Theta','Delta_Theta_Alpha']
+            ['Delta','Theta',Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
         sr : float, optional
             Sample rate in Hz of the EEG, by default 128
         valores_faltantes : int, optional
@@ -500,19 +500,19 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         ------
         SyntaxError
             If 'stim' is not an allowed stimulus. Allowed stimuli are:
-            ['Envelope','Pitch','PitchMask','Spectrogram','Phonemes','Phonemes-manual','Phonemes-discrete','Phonemes-onset']. 
+            ['Envelope', 'Pitch', 'PitchMask', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual']. 
             If more than one stimulus is wanted, the separator should be '_'.
         SyntaxError
             If 'band' is not an allowed band frecuency. Allowed bands are:
-            ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Delta_Theta_Alpha']
+            ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
         SyntaxError
             If situation is not an allowed situation. Allowed situations are: 
             ['Habla_Propia','Ambos_Habla','Escucha']
         """
        
         # Check if band, stim and situation parameters where passed with the right syntax
-        allowed_stims = ['Envelope','Pitch','PitchMask','Spectrogram','Phonemes','Phonemes-manual','Phonemes-discrete','Phonemes-onset']
-        allowed_band_frequencies = ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Delta_Theta_Alpha']
+        allowed_stims = ['Envelope', 'Pitch', 'PitchMask', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual']
+        allowed_band_frequencies = ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
         allowed_situationes = ['Habla_Propia','Ambos_Habla','Escucha']
         for st in stim.split('_'):
             if st in allowed_stims:
@@ -559,10 +559,12 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
         self.export_paths['PitchMask']= self.procesed_data_path + f'Pitch_mask_threshold_{self.SilenceThreshold}/Sit_{self.situation}_Faltantes_{self.valores_faltantes}/'
         self.export_paths['Pitch'] = self.procesed_data_path + f'Pitch_threshold_{self.SilenceThreshold}/Sit_{self.situation}_Faltantes_{self.valores_faltantes}/'
         self.export_paths['Spectrogram'] = self.procesed_data_path + f'Spectrogram/Sit_{self.situation}/'
-        self.export_paths['Phonemes'] = self.procesed_data_path + f'Phonemes/Sit_{self.situation}/'
-        self.export_paths['Phonemes-manual'] = self.procesed_data_path + f'Phonemes-manual/Sit_{self.situation}/'
-        self.export_paths['Phonemes-discrete'] = self.procesed_data_path + f'Phonemes-discrete/Sit_{self.situation}/'
-        self.export_paths['Phonemes-onset'] = self.procesed_data_path + f'Phonemes-onset/Sit_{self.situation}/'
+        self.export_paths['Phonemes-Envelope'] = self.procesed_data_path + f'phonemes-envelope/Sit_{self.situation}/'
+        self.export_paths['Phonemes-Envelope-Manual'] = self.procesed_data_path + f'phonemes-manual/Sit_{self.situation}/'
+        self.export_paths['Phonemes-Discrete'] = self.procesed_data_path + f'phonemes-discrete/Sit_{self.situation}/'
+        self.export_paths['Phonemes-Discrete-Manual'] = self.procesed_data_path + f'phonemes-discrete-manual/Sit_{self.situation}/'
+        self.export_paths['Phonemes-Onset'] = self.procesed_data_path + f'Phonemes-Onset/Sit_{self.situation}/'
+        self.export_paths['Phonemes-Onset-Manual'] = self.procesed_data_path + f'Phonemes-Onset-Manual/Sit_{self.situation}/'
         
     def load_from_raw(self):
         """Loads raw data, this includes EEG, info and stimuli.
@@ -642,8 +644,8 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
 
                 # Match length of speaker labels and trials with the info of its lengths
                 if loaded_samples_info:
-                    Trial_sujeto_1, current_speaker_1 = Sesion_class.match_lengths(dic=Trial_sujeto_1, speaker_labels=current_speaker_1, minimum_length=samples_info['trial_lengths1'][trial])
-                    Trial_sujeto_2, current_speaker_2 = Sesion_class.match_lengths(dic=Trial_sujeto_2, speaker_labels=current_speaker_2, minimum_length=samples_info['trial_lengths2'][trial])
+                    Trial_sujeto_1, current_speaker_1 = Sesion_class.match_lengths(dic=Trial_sujeto_1, speaker_labels=current_speaker_1, minimum_length=samples_info['trial_lengths1'][p+1])
+                    Trial_sujeto_2, current_speaker_2 = Sesion_class.match_lengths(dic=Trial_sujeto_2, speaker_labels=current_speaker_2, minimum_length=samples_info['trial_lengths2'][p+1])
 
                 else:
                     # If there isn't any data matches lengths of both variables comparing every key and speaker labels length (the Trial gets modify inside the function)
@@ -674,8 +676,8 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
             # Empty trial
             except:
                 print(f"Trial {trial} of session {self.sesion} couldn't be loaded.")
-                samples_info['trial_lengths1'][trial] = 0
-                samples_info['trial_lengths2'][trial] = 0
+                samples_info['trial_lengths1'][p] = 0
+                samples_info['trial_lengths2'][p] = 0
 
         # Get info of the setup that was exluded in the previous iteration
         info = Trial_channel_1['info']
@@ -842,7 +844,10 @@ class Sesion_class: # TODO calculate pitch must be inside load pitch, only do it
                 missing_trials.append(t-1)
                 t-=1
             missing_trials.sort()
-            print(f'Trial {trial} of {trials[-1]}. Missing trials {", ".join(str(i) for i in missing_trials)}.')
+            if len(missing_trials)>1:
+                print(f'Trial {trial} of {trials[-1]}. Missing trials {", ".join(str(i) for i in missing_trials)}.')
+            else:
+                print(f'Trial {trial} of {trials[-1]}. Missing trial {", ".join(str(i) for i in missing_trials)}.')
         elif (p==0) and (trials[0]!=1):
             print(f'Trial {trial} of {trials[-1]}. Missing trial 1.')
         else:
@@ -902,10 +907,10 @@ def Load_Data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str,
         Session number
     stim : str
         Stimuli to use in the analysis. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
-            ['Envelope','Pitch','PitchMask','Spectrogram','Phonemes','Phonemes-manual','Phonemes-discrete','Phonemes-onset'].
+            ['Envelope', 'Pitch', 'PitchMask', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual'].
     band : str
         Neural frequency band. It could be one of:
-            ['Delta','Theta',Alpha','Beta_1','Beta_2','All','Delta_Theta','Delta_Theta_Alpha']
+            ['Delta','Theta', 'Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
     sr : float
         Sample rate in Hz of the EEG
     tmin : float
@@ -940,17 +945,20 @@ def Load_Data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str,
     ------
     SyntaxError
         If 'stimulus' is not an allowed stimulus. Allowed stimuli are:
-            ['Envelope','Pitch','PitchMask','Spectrogram','Phonemes','Phonemes-manual','Phonemes-discrete','Phonemes-onset']. 
+            ['Envelope', 'Pitch', 'PitchMask', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual'].
         If more than one stimulus is wanted, the separator should be '_'.
     """
 
     # Define allowed stimuli
-    allowed_stims = ['Envelope', 'Pitch', 'PitchMask', 'Spectrogram', 'Phonemes', 'Phonemes-manual', 'Phonemes-discrete', 'Phonemes-onset']
+    allowed_stims = ['Envelope', 'Pitch', 'PitchMask', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual']
 
     if all(stimulus in allowed_stims for stimulus in stim.split('_')):
+        # Re-order stim and band to create just one file for each case: 'Phonemes_Envelope' --> 'Envelope_Phonemes'
+        ordered_stims = sorted(stim.split('_'))
+        ordered_band = sorted(band.split('_'))
         sesion_obj = Sesion_class(sesion=sesion, 
-                                  stim=stim, 
-                                  band=band, 
+                                  stim='_'.join(ordered_stims), 
+                                  band='_'.join(ordered_band), 
                                   sr=sr, 
                                   valores_faltantes=valores_faltantes, 
                                   Causal_filter_EEG=Causal_filter_EEG,
