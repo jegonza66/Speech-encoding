@@ -658,7 +658,7 @@ class Sesion_class:
                     samples_info['keep_indexes2'] += (self.shifted_indexes_to_keep(speaker_labels=current_speaker_2) + np.sum(samples_info['trial_lengths2'][:-1])).tolist()
 
 
-                # Concatenates data of each subject #TODO la versión vieja excluía pitch preguntar por que
+                # Concatenates data of each subject 
                 for key in Trial_sujeto_1:
                     if key != 'info':
                         if key not in Sujeto_1:
@@ -717,11 +717,8 @@ class Sesion_class:
         dict
             Sessions of both subjects.
         """
-        # Define EEG path
-        EEG_path = self.export_paths['EEG']+ f'Sesion{self.sesion}.pkl'
-
         # Load EEGs and procesed data
-        eeg_sujeto_1, eeg_sujeto_2 = Funciones.load_pickle(path=EEG_path)
+        eeg_sujeto_1, eeg_sujeto_2 = Funciones.load_pickle(path=self.export_paths['EEG']+ f'Sesion{self.sesion}.pkl')
         info = Funciones.load_pickle(path=self.procesed_data_path + 'EEG/info.pkl')
         samples_info = Funciones.load_pickle(path=self.samples_info_path + f'samples_info_{self.sesion}.pkl')
         Sujeto_1 = {'EEG': eeg_sujeto_1, 'info': info}
@@ -950,32 +947,46 @@ def Load_Data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str,
 
     # Define allowed stimuli
     allowed_stims = ['Envelope', 'Pitch', 'PitchMask', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual']
+    allowed_situations = ['Habla_Propia','Ambos_Habla','Escucha']
+    allowed_bands = ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
 
-    if all(stimulus in allowed_stims for stimulus in stim.split('_')):
-        # Re-order stim and band to create just one file for each case: 'Phonemes_Envelope' --> 'Envelope_Phonemes'
-        ordered_stims = sorted(stim.split('_'))
-        ordered_band = sorted(band.split('_'))
-        sesion_obj = Sesion_class(sesion=sesion, 
-                                  stim='_'.join(ordered_stims), 
-                                  band='_'.join(ordered_band), 
-                                  sr=sr, 
-                                  valores_faltantes=valores_faltantes, 
-                                  Causal_filter_EEG=Causal_filter_EEG,
-                                  Env_Filter=Env_Filter, 
-                                  situation=situation, 
-                                  Calculate_pitch=Calculate_pitch,
-                                  SilenceThreshold=SilenceThreshold, 
-                                  procesed_data_path=procesed_data_path, 
-                                  delays=delays)
+    # And conditions
+    condition_1 = all(stimulus in allowed_stims for stimulus in stim.split('_'))
+    condition_2 = band in allowed_bands
+    condition_3 = situation in allowed_situations
 
-        # Try to load procesed data, if it fails it loads raw data
-        try:
-            print('Loading preprocesed data\n')
-            Sesion, samples_info = sesion_obj.load_procesed()
-            print('Data loaded succesfully\n')
-        except:
-            print("Couldn't load data, compute it from raw\n")
-            Sesion, samples_info = sesion_obj.load_from_raw()
-        return Sesion['Sujeto_1'], Sesion['Sujeto_2'], samples_info
+    if condition_1:
+        if condition_2:
+            if condition_3:
+                
+                # Re-order stim and band to create just one file for each case: 'Phonemes_Envelope' --> 'Envelope_Phonemes'
+                ordered_stims = sorted(stim.split('_'))
+                ordered_band = sorted(band.split('_'))
+                sesion_obj = Sesion_class(sesion=sesion, 
+                                        stim='_'.join(ordered_stims), 
+                                        band='_'.join(ordered_band), 
+                                        sr=sr, 
+                                        valores_faltantes=valores_faltantes, 
+                                        Causal_filter_EEG=Causal_filter_EEG,
+                                        Env_Filter=Env_Filter, 
+                                        situation=situation, 
+                                        Calculate_pitch=Calculate_pitch,
+                                        SilenceThreshold=SilenceThreshold, 
+                                        procesed_data_path=procesed_data_path, 
+                                        delays=delays)
+
+                # Try to load procesed data, if it fails it loads raw data
+                try:
+                    print('Loading preprocesed data\n')
+                    Sesion, samples_info = sesion_obj.load_procesed()
+                    print('Data loaded succesfully\n')
+                except:
+                    print("Couldn't load data, compute it from raw\n")
+                    Sesion, samples_info = sesion_obj.load_from_raw()
+                return Sesion['Sujeto_1'], Sesion['Sujeto_2'], samples_info
+            else:
+                raise SyntaxError(f"{situation} is not an allowed situation. Allowed ones are: {allowed_situations}")
+        else:
+            raise SyntaxError(f"{band} is not an allowed band frequency. Allowed bands are: {allowed_bands}")
     else:
         raise SyntaxError(f"{stim} is not an allowed stimulus. Allowed stimuli are: {allowed_stims}. If more than one stimulus is wanted, the separator should be '_'.")
