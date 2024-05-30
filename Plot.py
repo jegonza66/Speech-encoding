@@ -816,9 +816,9 @@ def channel_weights(info:mne.io.meas_info.Info,
             ax[0,i_feat].tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
 
             if feat.endswith('Manual'):
-                ax[0,i_feat].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), ytickslabel=exp_info.ph_labels_man)
+                ax[0,i_feat].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels_man)
             else:
-                ax[0,i_feat].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), ytickslabel=exp_info.ph_labels)
+                ax[0,i_feat].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels)
 
             fig.colorbar(im, 
                          ax=ax[0,i_feat], 

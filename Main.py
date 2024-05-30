@@ -44,7 +44,7 @@ stims_preprocess = 'Normalize'
 eeg_preprocess = 'Standarize'
 
 # Stimuli and EEG frecuency band
-stims = ['Envelope']#,'Spectrogram']
+stimuli = ['Phonemes-Envelope-Manual']
 bands = ['Theta']
 
 # Dialogue situation
@@ -70,7 +70,7 @@ times = (delays/sr)
 just_load_data = False
 
 for band in bands:
-    for stim in stims:
+    for stim in stimuli:
         ordered_stims, ordered_band = sorted(stim.split('_')), sorted(band.split('_'))
         stim, band = '_'.join(ordered_stims), '_'.join(ordered_band)
 
@@ -79,7 +79,7 @@ for band in bands:
         
         # Relevant paths
         save_path = f'saves/{model}/{situation}/Final_Correlation/tmin{tmin}_tmax{tmax}/'
-        procesed_data_path = f'saves/{model}/Preprocesed_Data/tmin{tmin}_tmax{tmax}/'
+        procesed_data_path = f'saves/Preprocesed_Data/tmin{tmin}_tmax{tmax}/'
         path_original = f'saves/{model}/{situation}/Original/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'
         path_null = f'saves/{model}/{situation}/Fake_it/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'
         path_figures = f'figures/{model}/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'
@@ -264,7 +264,7 @@ for band in bands:
                 topo_pval_corr_sujeto = topo_pvalues_corr.mean(axis=0)
                 topo_pval_rmse_sujeto = topo_pvalues_rmse.mean(axis=0)
 
-                # Plot head topomap across al channel for correlation and rmse
+                # Plot head topomap across al channel for correlation and rmse # TODO CHECK y labels QUEDARON TODAS DEL SPECTROGRAMA
                 Plot.topomap(good_channels_indexes=corr_good_channel_indexes, average_coefficient=average_correlation, info=info,
                              coefficient_name='Correlation', save=save_figures, display_interactive_mode=display_interactive_mode, 
                              save_path=path_figures, subject=sujeto, session=sesion)
@@ -373,6 +373,12 @@ for band in bands:
                                   obj={'average_weights_subjects':average_weights_subjects},
                                   rewrite=True)
 # Get run time            
-run_time = datetime.now() - start_time
+run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
 print(run_time)
-mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=f'Main.py run in {run_time} hours')
+
+# Send text to telegram bot
+text = f'PARAMETERS  \nModel: ' + model +f'\nBands: {bands}'+'\nStimuli: ' + f'{stimuli}'+'\nStatus: ' +situation+f'\nTime interval: ({tmin},{tmax})s'
+if just_load_data:
+    text += '\n\n\tJUST LOADING DATA'
+text += f'\n\n\t\t RUN TIME \n\n\t\t{run_time} hours'
+mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=text)
