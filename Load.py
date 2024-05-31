@@ -264,7 +264,7 @@ class Trial_channel:
             exp_info_labels = exp_info.ph_labels            
 
         # Check if given kind is a permited input value
-        allowed_kind = ['Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete', 'Phonemes-Discrete-manual', 'Phonemes-Onset', 'Phonemes-Onset-Manual']
+        allowed_kind = ['Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete', 'Phonemes-Discrete-Manual', 'Phonemes-Onset', 'Phonemes-Onset-Manual']
         if kind not in allowed_kind:
             raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
 
