@@ -44,7 +44,7 @@ stims_preprocess = 'Normalize'
 eeg_preprocess = 'Standarize'
 
 # Stimuli and EEG frecuency band
-stimuli = ['Phonemes-Envelope-Manual']
+stimuli = ['Phonemes-Onset-Manual']
 bands = ['Theta']
 
 # Dialogue situation
@@ -98,14 +98,14 @@ for band in bands:
             print(f'\n------->\tStart of session {sesion}\n')
             
             # Load data by subject, EEG and info
-            sujeto_1, sujeto_2, samples_info = Load.Load_Data(sesion=sesion, 
-                                                stim=stim, 
-                                                band=band, 
-                                                sr=sr,
-                                                delays=delays,
-                                                procesed_data_path=procesed_data_path, 
-                                                situation=situation,
-                                                SilenceThreshold=0.03)
+            sujeto_1, sujeto_2, samples_info = Load.Load_Data(sesion=sesion,
+                                                              stim=stim,
+                                                              band=band,
+                                                              sr=sr,
+                                                              delays=delays,
+                                                              procesed_data_path=procesed_data_path,
+                                                              situation=situation,
+                                                              SilenceThreshold=0.03)
             eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
 
             if just_load_data:
@@ -168,7 +168,10 @@ for band in bands:
                 relevant_eeg = eeg[relevant_indexes]
                 for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
                     print(f'\n\t······  [{fold+1}/{n_folds}]')
-
+                    
+                    # Determine wether to run the model in parallel or not
+                    n_jobs=-1 if sum(n_feats)>1 else 1
+                    
                     # Implement mne model
                     mtrf = Models.MNE_MTRF(
                         tmin=tmin, 
@@ -180,7 +183,8 @@ for band in bands:
                         test_indexes=test_indexes, 
                         stims_preprocess=stims_preprocess, 
                         eeg_preprocess=eeg_preprocess,
-                        fit_intercept=False)
+                        fit_intercept=False,
+                        n_jobs=n_jobs)
                     
                     # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
                     mtrf.fit(stims, eeg)
@@ -346,8 +350,10 @@ for band in bands:
 
         # TFCE across subjects
         n_permutations = 256#4096
+        print(f'Perform TFCE with {n_permutations} permutations')
         t_tfce, clusters, p_tfce, H0, trf_subjects = Statistics.tfce(average_weights_subjects=average_weights_subjects, n_permutations=n_permutations)
-                
+        print('Performed TFCE succesfully')
+
         # TODO CHECAR ESTO TICK LABELS y
         Plot.plot_t_p_tfce(t=t_tfce,p=p_tfce, trf_subjects_shape=trf_subjects.shape, band=band, stim=stim, pval_tresh=.05,
                            save_path=path_figures, display_interactive_mode=display_interactive_mode, save=save_figures)
