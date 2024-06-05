@@ -44,7 +44,7 @@ stims_preprocess = 'Normalize'
 eeg_preprocess = 'Standarize'
 
 # Stimuli and EEG frecuency band
-stimuli = ['Phonemes-Onset-Manual']
+stimuli = ['Envelope_Spectrogram', 'Phonemes-Envelope-Manual']
 bands = ['Theta']
 
 # Dialogue situation
@@ -324,10 +324,8 @@ for band in bands:
                                               save_path=path_figures, display_interactive_mode=display_interactive_mode)      
 
         # Plot weights
-        condition_of_mesh = np.array([True for st in stim.split('_') if st.startswith('Phoneme') or st.startswith('Spectro')])
         Plot.average_regression_weights(average_weights_subjects=average_weights_subjects, info=info, save=save_figures, save_path=path_figures, 
-                                        times=times, n_feats=n_feats, stim=stim, display_interactive_mode=display_interactive_mode, 
-                                        colormesh_form=condition_of_mesh.any())
+                                        times=times, n_feats=n_feats, stim=stim, display_interactive_mode=display_interactive_mode)
         
         # Plot correlation matrix between subjects # TODO ROTA LA DIAGONAL
         Plot.correlation_matrix_subjects(average_weights_subjects=average_weights_subjects, stim=stim, n_feats=n_feats, save=save_figures, 
@@ -350,24 +348,22 @@ for band in bands:
 
         # TFCE across subjects
         n_permutations = 256#4096
-        print(f'Perform TFCE with {n_permutations} permutations')
-        t_tfce, clusters, p_tfce, H0, trf_subjects = Statistics.tfce(average_weights_subjects=average_weights_subjects, n_permutations=n_permutations)
-        print('Performed TFCE succesfully')
-
-        # TODO CHECAR ESTO TICK LABELS y
-        Plot.plot_t_p_tfce(t=t_tfce,p=p_tfce, trf_subjects_shape=trf_subjects.shape, band=band, stim=stim, pval_tresh=.05,
-                           save_path=path_figures, display_interactive_mode=display_interactive_mode, save=save_figures)
-        # TODO CHECAR ESTO TICK LABELS y
-        Plot.plot_p_tfce(p=p_tfce, times=times, trf_subjects_shape=trf_subjects.shape, band=band, stim=stim, pval_tresh=.05,
-                         save_path=path_figures, display_interactive_mode=display_interactive_mode, save=save_figures)
-
-        # TODO CHECAR ESTO TICK LABELS y
-        if 'Spectrogram' in stim:
-            Plot.plot_trf_tfce(average_weights_subjects=average_weights_subjects, p=p_tfce, times=times,
-                               trf_subjects_shape=trf_subjects.shape, save_path=path_figures, band=band,
-                               stim=stim, n_permutations=n_permutations, pval_trhesh=.05,
-                               display_interactive_mode=display_interactive_mode, save=save_figures)
         
+        t_0 = datetime.now().replace(microsecond=0)
+        print(f'Perform TFCE with {n_permutations} permutations: {t_0}')
+        tvalue_tfce, pvalue_tfce, trf_subjects_shape = Statistics.tfce(average_weights_subjects=average_weights_subjects, n_jobs=1, n_permutations=n_permutations)
+        t_f = datetime.now().replace(microsecond=0)-t_0
+        print(f'Performed TFCE succesfully: {t_f}')
+
+        # Plot t and p values
+        Plot.plot_tvalue_pvalue_tfce(tvalue=tvalue_tfce, pvalue=pvalue_tfce, trf_subjects_shape=trf_subjects_shape, times=times, 
+                                     band=band, stim=stim, n_feats=n_feats, info=info, pval_tresh=.05, save_path=path_figures, 
+                                     display_interactive_mode=display_interactive_mode, save=save_figures)
+        
+        Plot.plot_pvalue_tfce(average_weights_subjects=average_weights_subjects, pvalue=pvalue_tfce, times=times, info=info,
+                              trf_subjects_shape=trf_subjects_shape, n_feats=n_feats, band=band, stim=stim, pval_tresh=.05, 
+                              save_path=path_figures, display_interactive_mode=display_interactive_mode, save=save_figures)
+                
         # Save results
         if save_results:
             os.makedirs(save_path, exist_ok=True)
