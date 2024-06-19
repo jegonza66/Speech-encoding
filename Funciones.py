@@ -1,3 +1,4 @@
+# Standard libraries
 import numpy as np, pandas as pd, scipy, pickle, os, sys, mne, warnings
 from typing import Union
 
@@ -319,3 +320,11 @@ def sliding_window(df, window_size=6, func='slope', step=1, min_points=6):
         res.append(res_i)
     res = np.array(res)
     return res
+
+def cohen_d(x,y):
+    nx = len(x)
+    ny = len(y)
+    dof = nx + ny - 2
+
+    cohne_d = abs((np.mean(x) - np.mean(y))) / np.sqrt(((nx-1)*np.std(x, ddof=1) ** 2 + (ny-1)*np.std(y, ddof=1) ** 2) / dof)
+    return cohne_d

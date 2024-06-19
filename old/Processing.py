@@ -148,7 +148,7 @@ def preproc_dict(momentos_escucha, delays, situacion):
     return keep_indexes
 
 
-class estandarizar():
+class Standarize():
 
     def __init__(self, axis=0):
         self.axis = axis
@@ -169,7 +169,7 @@ class estandarizar():
         data /= np.std(data, axis=self.axis)
 
 
-class normalizar():
+class Normalize():
 
     def __init__(self, axis=0, porcent=5):
         self.axis = axis
@@ -221,8 +221,8 @@ class normalizar():
 
 
 def standarize_normalize(eeg_train_val, eeg_test, dstims_train_val, dstims_test, Stims_preprocess, EEG_preprocess, axis=0, porcent=5):
-    norm = normalizar(axis, porcent)
-    estandar = estandarizar(axis)
+    norm = Normalize(axis, porcent)
+    estandar = Standarize(axis)
 
     if Stims_preprocess == 'Standarize':
         for i in range(len(dstims_train_val)):

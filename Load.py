@@ -1,5 +1,5 @@
 # Standard libraries
-import numpy as np, pandas as pd, os, warnings, time
+import numpy as np, pandas as pd, os, warnings
 import mne, librosa, platform, opensmile, textgrids
 
 # Specific libraries
@@ -8,7 +8,7 @@ from scipy import signal as sgn
 from praatio import pitch_and_intensity
 
 # Modules
-import Processing, Funciones, setup
+import processing, funciones, setup
 
 # Review this If we want to update packages
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -17,8 +17,8 @@ exp_info = setup.exp_info()
 
 class Trial_channel:
     def __init__(self, s:int=21, trial:int=1, channel:int=1, band:str='All', sr:float=128,
-                 valores_faltantes:int=0, Causal_filter_EEG:bool=True, 
-                 Env_Filter:bool=False, SilenceThreshold:float=0.03):
+                 valores_faltantes:int=0, causal_filter_eeg:bool=True, 
+                 envelope_filter:bool=False, silence_threshold:float=0.03):
         """Extract transcriptions, audio signal and EEG signal of given session and channel to calculate specific features.
 
         Parameters
@@ -38,11 +38,11 @@ class Trial_channel:
             Delay array to construct shifted matrix, by default np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
         valores_faltantes : int, optional
             Number to replace the missing values (nans), by default 0
-        Causal_filter_EEG : bool, optional
+        causal_filter_eeg : bool, optional
             Whether to use or not a cusal filter, by default True
-        Env_Filter : bool, optional
+        envelope_filter : bool, optional
             Whether to use or not an envelope filter, by default False
-        SilenceThreshold : float, optional
+        silence_threshold : float, optional
             Silence threshold of the dialogue, by default 0.03
             
 
@@ -61,15 +61,15 @@ class Trial_channel:
             raise SyntaxError(f"{band} is not an allowed band frecuency. Allowed bands are: {allowed_band_frequencies}")
 
         # Minimum and maximum frequency allowed within specified band
-        self.l_freq_eeg, self.h_freq_eeg = Processing.band_freq(self.band)
+        self.l_freq_eeg, self.h_freq_eeg = processing.band_freq(self.band)
         self.sr = sr
         self.sampleStep = 0.01
-        self.SilenceThreshold = SilenceThreshold
+        self.silence_threshold = silence_threshold
         self.audio_sr = 16000
         self.valores_faltantes = valores_faltantes
         self.sex = sex_list[(s - 21) * 2 + channel - 1]
-        self.Causal_filter_EEG = Causal_filter_EEG
-        self.Env_Filter = Env_Filter
+        self.causal_filter_eeg = causal_filter_eeg
+        self.envelope_filter = envelope_filter
         
         # To be filled with loaded data
         self.eeg = None
@@ -77,7 +77,7 @@ class Trial_channel:
         # Relevant paths
         self.eeg_fname = f"Datos/EEG/S{s}/s{s}-{channel}-Trial{trial}-Deci-Filter-Trim-ICA-Pruned.set"
         self.wav_fname = f"Datos/wavs/S{s}/s{s}.objects.{trial:02d}.channel{channel}.wav"
-        self.pitch_fname = f"Datos/Pitch_threshold_{SilenceThreshold}/S{s}/s{s}.objects.{trial:02d}.channel{channel}.txt"
+        self.pitch_fname = f"Datos/Pitch_threshold_{silence_threshold}/S{s}/s{s}.objects.{trial:02d}.channel{channel}.txt"
         self.phn_fname = f"Datos/phonemes/S{s}/s{s}.objects.{trial:02d}.channel{channel}.aligned_fa.TextGrid"
         self.phn_fname_manual = f"Datos/phonemes/S{s}/manual/s{s}_objects_{trial:02d}_channel{channel}_aligned_faTAMARA.TextGrid"
         self.phrases_fname = f"Datos/phrases/S{s}/s{s}.objects.{trial:02d}.channel{channel}.phrases"
@@ -96,7 +96,7 @@ class Trial_channel:
         
         # Apply a lowpass filter
         if self.band:
-            if self.Causal_filter_EEG:
+            if self.causal_filter_eeg:
                 eeg = eeg.filter(l_freq=self.l_freq_eeg, h_freq=self.h_freq_eeg, phase='minimum')
             else:
                 eeg = eeg.filter(l_freq=self.l_freq_eeg, h_freq=self.h_freq_eeg)
@@ -139,11 +139,11 @@ class Trial_channel:
         envelope = np.abs(sgn.hilbert(wav))
         
         # Apply lowpass butterworth filter
-        if self.Env_Filter == 'Causal':# TODO can it be replaced for a mne filter?
-            envelope = Processing.butter_filter(data=envelope, frecuencias=25, sampling_freq=self.audio_sr,
+        if self.envelope_filter == 'Causal':# TODO can it be replaced for a mne filter?
+            envelope = processing.butter_filter(data=envelope, frecuencias=25, sampling_freq=self.audio_sr,
                                                 btype='lowpass', order=3, axis=0, ftype='Causal').reshape(-1,1)
-        elif self.Env_Filter == 'NonCausal':
-            envelope = Processing.butter_filter(data=envelope, frecuencias=25, sampling_freq=self.audio_sr,
+        elif self.envelope_filter == 'NonCausal':
+            envelope = processing.butter_filter(data=envelope, frecuencias=25, sampling_freq=self.audio_sr,
                                                 btype='lowpass', order=3, axis=0, ftype='NonCausal').reshape(-1,1)
         else:
             envelope = envelope.reshape(-1,1)
@@ -217,15 +217,15 @@ class Trial_channel:
         shimmer = y['shimmerLocaldB_sma3nz']
         
         # Calculate the least common multiple between envelope and jitter lengths (jimmer length is the same as jitter)
-        mcm = Funciones.minimo_comun_multiplo(len(jitter), len(envelope))
+        mcm = funciones.minimo_comun_multiplo(len(jitter), len(envelope))
         
         # Repeat each value the number of times it takes the length of jitter to achive the mcm. The result is that jitter length matches mcm
         jitter = np.repeat(jitter, mcm / len(jitter))
         shimmer = np.repeat(shimmer, mcm / len(shimmer))
 
         # Subsample by the number of times it takes the length of the envelope to achive the mcm. Now it has exactly the same size as envelope
-        jitter = Processing.subsamplear(jitter, mcm / len(envelope))
-        shimmer = Processing.subsamplear(shimmer, mcm / len(envelope))
+        jitter = processing.subsamplear(jitter, mcm / len(envelope))
+        shimmer = processing.subsamplear(shimmer, mcm / len(envelope))
 
         # Reassurance that the count is correct
         jitter = jitter[:min(len(jitter), len(envelope))].reshape(-1,1)
@@ -362,11 +362,11 @@ class Trial_channel:
         # Makes directory for storing data
         if platform.system() == 'Linux':
             praatEXE = 'Praat/praat'
-            output_folder = 'Datos/Pitch_threshold_{}'.format(self.SilenceThreshold)
+            output_folder = 'Datos/Pitch_threshold_{}'.format(self.silence_threshold)
         else:
             praatEXE = r"C:\Program Files\Praat\Praat.exe"
             output_folder = "C:/Users/joaco/Desktop/Joac/Facultad/Tesis/Código/Datos/Pitch_threshold_{}".format(
-                self.SilenceThreshold)
+                self.silence_threshold)
         try:
             os.makedirs(output_folder)
         except:
@@ -385,7 +385,7 @@ class Trial_channel:
                                       minPitch=minPitch,
                                       maxPitch=maxPitch, 
                                       sampleStep=self.sampleStep, 
-                                      silenceThreshold=self.SilenceThreshold)
+                                      silenceThreshold=self.silence_threshold)
 
     def load_pitch(self, envelope:np.ndarray): #TODO: pedir a joaco los datos
         """Loads the pitch of the speaker
@@ -422,7 +422,7 @@ class Trial_channel:
         # Repeat each value of the pitch to make audio_sr*sampleStep times (in particular, a multiple of audio_sr)
         pitch = np.array(np.repeat(pitch, self.audio_sr * self.sampleStep), dtype=np.float32)
         
-        pitch = Processing.subsamplear(pitch, int(self.audio_sr/self.sr))
+        pitch = processing.subsamplear(pitch, int(self.audio_sr/self.sr))
         pitch = pitch[:min(len(pitch), len(envelope))].reshape(-1,1)
         return pitch
 
@@ -433,7 +433,7 @@ class Trial_channel:
         stims : list
             A list containing possible stimuli. Possible input values are: 
             ['Envelope', 'Pitch', 'Spectrogram', 'Phonemes', 'Phonemes-manual', 'Phonemes-discrete', 'Phonemes-onset']
-        Calculate_pitch : bool, optional
+        calculate_pitch : bool, optional
             Pitch of speaker signal, perform on envelope, by default False
 
         Returns
@@ -459,8 +459,8 @@ class Trial_channel:
 
 class Sesion_class: 
     def __init__(self, sesion:int=21, stim:str='Envelope', band:str='All', sr:float=128, valores_faltantes:int=0, 
-                 Causal_filter_EEG:bool=True, Env_Filter:bool=False, situation:str='Escucha', 
-                 Calculate_pitch:bool=False, SilenceThreshold:float=0.03, delays:np.ndarray=None,
+                 causal_filter_eeg:bool=True, envelope_filter:bool=False, situation:str='Escucha', 
+                 calculate_pitch:bool=False, silence_threshold:float=0.03, delays:np.ndarray=None,
                  procesed_data_path:str=f'saves/Preprocesed_Data/tmin{-0.6}_tmax{-.003}/'
                  ):
         """Construct an object for the given session containing all concerning data.
@@ -479,16 +479,16 @@ class Sesion_class:
             Sample rate in Hz of the EEG, by default 128
         valores_faltantes : int, optional
             Number to replace the missing values (nans), by default 0
-        Causal_filter_EEG : bool, optional
+        causal_filter_eeg : bool, optional
             Whether to use or not a cusal filter, by default True
-        Env_Filter : bool, optional
+        envelope_filter : bool, optional
             Whether to use or not an envelope filter, by default False
         situation : str, optional
             Situation considerer when performing the analysis, by default 'Escucha'. Allowed sitations are:
             ['Habla_Propia','Ambos_Habla','Escucha']
-        Calculate_pitch : bool, optional
+        calculate_pitch : bool, optional
             Pitch of speaker signal, perform on envelope, by default False
-        SilenceThreshold : float, optional
+        silence_threshold : float, optional
             Silence threshold of the dialogue, by default 0.03
         delays : np.ndarray, optional
             Delay array to construct shifted matrix, by default np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
@@ -530,14 +530,14 @@ class Sesion_class:
         
         # Define parameters
         self.sesion = sesion
-        self.l_freq_eeg, self.h_freq_eeg = Processing.band_freq(band)
+        self.l_freq_eeg, self.h_freq_eeg = processing.band_freq(band)
         self.sr = sr
         self.delays = delays
         self.valores_faltantes = valores_faltantes
-        self.Causal_filter_EEG = Causal_filter_EEG
-        self.Env_Filter = Env_Filter
-        self.Calculate_pitch = Calculate_pitch
-        self.SilenceThreshold = SilenceThreshold
+        self.causal_filter_eeg = causal_filter_eeg
+        self.envelope_filter = envelope_filter
+        self.calculate_pitch = calculate_pitch
+        self.silence_threshold = silence_threshold
 
         # Relevant paths
         self.procesed_data_path = procesed_data_path
@@ -547,16 +547,16 @@ class Sesion_class:
 
         # Define paths to export data
         self.export_paths = {}
-        if self.Causal_filter_EEG:
+        if self.causal_filter_eeg:
             self.export_paths['EEG'] = self.procesed_data_path + f'EEG/Causal_Sit_{self.situation}_band_{self.band}/'
         else:
             self.export_paths['EEG'] = self.procesed_data_path + f'EEG/Sit_{self.situation}_band_{self.band}/'
-        if self.Env_Filter:
-            self.export_paths['Envelope'] = self.procesed_data_path + f'Envelope/{self.Env_Filter}_Sit_{self.situation}/'
+        if self.envelope_filter:
+            self.export_paths['Envelope'] = self.procesed_data_path + f'Envelope/{self.envelope_filter}_Sit_{self.situation}/'
         else:
             self.export_paths['Envelope'] = self.procesed_data_path + f'Envelope/Sit_{self.situation}/'
-        self.export_paths['PitchMask']= self.procesed_data_path + f'Pitch_mask_threshold_{self.SilenceThreshold}/Sit_{self.situation}_Faltantes_{self.valores_faltantes}/'
-        self.export_paths['Pitch'] = self.procesed_data_path + f'Pitch_threshold_{self.SilenceThreshold}/Sit_{self.situation}_Faltantes_{self.valores_faltantes}/'
+        self.export_paths['PitchMask']= self.procesed_data_path + f'Pitch_mask_threshold_{self.silence_threshold}/Sit_{self.situation}_Faltantes_{self.valores_faltantes}/'
+        self.export_paths['Pitch'] = self.procesed_data_path + f'Pitch_threshold_{self.silence_threshold}/Sit_{self.situation}_Faltantes_{self.valores_faltantes}/'
         self.export_paths['Spectrogram'] = self.procesed_data_path + f'Spectrogram/Sit_{self.situation}/'
         self.export_paths['Phonemes-Envelope'] = self.procesed_data_path + f'phonemes-envelope/Sit_{self.situation}/'
         self.export_paths['Phonemes-Envelope-Manual'] = self.procesed_data_path + f'phonemes-manual/Sit_{self.situation}/'
@@ -575,8 +575,8 @@ class Sesion_class:
         """
         
         # Subjects dictionaries, stores their data
-        Sujeto_1 = {}
-        Sujeto_2 = {}
+        sujeto_1 = {}
+        sujeto_2 = {}
 
         # Retrive number of files, i.e: trials. This is done this way because there are missing phonemes values
         trials = [int(fname.split('.')[2]) for fname in os.listdir(self.phn_path) if fname.endswith('TextGrid')]
@@ -584,7 +584,7 @@ class Sesion_class:
 
         # Try to open preprocessed info of samples, if not crates raw. This dictionary contains data of trial lengths and indexes to keep up to given trial
         try:
-            samples_info = Funciones.load_pickle(path=self.samples_info_path + f'samples_info_{self.sesion}.pkl')
+            samples_info = funciones.load_pickle(path=self.samples_info_path + f'samples_info_{self.sesion}.pkl')
             loaded_samples_info = True
         except:
             loaded_samples_info = False
@@ -608,9 +608,9 @@ class Sesion_class:
                     band=self.band, 
                     sr=self.sr,
                     valores_faltantes=self.valores_faltantes,
-                    Causal_filter_EEG=self.Causal_filter_EEG,
-                    Env_Filter=self.Env_Filter,
-                    SilenceThreshold=self.SilenceThreshold)
+                    causal_filter_eeg=self.causal_filter_eeg,
+                    envelope_filter=self.envelope_filter,
+                    silence_threshold=self.silence_threshold)
                 channel_2 = Trial_channel(
                     s=self.sesion,
                     trial=trial,
@@ -618,24 +618,24 @@ class Sesion_class:
                     band=self.band,
                     sr=self.sr,
                     valores_faltantes=self.valores_faltantes,
-                    Causal_filter_EEG=self.Causal_filter_EEG,
-                    Env_Filter=self.Env_Filter,
-                    SilenceThreshold=self.SilenceThreshold)
+                    causal_filter_eeg=self.causal_filter_eeg,
+                    envelope_filter=self.envelope_filter,
+                    silence_threshold=self.silence_threshold)
 
                 # Extract dictionaries with the data
-                Trial_channel_1 = channel_1.load_trial(stims=self.stim.split('_'), calculate_pitch=self.Calculate_pitch)
-                Trial_channel_2 = channel_2.load_trial(stims=self.stim.split('_'), calculate_pitch=self.Calculate_pitch)
+                trial_channel_1 = channel_1.load_trial(stims=self.stim.split('_'), calculate_pitch=self.calculate_pitch)
+                trial_channel_2 = channel_2.load_trial(stims=self.stim.split('_'), calculate_pitch=self.calculate_pitch)
     
                 # Load data to dictionary taking stimuli and eeg from speaker. I.e: each subject predicts its own EEG
                 if self.situation == 'Habla_Propia' or self.situation == 'Ambos_Habla':
-                    Trial_sujeto_1 = {key: Trial_channel_1[key] for key in Trial_channel_1.keys()}
-                    Trial_sujeto_2 = {key: Trial_channel_2[key] for key in Trial_channel_2.keys()}
+                    trial_sujeto_1 = {key: trial_channel_1[key] for key in trial_channel_1.keys()}
+                    trial_sujeto_2 = {key: trial_channel_2[key] for key in trial_channel_2.keys()}
                 
                 # Load data to dictionary taking stimuli from speaker and eeg from listener. I.e: predicts own EEG using stimuli from interlocutor
                 else:
-                    Trial_sujeto_1 = {key: Trial_channel_2[key] for key in Trial_channel_2.keys() if key!='EEG'} 
-                    Trial_sujeto_2 = {key: Trial_channel_1[key] for key in Trial_channel_1.keys() if key!='EEG'}
-                    Trial_sujeto_1['EEG'], Trial_sujeto_2['EEG'] = Trial_channel_1['EEG'], Trial_channel_2['EEG']
+                    trial_sujeto_1 = {key: trial_channel_2[key] for key in trial_channel_2.keys() if key!='EEG'} 
+                    trial_sujeto_2 = {key: trial_channel_1[key] for key in trial_channel_1.keys() if key!='EEG'}
+                    trial_sujeto_1['EEG'], trial_sujeto_2['EEG'] = trial_channel_1['EEG'], trial_channel_2['EEG']
 
                 # Labeling of current speaker. {3:both_speaking,2:speaks_listener,3:speaks_interlocutor,0:silence} 
                 current_speaker_1 = self.labeling(trial=trial, channel=2)
@@ -643,13 +643,13 @@ class Sesion_class:
 
                 # Match length of speaker labels and trials with the info of its lengths
                 if loaded_samples_info:
-                    Trial_sujeto_1, current_speaker_1 = Sesion_class.match_lengths(dic=Trial_sujeto_1, speaker_labels=current_speaker_1, minimum_length=samples_info['trial_lengths1'][p+1])
-                    Trial_sujeto_2, current_speaker_2 = Sesion_class.match_lengths(dic=Trial_sujeto_2, speaker_labels=current_speaker_2, minimum_length=samples_info['trial_lengths2'][p+1])
+                    trial_sujeto_1, current_speaker_1 = Sesion_class.match_lengths(dic=trial_sujeto_1, speaker_labels=current_speaker_1, minimum_length=samples_info['trial_lengths1'][p+1])
+                    trial_sujeto_2, current_speaker_2 = Sesion_class.match_lengths(dic=trial_sujeto_2, speaker_labels=current_speaker_2, minimum_length=samples_info['trial_lengths2'][p+1])
 
                 else:
                     # If there isn't any data matches lengths of both variables comparing every key and speaker labels length (the Trial gets modify inside the function)
-                    Trial_sujeto_1, current_speaker_1, minimo_largo1 = Sesion_class.match_lengths(dic=Trial_sujeto_1, speaker_labels=current_speaker_1)
-                    Trial_sujeto_2, current_speaker_2, minimo_largo2 = Sesion_class.match_lengths(dic=Trial_sujeto_2, speaker_labels=current_speaker_2)
+                    trial_sujeto_1, current_speaker_1, minimo_largo1 = Sesion_class.match_lengths(dic=trial_sujeto_1, speaker_labels=current_speaker_1)
+                    trial_sujeto_2, current_speaker_2, minimo_largo2 = Sesion_class.match_lengths(dic=trial_sujeto_2, speaker_labels=current_speaker_2)
                     samples_info['trial_lengths1'].append(minimo_largo1)
                     samples_info['trial_lengths2'].append(minimo_largo2)
 
@@ -659,18 +659,18 @@ class Sesion_class:
 
 
                 # Concatenates data of each subject 
-                for key in Trial_sujeto_1:
+                for key in trial_sujeto_1:
                     if key != 'info':
-                        if key not in Sujeto_1:
-                            Sujeto_1[key] = Trial_sujeto_1[key]
+                        if key not in sujeto_1:
+                            sujeto_1[key] = trial_sujeto_1[key]
                         else:
-                            Sujeto_1[key] = np.concatenate((Sujeto_1[key], Trial_sujeto_1[key]), axis=0)
-                for key in Trial_sujeto_2:
+                            sujeto_1[key] = np.concatenate((sujeto_1[key], trial_sujeto_1[key]), axis=0)
+                for key in trial_sujeto_2:
                     if key != 'info':
-                        if key not in Sujeto_2:
-                            Sujeto_2[key] = Trial_sujeto_2[key]
+                        if key not in sujeto_2:
+                            sujeto_2[key] = trial_sujeto_2[key]
                         else:
-                            Sujeto_2[key] = np.concatenate((Sujeto_2[key], Trial_sujeto_2[key]), axis=0)
+                            sujeto_2[key] = np.concatenate((sujeto_2[key], trial_sujeto_2[key]), axis=0)
 
             # Empty trial
             except:
@@ -679,35 +679,35 @@ class Sesion_class:
                 samples_info['trial_lengths2'][p] = 0
 
         # Get info of the setup that was exluded in the previous iteration
-        info = Trial_channel_1['info']
+        info = trial_channel_1['info']
 
         # Saves relevant indexes 
         if not loaded_samples_info:
             os.makedirs(self.samples_info_path, exist_ok=True)
-            Funciones.dump_pickle(path=self.samples_info_path + f'samples_info_{self.sesion}.pkl', obj=samples_info, rewrite=True)
+            funciones.dump_pickle(path=self.samples_info_path + f'samples_info_{self.sesion}.pkl', obj=samples_info, rewrite=True)
 
         # Save results
-        for key in Sujeto_1:
+        for key in sujeto_1:
             # Drops silences phoneme column
             if key.startswith('Phonemes'):
                 # Remove silence column, the last one by construction
-                Sujeto_1[key] = np.delete(arr=Sujeto_1[key], obj=-1, axis=1)
-                Sujeto_2[key] = np.delete(arr=Sujeto_2[key], obj=-1, axis=1)
+                sujeto_1[key] = np.delete(arr=sujeto_1[key], obj=-1, axis=1)
+                sujeto_2[key] = np.delete(arr=sujeto_2[key], obj=-1, axis=1)
 
             # Save preprocesed data
             os.makedirs(self.export_paths[key], exist_ok=True)
-            Funciones.dump_pickle(path=self.export_paths[key] + f'Sesion{self.sesion}.pkl', obj=[Sujeto_1[key], Sujeto_2[key]], rewrite=True)
+            funciones.dump_pickle(path=self.export_paths[key] + f'Sesion{self.sesion}.pkl', obj=[sujeto_1[key], sujeto_2[key]], rewrite=True)
 
         # Saves info of the setup                    
-        Funciones.dump_pickle(path=self.procesed_data_path + 'EEG/info.pkl', obj=info, rewrite=True)
+        funciones.dump_pickle(path=self.procesed_data_path + 'EEG/info.pkl', obj=info, rewrite=True)
 
         # Redefine subjects dictionaries to return only used stimuli
-        Sujeto_1_return = {key: Sujeto_1[key] for key in self.stim.split('_') + ['EEG']}
-        Sujeto_2_return = {key: Sujeto_2[key] for key in self.stim.split('_') + ['EEG']}
-        Sujeto_1_return['info'] = info
-        Sujeto_2_return['info'] = info
+        sujeto_1_return = {key: sujeto_1[key] for key in self.stim.split('_') + ['EEG']}
+        sujeto_2_return = {key: sujeto_2[key] for key in self.stim.split('_') + ['EEG']}
+        sujeto_1_return['info'] = info
+        sujeto_2_return['info'] = info
 
-        return {'Sujeto_1': Sujeto_1_return, 'Sujeto_2': Sujeto_2_return}, samples_info
+        return {'Sujeto_1': sujeto_1_return, 'Sujeto_2': sujeto_2_return}, samples_info
     
     def load_procesed(self):
         """Loads procesed data, this includes EEG, info and stimuli.
@@ -718,22 +718,22 @@ class Sesion_class:
             Sessions of both subjects.
         """
         # Load EEGs and procesed data
-        eeg_sujeto_1, eeg_sujeto_2 = Funciones.load_pickle(path=self.export_paths['EEG']+ f'Sesion{self.sesion}.pkl')
-        info = Funciones.load_pickle(path=self.procesed_data_path + 'EEG/info.pkl')
-        samples_info = Funciones.load_pickle(path=self.samples_info_path + f'samples_info_{self.sesion}.pkl')
-        Sujeto_1 = {'EEG': eeg_sujeto_1, 'info': info}
-        Sujeto_2 = {'EEG': eeg_sujeto_2, 'info': info}
+        eeg_sujeto_1, eeg_sujeto_2 = funciones.load_pickle(path=self.export_paths['EEG']+ f'Sesion{self.sesion}.pkl')
+        info = funciones.load_pickle(path=self.procesed_data_path + 'EEG/info.pkl')
+        samples_info = funciones.load_pickle(path=self.samples_info_path + f'samples_info_{self.sesion}.pkl')
+        sujeto_1 = {'EEG': eeg_sujeto_1, 'info': info}
+        sujeto_2 = {'EEG': eeg_sujeto_2, 'info': info}
         
         # Loads stimuli to each subject
         for stimulus in self.stim.split('_'):
-            Sujeto_1[stimulus], Sujeto_2[stimulus] = Funciones.load_pickle(path=self.export_paths[stimulus]+f'Sesion{self.sesion}.pkl')
+            sujeto_1[stimulus], sujeto_2[stimulus] = funciones.load_pickle(path=self.export_paths[stimulus]+f'Sesion{self.sesion}.pkl')
             if stimulus == 'Pitch':
                 # Remove missing values
                 if self.valores_faltantes == None: #TODO CREO QUE ACA VA 0 TODAVIA NO VIMOS ESTOS DATOS
-                    Sujeto_1[stimulus], Sujeto_2[stimulus] = Sujeto_1[stimulus][Sujeto_1[stimulus]!=0], Sujeto_2[stimulus][Sujeto_2[stimulus]!=0]
+                    sujeto_1[stimulus], sujeto_2[stimulus] = sujeto_1[stimulus][sujeto_1[stimulus]!=0], sujeto_2[stimulus][sujeto_2[stimulus]!=0]
                 elif self.valores_faltantes:
-                    Sujeto_1[stimulus], Sujeto_2[stimulus] = Sujeto_1[stimulus][Sujeto_1[stimulus]==0], Sujeto_2[stimulus][Sujeto_2[stimulus]==0]
-        return {'Sujeto_1': Sujeto_1, 'Sujeto_2': Sujeto_2}, samples_info
+                    sujeto_1[stimulus], sujeto_2[stimulus] = sujeto_1[stimulus][sujeto_1[stimulus]==0], sujeto_2[stimulus][sujeto_2[stimulus]==0]
+        return {'Sujeto_1': sujeto_1, 'Sujeto_2': sujeto_2}, samples_info
     
     def labeling(self, trial:int, channel:int):
         """Gives an array with speaking channel: 
@@ -804,7 +804,7 @@ class Sesion_class:
         speaker_labels = np.where(speaker_labels==0, 4, speaker_labels)        
 
         # Computes shifted matrix
-        shifted_matrix_speaker_labels = Processing.shifted_matrix(features=speaker_labels, delays=self.delays).astype(float)
+        shifted_matrix_speaker_labels = processing.shifted_matrix(features=speaker_labels, delays=self.delays).astype(float)
 
         # Make the appropiate label
         if self.situation == 'Silencio':
@@ -891,10 +891,10 @@ class Sesion_class:
         else:
             return dic, speaker_labels, minimum
 
-def Load_Data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str, 
-              situation:str='Escucha', Causal_filter_EEG:bool=True, 
-              Env_Filter:bool=False, valores_faltantes:int=0, Calculate_pitch:bool=False, 
-              SilenceThreshold:float=0.03, delays:np.ndarray=None):
+def load_data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str, 
+              situation:str='Escucha', causal_filter_eeg:bool=True, 
+              envelope_filter:bool=False, valores_faltantes:int=0, calculate_pitch:bool=False, 
+              silence_threshold:float=0.03, delays:np.ndarray=None):
     """Loads sessions of both subjects
 
     Parameters
@@ -918,15 +918,15 @@ def Load_Data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str,
     situation : str, optional
         Situation considerer when performing the analysis, by default 'Escucha'. Allowed sitations are:
             ['Habla_Propia','Ambos_Habla','Escucha']
-    Causal_filter_EEG : bool, optional
+    causal_filter_eeg : bool, optional
         Whether to use or not a cusal filter, by default True
-    Env_Filter : bool, optional
+    envelope_filter : bool, optional
         Whether to use or not an envelope filter, by default False
     valores_faltantes : int, optional
         Number to replace the missing values (nans), by default 0
-    Calculate_pitch : bool, optional
+    calculate_pitch : bool, optional
         Pitch of speaker signal, perform on envelope, by default False
-    SilenceThreshold : float, optional
+    silence_threshold : float, optional
         Silence threshold of the dialogue, by default 0.03
     delays : np.ndarray, optional
             Delay array to construct shifted matrix, by default np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
@@ -967,11 +967,11 @@ def Load_Data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str,
                                         band='_'.join(ordered_band), 
                                         sr=sr, 
                                         valores_faltantes=valores_faltantes, 
-                                        Causal_filter_EEG=Causal_filter_EEG,
-                                        Env_Filter=Env_Filter, 
+                                        causal_filter_eeg=causal_filter_eeg,
+                                        envelope_filter=envelope_filter, 
                                         situation=situation, 
-                                        Calculate_pitch=Calculate_pitch,
-                                        SilenceThreshold=SilenceThreshold, 
+                                        calculate_pitch=calculate_pitch,
+                                        silence_threshold=silence_threshold, 
                                         procesed_data_path=procesed_data_path, 
                                         delays=delays)
 

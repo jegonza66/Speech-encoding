@@ -3,15 +3,15 @@ import numpy as np
 
 # Specific libraries
 from mne.decoding import ReceptiveField, TimeDelayingRidge
-from sklearn.linear_model import Ridge
+# from sklearn.linear_model import Ridge
 
 # Modules
-import Processing
+from processing import Normalize, Standarize
 
 class RidgeRegression(TimeDelayingRidge):
     def __init__(self, tmin:float, tmax:float, sfreq:int, relevant_indexes:np.ndarray=None, train_indexes:np.ndarray=None, 
                  test_indexes:np.ndarray=None, stims_preprocess:str='Normalize', eeg_preprocess:str='Standarize', 
-                 alpha=1.0, fit_intercept=False, n_jobs:int=1):
+                 alpha=1.0, fit_intercept=False, n_jobs:int=1, shuffle:bool=False):
         """_summary_
 
         Parameters
@@ -35,6 +35,7 @@ class RidgeRegression(TimeDelayingRidge):
         self.test_indexes = test_indexes
         self.stims_preprocess = stims_preprocess
         self.eeg_preprocess = eeg_preprocess
+        self.shuffle = shuffle
 
     def fit(self, X, y):
         # Get relevant indexes
@@ -47,6 +48,12 @@ class RidgeRegression(TimeDelayingRidge):
         y_train = y_[self.train_indexes]
         y_test = y_[self.test_indexes]
         del X_, y_
+        
+        if self.shuffle:
+            np.random.shuffle(X_train)
+            np.random.shuffle(X_pred)
+            np.random.shuffle(y_train)
+            np.random.shuffle(y_test)
         
         # Standarize and normalize
         X_train, y_train, self.X_pred, self.y_test = self.standarize_normalize(X_train=X_train, 
@@ -84,8 +91,8 @@ class RidgeRegression(TimeDelayingRidge):
             _description_
         """
         # Instances of normalize and standarize
-        norm = Processing.Normalizar(axis=0, porcent=5)
-        estandar = Processing.Estandarizar(axis=0)
+        norm = Normalize(axis=0, porcent=5)
+        estandar = Standarize(axis=0)
         
         # Iterates to normalize|standarize over features
         if self.stims_preprocess=='Standarize':
@@ -104,10 +111,10 @@ class RidgeRegression(TimeDelayingRidge):
             y_test=norm.fit_normalize_test(test_data=y_test)
         return X_train, y_train, X_pred, y_test
 
-class MNE_MTRF:
+class Receptive_field_adaptation:
     def __init__(self, tmin:float, tmax:float, sample_rate:int, alpha:float, relevant_indexes:np.ndarray, 
                  train_indexes:np.ndarray, test_indexes:np.ndarray, stims_preprocess:str, 
-                 eeg_preprocess:str, n_jobs:int=-1, fit_intercept:bool=False):
+                 eeg_preprocess:str, n_jobs:int=-1, fit_intercept:bool=False, shuffle:bool=False):
         self.test_indexes = test_indexes
         self.sample_rate = sample_rate
         self.rf = ReceptiveField(tmin=tmin, 
@@ -123,7 +130,8 @@ class MNE_MTRF:
                                                            stims_preprocess=stims_preprocess, 
                                                            eeg_preprocess=eeg_preprocess,
                                                            fit_intercept=fit_intercept,
-                                                           n_jobs=n_jobs),
+                                                           n_jobs=n_jobs,
+                                                           shuffle=shuffle),
                                  scoring='corrcoef', # THIS IS JUST TO COMPUTE SCORE IT HAS NOTHING TO DO WITH THE MODEL
                                  verbose=False)
    
@@ -154,7 +162,7 @@ class MNE_MTRF:
 #     def normalization(self, X, y):
         
 #         # Construct shifted matrix
-#         shifted_features = Processing.shifted_matrix(features=X, delays=self.delays)# samples, [epochs,features], delays
+#         shifted_features = processing.shifted_matrix(features=X, delays=self.delays)# samples, [epochs,features], delays
         
 #         # Keep relevant indexes
 #         X_ = shifted_features[self.relevant_indexes] # relevant_samples, [epochs,features], delays
@@ -192,8 +200,8 @@ class MNE_MTRF:
 #             _description_
 #         """
 #         # Instances of normalize and standarize
-#         norm = Processing.Normalizar(axis=0, porcent=5)
-#         estandar = Processing.Estandarizar(axis=0)
+#         norm = processing.Normalize(axis=0, porcent=5)
+#         estandar = processing.Standarize(axis=0)
         
 #         # Normalize|Standarize data 
 #         if self.stims_preprocess=='Standarize':
@@ -289,8 +297,8 @@ class MNE_MTRF:
 #             _description_
 #         """
 #         # Instances of normalize and standarize
-#         norm = Processing.Normalizar(axis=0, porcent=5)
-#         estandar = Processing.Estandarizar(axis=0)
+#         norm = processing.Normalize(axis=0, porcent=5)
+#         estandar = processing.Standarize(axis=0)
         
 #         # Iterates to normalize|standarize over features
 #         if self.stims_preprocess=='Standarize':

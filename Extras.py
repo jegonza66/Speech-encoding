@@ -5,11 +5,10 @@ import mne
 import numpy as np
 from sklearn.model_selection import KFold
 
-import Load
-import Models
-import Plot
-import Processing
-import Statistics
+import load
+import mtrf_models
+import plot
+import processing
 
 # WHAT TO DO
 Plot_EEG_PSD = False
@@ -179,7 +178,7 @@ for sesion in sesiones:
                         fmin, fmax = 3, 25
                         # SIMULACIONES PERMUTADAS PARA COMPARAR
                         toy_iterations = 1
-                        psd_rand_correlation = Statistics.simular_iteraciones_Ridge_plot(info, times, situacion,
+                        psd_rand_correlation = processing.simular_iteraciones_Ridge_plot(info, times, situacion,
                                                                                            alpha,
                                                                                            toy_iterations, sesion,
                                                                                            sujeto,

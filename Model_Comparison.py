@@ -223,7 +223,7 @@ import os
 from scipy.stats import wilcoxon
 import mne
 from statsmodels.stats.multitest import fdrcorrection
-from Statistics import cohen_d
+from funciones import cohen_d
 
 model = 'Ridge'
 Band = 'Theta'

@@ -381,7 +381,7 @@ plt.legend()
 no_nan_pitch = pitch[~np.isnan(pitch)]
 no_nan_pitch_der = pitch_der[~np.isnan(pitch_der)]
 
-norm = Processing.normalizar()
+norm = Processing.Normalize()
 norm.normalize_01(envelope)
 norm.normalize_01(no_nan_pitch)
 norm.normalize_11(no_nan_pitch_der)

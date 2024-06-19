@@ -1,8 +1,10 @@
-import numpy as np, copy
+# Standard libraries
+import numpy as np, copy, mne
+from datetime import datetime
 from scipy import signal
-from typing import Union
 
-class Estandarizar():
+
+class Standarize():
     def __init__(self, axis:int=0):
         """Standarize train and test data to be used in a linear regressor model. 
 
@@ -56,7 +58,7 @@ class Estandarizar():
         data /= np.std(data, axis=self.axis)
         return data
 
-class Normalizar():
+class Normalize():
     def __init__(self, axis:int=0, porcent:float=5):
         """Normalize train and test data to be used in a linear regressor model.
 
@@ -146,8 +148,8 @@ class Normalizar():
         return data
 
 def standarize_normalize(eeg_train_val, eeg_test, dstims_train_val, dstims_test, Stims_preprocess, EEG_preprocess, axis=0, porcent=5):
-    norm = Normalizar(axis, porcent)
-    estandar = Estandarizar(axis)
+    norm = Normalize(axis, porcent)
+    estandar = Standarize(axis)
 
     if isinstance(dstims_train_val, list):
         if Stims_preprocess == 'Standarize':
@@ -232,12 +234,6 @@ def butter_filter(data, frecuencias, sampling_freq, btype, order, axis, ftype):
         y = signal.filtfilt(b, a, data, axis=axis, padlen=None)
     return y
 
-def butter_bandpass_filter(data, frecuencia, sampling_freq, order, axis):
-    frecuencia /= (sampling_freq / 2)
-    b, a = signal.butter(order, frecuencia, btype='lowpass')
-    y = signal.filtfilt(b, a, data, axis=axis, padlen=None)
-    return y
-
 def subsamplear(x, cada_cuanto):
     x = np.array(x)
     tomar = np.arange(0, len(x), int(cada_cuanto))
@@ -279,4 +275,61 @@ def band_freq(band):
         return None, None
 
     return l_freq, h_freq
+
+# TODO CHECK DESCRIPTION
+def tfce(average_weights_subjects:np.ndarray,
+         n_jobs:int=1, 
+         n_permutations:int=1024, 
+         threshold_tfce:dict=dict(start=0, step=0.2), 
+         verbose_tfce:bool=True):
+    """_summary_
+
+    Parameters
+    ----------
+    average_weights_subjects : np.ndarray
+        _description_
+    n_permutations : int, optional
+        _description_, by default 1024
+    threshold_tfce : dict, optional
+        _description_, by default dict(start=0, step=0.2)
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
+    t_0 = datetime.now().replace(microsecond=0)
+
+    # Get relevant parameters
+    n_subjects, n_chan, total_number_features, n_delays  = average_weights_subjects.shape
+
+    # Get desire shape
+    if total_number_features > 1:
+        weights_subjects_mean_across_channels = average_weights_subjects.copy().mean(axis=1)
+        weights_subjects = weights_subjects_mean_across_channels.reshape(n_subjects, total_number_features, n_delays)
+    else:
+        weights_subjects = average_weights_subjects.copy().reshape(n_subjects, n_chan, n_delays)
+
+    t_tfce, clusters, p_tfce, H0 = mne.stats.permutation_cluster_1samp_test(
+        X=weights_subjects,
+        n_jobs=n_jobs,
+        threshold=threshold_tfce,
+        adjacency=None,
+        n_permutations=n_permutations,
+        out_type="mask",
+    )
+
+    if verbose_tfce:
+        t_f = datetime.now().replace(microsecond=0)-t_0
+        print(f'Performed TFCE succesfully in {t_f}')
+
+    return t_tfce, p_tfce, weights_subjects.shape
+
+###############
+
+# def butter_bandpass_filter(data, frecuencia, sampling_freq, order, axis):
+#     frecuencia /= (sampling_freq / 2)
+#     b, a = signal.butter(order, frecuencia, btype='lowpass')
+#     y = signal.filtfilt(b, a, data, axis=axis, padlen=None)
+#     return y
 
