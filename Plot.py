@@ -1,6 +1,10 @@
 # Standard libraries
 import numpy as np, pandas as pd, matplotlib.pyplot as plt, os, seaborn as sn, mne, scipy.signal as sgn, warnings
-
+import warnings
+warnings.filterwarnings("ignore", message="This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.")
+warnings.filterwarnings("ignore", message="FixedFormatter should only be used together with FixedLocator")
+warnings.filterwarnings("ignore", message="More than 20 figures have been opened. Figures created through the pyplot interface (`matplotlib.pyplot.figure`) are retained until explicitly closed and may consume too much memory. (To control this warning, see the rcParam `figure.max_open_warning`). Consider using `matplotlib.pyplot.close()`.")
+warnings.filterwarnings("ignore", message="Tight layout not applied. tight_layout cannot make axes width small enough to accommodate all axes decorations")
 # Specific libraries
 from scipy.stats import wilcoxon#, pearsonr
 from statannot import add_stat_annotation
@@ -22,12 +26,7 @@ pylab.rcParams.update(params)
 matplotlib_colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan']
 
 # Modules
-import Funciones, setup
-import warnings
-
-warnings.filterwarnings("ignore", message="This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.")
-warnings.filterwarnings("ignore", message="FixedFormatter should only be used together with FixedLocator")
-warnings.filterwarnings("ignore", message="More than 20 figures have been opened. Figures created through the pyplot interface (`matplotlib.pyplot.figure`) are retained until explicitly closed and may consume too much memory. (To control this warning, see the rcParam `figure.max_open_warning`). Consider using `matplotlib.pyplot.close()`.")
+import funciones, setup
 exp_info = setup.exp_info()
 
 # TODO HALF CHECK
@@ -39,7 +38,8 @@ def null_correlation_vs_correlation_good_channels(good_channels_indexes:np.ndarr
                          save:bool=False, 
                          display_interactive_mode:bool=False, 
                          session:int=21, 
-                         subject:int=1):
+                         subject:int=1,
+                         no_figures:bool=False):
     """_summary_
 
     Parameters
@@ -63,6 +63,11 @@ def null_correlation_vs_correlation_good_channels(good_channels_indexes:np.ndarr
     subject : int, optional
         _description_, by default 1
     """
+    
+    # Exit function
+    if no_figures:
+        return
+
     # Turn on/off interactive mode
     if display_interactive_mode:
         plt.ion()
@@ -121,7 +126,8 @@ def lateralized_channels(info:mne.io.meas_info.Info,
                          channels_right:list=['B27', 'B28', 'B29', 'B30', 'C4', 'C5', 'C6', 'C7', 'C9', 'C10', 'B31', 'C3'], 
                          channels_left:list=['D8', 'D9', 'D10', 'D11', 'D7', 'D6', 'D5', 'D4', 'C31', 'C32', 'D12', 'D3'], 
                          display_interactive_mode:bool=False, 
-                         save:bool=True):
+                         save:bool=True,
+                         no_figures:bool=False):
     """Make a topomap showing masked channels for lateralization comparisson
 
     Parameters
@@ -139,9 +145,12 @@ def lateralized_channels(info:mne.io.meas_info.Info,
     save : bool, optional
         _description_, by default True
     """
-    
-    # Turn on/off interactive mode
+    # Exit function
     plt.close()
+    if no_figures:
+        return
+
+    # Turn on/off interactive mode
     if display_interactive_mode:
         plt.ion()
     else:
@@ -184,7 +193,8 @@ def topomap(good_channels_indexes:np.ndarray,
             save_path:str, 
             display_interactive_mode:bool=False,
             session:int=21, 
-            subject:int=1):
+            subject:int=1,
+            no_figures:bool=False):
     """Make topographic plot of brain with heat-like map for given coefficient
 
     Parameters
@@ -208,9 +218,12 @@ def topomap(good_channels_indexes:np.ndarray,
     subject : int, optional
         _description_, by default 1
     """
-
-    # Turn on/off interactive mode
+    # Exit function
     plt.close()
+    if no_figures:
+        return
+    
+    # Turn on/off interactive mode
     if display_interactive_mode:
         plt.ion()
     else:
@@ -289,7 +302,8 @@ def average_topomap(average_coefficient_subjects:np.ndarray,
                           coefficient_name:str, 
                           number_of_lat_channels:int=12,
                           display_interactive_mode:bool=False,
-                          test_result:bool=False):
+                          test_result:bool=False,
+                          no_figures:bool=False):
     """_summary_
 
     Parameters
@@ -433,7 +447,8 @@ def topo_average_pval(pvalues_coefficient_subjects:np.ndarray,
               save:bool, 
               save_path:str, 
               coefficient_name:str,
-              display_interactive_mode:bool=False):
+              display_interactive_mode:bool=False,
+              no_figures:bool=False):
     """_summary_
 
     Parameters
@@ -453,9 +468,12 @@ def topo_average_pval(pvalues_coefficient_subjects:np.ndarray,
     fontsize : int, optional
         _description_, by default 19
     """
-    
-    # Turn on/off interactive mode
+    # Exit function
     plt.close()
+    if no_figures:
+        return    
+
+    # Turn on/off interactive mode
     if display_interactive_mode:
         plt.ion()
     else:
@@ -495,7 +513,8 @@ def topo_repeated_channels(repeated_good_coefficients_channels_subjects:np.ndarr
                       save:bool, 
                       save_path:str, 
                       coefficient_name:str, 
-                      display_interactive_mode:bool=False):
+                      display_interactive_mode:bool=False,
+                      no_figures:bool=False):
     """_summary_
 
     Parameters
@@ -513,9 +532,12 @@ def topo_repeated_channels(repeated_good_coefficients_channels_subjects:np.ndarr
     display_interactive_mode : bool, optional
         _description_, by default False
     """
-    
-    # Turn on/off interactive mode
+    # Exit function
     plt.close()
+    if no_figures:
+        return    
+        
+    # Turn on/off interactive mode
     if display_interactive_mode:
         plt.ion()
     else:
@@ -559,7 +581,8 @@ def topo_map_relevant_times(average_weights_subjects:np.ndarray,
                             sample_rate:int, 
                             save_path:int, 
                             save:bool=True, 
-                            display_interactive_mode:bool=False):
+                            display_interactive_mode:bool=False,
+                            no_figures:bool=False):
     """_summary_
 
     Parameters
@@ -587,6 +610,12 @@ def topo_map_relevant_times(average_weights_subjects:np.ndarray,
     fontsize : int, optional
         _description_, by default 19
     """
+    
+    # Exit function
+    plt.close()
+    if no_figures:
+        return    
+
     # Relevant parameters
     stimuli = stim.split('_')
     
@@ -666,7 +695,8 @@ def channel_wise_correlation_topomap(average_weights_subjects:np.ndarray,
                                      info:mne.io.meas_info.Info, 
                                      save:bool, 
                                      save_path:str,
-                                     display_interactive_mode:bool=False):
+                                     display_interactive_mode:bool=False,
+                                     no_figures:bool=False):
     """_summary_
 
     Parameters
@@ -684,6 +714,11 @@ def channel_wise_correlation_topomap(average_weights_subjects:np.ndarray,
     fontsize : int, optional
         _description_, by default 19
     """
+    # Exit function
+    plt.close()
+    if no_figures:
+        return   
+
     # Relevant parameters
     n_subjects, n_chan, _, _ = average_weights_subjects.shape
     average_weights = average_weights_subjects.mean(axis=2)
@@ -701,7 +736,6 @@ def channel_wise_correlation_topomap(average_weights_subjects:np.ndarray,
         absolute_correlation_per_channel[channel] = np.mean(np.abs(channel_corr_values))
 
     # Turn on/off interactive mode
-    plt.close()
     if display_interactive_mode:
         plt.ion()
     else:
@@ -746,8 +780,8 @@ def channel_weights(info:mne.io.meas_info.Info,
                     stim:str,
                     display_interactive_mode:bool=False,
                     session:int=21, 
-                    subject:int=1, 
-                    fontsize:int=13):
+                    subject:int=1,
+                    no_figures:bool=False):
     """Plot weights of features as an evoked response. If multidimensional features are used, a colormesh is used.
 
     Parameters
@@ -779,8 +813,12 @@ def channel_weights(info:mne.io.meas_info.Info,
     fontsize : int, optional
         Fontsize of labels, by default 13
     """
-    # Turn on/off interactive mode
+    # Exit function
     plt.close()
+    if no_figures:
+        return   
+
+    # Turn on/off interactive mode
     if display_interactive_mode:
         plt.ion()
     else:
@@ -818,9 +856,9 @@ def channel_weights(info:mne.io.meas_info.Info,
             ax[0,i_feat].tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
 
             if feat.endswith('Manual'):
-                ax[0,i_feat].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels_man)
+                ax[0,i_feat].set(xlabel='', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels_man, title=f'{feat}')
             else:
-                ax[0,i_feat].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels)
+                ax[0,i_feat].set(xlabel='', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels, title=f'{feat}')
 
             fig.colorbar(im, 
                          ax=ax[0,i_feat], 
@@ -843,10 +881,11 @@ def channel_weights(info:mne.io.meas_info.Info,
 
             # Set figure configuration
             bands_center = librosa.mel_frequencies(n_mels=18, fmin=62, fmax=8000)[1:-1]
-            ax[0,i_feat].set(xlabel='Time (ms)', 
+            ax[0,i_feat].set(xlabel='', 
                              yticklabels=[int(bands_center[i]) for i in np.arange(0, len(bands_center), 2)],
                              ylabel='Frecuency (Hz)',
-                             yticks=np.arange(0, n_feat, 2))
+                             yticks=np.arange(0, n_feat, 2), 
+                             title=f'{feat}')
             # Configure colorbar
             fig.colorbar(im,
                          ax=ax[0,i_feat], 
@@ -886,7 +925,9 @@ def channel_weights(info:mne.io.meas_info.Info,
             # Graph properties
             ax[0,i_feat].legend()
             ax[0,i_feat].grid(visible=True)
-        ax[0,i_feat].set_title(f'{feat}')
+            ax[0,i_feat].set(xlabel='', title=f'{feat}')
+        if feat==stimuli[-1]:
+            ax[0,i_feat].set_xlabel('Time (ms)')
     
     if save:
         save_path_graficos = save_path + 'individual_weights/'
@@ -901,7 +942,8 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
                                times:np.ndarray,
                                n_feats:list,
                                stim:str,
-                               display_interactive_mode:bool=False):
+                               display_interactive_mode:bool=False,
+                               no_figures:bool=False):
     """Plot average weights of features as an evoked response. If colormesh_form is passed, a colormesh graph is performed in case of multifeature attribute are used.
 
     Parameters
@@ -981,6 +1023,7 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
         # Graph properties
         ax.legend()
         ax.grid(visible=True)
+        ax.set(xlabel='')
 
         if feat.startswith('Phoneme') or feat.startswith('Spectro'):
             if feat.startswith('Spectro'):
@@ -1033,6 +1076,7 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
                              label='Amplitude (a.u.)',
                              shrink=1,
                              aspect=20)
+            ax1.set(xlabel='Time (ms)')
 
         if save:
             os.makedirs(save_path, exist_ok=True)
@@ -1045,7 +1089,8 @@ def correlation_matrix_subjects(average_weights_subjects:np.ndarray,
                              n_feats:list, 
                              save:bool, 
                              save_path:str,
-                             display_interactive_mode:bool=False):
+                             display_interactive_mode:bool=False,
+                             no_figures:bool=False):
     """_summary_
 
     Parameters
@@ -1147,7 +1192,8 @@ def plot_tvalue_pvalue_tfce(tvalue:np.ndarray,
                   pval_tresh:float, 
                   save_path:str, 
                   display_interactive_mode:bool=False, 
-                  save=True):
+                  save:bool=True,
+                  no_figures:bool=False):
     # Reshape p and tvalue. This is done in this way just for clarity
     n_subj, n_chan_feat, n_delays = trf_subjects_shape 
     tvalue = tvalue.reshape((n_chan_feat, n_delays)) # TODO creo que ya viene así
@@ -1277,15 +1323,20 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
                 pval_tresh:float, 
                 save_path:str, 
                 display_interactive_mode:bool=False, 
-                save:bool=True):
+                save:bool=True,
+                no_figures:bool=False):
 
+    # Exit function
     plt.close()
+    if no_figures:
+        return   
+
     # Turn on/off interactive mode
     if display_interactive_mode:
         plt.ion()
     else:
         plt.ioff()
-    
+
     # Take mean over all subjects
     mean_average_weights_subjects = average_weights_subjects.mean(axis=0)
     stimuli = stim.split('_')
@@ -1451,7 +1502,6 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
         fig.savefig(save_path + f'pvalue_{feat.lower()}_{pval_tresh}.png')
 
 ##############################################################
-
 #TODO CHECK DESCRIPTION E Y LABEL
 def plot_trf_tfce(average_weights_subjects:np.ndarray, 
                   p:np.ndarray, 
@@ -1659,7 +1709,7 @@ def Cabezas_3d(Correlaciones_totales_sujetos, info, display_interactive_mode, Sa
 
 
 def PSD_boxplot(psd_pred_correlations, psd_rand_correlations, display_interactive_mode, Save, Run_graficos_path):
-    psd_rand_correlations = Funciones.flatten_list(psd_rand_correlations)
+    psd_rand_correlations = funciones.flatten_list(psd_rand_correlations)
 
     data = pd.DataFrame({'Prediction': psd_pred_correlations, 'Random': psd_rand_correlations})
     if display_interactive_mode:
@@ -1915,7 +1965,7 @@ def ch_heatmap_topo(total_data, info, delays, times, display_interactive_mode, S
 #         returns.append(curva_pesos_totales)
 
 #         if Autocorrelation_value and times[-1] > 0:
-#             weights_autocorr = Funciones.correlacion(curva_pesos_totales, curva_pesos_totales)
+#             weights_autocorr = funciones.correlacion(curva_pesos_totales, curva_pesos_totales)
 
 #             for i in range(len(weights_autocorr)):
 #                 if weights_autocorr[i] < Autocorrelation_value: break
