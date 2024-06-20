@@ -235,7 +235,8 @@ def butter_filter(data, frecuencias, sampling_freq, btype, order, axis, ftype):
     return y
 
 def subsamplear(x, cada_cuanto):
-    x = np.array(x)
+    if not isinstance(x, np.ndarray):
+        x = np.array(x)
     tomar = np.arange(0, len(x), int(cada_cuanto))
     return x[tomar]
 
