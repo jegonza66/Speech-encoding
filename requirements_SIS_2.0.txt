@@ -11,3 +11,5 @@ seaborn>=0.8.1
 statannot
 matplotlib-venn
 ipython
+# multiprocess==0.70.16
+wordcloud==1.9.3
