@@ -101,12 +101,21 @@ class Trial_channel:
             else:
                 eeg = eeg.filter(l_freq=self.l_freq_eeg, h_freq=self.h_freq_eeg)
         
-        # Store dimension mne.raw
-        eeg.resample(sfreq=self.sr)
+        # # Store dimension mne.raw
+        # eeg.resample(sfreq=self.sr)
 
-        # Return mne representation Times x nchannels
+        # # Return mne representation Times x nchannels
+        # self.eeg = eeg.copy()
+        # return self.eeg.get_data().T*1e6
+        
+        # Get mne representation Times x nchannels
         self.eeg = eeg.copy()
-        return self.eeg.get_data().T*1e6
+        eeg = self.eeg.get_data().T*1e6  # paso a array y tiro la primer columna de tiempo
+
+        # Downsample
+        eeg = processing.subsamplear(eeg, int(self.eeg.info.get("sfreq")/ self.sr))
+        return eeg
+
 
     def f_info(self):
         """A montage is define as a descriptor for the set up: EEG channel names and relative positions of sensors on the scalp. 
@@ -145,16 +154,21 @@ class Trial_channel:
         elif self.envelope_filter == 'NonCausal':
             envelope = processing.butter_filter(data=envelope, frecuencias=25, sampling_freq=self.audio_sr,
                                                 btype='lowpass', order=3, axis=0, ftype='NonCausal').reshape(-1,1)
-        else:
-            envelope = envelope.reshape(-1,1)
+        
+        # Resample
+        window_size, stride = int(self.audio_sr/self.sr), int(self.audio_sr/self.sr)
+        envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)])
+        return envelope.reshape(-1, 1)
+        # else:
+            # envelope = envelope.reshape(-1,1)
             
-        # Creates mne raw array
-        info_envelope = mne.create_info(ch_names=['Envelope'], sfreq=self.audio_sr, ch_types='misc')
-        envelope_mne_array = mne.io.RawArray(data=envelope.T, info=info_envelope)
+        # # Creates mne raw array
+        # info_envelope = mne.create_info(ch_names=['Envelope'], sfreq=self.audio_sr, ch_types='misc')
+        # envelope_mne_array = mne.io.RawArray(data=envelope.T, info=info_envelope)
 
-        # Resample to match EEG data
-        envelope_mne_array.resample(sfreq=self.sr)
-        return envelope_mne_array.get_data().T
+        # # Resample to match EEG data
+        # envelope_mne_array.resample(sfreq=self.sr)
+        # return envelope_mne_array.get_data().T
 
     def f_spectrogram(self):
         """Calculates spectrogram of .wav file between 16 Mel frequencies.
