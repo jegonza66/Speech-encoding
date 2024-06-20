@@ -11,6 +11,7 @@ from mtrf_models import Receptive_field_adaptation
 from load import load_data
 from funciones  import load_pickle, dump_pickle, iteration_percentage
 from processing import tfce
+from setup import exp_info
 
 # Notofication bot
 from labos.notificacion_bot import mensaje_tel
@@ -23,12 +24,12 @@ start_time = datetime.now()
 # ==========
 
 # Stimuli, EEG frecuency band and dialogue situation
-stimuli = ['Phonemes-Envelope-Manual']
+stimuli = ['Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual','Phonemes-Onset-Manual']
 bands = ['Theta']
 situation = 'Escucha'
 
 # Run setup
-sesiones = [21]#, 22, 23, 24, 25, 26, 27, 29, 30]
+sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 
 # EEG sample rate
 sr = 128
@@ -52,6 +53,7 @@ statistical_test = False
 stims_preprocess = 'Normalize'
 eeg_preprocess = 'Standarize'
 model = 'mtrf'
+estimator = 'time_delaying_ridge' # ridge or time_delaying_ridge
 
 # Make k-fold test with 5 folds (remain 20% as validation set, then interchange to cross validate)
 n_folds = 5
@@ -95,6 +97,7 @@ for band in bands:
         pvalues_rmse_subjects = []
         repeated_good_correlation_channels_subjects = []
         repeated_good_rmse_channels_subjects = []
+        phoenemes_ocurrences = {sesion:{} for sesion in sesiones}
 
         # Iterate over sessions
         for sesion in sesiones:
@@ -119,7 +122,27 @@ for band in bands:
             stims_sujeto_2 = np.hstack([sujeto_2[stimulus] for stimulus in stim.split('_')])
             n_feats = [sujeto_1[stimulus].shape[1] for stimulus in stim.split('_')]
             delayed_length_per_stimuli = [n_feat*len(delays) for n_feat in n_feats]
-                        
+            
+            # Store phonemes ocurrences to make boxplot
+            for stimulus in stim.split('_'):
+                if 'Phonemes' in stimulus:
+                    # Change to 1's every value that isn't 0. In this way the method works for every kind
+                    matrix_1 = sujeto_1[stimulus].copy()
+                    matrix_1[matrix_1!=0.] = 1
+                    matrix_2 = sujeto_2[stimulus].copy()
+                    matrix_2[matrix_2!=0.] = 1
+                    matrix = matrix_1 + matrix_2
+                    
+                    # Identify the phonemes
+                    phonemes = exp_info()
+                    if stimulus.endswith('Manual'):
+                        phonemes = phonemes.ph_labels_man
+                    else:
+                        phonemes = phonemes.ph_labels
+                    phoenemes_ocurrences[sesion][stimulus] = {'phonemes':phonemes, 'count':np.sum(matrix, axis=0)}
+                else:
+                    pass
+
             # Get relevant indexes
             relevant_indexes_1 = samples_info['keep_indexes1'].copy()
             relevant_indexes_2 = samples_info['keep_indexes2'].copy()
@@ -178,7 +201,8 @@ for band in bands:
                         stims_preprocess=stims_preprocess, 
                         eeg_preprocess=eeg_preprocess,
                         fit_intercept=False,
-                        n_jobs=n_jobs)
+                        n_jobs=n_jobs, 
+                        estimator=estimator)
                     
                     # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
                     mtrf.fit(stims, eeg)
@@ -258,7 +282,7 @@ for band in bands:
                 topo_pval_corr_sujeto = topo_pvalues_corr.mean(axis=0)
                 topo_pval_rmse_sujeto = topo_pvalues_rmse.mean(axis=0)
 
-                # Plot head topomap across al channel for correlation and rmse # TODO CHECK y labels QUEDARON TODAS DEL SPECTROGRAMA
+                # Plot head topomap across al channel for correlation and rmse 
                 plot.topomap(good_channels_indexes=corr_good_channel_indexes, average_coefficient=average_correlation, info=info,
                              coefficient_name='Correlation', save=save_figures, display_interactive_mode=display_interactive_mode, 
                              save_path=path_figures, subject=sujeto, session=sesion, no_figures=no_figures)
@@ -271,7 +295,7 @@ for band in bands:
                                      average_rmse=average_rmse, best_alpha=alpha, average_weights=average_weights, times=times, 
                                      n_feats=n_feats, stim=stim, session=sesion, subject=sujeto,
                                      display_interactive_mode=display_interactive_mode, no_figures=no_figures)
-
+                
                 # Saves average correlation, RMSE and weights between folds of each channel of each subject to take average above subjects channels
                 average_weights_subjects.append(average_weights)
                 average_correlation_subjects.append(average_correlation)
@@ -283,7 +307,7 @@ for band in bands:
             
             # Print the progress of the iteration
             iteration_percentage(txt=f'\n------->\tEnd of session {sesion}\n', i=sesiones.index(sesion), length_of_iterator=len(sesiones))
-
+            
             # del average_weights, average_rmse, average_correlation, correlation_per_channel, rmse_per_channel, correlation_matrix, root_mean_square_error,\
             #     eeg_test, eeg, stims, stims_sujeto_1, stims_sujeto_2, sujeto_1, sujeto_2, eeg_sujeto_1, eeg_sujeto_2
         
@@ -298,6 +322,9 @@ for band in bands:
         pvalues_rmse_subjects = np.stack(pvalues_rmse_subjects , axis=0)
         repeated_good_correlation_channels_subjects = np.stack(repeated_good_correlation_channels_subjects , axis=0)
         repeated_good_rmse_channels_subjects = np.stack(repeated_good_rmse_channels_subjects , axis=0)
+        
+        # Plot phoneme ocurrences
+        plot.phonemes_ocurrences(ocurrences=phoenemes_ocurrences, save_path=path_figures, save=save_figures, no_figures=no_figures)
 
         # Plot average topomap across each subject
         plot.average_topomap(average_coefficient_subjects=average_rmse_subjects, info=info, display_interactive_mode=display_interactive_mode,
