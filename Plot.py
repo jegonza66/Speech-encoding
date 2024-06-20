@@ -1,5 +1,5 @@
 # Standard libraries
-import numpy as np, pandas as pd, matplotlib.pyplot as plt, os, seaborn as sn, mne, scipy.signal as sgn, warnings
+import numpy as np, pandas as pd, matplotlib.pyplot as plt, os, seaborn as sns, mne, scipy.signal as sgn, warnings
 import warnings
 warnings.filterwarnings("ignore", message="This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.")
 warnings.filterwarnings("ignore", message="FixedFormatter should only be used together with FixedLocator")
@@ -28,6 +28,69 @@ matplotlib_colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purp
 # Modules
 import funciones, setup
 exp_info = setup.exp_info()
+
+# TODO CHECK DESCRIPTION
+def phonemes_ocurrences(ocurrences:dict, 
+                        save_path:str,
+                        no_figures:bool=False, 
+                        save:bool=False):
+    """Makes boxplot with phoeneme ocurrences
+
+    Parameters
+    ----------
+    ocurrences : dict
+        _description_
+    session : int
+        _description_
+    save_path : str
+        _description_
+    no_figures : bool, optional
+        _description_, by default False
+    save : bool, optional
+        _description_, by default False
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
+    # Exit function
+    if no_figures:
+        return
+    
+    # Get number of phonemes stimuli 
+    sesions = list(ocurrences.keys())
+    stimuli = list(ocurrences[sesions[0]].keys())
+
+    # Make plot for each stimulus
+    for stimulus in stimuli:
+        
+        # The list of phonemes labels
+        phn = ocurrences[sesions[0]][stimulus]['phonemes']
+
+        # Make a dict with the relevant data
+        relevant_data = {}
+        relevant_data['Ocurrences'] = np.concatenate([ocurrences[sesion][stimulus]['count'].astype(int).reshape(-1,1) for sesion in sesions], axis = 1).flatten()
+        relevant_data['Labels'] = np.repeat(phn, (np.ones(shape=len(phn))*len(sesions)).astype(int))
+        relevant_data['Sesion'] = sesions * len(phn)
+        
+        # Now arange data in pd.DataFrame
+        data = pd.DataFrame(data=relevant_data, columns = ['Ocurrences', 'Sesion', 'Labels'])
+        
+        # Make plot
+        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12,6))
+        
+        # Usual boxplot
+        sns.boxplot(x='Labels', y='Ocurrences', data=data, ax=ax)
+        
+        # Add jitter with the swarmplot function
+        sns.swarmplot(x='Labels', y='Ocurrences', data=data, color="grey", ax=ax)
+        ax.set(title=f'{stimulus}' )
+        ax.grid(visible=True, alpha=.3)
+
+        if save:
+            fig.savefig(save_path + f'{stimulus}_ocurrences.png')
+            fig.savefig(save_path + f'{stimulus}_ocurrences.svg')
 
 # TODO HALF CHECK
 def null_correlation_vs_correlation_good_channels(good_channels_indexes:np.ndarray,
@@ -119,6 +182,7 @@ def null_correlation_vs_correlation_good_channels(good_channels_indexes:np.ndarr
         save_path_graficos = save_path + 'correlation_vs_null_correlation/'
         os.makedirs(save_path_graficos, exist_ok=True)
         fig.savefig(save_path_graficos + f'session{session}_subject{subject}.png')
+        fig.savefig(save_path_graficos + f'session{session}_subject{subject}.svg')
 
 # TODO CHECK DESCRIPTION
 def lateralized_channels(info:mne.io.meas_info.Info, 
@@ -333,8 +397,12 @@ def average_topomap(average_coefficient_subjects:np.ndarray,
         _description_
     """
     
-    # Turn on/off interactive mode
+    # Exit function
     plt.close()
+    if no_figures:
+        return
+
+    # Turn on/off interactive mode
     if display_interactive_mode:
         plt.ion()
     else:
@@ -398,11 +466,11 @@ def average_topomap(average_coefficient_subjects:np.ndarray,
         data = pd.DataFrame({'Left': corr_left, 'Right': corr_right})
         
         # Make boxplot and swarmplot
-        ax = sn.boxplot(data=data, width=0.35)
+        ax = sns.boxplot(data=data, width=0.35)
         for patch in ax.artists:
             r, g, b, alpha = patch.get_facecolor()
             patch.set_facecolor((r, g, b, .8))
-        sn.swarmplot(data=data, color=".25")
+        sns.swarmplot(data=data, color=".25")
 
         # Figure properties
         ax.set_ylabel('Correlation')
@@ -1153,7 +1221,7 @@ def correlation_matrix_subjects(average_weights_subjects:np.ndarray,
 
         fig, (ax, cax) = plt.subplots(nrows=2, figsize=(16, 16), gridspec_kw={"height_ratios": [1, 0.05]}, layout='tight')
         fig.suptitle(f'Similarity among subject\'s {feat} TRFs - Mean: ({correlation_mean:.2f}'+r'$\pm$'+f'{correlation_std:.2f})', fontsize=19)
-        sn.heatmap(correlation_matrix, 
+        sns.heatmap(correlation_matrix, 
                    mask=mask, 
                    cmap="coolwarm", 
                    fmt='.2f', 
@@ -1168,7 +1236,7 @@ def correlation_matrix_subjects(average_weights_subjects:np.ndarray,
         ax.set_xticklabels(subject_names[:-1] + ['Subjects mean'], rotation=35, fontsize='xx-large')
 
         # Make colorbar
-        sn.despine(right=True, left=True, bottom=True, top=True)
+        sns.despine(right=True, left=True, bottom=True, top=True)
         cbar = plt.colorbar(ax.get_children()[0], 
                             cax=cax, 
                             orientation="horizontal")
@@ -1609,7 +1677,7 @@ def corr_sujeto_decoding(sesion, sujeto, Valores_promedio, display_interactive_m
         plt.ioff()
 
     fig, ax = plt.subplots()
-    sn.violinplot(data=data, ax=ax)
+    sns.violinplot(data=data, ax=ax)
     plt.ylim([-0.2, 1])
     plt.ylabel(name)
     plt.title('{}:{:.3f} +/- {:.3f}'.format(name, np.mean(Valores_promedio), np.std(Valores_promedio), fontsize=19))
@@ -1657,7 +1725,7 @@ def violin_plot_decoding(Correlaciones_totales_sujetos, display_interactive_mode
         plt.ioff()
 
     fig, ax = plt.subplots()
-    sn.violinplot(data=data, ax=ax)
+    sns.violinplot(data=data, ax=ax)
     plt.ylim([-0.2, 1])
     plt.ylabel(title)
     plt.title('{}:{:.3f} +/- {:.3f}'.format(title, np.mean(Correlaciones_totales_sujetos),
@@ -1718,7 +1786,7 @@ def PSD_boxplot(psd_pred_correlations, psd_rand_correlations, display_interactiv
         plt.ioff()
 
     fig, ax = plt.subplots()
-    sn.violinplot(data=data, ax=ax)
+    sns.violinplot(data=data, ax=ax)
     plt.ylim([-0.2, 1])
     plt.ylabel('Correlation')
     plt.title('Prediction Correlation:{:.2f} +/- {:.2f}\n'
@@ -2080,7 +2148,7 @@ def ch_heatmap_topo(total_data, info, delays, times, display_interactive_mode, S
 
 #     fig, (ax, cax) = plt.subplots(ncols=2, figsize=(15, 9), gridspec_kw={"width_ratios": [1, 0.05]})
 #     fig.suptitle('Absolute value of the correlation among subject\'s $w$', fontsize=26)
-#     sn.heatmap(abs(Correlation_matrix), mask=mask, cmap="coolwarm", fmt='.3', ax=ax,
+#     sns.heatmap(abs(Correlation_matrix), mask=mask, cmap="coolwarm", fmt='.3', ax=ax,
 #                annot=True, center=0, xticklabels=True, annot_kws={"size": 19},
 #                cbar=False)
 
@@ -2089,7 +2157,7 @@ def ch_heatmap_topo(total_data, info, delays, times, display_interactive_mode, S
 #     ax.set_xticklabels(lista_nombres[:len(Correlation_matrix) - 1] + ['Mean of subjects'], rotation='horizontal',
 #                        ha='left', fontsize=19)
 
-#     sn.despine(right=True, left=True, bottom=True, top=True)
+#     sns.despine(right=True, left=True, bottom=True, top=True)
 #     fig.colorbar(ax.get_children()[0], cax=cax, orientation="horizontal")
 #     cax.yaxis.set_tick_params(labelsize=20)
 
@@ -2134,7 +2202,7 @@ def ch_heatmap_topo(total_data, info, delays, times, display_interactive_mode, S
 
 #     fig, (ax, cax) = plt.subplots(ncols=2, figsize=(15, 9), gridspec_kw={"width_ratios": [1, 0.05]})
 #     fig.suptitle('Absolute value of the correlation among subject\'s $w$', fontsize=26)
-#     sn.heatmap(abs(std_matrix), mask=mask, cmap="coolwarm", fmt='.3', ax=ax,
+#     sns.heatmap(abs(std_matrix), mask=mask, cmap="coolwarm", fmt='.3', ax=ax,
 #                annot=True, center=0, xticklabels=True, annot_kws={"size": 19},
 #                cbar=False)
 
@@ -2142,7 +2210,7 @@ def ch_heatmap_topo(total_data, info, delays, times, display_interactive_mode, S
 #     ax.set_xticklabels(lista_nombres[:len(std_matrix) - 1] + ['Mean of subjects'], rotation='horizontal', ha='left',
 #                        fontsize=19)
 
-#     sn.despine(right=True, left=True, bottom=True, top=True)
+#     sns.despine(right=True, left=True, bottom=True, top=True)
 #     fig.colorbar(ax.get_children()[0], cax=cax, orientation="vertical")
 #     cax.yaxis.set_tick_params(labelsize=20)
 
