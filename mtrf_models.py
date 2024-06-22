@@ -11,7 +11,7 @@ from processing import Normalize, Standarize
 class TimeDelayingRidgeRegression(TimeDelayingRidge):
     def __init__(self, tmin:float, tmax:float, sfreq:int, relevant_indexes:np.ndarray=None, train_indexes:np.ndarray=None, 
                  test_indexes:np.ndarray=None, stims_preprocess:str='Normalize', eeg_preprocess:str='Standarize', 
-                 alpha=1.0, fit_intercept=False, n_jobs:int=1, shuffle:bool=False):
+                 alpha=1.0, fit_intercept=False, n_jobs:int=1, shuffle:bool=False, validation:bool=False):
         """_summary_
 
         Parameters
@@ -36,32 +36,57 @@ class TimeDelayingRidgeRegression(TimeDelayingRidge):
         self.stims_preprocess = stims_preprocess
         self.eeg_preprocess = eeg_preprocess
         self.shuffle = shuffle
+        self.validation = validation
 
     def fit(self, X, y):
         # Get relevant indexes
         X_, y_= X[self.relevant_indexes], y[self.relevant_indexes] # relevant_samples relevant_samples, features*delays, antes relevant_samples, [epochs,features], delays
         del X, y
 
-        # Make split
-        X_train = X_[self.train_indexes] 
-        X_pred = X_[self.test_indexes]
-        y_train = y_[self.train_indexes]
-        y_test = y_[self.test_indexes]
-        del X_, y_
-        
-        if self.shuffle:
-            np.random.shuffle(X_train)
-            np.random.shuffle(X_pred)
-            np.random.shuffle(y_train)
-            np.random.shuffle(y_test)
-        
-        # Standarize and normalize
-        X_train, y_train, self.X_pred, self.y_test = self.standarize_normalize(X_train=X_train, 
-                                                                               X_pred=X_pred, 
-                                                                               y_train=y_train, 
-                                                                               y_test=y_test)
+        if self.validation:
 
-        return super().fit(X_train, y_train)
+            # Make split
+            X_train_val = X_[self.train_indexes] 
+            y_train_val = y_[self.train_indexes]
+            X_pred = X_[self.test_indexes]
+            y_test = y_[self.test_indexes]
+            del X_, y_
+            
+            # Separate training and validation sets, fixing the train percent of data
+            train_percent = .8
+            self.train_cutoff = int(train_percent * len(self.train_indexes))
+            X_train = X_train_val[:self.train_cutoff]
+            y_train = y_train_val[:self.train_cutoff]
+            X_val = X_train_val[self.train_cutoff:]
+            y_val = y_train_val[self.train_cutoff:]
+            
+            # Standarize and normalize
+            X_train, y_train, self.X_pred, self.y_val = self.standarize_normalize(X_train=X_train, 
+                                                                                X_pred=X_val, 
+                                                                                y_train=y_train, 
+                                                                                y_test=y_val)
+            return super().fit(X_train, y_train)
+        else:
+            # Make split
+            X_train = X_[self.train_indexes] 
+            X_pred = X_[self.test_indexes]
+            y_train = y_[self.train_indexes]
+            y_test = y_[self.test_indexes]
+            del X_, y_
+            
+            if self.shuffle:
+                np.random.shuffle(X_train)
+                np.random.shuffle(X_pred)
+                np.random.shuffle(y_train)
+                np.random.shuffle(y_test)
+            
+            # Standarize and normalize
+            X_train, y_train, self.X_pred, self.y_test = self.standarize_normalize(X_train=X_train, 
+                                                                                X_pred=X_pred, 
+                                                                                y_train=y_train, 
+                                                                                y_test=y_test)
+
+            return super().fit(X_train, y_train)
     
     def predict(self, X):
         y_pred = super().predict(self.X_pred) #samples,nchans
@@ -71,7 +96,10 @@ class TimeDelayingRidgeRegression(TimeDelayingRidge):
         # y_pred_0 = np.zeros(shape = (n_samples, y_pred.shape[-1]))
         # y_pred_0[self.test_indexes] = y_pred
         y_pred_0 = np.zeros(shape=(n_samples, 1, y_pred.shape[-1]))
-        y_pred_0[self.test_indexes, :, :] = y_pred
+        if self.validation:
+            y_pred_0[self.train_indexes[self.train_cutoff:], :, :] = y_pred
+        else:
+            y_pred_0[self.test_indexes, :, :] = y_pred
 
         # When used relevant indexes must be filtered once again
         return y_pred_0
@@ -145,34 +173,69 @@ class RidgeRegression(Ridge):
         X_, y_= X[self.relevant_indexes], y[self.relevant_indexes] # relevant_samples relevant_samples, features*delays, antes relevant_samples, [epochs,features], delays
         del X, y
 
-        # Make split
-        X_train = X_[self.train_indexes] 
-        X_pred = X_[self.test_indexes]
-        y_train = y_[self.train_indexes]
-        y_test = y_[self.test_indexes]
-        del X_, y_
+        if self.validation:
 
-        if self.shuffle:
-            np.random.shuffle(X_train)
-            np.random.shuffle(X_pred)
-            np.random.shuffle(y_train)
-            np.random.shuffle(y_test)
+            # Make split
+            X_train_val = X_[self.train_indexes] 
+            y_train_val = y_[self.train_indexes]
+            X_pred = X_[self.test_indexes]
+            y_test = y_[self.test_indexes]
+            del X_, y_
+            
+            # Separate training and validation sets, fixing the train percent of data
+            train_percent = .8
+            self.train_cutoff = int(train_percent * len(self.train_indexes))
+            X_train = X_train_val[:self.train_cutoff]
+            y_train = y_train_val[:self.train_cutoff]
+            X_val = X_train_val[self.train_cutoff:]
+            y_val = y_train_val[self.train_cutoff:]
+
+            if self.shuffle:
+                np.random.shuffle(X_train)
+                np.random.shuffle(X_pred)
+                np.random.shuffle(y_train)
+                np.random.shuffle(y_test)
+            
+            # Standarize and normalize
+            X_train, y_train, self.X_pred, self.y_val = self.standarize_normalize(X_train=X_train, 
+                                                                                X_pred=X_val, 
+                                                                                y_train=y_train, 
+                                                                                y_test=y_val)
+            return super().fit(X_train, y_train)
         
-        # Standarize and normalize
-        X_train, y_train, self.X_pred, self.y_test = self.standarize_normalize(X_train=X_train, 
-                                                                               X_pred=X_pred, 
-                                                                               y_train=y_train, 
-                                                                               y_test=y_test)
+        else:
+            # Make split
+            X_train = X_[self.train_indexes] 
+            X_pred = X_[self.test_indexes]
+            y_train = y_[self.train_indexes]
+            y_test = y_[self.test_indexes]
+            del X_, y_
 
-        return super().fit(X_train, y_train)
-    
+            if self.shuffle:
+                np.random.shuffle(X_train)
+                np.random.shuffle(X_pred)
+                np.random.shuffle(y_train)
+                np.random.shuffle(y_test)
+            
+            # Standarize and normalize
+            X_train, y_train, self.X_pred, self.y_test = self.standarize_normalize(X_train=X_train, 
+                                                                                X_pred=X_pred, 
+                                                                                y_train=y_train, 
+                                                                                y_test=y_test)
+
+            return super().fit(X_train, y_train)
+        
     def predict(self, X):
         y_pred = super().predict(self.X_pred) #samples,nchans
         n_samples = X.shape[0]
         
         # Padd with zeros to make it compatible with shape desired by mne.ReceptiveField.predict()
         y_pred_0 = np.zeros(shape=(n_samples, y_pred.shape[-1]))
-        y_pred_0[self.test_indexes] = y_pred
+        if self.validation:
+            y_pred_0[self.train_indexes] = y_pred
+            y_pred_0[self.train_cutoff:]
+        else:
+            y_pred_0[self.test_indexes] = y_pred
 
         # When used relevant indexes must be filtered once again
         return y_pred_0
@@ -215,7 +278,9 @@ class RidgeRegression(Ridge):
 class Receptive_field_adaptation:
     def __init__(self, tmin:float, tmax:float, sample_rate:int, alpha:float, relevant_indexes:np.ndarray, 
                  train_indexes:np.ndarray, test_indexes:np.ndarray, stims_preprocess:str, 
-                 eeg_preprocess:str, estimator:str='ridge', n_jobs:int=-1, fit_intercept:bool=False, shuffle:bool=False):
+                 eeg_preprocess:str, estimator:str='ridge', n_jobs:int=-1, fit_intercept:bool=False, 
+                 shuffle:bool=False, validation:bool=False):
+        self.train_indexes = train_indexes
         self.test_indexes = test_indexes
         self.sample_rate = sample_rate
         allowed_models = ['ridge', 'time_delaying_ridge']
@@ -239,7 +304,8 @@ class Receptive_field_adaptation:
                                                                            eeg_preprocess=eeg_preprocess,
                                                                            fit_intercept=fit_intercept,
                                                                            n_jobs=n_jobs,
-                                                                           shuffle=shuffle),
+                                                                           shuffle=shuffle,
+                                                                           validation=validation),
                                      scoring='corrcoef', # THIS IS JUST TO COMPUTE SCORE IT HAS NOTHING TO DO WITH THE MODEL
                                      verbose=False)
         else:
@@ -253,7 +319,8 @@ class Receptive_field_adaptation:
                                                                stims_preprocess=stims_preprocess, 
                                                                eeg_preprocess=eeg_preprocess,
                                                                fit_intercept=fit_intercept,
-                                                               shuffle=shuffle),
+                                                               shuffle=shuffle,
+                                                               validation=validation),
                                      scoring='corrcoef', # THIS IS JUST TO COMPUTE SCORE IT HAS NOTHING TO DO WITH THE MODEL
                                      verbose=False)
    
@@ -263,11 +330,19 @@ class Receptive_field_adaptation:
 
     def predict(self, stims):
         predicted = self.rf.predict(stims)
-        test = self.rf.estimator_.y_test
-        if self.estimator=='ridge':
-            return predicted[self.test_indexes], test
+        if self.rf.estimator_.validation:
+            test = self.rf.estimator_.y_val
+            if self.estimator=='ridge':
+                return predicted[self.train_indexes[self.rf.estimator_.train_cutoff:]], test
+            else:
+                return predicted[self.train_indexes[self.rf.estimator_.train_cutoff:]], test.reshape((test.shape[0], test.shape[2]))
         else:
-            return predicted[self.test_indexes], test.reshape((test.shape[0], test.shape[2]))
+            test = self.rf.estimator_.y_test
+            if self.estimator=='ridge':
+                return predicted[self.test_indexes], test
+            else:
+                return predicted[self.test_indexes], test.reshape((test.shape[0], test.shape[2]))
+        
 
 #====================#    
 #=== OTHER MODELS ===#
