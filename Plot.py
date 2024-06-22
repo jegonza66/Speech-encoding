@@ -29,6 +29,9 @@ matplotlib_colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purp
 import funciones, setup
 exp_info = setup.exp_info()
 
+# ===============
+# FIGURES OF MAIN
+
 # TODO CHECK DESCRIPTION
 def phonemes_ocurrences(ocurrences:dict, 
                         save_path:str,
@@ -78,7 +81,7 @@ def phonemes_ocurrences(ocurrences:dict,
         data = pd.DataFrame(data=relevant_data, columns = ['Ocurrences', 'Sesion', 'Labels'])
         
         # Make plot
-        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12,6))
+        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12,6), tight_layout=True)
         
         # Usual boxplot
         sns.boxplot(x='Labels', y='Ocurrences', data=data, ax=ax)
@@ -1091,7 +1094,10 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
         # Graph properties
         ax.legend()
         ax.grid(visible=True)
-        ax.set(xlabel='')
+        if feat.startswith('Phoneme') or feat.startswith('Spectro'):
+            ax.set(xlabel='')
+        else:
+            ax.set(xlabel='Time (ms)')
 
         if feat.startswith('Phoneme') or feat.startswith('Spectro'):
             if feat.startswith('Spectro'):
@@ -1568,6 +1574,88 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
         os.makedirs(save_path, exist_ok=True)
         fig.savefig(save_path + f'pvalue_{feat.lower()}_{pval_tresh}.svg')
         fig.savefig(save_path + f'pvalue_{feat.lower()}_{pval_tresh}.png')
+
+# =====================
+# FIGURES OF VALIDATION
+
+def hyperparameter_selection(alphas_swept:np.ndarray,
+                             correlations:np.ndarray,
+                             correlations_std:np.ndarray,
+                             alpha_subject:float,
+                             correlation_limit_percentage:float,
+                             session:int, 
+                             subject:int,
+                             stim:str,
+                             band:str,
+                             save_path:str, 
+                             no_figures:bool=False,
+                             save:bool=False):
+    """_summary_
+
+    Parameters
+    ----------
+    alphas_swept : np.ndarray
+        _description_
+    correlations : np.ndarray
+        _description_
+    correlations_std : np.ndarray
+        _description_
+    alpha_subject : float
+        _description_
+    correlation_limit_percentage : float
+        _description_
+    session : int
+        _description_
+    subject : int
+        _description_
+    stim : str
+        _description_
+    band : str
+        _description_
+    save_path : str
+        _description_
+    no_figures : bool, optional
+        _description_, by default False
+    save : bool, optional
+        _description_, by default False
+    """
+    # Exit function
+    if no_figures:
+        return
+    
+    # Create figure and plot
+    fig, ax = plt.subplots(figsize=(12,5), tight_layout=True)
+    fig.suptitle(f'{band} - {stim}')
+    
+    # Plot alphas vs correlations as dots with errorbars
+    ax.plot(alphas_swept, correlations, 'o--')
+    ax.errorbar(alphas_swept, correlations, yerr=correlations_std, fmt='none', ecolor='black',elinewidth=0.5, capsize=0.5)
+    
+    # Make vlines for maximumu correlation and selected alpha
+    ax.vlines(alphas_swept[correlations.argmax()], ax.get_ylim()[0], ax.get_ylim()[1], linestyle='dashed',
+            color='black', linewidth=1.5, label='Maximum correlation')
+    ax.vlines(alpha_subject, ax.get_ylim()[0], ax.get_ylim()[1], linestyle='dashed', color='red',
+            linewidth=1.5, label='Selected value')
+
+    # Find relevant range within correlation_limit_percentage
+    relative_difference = abs((correlations.max() - correlations)/correlations.max())
+    good_indexes_range = np.where(relative_difference < correlation_limit_percentage)[0]    
+    
+    # Make green box of range within correlation_limit_percentage
+    if good_indexes_range.size > 1:
+        ax.axvspan(alphas_swept[good_indexes_range[0]], alphas_swept[good_indexes_range[-1]], alpha=0.4, color='green',
+                    label=f'{int(correlation_limit_percentage*100)}% of maximum correlation')
+    
+    # Axes parameters
+    ax.set(xlabel=r'Ridge parameter $\alpha$', ylabel='Mean correlation', xscale='log')
+    ax.grid(visible=True)
+    ax.legend()
+
+    if save:
+        save_alpha = save_path + f'band_{band}/stim_{stim}/'
+        os.makedirs(save_alpha, exist_ok=True)
+        plt.savefig(save_alpha + f'session_{session}_subject_{subject}.png')
+        plt.savefig(save_alpha + f'session_{session}_subject_{subject}.svg')
 
 ##############################################################
 #TODO CHECK DESCRIPTION E Y LABEL
