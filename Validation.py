@@ -1,206 +1,214 @@
-import matplotlib.pyplot as plt
-import numpy as np
-import os
-import pickle
-from sklearn.model_selection import KFold
-import Load
-import Models
-import Processing
+# Standard libraries
+import numpy as np, os
+from datetime import datetime
 
-Display_figures_Trace = False
-Save_figures_Trace = True
+# Specific libraries
+from sklearn.model_selection import KFold
+
+# Modules
+from funciones  import load_pickle, dump_pickle
+from mtrf_models import Receptive_field_adaptation
+from plot import hyperparameter_selection
+from load import load_data
+
+# Notofication bot
+from labos.notificacion_bot import mensaje_tel
+api_token, chat_id = '5448153732:AAGhKraJQquEqMfpD3cb4rnTcrKB6U1ViMA', 1034347542
+     
+start_time = datetime.now()
+
+# Stimuli, EEG frecuency band and dialogue situation
+stimuli = ['Envelope']
+bands = ['Theta']
+situation = 'Escucha'
+
+# Run setup
+sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
+
+# EEG sample rate
+sr = 128
+
+# Run times
+tmin, tmax = -.2, .6
+delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
+times = (delays/sr)
+
+# Save figures
+no_figures = False
+save_figures = True
 save_alphas = True
 
-Stims = ['Phonemes-discrete', 'Phonemes-onset']
-Bands = ['Theta']
+# Model, estimator and normalization of input
+estimator = 'time_delaying_ridge'
+model = 'mtrf'
+stims_preprocess = 'Normalize'
+eeg_preprocess = 'Standarize'
 
-Corr_limit = 0.01
+# Make k-fold test with 5 folds (remain 20% as validation set, then interchange to cross validate)
+n_folds = 5
 
-alphas_fname = 'saves/Alphas/Alphas_Corr{}_ph.pkl'.format(Corr_limit)
-
+# Preset alpha (penalization pararameter)
+correlation_limit_percentage = 0.01
+alphas_path = f'saves/Alphas/{situation}/stims_{stims_preprocess}/eeg_{eeg_preprocess}/'
 try:
-    f = open(alphas_fname, 'rb')
-    Alphas = pickle.load(f)
-    f.close()
+    alphas = load_pickle(path=alphas_path+f'Alphas_corr_limit_{correlation_limit_percentage}.pkl')
 except:
-    Alphas = {}
+    alphas = {}
+
+# Make gridsearch sweep
+min_order, max_order, steps = -1, 6, 16 #32
+alphas_swept = np.logspace(min_order, max_order, steps)
+alpha_step = np.diff(np.log(alphas_swept))[0]
+
 
 # DEFINO PARAMETROS
-for Band in Bands:
-    print('\n\n{}'.format(Band))
-    try:
-        Alphas_Band = Alphas[Band]
-    except:
-        Alphas_Band = {}
-
-    for stim in Stims:
-        print('\n\n' + stim + '\n')
+for band in bands:
+    for stim in stimuli:
+        ordered_stims, ordered_band = sorted(stim.split('_')), sorted(band.split('_'))
+        stim, band = '_'.join(ordered_stims), '_'.join(ordered_band)
+        
+        # Update
+        print('\n===========================\n','\tPARAMETERS\n\n','Model: ' + model+'\n','Band: ' + str(band)+'\n','Stimulus: ' + stim+'\n','Status: ' + situation+'\n',f'Time interval: ({tmin},{tmax})s\n','\n===========================\n')
+        
+        # Try to access alphas 
         try:
-            Alphas_Stim = Alphas[Band][stim]
-        except:
-            Alphas_Stim = {}
-
-        # Defino situacion de interes
-        situacion = 'Escucha'
-        # Defino estandarizacion
-        Stims_preprocess = 'Normalize'
-        EEG_preprocess = 'Standarize'
-        # Defino tiempos
-        sr = 128
-        n_canales = 128
-        tmin, tmax = -0.6, 0
-        delays = - np.arange(np.floor(tmin * sr), np.ceil(tmax * sr), dtype=int)
-        times = np.linspace(delays[0] * np.sign(tmin) * 1 / sr, np.abs(delays[-1]) * np.sign(tmax) * 1 / sr,
-                            len(delays))
-
-        # Paths
-        procesed_data_path = 'saves/Preprocesed_Data/tmin{}_tmax{}/'.format(tmin, tmax)
-        Run_graficos_path = 'gráficos/Ridge_Trace_{}/Stims_{}_EEG_{}/tmin{}_tmax{}/'.format(Corr_limit, Stims_preprocess,
-                                                                                            EEG_preprocess, tmin, tmax)
-
-        min_busqueda, max_busqueda = -1, 6
-        pasos = 32
-        alphas_swept = np.logspace(min_busqueda, max_busqueda, pasos)
-        alpha_step = np.diff(np.log(alphas_swept))[0]
-
-        sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
-        # Empiezo corrida
-        sujeto_total = 0
-        for sesion in sesiones:
-            print('Sesion {}'.format(sesion))
+            alphas_band = alphas[band]
             try:
-                Alphas_Sesion = Alphas[Band][stim][sesion]
+                alphas_stim = alphas_band[stim]
             except:
-                Alphas_Sesion = {}
+                alphas_stim = {}
+        except:
+            alphas_band = {}
+            alphas_stim = {}
+        
+        # Create relevant paths
+        procesed_data_path = f'saves/Preprocesed_Data/tmin{tmin}_tmax{tmax}/'
+        figures_path = f'figures/{model}_trace/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}_band_{band}/'
+       
+        # Iterate over sessions
+        for sesion in sesiones:
+            print(f'\n\n------->\tStart of session {sesion}\n')
 
-            # LOAD DATA BY SUBJECT
-            Sujeto_1, Sujeto_2 = Load.Load_Data(sesion=sesion, stim=stim, Band=Band, sr=sr, tmin=tmin, tmax=tmax,
-                                                    procesed_data_path=procesed_data_path)
+            try:
+                alphas_sesion = alphas_stim[sesion]
+            except:
+                alphas_sesion = {}
 
-            # LOAD EEG BY SUBJECT
-            eeg_sujeto_1, eeg_sujeto_2, info = Sujeto_1['EEG'], Sujeto_2['EEG'], Sujeto_1['info']
+            # Load data by subject, EEG and info
+            sujeto_1, sujeto_2, samples_info = load_data(sesion=sesion,
+                                                         stim=stim,
+                                                         band=band,
+                                                         sr=sr,
+                                                         delays=delays,
+                                                         procesed_data_path=procesed_data_path,
+                                                         situation=situation,
+                                                         silence_threshold=0.03)
+            eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
 
-            # LOAD STIMULUS BY SUBJECT
-            dstims_para_sujeto_1, dstims_para_sujeto_2 = Load.Estimulos(stim=stim, Sujeto_1=Sujeto_1,
-                                                                            Sujeto_2=Sujeto_2)
-            Len_Estimulos = [len(dstims_para_sujeto_1[i][0]) for i in range(len(dstims_para_sujeto_1))]
+            # Load stimuli by subject (i.e: concatenated stimuli features)
+            stims_sujeto_1 = np.hstack([sujeto_1[stimulus] for stimulus in stim.split('_')]) 
+            stims_sujeto_2 = np.hstack([sujeto_2[stimulus] for stimulus in stim.split('_')])
+            n_feats = [sujeto_1[stimulus].shape[1] for stimulus in stim.split('_')]
+            delayed_length_per_stimuli = [n_feat*len(delays) for n_feat in n_feats]
 
-            for sujeto, eeg, dstims in zip((1, 2), (eeg_sujeto_1, eeg_sujeto_2),
-                                           (dstims_para_sujeto_1, dstims_para_sujeto_2)):
-                # for sujeto, eeg, dstims in zip([2], [eeg_sujeto_2], [dstims_para_sujeto_2]):
-                print('Sujeto {}'.format(sujeto))
-                # Separo los datos en 5 y tomo test set de 20% de datos con kfold (5 iteraciones)
-                n_splits = 5
+            # Get relevant indexes
+            relevant_indexes_1 = samples_info['keep_indexes1'].copy()
+            relevant_indexes_2 = samples_info['keep_indexes2'].copy()
 
-                Standarized_Betas = np.zeros(len(alphas_swept))
-                Correlaciones = np.zeros(len(alphas_swept))
-                Std_Corr = np.zeros(len(alphas_swept))
-                Errores = np.zeros(len(alphas_swept))
+            for subject, eeg, stims, relevant_indexes in zip((1, 2), (eeg_sujeto_1, eeg_sujeto_2), (stims_sujeto_1, stims_sujeto_2), (relevant_indexes_1, relevant_indexes_2)):
+                print(f'\n\n\t······  Running model for Subject {subject}\n')
 
-                for alpha_num, alpha in enumerate(alphas_swept):
-                    # print('Alpha: {}'.format(alpha))
+                standarized_betas = np.zeros(len(alphas_swept))
+                errors = np.zeros(len(alphas_swept))
+                correlations = np.zeros(len(alphas_swept))
+                correlations_std = np.zeros(len(alphas_swept))
+                
+                # Make sweep
+                for i_alpha, alpha in enumerate(alphas_swept):
+                    # Initialize empty variables to store relevant data of each fold in each alpha
+                    weights_per_fold = np.zeros((n_folds, info['nchan'], np.sum(n_feats), len(delays)), dtype=np.float16)
+                    correlation_per_channel = np.zeros((n_folds, info['nchan']))
+                    rmse_per_channel = np.zeros((n_folds, info['nchan']))
 
-                    # Defino variables donde voy a guardar cosas para el alpha
-                    Pesos_ronda_canales = np.zeros((n_splits, info['nchan'], sum(Len_Estimulos)))
-                    Corr_buenas_ronda_canal = np.zeros((n_splits, info['nchan']))
-                    Rmse_buenos_ronda_canal = np.zeros((n_splits, info['nchan']))
+                    # Make the Kfold test
+                    kf_test = KFold(n_folds, shuffle=False)
 
-                    # Empiezo el KFold de test
-                    kf_test = KFold(n_splits, shuffle=False)
-                    for fold, (train_val_index, test_index) in enumerate(kf_test.split(eeg)):
-                        # Take train and validation sets
-                        eeg_train_val = eeg[train_val_index]
-                        dstims_train_val = list()
-                        for stimulus in list(dstims):
-                            dstims_train_val.append(stimulus[train_val_index])
+                    # Keep relevant indexes for eeg
+                    relevant_eeg = eeg[relevant_indexes]
 
-                        train_percent = 0.8
-                        eeg_train = eeg_train_val[:int(train_percent * len(eeg_train_val))]
-                        eeg_val = eeg_train_val[int(train_percent * len(eeg_train_val)):]
+                    for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
+                        # print(f'\n\t\t······  [{fold+1}/{n_folds}]')
 
-                        dstims_train = list()
-                        dstims_val = list()
+                        # Determine wether to run the model in parallel or not
+                        n_jobs=-1 if sum(n_feats)>1 else 1
+                        
+                        # Implement mne model
+                        mtrf = Receptive_field_adaptation(
+                            tmin=tmin, 
+                            tmax=tmax, 
+                            sample_rate=sr, 
+                            alpha=alpha, 
+                            relevant_indexes=np.array(relevant_indexes),
+                            train_indexes=train_indexes, 
+                            test_indexes=test_indexes, 
+                            stims_preprocess=stims_preprocess, 
+                            eeg_preprocess=eeg_preprocess,
+                            fit_intercept=False,
+                            n_jobs=n_jobs, 
+                            estimator=estimator,
+                            validation=True)
+                        
+                        # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
+                        mtrf.fit(stims, eeg)
+                        
+                        # Get weights coefficients shape n_chans, feats, delays
+                        weights_per_fold[fold] = mtrf.coefs
+                        
+                        # Predict and save
+                        predicted, eeg_val = mtrf.predict(stims)
 
-                        for stimulus in list(dstims_train_val):
-                            dstims_train.append(stimulus[:int(train_percent * len(eeg_train_val))])
-                            dstims_val.append(stimulus[int(train_percent * len(eeg_train_val)):])
+                        # Calculates and saves correlation of each channel
+                        correlation_matrix = np.array([np.corrcoef(eeg_val[:, j], predicted[:, j])[0,1] for j in range(eeg_val.shape[1])])
+                        correlation_per_channel[fold] = correlation_matrix
 
-                        axis = 0
-                        porcent = 5
-                        eeg_train, eeg_val, dstims_train, dstims_val = \
-                            Processing.standarize_normalize(eeg_train, eeg_val, dstims_train, dstims_val,
-                                                            Stims_preprocess, EEG_preprocess, axis=0, porcent=5)
+                        # Calculates and saves root mean square error of each channel
+                        root_mean_square_error = np.array(np.sqrt(np.power((predicted - eeg_val), 2).mean(0)))
+                        rmse_per_channel[fold] = root_mean_square_error
 
-                        # Ajusto el modelo y guardo
-                        Model = Models.Ridge(alpha)
-                        Model.fit(dstims_train, eeg_train)
-                        Pesos_ronda_canales[fold] = Model.coefs
+                    correlations[i_alpha] = correlation_per_channel.mean()
+                    correlations_std[i_alpha] = correlation_per_channel.std()
+                    print(f'\r·················· Sweeping progress  {int((i_alpha + 1) * 100 / steps)}% ··················', end='')
+                
+                # Find all indexes where the relative difference between the correlation and its maximum is within corr_limit_percent
+                relative_difference = abs((correlations.max() - correlations)/correlations.max())
+                good_indexes_range = np.where(relative_difference < correlation_limit_percentage)[0]
 
-                        # Predigo en val set y guardo
-                        predicted = Model.predict(dstims_val)
+                # Get the very last one, because the greater the alpha, the smoothest the signal gets
+                alpha_index = good_indexes_range[-1]
+                alpha_subject = alphas_swept[int(alpha_index)]
 
-                        # Calculo Correlacion y guardo
-                        Rcorr = np.array(
-                            [np.corrcoef(eeg_val[:, ii].ravel(), np.array(predicted[:, ii]).ravel())[0, 1] for ii in
-                             range(eeg_val.shape[1])])
-                        Corr_buenas_ronda_canal[fold] = Rcorr
+                # Make the alpha selection process plot
+                hyperparameter_selection(alphas_swept=alphas_swept,correlations=correlations, correlations_std=correlations_std, alpha_subject=alpha_subject,
+                                         correlation_limit_percentage=correlation_limit_percentage, session=sesion, subject=subject, stim=stim, band=band, 
+                                         save_path=figures_path, save=save_figures, no_figures=no_figures)
+                
+                # Update dictionary
+                alphas_sesion[subject] = alpha_subject
+            alphas_stim[sesion] = alphas_sesion
+        alphas_band[stim] = alphas_stim
+    alphas[band] = alphas_band
 
-                        # Calculo Error y guardo
-                        Rmse = np.array(np.sqrt(np.power((predicted - eeg_val), 2).mean(0)))
-                        Rmse_buenos_ronda_canal[fold] = Rmse
+# Save results
+os.makedirs(name=alphas_path, exist_ok=True)
+if save_alphas:
+    dump_pickle(path=alphas_path+f'Alphas_corr_limit_{correlation_limit_percentage}', obj=alphas, rewrite=True)
 
-                    Correlaciones[alpha_num] = Corr_buenas_ronda_canal.mean()
-                    Std_Corr[alpha_num] = Corr_buenas_ronda_canal.std()
+# Get run time            
+run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
+text = f'PARAMETERS  \nModel: ' + model +f'\nBands: {bands}'+'\nStimuli: ' + f'{stimuli}'+'\nStatus: ' +situation+f'\nTime interval: ({tmin},{tmax})s'
+text += '\n\n\talpha selection'
+text += f'\n\n\t\t RUN TIME \n\n\t\t{run_time} hours'
+print(text)
 
-                    print("\rProgress: {}%".format(int((alpha_num + 1) * 100 / pasos)), end='')
-                print("\n")
-
-                Corr_range = np.where(abs(Correlaciones.max() - Correlaciones) < abs(Correlaciones.max() * Corr_limit))[0]
-
-                alpha_index = Corr_range[-1]
-                Alpha_Sujeto = alphas_swept[int(alpha_index)]
-                Info_sujeto = 'MAX_CORR'
-
-                if Display_figures_Trace:
-                    plt.ion()
-                else:
-                    plt.ioff()
-
-                fig, ax = plt.subplots(figsize=(12,5))
-                fig.suptitle('{} - {}'.format(Band, stim))
-                plt.xlabel('Ridge Parameter')
-                plt.xscale('log')
-
-                ax.set_ylabel('Mean Correlation')
-                ax.plot(alphas_swept, Correlaciones, 'o--')
-                ax.errorbar(alphas_swept, Correlaciones, yerr=Std_Corr, fmt='none', ecolor='black',
-                                elinewidth=0.5, capsize=0.5)
-                ax.vlines(alphas_swept[Correlaciones.argmax()], ax.get_ylim()[0], ax.get_ylim()[1], linestyle='dashed',
-                          color='black', linewidth=1.5, label='Max. Correlation')
-                ax.vlines(Alpha_Sujeto, ax.get_ylim()[0], ax.get_ylim()[1], linestyle='dashed', color='red',
-                          linewidth=1.5, label='Selected value')
-                if Corr_range.size > 1:
-                    ax.axvspan(alphas_swept[Corr_range[0]], alphas_swept[Corr_range[-1]], alpha=0.4, color='green',
-                                   label='{}% Max. Correlation'.format(int(Corr_limit*100)))
-                ax.grid()
-                ax.legend()
-
-                fig.tight_layout()
-
-                if Save_figures_Trace:
-                    save_path = Run_graficos_path + 'Band_{}/Stim_{}/'.format(Band, stim)
-                    os.makedirs(save_path, exist_ok=True)
-                    plt.savefig(save_path + 'Sesion_{}_Sujeto_{}.png'.format(sesion, sujeto))
-
-                Alphas_Sesion[sujeto] = Alpha_Sujeto
-            Alphas_Stim[sesion] = Alphas_Sesion
-        Alphas_Band[stim] = Alphas_Stim
-        Alphas[Band] = Alphas_Band
-
-        # Save Alphas
-        if save_alphas:
-            f = open(alphas_fname, 'wb')
-            pickle.dump(Alphas, f)
-            f.close()
-
-
+# Send text to telegram bot
+mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=text)

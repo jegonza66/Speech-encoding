@@ -1,166 +1,192 @@
-import os
-import pickle
-import numpy as np
-from sklearn.model_selection import KFold
+# Standard libraries
+import os, numpy as np
 from datetime import datetime
 
-import Load
-import Models
-import Processing
-import Statistics
+# Specific libraries
+from sklearn.model_selection import KFold
 
+# Modules
+from funciones import load_pickle, dump_pickle
+from simulations import simulation_mtrf
+from load import load_data
 
-startTime = datetime.now()
+# Notofication bot
+from labos.notificacion_bot import mensaje_tel
+api_token, chat_id = '5448153732:AAGhKraJQquEqMfpD3cb4rnTcrKB6U1ViMA', 1034347542
 
-# Define Parameters
-tmin, tmax = -0.4, 0.2
+start_time = datetime.now()
+
+# ==========
+# PARAMETERS
+# ==========
+
+# Run setup
+sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
+
+# EEG sample rate
 sr = 128
-n_folds = 5
-delays = - np.arange(np.floor(tmin * sr), np.ceil(tmax * sr), dtype=int)
-times = np.linspace(delays[0] * np.sign(tmin) * 1 / sr, np.abs(delays[-1]) * np.sign(tmax) * 1 / sr, len(delays))
-situacion = 'Escucha'
-# Model parameters
-model = 'Decoding'
 
-if model == 'Ridge':
-    iteraciones = 3000
+# Run times
+tmin, tmax = -.2, .6
+delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
+times = (delays/sr)
 
-elif model == 'Decoding':
-    iteraciones = 200
-    Max_t_lags_fname = 'saves/Decoding_t_lag/{}/Final_Correlation/tmin{}_tmax{}/Max_t_lags.pkl'.format(situacion, tmin,
-                                                                                                       tmax)
-    try:
-        f = open(Max_t_lags_fname, 'rb')
-        Max_t_lags = pickle.load(f)
-        f.close()
-    except:
-        print('\n\nMean_Correlations file not found\n\n')
-        Max_t_lags = {}
+# Stimuli, EEG frecuency band and dialogue situation
+stimuli = ['Envelope']
+bands = ['Theta']#['Alpha', 'Beta_1', 'All']
+situation = 'Escucha'
 
-# Stimuli and EEG
-Stims = ['Envelope']
-Bands = ['Alpha', 'Beta_1', 'All']
+# Model and normalization of input
+stims_preprocess = 'Normalize'
+eeg_preprocess = 'Standarize'
+model = 'mtrf'
 
-# Standarization
-Stims_preprocess = 'Normalize'
-EEG_preprocess = 'Standarize'
-
-# Model
-Corr_limit = 0.01
-alphas_fname = 'saves/Alphas/Alphas_Corr{}.pkl'.format(Corr_limit)
+# Preset alpha (penalization parameter)
+alpha_correlation_limit = 0.01
+default_alpha = 1000
+alphas_fname = f'saves/alphas/alphas_corr{alpha_correlation_limit}.pkl'
 try:
-    f = open(alphas_fname, 'rb')
-    Alphas = pickle.load(f)
-    f.close()
+    alphas = load_pickle(path=alphas_fname)
 except:
     print('\n\nAlphas file not found.\n\n')
 
-for Band in Bands:
-    for stim in Stims:
-        print('\nModel: ' + model)
-        print('Band: ' + Band)
-        print('Stimulus: ' + stim)
-        print('Status: ' + situacion)
-        print('tmin: {} - tmax: {}'.format(tmin, tmax))
-        # Paths
-        procesed_data_path = 'saves/Preprocesed_Data/tmin{}_tmax{}/'.format(tmin, tmax)
-        Path_it = 'saves/{}/{}/Fake_it/Stims_{}_EEG_{}/tmin{}_tmax{}/Stim_{}_EEG_Band_{}/'.format(
-            model, situacion, Stims_preprocess, EEG_preprocess, tmin, tmax, stim, Band)
+# Number of folds and iterations
+iterations = 5
+n_folds = 5
 
-        # Start Run
-        sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
-        sujeto_total = 0
+# if model == 'Decoding':
+#     t_lags_fname = f'saves/mtrf/Decoding_t_lag/{situation}/Final_Correlation/tmin{tmin}_tmax{tmax}/Max_t_lags.pkl'
+#     try:
+#         t_lags = load_pickle(path=t_lags_fname)
+#     except:
+#         print('\n\nMean_Correlations file not found\n\n')
+#         t_lags = {}
+
+# ============
+# RUN ANALYSIS
+# ============
+just_load_data = False
+
+for band in bands:
+    for stim in stimuli:
+        ordered_stims, ordered_band = sorted(stim.split('_')), sorted(band.split('_'))
+        stim, band = '_'.join(ordered_stims), '_'.join(ordered_band)
+
+        # Update
+        print('\n===========================\n','\tPARAMETERS\n\n','Model: ' + model+'\n','Band: ' + str(band)+'\n','Stimulus: ' + stim+'\n','Status: ' + situation+'\n',f'Time interval: ({tmin},{tmax})s\n','\n===========================\n')
+        
+        # Relevant paths
+        procesed_data_path = f'saves/Preprocesed_Data/tmin{tmin}_tmax{tmax}/'
+        path_null = f'saves/{model}/{situation}/null/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'
+
+        # Iterate over sessions
         for sesion in sesiones:
-            print('\nSesion {}'.format(sesion))
-            # LOAD DATA BY SUBJECT
-            Sujeto_1, Sujeto_2 = Load.Load_Data(sesion=sesion, stim=stim, Band=Band, sr=sr, tmin=tmin, tmax=tmax,
-                                                    procesed_data_path=procesed_data_path, situacion=situacion)
-            # LOAD EEG BY SUBJECT
-            eeg_sujeto_1, eeg_sujeto_2, info = Sujeto_1['EEG'], Sujeto_2['EEG'], Sujeto_1['info']
+            print(f'\n------->\tStart of session {sesion}\n')
+            
+            # Load data by subject, EEG and info
+            sujeto_1, sujeto_2, samples_info = load_data(sesion=sesion,
+                                                              stim=stim,
+                                                              band=band,
+                                                              sr=sr,
+                                                              delays=delays,
+                                                              procesed_data_path=procesed_data_path,
+                                                              situation=situation,
+                                                              silence_threshold=0.03)
+            eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
 
-            # LOAD STIMULUS BY SUBJECT
-            dstims_para_sujeto_1, dstims_para_sujeto_2 = Load.Estimulos(stim=stim, Sujeto_1=Sujeto_1, Sujeto_2=Sujeto_2)
-            Len_Estimulos = [len(dstims_para_sujeto_1[i][0]) for i in range(len(dstims_para_sujeto_1))]
+            if just_load_data:
+                continue
 
-            # Defino variables donde voy a guardar mil cosas
-            if model == 'Ridge':
-                Pesos_fake = np.zeros((n_folds, iteraciones, info['nchan'], sum(Len_Estimulos)),
-                                      dtype=np.float16)
-                Correlaciones_fake = np.zeros((n_folds, iteraciones, info['nchan']))
-                Errores_fake = np.zeros((n_folds, iteraciones, info['nchan']))
+            # Load stimuli by subject (i.e: concatenated stimuli features)
+            stims_sujeto_1 = np.hstack([sujeto_1[stimulus] for stimulus in stim.split('_')]) 
+            stims_sujeto_2 = np.hstack([sujeto_2[stimulus] for stimulus in stim.split('_')])
+            n_feats = [sujeto_1[stimulus].shape[1] for stimulus in stim.split('_')]
+            delayed_length_per_stimuli = [n_feat*len(delays) for n_feat in n_feats]
 
-            elif model == 'Decoding':
-                Pesos_fake = np.zeros((n_folds, iteraciones, info['nchan'], sum(Len_Estimulos)),
-                                      dtype=np.float16)
-                Patterns_fake = np.zeros((n_folds, iteraciones, info['nchan'], sum(Len_Estimulos)),
-                                         dtype=np.float16)
-                Correlaciones_fake = np.zeros((n_folds, iteraciones))
-                Errores_fake = np.zeros((n_folds, iteraciones))
+            # Get relevant indexes
+            relevant_indexes_1 = samples_info['keep_indexes1'].copy()
+            relevant_indexes_2 = samples_info['keep_indexes2'].copy()
 
-            for sujeto, eeg, dstims in zip((1, 2), (eeg_sujeto_1, eeg_sujeto_2),
-                                           (dstims_para_sujeto_1, dstims_para_sujeto_2)):
-                # for sujeto, eeg, dstims in zip([2], [eeg_sujeto_2], [dstims_para_sujeto_2]):
-                print('Sujeto {}'.format(sujeto))
-                # Separo los datos en 5 y tomo test set de 20% de datos con kfold (5 iteraciones)
-                n_folds = 5
+            # Initialize empty variables to store relevant data of each fold 
+            null_weights_per_fold = np.zeros((n_folds, iterations, info['nchan'], np.sum(n_feats), len(delays)), dtype=np.float16)
+            null_correlation_per_channel_per_fold = np.zeros((n_folds, iterations, info['nchan']))
+            null_errors_per_fold = np.zeros((n_folds, iterations, info['nchan']))
 
-                # Empiezo el KFold de test
+            # if model == 'decoding':
+            #     null_patterns = np.zeros((n_folds, iterations, info['nchan'], sum(delayed_length_per_stimuli)), dtype=np.float16)
+
+            # Run model for each subject
+            for sujeto, eeg, stims, relevant_indexes in zip((1, 2), (eeg_sujeto_1, eeg_sujeto_2), (stims_sujeto_1, stims_sujeto_2), (relevant_indexes_1, relevant_indexes_2)):
+                print(f'\n\t······  Running permutations for Subject {sujeto}\n')
+                
+                # Set alpha for specific subject
+                try:
+                    alpha = alphas[band][stim][sesion][sujeto]
+                except:
+                    alpha = default_alpha
+            
+                # Make k-fold test with 5 folds (remain 20% as validation set, then interchange to cross validate)
                 kf_test = KFold(n_folds, shuffle=False)
-                for fold, (train_val_index, test_index) in enumerate(kf_test.split(eeg)):
-                    eeg_train_val, eeg_test = eeg[train_val_index], eeg[test_index]
+                
+                # Keep relevant indexes for eeg
+                relevant_eeg = eeg[relevant_indexes]
 
-                    dstims_train_val = list()
-                    dstims_test = list()
+                for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
+                    print(f'\n\t······  [{fold+1}/{n_folds}]')
 
-                    for stimulus in list(dstims):
-                        dstims_train_val.append(stimulus[train_val_index])
-                        dstims_test.append(stimulus[test_index])
+                    # Determine wether to run the model in parallel or not
+                    n_jobs=-1 if sum(n_feats)>1 else 1
 
-                    axis = 0
-                    porcent = 5
-                    eeg_train_val, eeg_test, dstims_train_val, dstims_test = Processing.standarize_normalize(
-                        eeg_train_val, eeg_test, dstims_train_val,
-                        dstims_test,
-                        Stims_preprocess,
-                        EEG_preprocess,
-                        axis, porcent)
-                    try:
-                        alpha = Alphas[Band][stim][sesion][sujeto]
-                    except:
-                        alpha = 1000
-                        print('Alpha missing. Ussing default value: {}'.format(alpha))
-
-                    # Run_permutations:
-                    if model == 'Ridge':
-                        Fake_Model = Models.Ridge(alpha)
-                        Pesos_fake, Correlaciones_fake, Errores_fake = \
-                            Statistics.simular_iteraciones_Ridge(Fake_Model, iteraciones, sesion, sujeto, fold,
-                                                                   dstims_train_val, eeg_train_val, dstims_test,
-                                                                   eeg_test, Pesos_fake, Correlaciones_fake,
-                                                                   Errores_fake)
-                    elif model == 'Decoding':
-                        t_lag = np.where(times == Max_t_lags[Band])[0][0]
-                        Fake_Model = Models.mne_mtrf_decoding(tmin, tmax, sr, info, alpha, t_lag)
-                        Pesos_fake, Patterns_fake, Correlaciones_fake, Errores_fake = \
-                            Statistics.simular_iteraciones_decoding(Fake_Model, iteraciones, sesion, sujeto, fold,
-                                                                   dstims_train_val, eeg_train_val, dstims_test,
-                                                                   eeg_test, Pesos_fake, Patterns_fake, Correlaciones_fake,
-                                                                   Errores_fake)
+                    # Run permutations # TODO parallelize it
+                    null_weights_per_fold, null_correlation_per_channel_per_fold, null_errors_per_fold = simulation_mtrf(
+                        iterations=iterations,
+                        fold=fold,
+                        stims=stims,
+                        eeg=eeg,
+                        sr=sr,
+                        tmin=tmin,
+                        tmax=tmax,
+                        relevant_indexes=relevant_indexes,
+                        alpha=alpha,
+                        train_indexes=train_indexes,
+                        test_indexes=test_indexes,
+                        stims_preprocess=stims_preprocess,
+                        eeg_preprocess=eeg_preprocess,
+                        null_correlation=null_correlation_per_channel_per_fold,
+                        null_weights=null_weights_per_fold,
+                        null_errors=null_errors_per_fold, 
+                        n_jobs=n_jobs)
+                    # if model == 'decoding':
+                    #     t_lag = np.where(times == t_lags[band])[0][0]
+                    #     Fake_Model = mtrf_models.mne_mtrf_decoding(tmin, tmax, sr, info, alpha, t_lag)
+                    #     Pesos_fake, Patterns_fake, Correlaciones_fake, Errores_fake = \
+                    #         processing.simular_iteraciones_decoding(Fake_Model, iteraciones, sesion, sujeto, fold,
+                    #                                                dstims_train_val, eeg_train_val, dstims_test,
+                    #                                                eeg_test, Pesos_fake, Patterns_fake, Correlaciones_fake,
+                    #                                                Errores_fake)
 
                 # Save permutations
-                os.makedirs(Path_it, exist_ok=True)
-                f = open(Path_it + 'Corr_Rmse_fake_Sesion{}_Sujeto{}.pkl'.format(sesion, sujeto), 'wb')
-                pickle.dump([Correlaciones_fake, Errores_fake], f)
-                f.close()
+                os.makedirs(path_null, exist_ok=True)
+                dump_pickle(path=path_null+ f'Corr_Rmse_fake_Sesion{sesion}_Sujeto{sujeto}.pkl',
+                                        obj=(null_correlation_per_channel_per_fold, null_errors_per_fold),
+                                        rewrite=True)
+                dump_pickle(path=path_null+ f'Pesos_fake_Sesion{sesion}_Sujeto{sujeto}.pkl',
+                                        obj=null_weights_per_fold.mean(axis=0),
+                                        rewrite=True)
 
-                f = open(Path_it + 'Pesos_fake_Sesion{}_Sujeto{}.pkl'.format(sesion, sujeto), 'wb')
-                pickle.dump(Pesos_fake.mean(0), f)
-                f.close()
+                # if model == 'Decoding':
+                #     dump_pickle(path=path_null + f'Patterns_fake_Sesion{sesion}_Sujeto{sujeto}.pkl',
+                #                       obj=Patterns_fake.mean(axis=0),
+                #                       rewrite=True)
+                print(f'\n\t······  Run permutations for Subject {sujeto}\n')
 
-                if model == 'Decoding':
-                    f = open(Path_it + 'Patterns_fake_Sesion{}_Sujeto{}.pkl'.format(sesion, sujeto), 'wb')
-                    pickle.dump(Patterns_fake.mean(0), f)
-                    f.close()
+# Get run time            
+run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
+text = f'PARAMETERS  \nPermutation Model: ' + model +f'\nBands: {bands}'+'\nStimuli: ' + f'{stimuli}'+'\nStatus: ' +situation+f'\nTime interval: ({tmin},{tmax})s'
+if just_load_data:
+    text += '\n\n\tJUST LOADING DATA'
+text += f'\n\n\t\t RUN TIME \n\n\t\t{run_time} hours'
+print(text)
 
-print('\n')
-print(datetime.now() - startTime)
+# Send text to telegram bot
+mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=text)
