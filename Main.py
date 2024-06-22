@@ -6,12 +6,12 @@ from datetime import datetime
 from sklearn.model_selection import KFold
 
 # Modules
-import plot
+from funciones  import load_pickle, dump_pickle, iteration_percentage
 from mtrf_models import Receptive_field_adaptation
 from load import load_data
-from funciones  import load_pickle, dump_pickle, iteration_percentage
 from processing import tfce
 from setup import exp_info
+import plot
 
 # Notofication bot
 from labos.notificacion_bot import mensaje_tel
@@ -24,7 +24,7 @@ start_time = datetime.now()
 # ==========
 
 # Stimuli, EEG frecuency band and dialogue situation
-stimuli = ['Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual','Phonemes-Onset-Manual']
+stimuli = ['Spectrogram']
 bands = ['Theta']
 situation = 'Escucha'
 
@@ -39,14 +39,14 @@ tmin, tmax = -.2, .6
 delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
 times = (delays/sr)
 
-# Save / Display Figures
+# Save / display Figures
 display_interactive_mode = False
 save_figures = True 
 save_results = True
 
 no_figures = False
 
-# Random permutations
+# Include random permutations analaysis
 statistical_test = False
 
 # Model and normalization of input
@@ -60,7 +60,7 @@ n_folds = 5
 
 # Preset alpha (penalization parameter)
 set_alpha = None
-default_alpha = 1000
+default_alpha = 400
 alpha_correlation_limit = 0.01
 alphas_fname = f'saves/alphas/alphas_corr{alpha_correlation_limit}.pkl'
 try:
@@ -83,7 +83,7 @@ for band in bands:
         print('\n===========================\n','\tPARAMETERS\n\n','Model: ' + model+'\n','Band: ' + str(band)+'\n','Stimulus: ' + stim+'\n','Status: ' + situation+'\n',f'Time interval: ({tmin},{tmax})s\n','\n===========================\n')
         
         # Relevant paths
-        save_path = f'saves/{model}/{situation}/Final_Correlation/tmin{tmin}_tmax{tmax}/'
+        save_results_path = f'saves/{model}/{situation}/Final_Correlation/tmin{tmin}_tmax{tmax}/'
         procesed_data_path = f'saves/Preprocesed_Data/tmin{tmin}_tmax{tmax}/'
         path_original = f'saves/{model}/{situation}/Original/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'
         path_null = f'saves/{model}/{situation}/null/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'
@@ -365,7 +365,7 @@ for band in bands:
 
         # TFCE across subjects
         # n_permutations = 4096
-        n_permutations = 256 
+        n_permutations = 512 
         tvalue_tfce, pvalue_tfce, trf_subjects_shape = tfce(average_weights_subjects=average_weights_subjects, n_jobs=1, n_permutations=n_permutations)
 
         # Plot t and p values
@@ -379,8 +379,8 @@ for band in bands:
                 
         # Save results
         if save_results:
-            os.makedirs(save_path, exist_ok=True)
-            dump_pickle(path=save_path+f'{stim}_EEG_{band}.pkl', 
+            os.makedirs(save_results_path, exist_ok=True)
+            dump_pickle(path=save_results_path+f'{stim}_EEG_{band}.pkl', 
                                   obj={'average_correlation_subjects':average_correlation_subjects,
                                        'repeated_good_correlation_channels_subjects':repeated_good_correlation_channels_subjects},
                                   rewrite=True)
