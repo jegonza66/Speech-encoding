@@ -2,6 +2,15 @@
 import numpy as np, pandas as pd, scipy, pickle, os, sys, mne, warnings
 from typing import Union
 
+class Suppress_print:
+    def __enter__(self):
+        self._original_stdout = sys.stdout
+        sys.stdout = open(os.devnull, 'w')
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        sys.stdout.close()
+        sys.stdout = self._original_stdout
+
 def load_pickle(path:str):
     """Loads pickle file
 
