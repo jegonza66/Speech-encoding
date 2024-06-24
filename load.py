@@ -3,7 +3,7 @@ import numpy as np, pandas as pd, os, warnings
 import mne, librosa, platform, opensmile, textgrids
 
 # Specific libraries
-import scipy.io.wavfile as wavfile
+import scipy.io.wavfile as wavfile#, parselmouth
 from scipy import signal as sgn
 from praatio import pitch_and_intensity
 
@@ -16,9 +16,9 @@ mne.set_log_level(verbose='CRITICAL')
 exp_info = setup.exp_info()
 
 class Trial_channel:
-    def __init__(self, s:int=21, trial:int=1, channel:int=1, band:str='All', sr:float=128,
-                 valores_faltantes:int=0, causal_filter_eeg:bool=True, 
-                 envelope_filter:bool=False, silence_threshold:float=0.03):
+    def __init__(self, s:int=21, trial:int=1, channel:int=1, band:str='All', sr:float=128, 
+                 causal_filter_eeg:bool=True, envelope_filter:bool=False, silence_threshold:float=0.03,
+                 praat_executable_path:str= r"C:\Program Files\Praat\Praat.exe"):
         """Extract transcriptions, audio signal and EEG signal of given session and channel to calculate specific features.
 
         Parameters
@@ -36,14 +36,14 @@ class Trial_channel:
             Sample rate in Hz of the EEG, by default 128
         delays : np.ndarray, optional
             Delay array to construct shifted matrix, by default np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
-        valores_faltantes : int, optional
-            Number to replace the missing values (nans), by default 0
         causal_filter_eeg : bool, optional
             Whether to use or not a cusal filter, by default True
         envelope_filter : bool, optional
             Whether to use or not an envelope filter, by default False
         silence_threshold : float, optional
             Silence threshold of the dialogue, by default 0.03
+        praat_executable_path : str
+            Path directing to Praat executable
             
 
         Raises
@@ -63,10 +63,8 @@ class Trial_channel:
         # Minimum and maximum frequency allowed within specified band
         self.l_freq_eeg, self.h_freq_eeg = processing.band_freq(self.band)
         self.sr = sr
-        self.sampleStep = 0.01
         self.silence_threshold = silence_threshold
         self.audio_sr = 16000
-        self.valores_faltantes = valores_faltantes
         self.sex = sex_list[(s - 21) * 2 + channel - 1]
         self.causal_filter_eeg = causal_filter_eeg
         self.envelope_filter = envelope_filter
@@ -75,9 +73,10 @@ class Trial_channel:
         self.eeg = None
 
         # Relevant paths
+        self.praat_executable_path = praat_executable_path
         self.eeg_fname = f"Datos/EEG/S{s}/s{s}-{channel}-Trial{trial}-Deci-Filter-Trim-ICA-Pruned.set"
         self.wav_fname = f"Datos/wavs/S{s}/s{s}.objects.{trial:02d}.channel{channel}.wav"
-        self.pitch_fname = f"Datos/Pitch_threshold_{silence_threshold}/S{s}/s{s}.objects.{trial:02d}.channel{channel}.txt"
+        self.pitch_fname = f"Datos/pitch_threshold_{silence_threshold}/S{s}/s{s}.objects.{trial:02d}.channel{channel}.txt"
         self.phn_fname = f"Datos/phonemes/S{s}/s{s}.objects.{trial:02d}.channel{channel}.aligned_fa.TextGrid"
         self.phn_fname_manual = f"Datos/phonemes/S{s}/manual/s{s}_objects_{trial:02d}_channel{channel}_aligned_faTAMARA.TextGrid"
         self.phrases_fname = f"Datos/phrases/S{s}/s{s}.objects.{trial:02d}.channel{channel}.phrases"
@@ -115,7 +114,6 @@ class Trial_channel:
         # Downsample
         eeg = processing.subsamplear(eeg, int(self.eeg.info.get("sfreq")/ self.sr))
         return eeg
-
 
     def f_info(self):
         """A montage is define as a descriptor for the set up: EEG channel names and relative positions of sensors on the scalp. 
@@ -246,7 +244,7 @@ class Trial_channel:
         shimmer = shimmer[:min(len(shimmer), len(envelope))].reshape(-1,1)
         return jitter, shimmer
     
-    def f_phonemes(self, envelope:np.ndarray, kind:str='Envelope-manual'):
+    def f_phonemes(self, envelope:np.ndarray, kind:str='Phonemes-Envelope-Manual'):
         """It makes a time-match matrix between the phonemes and the envelope. The values and shape of given matrix depend on kind.
 
         Parameters
@@ -284,10 +282,12 @@ class Trial_channel:
 
         # Get trial total time length
         phrases = pd.read_table(self.phrases_fname, header=None, sep="\t")
+        # phrases = pd.read_table(r'C:\repos\Speech-encoding\repo_speech_encoding\Datos\phrases\S21\s21.objects.01.channel1.phrases', header=None, sep="\t")
         trial_tmax = phrases[1].iloc[-1]
 
         # Load transcription
         grid = textgrids.TextGrid(self.phn_fname)
+        # grid = textgrids.TextGrid(r'C:\repos\Speech-encoding\repo_speech_encoding\Datos\phonemes\S21\s21.objects.01.channel1.aligned_fa.TextGrid')
 
         # Get phonemes
         phonemes_grid = grid['transcription : phones']
@@ -316,12 +316,16 @@ class Trial_channel:
                 label = ""
             labels.append(label)
             times.append((ph.xmin, ph.xmax))
-            samples.append(np.round((ph.xmax - ph.xmin) * self.sr).astype("int"))
+            # samples.append(np.round((ph.xmax - ph.xmin) * self.sr).astype("int"))
+            samples.append(np.round((ph.xmax - ph.xmin) * 128).astype("int"))
+
 
         # Extend on more phoneme of silence till end of trial 
         labels.append("")
         times.append((ph.xmin, trial_tmax))
-        samples.append(np.round((trial_tmax - ph.xmax) * self.sr).astype("int"))
+        # samples.append(np.round((trial_tmax - ph.xmax) * self.sr).astype("int"))
+        samples.append(np.round((trial_tmax - ph.xmax) *128).astype("int"))
+
 
         # If use envelope amplitude to make continuous stimuli: the total number of samples must match the samples use for stimuli
         diferencia = np.sum(samples) - len(envelope)
@@ -370,39 +374,8 @@ class Trial_channel:
                     phonemes[i, updated_taggs.index(tagg)] = 1
         return phonemes
       
-    def f_calculate_pitch(self): #TODO: make it usuable in any computer. Also missing folder.
-        """Calculates pitch from .wav file and stores it.
-        """
-        # Makes directory for storing data
-        if platform.system() == 'Linux':
-            praatEXE = 'Praat/praat'
-            output_folder = 'Datos/Pitch_threshold_{}'.format(self.silence_threshold)
-        else:
-            praatEXE = r"C:\Program Files\Praat\Praat.exe"
-            output_folder = "C:/Users/joaco/Desktop/Joac/Facultad/Tesis/Código/Datos/Pitch_threshold_{}".format(
-                self.silence_threshold)
-        try:
-            os.makedirs(output_folder)
-        except:
-            pass
-
-        output_path = self.pitch_fname
-        if self.sex == 'M':
-            minPitch = 50
-            maxPitch = 300
-        if self.sex == 'F':
-            minPitch = 75
-            maxPitch = 500
-        pitch_and_intensity.extractPI(inputFN=os.path.abspath(self.wav_fname), 
-                                      outputFN=os.path.abspath(output_path), 
-                                      praatEXE=praatEXE, 
-                                      minPitch=minPitch,
-                                      maxPitch=maxPitch, 
-                                      sampleStep=self.sampleStep, 
-                                      silenceThreshold=self.silence_threshold)
-
-    def load_pitch(self, envelope:np.ndarray): #TODO: pedir a joaco los datos
-        """Loads the pitch of the speaker
+    def f_pitch(self, envelope:np.ndarray, kind:str): 
+        """Loads the pitch of the speaker, after calculating it from .wav file and stores it.
 
         Parameters
         ----------
@@ -414,41 +387,128 @@ class Trial_channel:
         np.ndarray
             Array containing pitch of the audio signal
         """
-        # Reads the file and transform it in a np.ndarray
-        read_file = pd.read_csv(self.pitch_fname)
-        pitch = np.array(read_file['pitch'])
-        # time = np.array(read_file['time'])
-        # intensity = np.array(read_file['intensity'])
-
-        # Filter undefined values
-        pitch[pitch == '--undefined--'] = np.nan
-        pitch = np.array(pitch, dtype=np.float32)
-        if self.valores_faltantes == None:
-            pitch = pitch[~np.isnan(pitch)]
-        
-        # Replace nans by valores_faltantes (int)
-        elif np.isfinite(self.valores_faltantes):
-            pitch[np.isnan(pitch)] = float(self.valores_faltantes)
+        # Makes path for storing data
+        if platform.system() == 'Linux':
+            output_folder = f'Datos/{kind}_threshold_{self.silence_threshold}'
         else:
-            print('Invalid missing value for pitch {}'.format(self.valores_faltantes) + '\nMust be finite.')
-
-        # Match length with envelope
-        # Repeat each value of the pitch to make audio_sr*sampleStep times (in particular, a multiple of audio_sr)
-        pitch = np.array(np.repeat(pitch, self.audio_sr * self.sampleStep), dtype=np.float32)
+            output_folder = f"Datos/{kind}_threshold_{self.silence_threshold}"
         
-        pitch = processing.subsamplear(pitch, int(self.audio_sr/self.sr))
-        pitch = pitch[:min(len(pitch), len(envelope))].reshape(-1,1)
-        return pitch
+        # Create paths and distinguish subject
+        os.makedirs(output_folder, exist_ok=True)
+        if self.sex == 'M':
+            minPitch = 50
+            maxPitch = 300
+        elif self.sex == 'F':
+            minPitch = 75
+            maxPitch = 500
+        
+        # Define sample step and calculate pitch
+        self.sampleStep = 1/self.sr # .01
+        with funciones.Suppress_print():
+            pitch_and_intensity.extractPI(inputFN=os.path.abspath(self.wav_fname), 
+                                        outputFN=os.path.abspath(self.pitch_fname), 
+                                        praatEXE=self.praat_executable_path, 
+                                        minPitch=minPitch,
+                                        maxPitch=maxPitch, 
+                                        sampleStep=self.sampleStep, 
+                                        silenceThreshold=self.silence_threshold)
+        # silence_threshold = .03
+        # minPitch = 50
+        # maxPitch = 300
+        # output_folder = f"Datos/pitch_threshold_{silence_threshold}"
+        # sampleStep = 1/128
+        # praat_executable_path = 'C:/Program Files/Praat/Praat.exe'
+        # pitch_fname = f"Datos/pitch_threshold_{.03}/S{21}/s{21}.objects.{1:02d}.channel{1}.txt"
+        # wav_fname = r"C:\repos\Speech-encoding\repo_speech_encoding\Datos\wavs\S21\s21.objects.01.channel1.wav"
+        # pi = pitch_and_intensity.extractPI(inputFN=os.path.abspath(wav_fname), 
+        #                                 outputFN=os.path.abspath(pitch_fname), 
+        #                                 praatEXE=praat_executable_path, 
+        #                                 minPitch=minPitch,
+        #                                 maxPitch=maxPitch, 
+        #                                 sampleStep=sampleStep, 
+        #                                 silenceThreshold=silence_threshold)
+        
+        # Loads data
+        data = np.genfromtxt(os.path.abspath(self.pitch_fname), dtype=np.float, delimiter=',', missing_values='--undefined--', filling_values=np.inf)
+        time, pitch = data[:, 0], data[:, 1]
 
-    def load_trial(self, stims:list, calculate_pitch:bool=False): 
+        # Get defined indexes
+        defined_indexes = np.where(pitch!=np.inf)[0]
+        
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # aux_p = np.log(pitch)
+        # aux_p[aux_p==np.inf] = 0
+        # plt.scatter(time, aux_p, s=5, label='data')
+        
+        # Approximated window size
+        window_size = 300e-3
+        n_steps_in_window = np.ceil(window_size/self.sampleStep)
+        window_size = n_steps_in_window*self.sampleStep
+
+        if kind.endswith('Manual'):
+            # Interpolate relevant moments of silence
+            # lista_aux = []
+            for i in range(len(defined_indexes)):
+                if 1<(defined_indexes[i]-defined_indexes[i-1])<=n_steps_in_window:
+                    pitch[defined_indexes[i-1]+1:defined_indexes[i]] = np.interp(x=time[defined_indexes[i-1]+1:defined_indexes[i]], xp=time[defined_indexes], fp=pitch[defined_indexes])
+                    # lista_aux+=list(np.arange(defined_indexes[i-1]+1,defined_indexes[i],1))
+        else:
+            # Load phonemes matrix, excluding '' label
+            phonemes = self.f_phonemes(envelope=envelope, kind='Phonemes-Discrete-Manual')
+            phonemes = np.delete(arr=phonemes, obj=-1, axis=1)
+
+            # Given that spacing between samples is 1/self.sr
+            sound_indexes = np.where(phonemes.any(axis=1))[0]
+
+            # Within window of window_size of said phoneme if there is a silence it gets interpoled
+            # lista_aux = []
+            for i in range(len(sound_indexes)):
+                if 1<(sound_indexes[i]-sound_indexes[i-1])<=n_steps_in_window:
+                    pitch[sound_indexes[i-1]+1:sound_indexes[i]] = np.interp(x=time[sound_indexes[i-1]+1:sound_indexes[i]], xp=time[sound_indexes], fp=pitch[sound_indexes])
+                    # lista_aux+=list(np.arange(sound_indexes[i-1]+1,sound_indexes[i],1))
+
+        # Log transformation
+        logpitch = np.log(pitch).reshape(-1, 1)
+        
+        # Set left values to zero
+        logpitch[logpitch==np.inf]=0
+        # plt.scatter(time[lista_aux], logpitch[lista_aux].reshape(-1), s=5, label ='interpoled')
+        # plt.xlabel('Time (s)')
+        # plt.ylabel('logpitch')
+        # plt.legend()
+        # plt.grid(visible=True)
+        # plt.show(block=True)
+        return logpitch
+
+
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # # plt.scatter(time[defined_indexes], pitch[defined_indexes], s=3)
+        # # plt.scatter(time[undefined_indexes], interpoled_data, s=3)
+        # plt.scatter(time, pitch, s=3)
+        # for i, m in enumerate(moments_of_silence):
+        #     plt.scatter(time[m[0]:m[1]], interpolado[i])
+        # # plt.scatter(time, logpitch, s=3)
+        # # plt.yticks([])
+        # plt.show()
+        
+        # # Match length with envelope
+        # # Repeat each value of the pitch to make audio_sr*sampleStep times (in particular, a multiple of audio_sr)
+        # pitch = np.array(np.repeat(pitch, self.audio_sr * self.sampleStep), dtype=np.float32)
+        
+        # pitch = processing.subsamplear(pitch, int(self.audio_sr/self.sr))
+        # pitch = pitch[:min(len(pitch), len(envelope))].reshape(-1,1)
+        # return pitch
+
+    def load_trial(self, stims:list): 
         """Extract EEG and calculates specified stimuli.
         Parameters
         ----------
         stims : list
             A list containing possible stimuli. Possible input values are: 
-            ['Envelope', 'Pitch', 'Spectrogram', 'Phonemes', 'Phonemes-manual', 'Phonemes-discrete', 'Phonemes-onset']
-        calculate_pitch : bool, optional
-            Pitch of speaker signal, perform on envelope, by default False
+            ['Envelope', 'Pitch', 'Pitch-Manual', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
+            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
 
         Returns
         -------
@@ -460,11 +520,9 @@ class Trial_channel:
         channel['info'] = self.f_info()
         channel['Envelope'] = self.f_envelope()
 
-        if calculate_pitch:
-            self.calculate_pitch()
-            channel['Pitch'] = self.load_pitch(envelope=channel['Envelope'])
-            
         for stim in stims:
+            if stim.startswith('Pitch'):
+                channel[stim] = self.f_pitch(envelope=channel['Envelope'], kind=stim)
             if stim=='Spectrogram':
                 channel['Spectrogram'] = self.f_spectrogram()
             elif stim.startswith('Phonemes'):
@@ -472,10 +530,11 @@ class Trial_channel:
         return channel
 
 class Sesion_class: 
-    def __init__(self, sesion:int=21, stim:str='Envelope', band:str='All', sr:float=128, valores_faltantes:int=0, 
+    def __init__(self, sesion:int=21, stim:str='Envelope', band:str='All', sr:float=128, 
                  causal_filter_eeg:bool=True, envelope_filter:bool=False, situation:str='Escucha', 
-                 calculate_pitch:bool=False, silence_threshold:float=0.03, delays:np.ndarray=None,
-                 procesed_data_path:str=f'saves/Preprocesed_Data/tmin{-0.6}_tmax{-.003}/'
+                 silence_threshold:float=0.03, delays:np.ndarray=None,
+                 procesed_data_path:str=f'saves/Preprocesed_Data/tmin{-0.6}_tmax{-.002}/',
+                 praat_executable_path:str=r"C:\Program Files\Praat\Praat.exe"
                  ):
         """Construct an object for the given session containing all concerning data.
 
@@ -485,14 +544,12 @@ class Sesion_class:
             Session number, by default 21
         stim : str, optional
             Stimuli to use in the analysis, by default 'Envelope'. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
-            ['Envelope', 'Pitch', 'PitchMask', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual']
+            ['Envelope', 'Pitch', 'Pitch-Manual', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual']
         band : str, optional
             Neural frequency band, by default 'All'. It could be one of:
             ['Delta','Theta',Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
         sr : float, optional
             Sample rate in Hz of the EEG, by default 128
-        valores_faltantes : int, optional
-            Number to replace the missing values (nans), by default 0
         causal_filter_eeg : bool, optional
             Whether to use or not a cusal filter, by default True
         envelope_filter : bool, optional
@@ -500,20 +557,20 @@ class Sesion_class:
         situation : str, optional
             Situation considerer when performing the analysis, by default 'Escucha'. Allowed sitations are:
             ['Habla_Propia','Ambos_Habla','Escucha']
-        calculate_pitch : bool, optional
-            Pitch of speaker signal, perform on envelope, by default False
         silence_threshold : float, optional
             Silence threshold of the dialogue, by default 0.03
         delays : np.ndarray, optional
             Delay array to construct shifted matrix, by default np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
         procesed_data_path : str, optional
-            Path directing to procesed data, by default f'saves/Preprocesed_Data/tmin{-0.6}_tmax{-0.003}/'
+            Path directing to procesed data, by default f'saves/Preprocesed_Data/tmin{-0.6}_tmax{-0.002}/'
+        praat_executable_path : str
+            Path directing to Praat executable
 
         Raises
         ------
         SyntaxError
             If 'stim' is not an allowed stimulus. Allowed stimuli are:
-            ['Envelope', 'Pitch', 'PitchMask', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual']. 
+            ['Envelope', 'Pitch', 'Pitch-Manual', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual']. 
             If more than one stimulus is wanted, the separator should be '_'.
         SyntaxError
             If 'band' is not an allowed band frecuency. Allowed bands are:
@@ -524,7 +581,7 @@ class Sesion_class:
         """
        
         # Check if band, stim and situation parameters where passed with the right syntax
-        allowed_stims = ['Envelope', 'Pitch', 'PitchMask', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual']
+        allowed_stims = ['Envelope', 'Pitch', 'Pitch-Manual', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual']
         allowed_band_frequencies = ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
         allowed_situationes = ['Habla_Propia','Ambos_Habla','Escucha']
         for st in stim.split('_'):
@@ -547,13 +604,12 @@ class Sesion_class:
         self.l_freq_eeg, self.h_freq_eeg = processing.band_freq(band)
         self.sr = sr
         self.delays = delays
-        self.valores_faltantes = valores_faltantes
         self.causal_filter_eeg = causal_filter_eeg
         self.envelope_filter = envelope_filter
-        self.calculate_pitch = calculate_pitch
         self.silence_threshold = silence_threshold
 
         # Relevant paths
+        self.praat_executable_path = praat_executable_path
         self.procesed_data_path = procesed_data_path
         self.samples_info_path = self.procesed_data_path + f'samples_info/Sit_{self.situation}/'
         self.phn_path = f"Datos/phonemes/S{self.sesion}/"
@@ -569,13 +625,13 @@ class Sesion_class:
             self.export_paths['Envelope'] = self.procesed_data_path + f'Envelope/{self.envelope_filter}_Sit_{self.situation}/'
         else:
             self.export_paths['Envelope'] = self.procesed_data_path + f'Envelope/Sit_{self.situation}/'
-        self.export_paths['PitchMask']= self.procesed_data_path + f'Pitch_mask_threshold_{self.silence_threshold}/Sit_{self.situation}_Faltantes_{self.valores_faltantes}/'
-        self.export_paths['Pitch'] = self.procesed_data_path + f'Pitch_threshold_{self.silence_threshold}/Sit_{self.situation}_Faltantes_{self.valores_faltantes}/'
+        self.export_paths['Pitch'] = self.procesed_data_path + f'Pitch_threshold_{self.silence_threshold}/Sit_{self.situation}_Faltantes/'
+        self.export_paths['Pitch-Manual'] = self.procesed_data_path + f'Pitch-Manual_threshold_{self.silence_threshold}/Sit_{self.situation}_Faltantes/'
         self.export_paths['Spectrogram'] = self.procesed_data_path + f'Spectrogram/Sit_{self.situation}/'
-        self.export_paths['Phonemes-Envelope'] = self.procesed_data_path + f'phonemes-envelope/Sit_{self.situation}/'
-        self.export_paths['Phonemes-Envelope-Manual'] = self.procesed_data_path + f'phonemes-manual/Sit_{self.situation}/'
-        self.export_paths['Phonemes-Discrete'] = self.procesed_data_path + f'phonemes-discrete/Sit_{self.situation}/'
-        self.export_paths['Phonemes-Discrete-Manual'] = self.procesed_data_path + f'phonemes-discrete-manual/Sit_{self.situation}/'
+        self.export_paths['Phonemes-Envelope'] = self.procesed_data_path + f'Phonemes-Envelope/Sit_{self.situation}/'
+        self.export_paths['Phonemes-Envelope-Manual'] = self.procesed_data_path + f'Phonemes-Manual/Sit_{self.situation}/'
+        self.export_paths['Phonemes-Discrete'] = self.procesed_data_path + f'Phonemes-Discrete/Sit_{self.situation}/'
+        self.export_paths['Phonemes-Discrete-Manual'] = self.procesed_data_path + f'Phonemes-Discrete-Manual/Sit_{self.situation}/'
         self.export_paths['Phonemes-Onset'] = self.procesed_data_path + f'Phonemes-Onset/Sit_{self.situation}/'
         self.export_paths['Phonemes-Onset-Manual'] = self.procesed_data_path + f'Phonemes-Onset-Manual/Sit_{self.situation}/'
         
@@ -621,24 +677,24 @@ class Sesion_class:
                     channel=1,
                     band=self.band, 
                     sr=self.sr,
-                    valores_faltantes=self.valores_faltantes,
                     causal_filter_eeg=self.causal_filter_eeg,
                     envelope_filter=self.envelope_filter,
-                    silence_threshold=self.silence_threshold)
+                    silence_threshold=self.silence_threshold,
+                    praat_executable_path=self.praat_executable_path)
                 channel_2 = Trial_channel(
                     s=self.sesion,
                     trial=trial,
                     channel=2,
                     band=self.band,
                     sr=self.sr,
-                    valores_faltantes=self.valores_faltantes,
                     causal_filter_eeg=self.causal_filter_eeg,
                     envelope_filter=self.envelope_filter,
-                    silence_threshold=self.silence_threshold)
+                    silence_threshold=self.silence_threshold,
+                    praat_executable_path=self.praat_executable_path)
 
                 # Extract dictionaries with the data
-                trial_channel_1 = channel_1.load_trial(stims=self.stim.split('_'), calculate_pitch=self.calculate_pitch)
-                trial_channel_2 = channel_2.load_trial(stims=self.stim.split('_'), calculate_pitch=self.calculate_pitch)
+                trial_channel_1 = channel_1.load_trial(stims=self.stim.split('_'))
+                trial_channel_2 = channel_2.load_trial(stims=self.stim.split('_'))
     
                 # Load data to dictionary taking stimuli and eeg from speaker. I.e: each subject predicts its own EEG
                 if self.situation == 'Habla_Propia' or self.situation == 'Ambos_Habla':
@@ -741,12 +797,12 @@ class Sesion_class:
         # Loads stimuli to each subject
         for stimulus in self.stim.split('_'):
             sujeto_1[stimulus], sujeto_2[stimulus] = funciones.load_pickle(path=self.export_paths[stimulus]+f'Sesion{self.sesion}.pkl')
-            if stimulus == 'Pitch':
-                # Remove missing values
-                if self.valores_faltantes == None: #TODO CREO QUE ACA VA 0 TODAVIA NO VIMOS ESTOS DATOS
-                    sujeto_1[stimulus], sujeto_2[stimulus] = sujeto_1[stimulus][sujeto_1[stimulus]!=0], sujeto_2[stimulus][sujeto_2[stimulus]!=0]
-                elif self.valores_faltantes:
-                    sujeto_1[stimulus], sujeto_2[stimulus] = sujeto_1[stimulus][sujeto_1[stimulus]==0], sujeto_2[stimulus][sujeto_2[stimulus]==0]
+            # if stimulus == 'Pitch':
+            #     # Remove missing values
+            #     if self.valores_faltantes == None: #TODO CREO QUE ACA VA 0 TODAVIA NO VIMOS ESTOS DATOS
+            #         sujeto_1[stimulus], sujeto_2[stimulus] = sujeto_1[stimulus][sujeto_1[stimulus]!=0], sujeto_2[stimulus][sujeto_2[stimulus]!=0]
+            #     elif self.valores_faltantes:
+            #         sujeto_1[stimulus], sujeto_2[stimulus] = sujeto_1[stimulus][sujeto_1[stimulus]==0], sujeto_2[stimulus][sujeto_2[stimulus]==0]
         return {'Sujeto_1': sujeto_1, 'Sujeto_2': sujeto_2}, samples_info
     
     def labeling(self, trial:int, channel:int):
@@ -906,8 +962,8 @@ class Sesion_class:
             return dic, speaker_labels, minimum
 
 def load_data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str, 
-              situation:str='Escucha', causal_filter_eeg:bool=True, 
-              envelope_filter:bool=False, valores_faltantes:int=0, calculate_pitch:bool=False, 
+              praat_executable_path:str, situation:str='Escucha', 
+              causal_filter_eeg:bool=True, envelope_filter:bool=False, 
               silence_threshold:float=0.03, delays:np.ndarray=None):
     """Loads sessions of both subjects
 
@@ -917,7 +973,7 @@ def load_data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str,
         Session number
     stim : str
         Stimuli to use in the analysis. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
-            ['Envelope', 'Pitch', 'PitchMask', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual'].
+            ['Envelope', 'Pitch', 'Pitch-Manual', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual'].
     band : str
         Neural frequency band. It could be one of:
             ['Delta','Theta', 'Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
@@ -927,6 +983,8 @@ def load_data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str,
         Minimimum window time
     tmax : float
         Maximum window time
+    praat_executable_path : str
+        Path directing to Praat executable
     procesed_data_path : str
         Path directing to procesed data
     situation : str, optional
@@ -936,10 +994,6 @@ def load_data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str,
         Whether to use or not a cusal filter, by default True
     envelope_filter : bool, optional
         Whether to use or not an envelope filter, by default False
-    valores_faltantes : int, optional
-        Number to replace the missing values (nans), by default 0
-    calculate_pitch : bool, optional
-        Pitch of speaker signal, perform on envelope, by default False
     silence_threshold : float, optional
         Silence threshold of the dialogue, by default 0.03
     delays : np.ndarray, optional
@@ -955,12 +1009,12 @@ def load_data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str,
     ------
     SyntaxError
         If 'stimulus' is not an allowed stimulus. Allowed stimuli are:
-            ['Envelope', 'Pitch', 'PitchMask', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual'].
+            ['Envelope', 'Pitch', 'Pitch-Manual', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual'].
         If more than one stimulus is wanted, the separator should be '_'.
     """
 
     # Define allowed stimuli
-    allowed_stims = ['Envelope', 'Pitch', 'PitchMask', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual']
+    allowed_stims = ['Envelope', 'Pitch', 'Pitch-Manual','Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual']
     allowed_situations = ['Habla_Propia','Ambos_Habla','Escucha']
     allowed_bands = ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
 
@@ -979,14 +1033,13 @@ def load_data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str,
                 sesion_obj = Sesion_class(sesion=sesion, 
                                         stim='_'.join(ordered_stims), 
                                         band='_'.join(ordered_band), 
-                                        sr=sr, 
-                                        valores_faltantes=valores_faltantes, 
+                                        sr=sr,
                                         causal_filter_eeg=causal_filter_eeg,
                                         envelope_filter=envelope_filter, 
-                                        situation=situation, 
-                                        calculate_pitch=calculate_pitch,
+                                        situation=situation,
                                         silence_threshold=silence_threshold, 
                                         procesed_data_path=procesed_data_path, 
+                                        praat_executable_path=praat_executable_path,
                                         delays=delays)
 
                 # Try to load procesed data, if it fails it loads raw data

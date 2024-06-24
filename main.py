@@ -24,7 +24,7 @@ start_time = datetime.now()
 # ==========
 
 # Stimuli, EEG frecuency band and dialogue situation
-stimuli = ['Spectrogram']
+stimuli = ['Pitch-Manual']
 bands = ['Theta']
 situation = 'Escucha'
 
@@ -88,6 +88,7 @@ for band in bands:
         path_original = f'saves/{model}/{situation}/Original/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'
         path_null = f'saves/{model}/{situation}/null/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'
         path_figures = f'figures/{model}/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'
+        prat_executable_path = r"C:\Program Files\Praat\Praat.exe"
 
         # Make lists to store relevant data across sobjects
         average_weights_subjects = []
@@ -110,6 +111,7 @@ for band in bands:
                                                          sr=sr,
                                                          delays=delays,
                                                          procesed_data_path=procesed_data_path,
+                                                         praat_executable_path=prat_executable_path,
                                                          situation=situation,
                                                          silence_threshold=0.03)
             eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
