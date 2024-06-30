@@ -340,7 +340,7 @@ for band in bands:
                                 sample_rate=sr, save_path=path_figures, save=save_figures, display_interactive_mode=display_interactive_mode, no_figures=no_figures)
 
         # Plot channel-wise correlation topomap 
-        plot.channel_wise_correlation_topomap(average_weights_subjects=average_weights_subjects, info=info, stim=stim save=save_figures, 
+        plot.channel_wise_correlation_topomap(average_weights_subjects=average_weights_subjects, info=info, stim=stim, save=save_figures, 
                                               save_path=path_figures, display_interactive_mode=display_interactive_mode, no_figures=no_figures)      
 
         # Plot weights
