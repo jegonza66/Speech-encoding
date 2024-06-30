@@ -5,6 +5,7 @@ warnings.filterwarnings("ignore", message="This figure includes Axes that are no
 warnings.filterwarnings("ignore", message="FixedFormatter should only be used together with FixedLocator")
 warnings.filterwarnings("ignore", message="More than 20 figures have been opened. Figures created through the pyplot interface (`matplotlib.pyplot.figure`) are retained until explicitly closed and may consume too much memory. (To control this warning, see the rcParam `figure.max_open_warning`). Consider using `matplotlib.pyplot.close()`.")
 warnings.filterwarnings("ignore", message="Tight layout not applied. tight_layout cannot make axes width small enough to accommodate all axes decorations")
+
 # Specific libraries
 from scipy.stats import wilcoxon#, pearsonr
 from statannot import add_stat_annotation
@@ -349,13 +350,13 @@ def topomap(good_channels_indexes:np.ndarray,
                                   vmax=average_coefficient.max()
                                   )
         plt.colorbar(im[0], 
-                     ax=ax, 
-                     shrink=0.85, 
-                     label=coefficient_name, 
-                     orientation='horizontal',
-                     boundaries=np.linspace(average_coefficient.min().round(decimals=3), average_coefficient.max().round(decimals=3), 100),
-                     ticks=np.linspace(average_coefficient.min(), average_coefficient.max(), 9).round(decimals=3)
-                     )
+                    ax=ax, 
+                    shrink=0.85, 
+                    label=coefficient_name, 
+                    orientation='horizontal',
+                    # boundaries=np.linspace(average_coefficient.min(), average_coefficient.max(), 100).round(decimals=3),
+                    ticks=np.linspace(average_coefficient.min(), average_coefficient.max(), 9).round(decimals=3)
+                    )
     if save:
         save_path_topo = save_path + 'cabezas_topomap/'
         os.makedirs(save_path_topo, exist_ok=True)
@@ -364,6 +365,7 @@ def topomap(good_channels_indexes:np.ndarray,
 #TODO CHECK DESCRIPTION
 def average_topomap(average_coefficient_subjects:np.ndarray, 
                           info:mne.io.meas_info.Info,
+                          stim:str,
                           save:bool, 
                           save_path:str, 
                           coefficient_name:str, 
@@ -416,7 +418,7 @@ def average_topomap(average_coefficient_subjects:np.ndarray,
 
     # Create figure and title
     fig, ax = plt.subplots(nrows=1, ncols=1, layout='tight')
-    plt.suptitle(f'{coefficient_name} = ({mean_average_coefficient.mean():.3f}'+r'$\pm$'+f'{mean_average_coefficient.std():.3f})')
+    plt.suptitle(f'{stim} {coefficient_name} = ({mean_average_coefficient.mean():.3f}'+r'$\pm$'+f'{mean_average_coefficient.std():.3f})')
 
     # Make topomap
     im = mne.viz.plot_topomap(data=mean_average_coefficient, 
@@ -479,9 +481,8 @@ def average_topomap(average_coefficient_subjects:np.ndarray,
         ax.set_ylabel('Correlation')
 
         # Disable print
-        import sys
-        sys.stdout = open(os.devnull, 'w')
-        add_stat_annotation(ax, 
+        with funciones.Suppress_print():
+            add_stat_annotation(ax, 
                             data=data, 
                             box_pairs=[('Left', 'Right')],
                             test='Wilcoxon', 
@@ -489,8 +490,6 @@ def average_topomap(average_coefficient_subjects:np.ndarray,
                             loc='outside', 
                             fontsize='xx-large', 
                             verbose=0)
-        # Restore printing
-        sys.stdout = sys.__stdout__
         
         # Make Wilcoxon test for comparisson
         test_results = wilcoxon(data['Left'], data['Right'])
@@ -556,7 +555,7 @@ def topo_average_pval(pvalues_coefficient_subjects:np.ndarray,
     # Create figure and title
     fig, ax = plt.subplots(nrows=1, ncols=1, layout='tight')
     plt.suptitle(f"Mean p-values - {coefficient_name}")
-    plt.title(f'Mean: {topo_pval.mean():.3f}'+r'$\pm$'+f'{topo_pval.std():.3f}')
+    plt.title(f'Mean: ({topo_pval.mean():.3f}'+r'$\pm$'+f'{topo_pval.std():.3f})')
 
     # Make topomap
     im = mne.viz.plot_topomap(data=topo_pval, 
@@ -764,6 +763,7 @@ def topo_map_relevant_times(average_weights_subjects:np.ndarray,
 #TODO CHECK DESCRIPTION
 def channel_wise_correlation_topomap(average_weights_subjects:np.ndarray, 
                                      info:mne.io.meas_info.Info, 
+                                     stim:str,
                                      save:bool, 
                                      save_path:str,
                                      display_interactive_mode:bool=False,
@@ -814,7 +814,7 @@ def channel_wise_correlation_topomap(average_weights_subjects:np.ndarray,
 
     # Create figure and title
     fig, ax = plt.subplots(nrows=1, ncols=1, layout='tight')
-    fig.suptitle('Channel-wise mTRFs similarity')
+    fig.suptitle(f'Channel-wise {stim} similarity')
 
     # Make topomap
     im = mne.viz.plot_topomap(data=absolute_correlation_per_channel, 
@@ -951,12 +951,49 @@ def channel_weights(info:mne.io.meas_info.Info,
                             vmax=average_by_band.max())
 
             # Set figure configuration
-            bands_center = librosa.mel_frequencies(n_mels=18, fmin=62, fmax=8000)[1:-1]
+            bands_center = librosa.mel_frequencies(n_mels=n_feats+2, fmin=62, fmax=8000)[1:-1]
             ax[0,i_feat].set(xlabel='', 
                              yticklabels=[int(bands_center[i]) for i in np.arange(0, len(bands_center), 2)],
                              ylabel='Frecuency (Hz)',
                              yticks=np.arange(0, n_feat, 2), 
                              title=f'{feat}')
+            # Configure colorbar
+            fig.colorbar(im,
+                         ax=ax[0,i_feat], 
+                         orientation='horizontal', 
+                         shrink=1, 
+                         label='Amplitude (a.u.)', 
+                         aspect=15)
+            
+        elif feat.startswith('Mfccs'):
+            # Take mean across all band frequencies
+            average_by_band = average_weights[:, index_slice[0]:index_slice[1], :].mean(axis=0)
+
+            # Create colormesh figure
+            im = ax[0,i_feat].pcolormesh(times * 1000, 
+                            np.arange(n_feat), 
+                            average_by_band, 
+                            cmap='jet', 
+                            shading='auto',
+                            vmin=-average_by_band.max(),
+                            vmax=average_by_band.max())
+
+            # Set figure configuration
+            if feat=='Mfccs':
+                ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat)]
+            elif feat=='Mfccs-Deltas':
+                ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)] 
+                ylabels += [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
+            elif feat=='Mfccs-Deltas-Deltas':
+                ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)] 
+                ylabels += [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)]
+                ylabels += [r'$\delta-\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)]
+            ax[0,i_feat].set(xlabel='', 
+                             yticklabels=ylabels[::2],
+                             ylabel="Mfcc's Index",
+                             yticks= np.arange(0, n_feat, 2), 
+                             title=f'{feat}')
+            
             # Configure colorbar
             fig.colorbar(im,
                          ax=ax[0,i_feat], 
@@ -1053,7 +1090,7 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
 
     for i_feat, (feat, n_feat) in enumerate(zip(stimuli, n_feats)):
         # Create figure and title
-        if feat.startswith('Phoneme') or feat.startswith('Spectro'):
+        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs'):
             fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(7, 12), layout='tight', sharex=True)
             ax, ax1 = ax[0], ax[1]
         else:
@@ -1094,12 +1131,12 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
         # Graph properties
         ax.legend()
         ax.grid(visible=True)
-        if feat.startswith('Phoneme') or feat.startswith('Spectro'):
+        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs'):
             ax.set(xlabel='')
         else:
             ax.set(xlabel='Time (ms)')
 
-        if feat.startswith('Phoneme') or feat.startswith('Spectro'):
+        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs'):
             if feat.startswith('Spectro'):
                 # Take mean across all band frequencies
                 average_by_band = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=0)
@@ -1116,6 +1153,40 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
                 # Set figure configuration
                 bands_center = librosa.mel_frequencies(n_mels=18, fmin=62, fmax=8000)[1:-1]
                 ax1.set(ylabel='Frecuency (Hz)', yticks=np.arange(0, n_feat, 2), yticklabels=[int(bands_center[i]) for i in np.arange(0, len(bands_center), 2)])
+
+                # Configure colorbar
+                fig.colorbar(im, 
+                            ax=ax1, 
+                            orientation='horizontal', 
+                            shrink=1, 
+                            label='Amplitude (a.u.)', 
+                            aspect=15)
+            elif feat.startswith('Mfccs'):
+                # Take mean across all band frequencies
+                average_by_band = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=0)
+
+                # Create colormesh figure
+                im = ax1.pcolormesh(times * 1000, 
+                                np.arange(n_feat), 
+                                average_by_band, 
+                                cmap='jet', 
+                                shading='auto',
+                                vmin=-average_by_band.max(),
+                                vmax=average_by_band.max())
+
+                # Set figure configuration
+                if feat=='Mfccs':
+                    ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat)]
+                elif feat=='Mfccs-Deltas':
+                    ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)] 
+                    ylabels += [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
+                elif feat=='Mfccs-Deltas-Deltas':
+                    ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)] 
+                    ylabels += [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)]
+                    ylabels += [r'$\delta-\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)]
+                ax1.set(ylabel="Mfcc's Index", 
+                        yticks=np.arange(0, n_feat, 2), 
+                        yticklabels=ylabels[::2])
 
                 # Configure colorbar
                 fig.colorbar(im, 
@@ -1419,7 +1490,7 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
         # Make slicing of relevant features
         index_slice = sum(n_feats[:i_feat]),  sum(n_feats[:i_feat]) + n_feat
         
-        if feat.startswith('Phoneme') or feat.startswith('Spectro'):
+        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs'):
             # Create figure and title
             fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(16, 8), layout='tight', sharey=True)
             fig.suptitle(f'P-value for {feat} - {band}')
@@ -1436,11 +1507,34 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
 
             # Set figure configuration
             if feat.startswith('Spectro'):
-                bands_center = librosa.mel_frequencies(n_mels=18, fmin=62, fmax=8000)[1:-1]
+                bands_center = librosa.mel_frequencies(n_mels=n_feat+2, fmin=62, fmax=8000)[1:-1]
                 ax[0].set(xlabel='Time (ms)', ylabel='Frecuency (Hz)', yticks=np.arange(0, n_feat, 2), 
                         yticklabels=[int(bands_center[i]) for i in np.arange(0, len(bands_center), 2)], title='Weights')
 
                 # Configure colorbar
+                fig.colorbar(im, 
+                            ax=ax[0], 
+                            orientation='horizontal', 
+                            shrink=1, 
+                            label='Amplitude (a.u.)', 
+                            aspect=15)
+            elif feat.startswith('Mfccs'):
+                # Set figure configuration
+                if feat=='Mfccs':
+                    ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat)]
+                elif feat=='Mfccs-Deltas':
+                    ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)] 
+                    ylabels += [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
+                elif feat=='Mfccs-Deltas-Deltas':
+                    ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)] 
+                    ylabels += [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)]
+                    ylabels += [r'$\delta-\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)]
+                ax[0].set(xlabel='Time (ms)',
+                          ylabel="Mfcc's Index", 
+                          yticks=np.arange(0, n_feat, 2), 
+                          yticklabels=ylabels[::2], 
+                          title='Weights')
+                                # Configure colorbar
                 fig.colorbar(im, 
                             ax=ax[0], 
                             orientation='horizontal', 

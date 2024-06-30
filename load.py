@@ -197,6 +197,60 @@ class Trial_channel:
         
         return S_DB.T
     
+    def f_mfccs(self, kind:str='Log-Raw'):
+        """Calculates mel frequency clepstral coefficients from .wav.
+
+        Parameters
+        ----------
+        kind : str, optional
+           Kind of pitch use, by default 'Log-Raw'. Available kinds are:
+            'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas'
+
+        Returns
+        -------
+        np.ndarray
+            Matrix with shape samples x coefficients
+
+        Raises
+        ------
+        SyntaxError
+            Whether the input value of 'kind' is passed correctly. It must be a string among ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas'].
+        """
+
+        # Check if given kind is a permited input value
+        allowed_kind = ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas']
+        if kind not in allowed_kind:
+            raise SyntaxError(f"{kind} is not an allowed kind of mfccs. Allowed kinds are: {allowed_kind}")
+        
+        # Read file
+        wav = wavfile.read(self.wav_fname)[1]
+        wav = wav.astype("float")
+
+        # # DIFIEREN EN UN FACTOR DE ESCALA WAV=32768*SIGNAL; siendo la normalización de punto flotante nbits=16, 2 ** (nbits - 1)=32768
+        # signal, audio_sr = librosa.load(self.wav_fname, sr=None) 
+        
+        # Calculate matrix of mfccs
+        sample_window = int(self.audio_sr/self.sr)
+        mfccs = librosa.feature.mfcc(y=wav, n_mfcc=12, n_mels=12, sr=self.audio_sr, n_fft=sample_window, hop_length=sample_window)
+        
+        # Append deltas and deltas deltas
+        if kind.endswith('Deltas'):
+            delta_mfccs = librosa.feature.delta(mfccs)
+            mfccs_features = np.concatenate((mfccs, delta_mfccs))
+            if kind.endswith('Deltas-Deltas'):
+                delta2_mfccs = librosa.feature.delta(mfccs, order=2)
+                mfccs_features = np.concatenate((mfccs, delta_mfccs, delta2_mfccs))
+                return mfccs_features.T
+            else:
+                return mfccs_features.T
+        else:
+            return mfccs.T
+        # import librosa.display
+        # librosa.display.specshow(mfccs, 
+        #                         x_axis="time", 
+        #                         sr=sr)
+        # plt.colorbar(format="%+2.f")
+   
     def f_jitter_shimmer(self, envelope:np.ndarray): # NEVER USED
         """Gives the jitter and shimmer matching the size of the envelope
 
@@ -268,7 +322,7 @@ class Trial_channel:
         Raises
         ------
         SyntaxError
-            Whether the input value of 'kind' is passed correctly. It must be a string among ['Envelope', 'Discrete', 'Onset'].
+            Whether the input value of 'kind' is passed correctly. It must be a string among ['Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete', 'Phonemes-Discrete-Manual', 'Phonemes-Onset', 'Phonemes-Onset-Manual'].
         """
         if kind.endswith('anual'):
             exp_info_labels = exp_info.ph_labels_man
@@ -316,16 +370,13 @@ class Trial_channel:
                 label = ""
             labels.append(label)
             times.append((ph.xmin, ph.xmax))
-            # samples.append(np.round((ph.xmax - ph.xmin) * self.sr).astype("int"))
-            samples.append(np.round((ph.xmax - ph.xmin) * 128).astype("int"))
+            samples.append(np.round((ph.xmax - ph.xmin) * self.sr).astype("int"))
 
 
         # Extend on more phoneme of silence till end of trial 
         labels.append("")
         times.append((ph.xmin, trial_tmax))
-        # samples.append(np.round((trial_tmax - ph.xmax) * self.sr).astype("int"))
-        samples.append(np.round((trial_tmax - ph.xmax) *128).astype("int"))
-
+        samples.append(np.round((trial_tmax - ph.xmax) * self.sr).astype("int"))
 
         # If use envelope amplitude to make continuous stimuli: the total number of samples must match the samples use for stimuli
         diferencia = np.sum(samples) - len(envelope)
@@ -373,25 +424,35 @@ class Trial_channel:
                 if tagg!=0:
                     phonemes[i, updated_taggs.index(tagg)] = 1
         return phonemes
-      
+
     def f_pitch(self, envelope:np.ndarray, kind:str): 
         """Loads the pitch of the speaker, after calculating it from .wav file and stores it.
 
         Parameters
         ----------
         envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform.
-
+            Envelope of the audio signal using Hilbert transform
+        kind : str
+            Kind of pitch use, by default 'Log-Raw'. Available kinds are:
+            'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes'
         Returns
         -------
         np.ndarray
-            Array containing pitch of the audio signal
+            One-dimensional array with pitch values
+
+        Raises
+        ------
+        SyntaxError
+            Whether the input value of 'kind' is passed correctly. It must be a string among ['Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes']
         """
+
+        # Check if given kind is a permited input value
+        allowed_kind = ['Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes']
+        if kind not in allowed_kind:
+            raise SyntaxError(f"{kind} is not an allowed kind of pitch. Allowed phonemes are: {allowed_kind}")
+        
         # Makes path for storing data
-        if platform.system() == 'Linux':
-            output_folder = f'Datos/{kind}_threshold_{self.silence_threshold}'
-        else:
-            output_folder = f"Datos/{kind}_threshold_{self.silence_threshold}"
+        output_folder = f'Datos/{kind}_threshold_{self.silence_threshold}'
         
         # Create paths and distinguish subject
         os.makedirs(output_folder, exist_ok=True)
@@ -404,7 +465,29 @@ class Trial_channel:
         
         # Define sample step and calculate pitch
         self.sampleStep = 1/self.sr # .01
-        with funciones.Suppress_print():
+        if 'Quad' in kind:
+            pitch_and_intensity.extractPI(inputFN=os.path.abspath(self.wav_fname), 
+                                        outputFN=os.path.abspath(self.pitch_fname), 
+                                        praatEXE=self.praat_executable_path, 
+                                        minPitch=minPitch,
+                                        maxPitch=maxPitch, 
+                                        sampleStep=self.sampleStep, 
+                                        silenceThreshold=self.silence_threshold,
+                                        pitchQuadInterp=True)
+            # Loads data
+            data = np.genfromtxt(os.path.abspath(self.pitch_fname), dtype=np.float, delimiter=',', missing_values='--undefined--', filling_values=np.inf)
+            time, pitch = data[:, 0], data[:, 1]
+
+            # Get defined indexes
+            defined_indexes = np.where(pitch!=np.inf)[0]
+            
+            # Log transformation
+            logpitch = np.log(pitch)
+            
+            # Set left values to zero
+            logpitch[logpitch==np.inf]=0
+            return logpitch.reshape(-1, 1)
+        else:
             pitch_and_intensity.extractPI(inputFN=os.path.abspath(self.wav_fname), 
                                         outputFN=os.path.abspath(self.pitch_fname), 
                                         praatEXE=self.praat_executable_path, 
@@ -412,22 +495,15 @@ class Trial_channel:
                                         maxPitch=maxPitch, 
                                         sampleStep=self.sampleStep, 
                                         silenceThreshold=self.silence_threshold)
-        # silence_threshold = .03
-        # minPitch = 50
-        # maxPitch = 300
-        # output_folder = f"Datos/pitch_threshold_{silence_threshold}"
-        # sampleStep = 1/128
-        # praat_executable_path = 'C:/Program Files/Praat/Praat.exe'
-        # pitch_fname = f"Datos/pitch_threshold_{.03}/S{21}/s{21}.objects.{1:02d}.channel{1}.txt"
-        # wav_fname = r"C:\repos\Speech-encoding\repo_speech_encoding\Datos\wavs\S21\s21.objects.01.channel1.wav"
-        # pi = pitch_and_intensity.extractPI(inputFN=os.path.abspath(wav_fname), 
-        #                                 outputFN=os.path.abspath(pitch_fname), 
-        #                                 praatEXE=praat_executable_path, 
-        #                                 minPitch=minPitch,
-        #                                 maxPitch=maxPitch, 
-        #                                 sampleStep=sampleStep, 
-        #                                 silenceThreshold=silence_threshold)
-        
+            # sampleStep - the frequency to sample pitch at
+            # silenceThreshold - segments with lower intensity won't be analyzed
+            #                 for pitch
+            # forceRegenerate - if running this function for the same file, if False
+            #                 just read in the existing pitch file
+            # undefinedValue - if None remove from the dataset, otherset set to
+            #                 undefinedValue
+            # pitchQuadInterp - if True, quadratically interpolate pitch
+                
         # Loads data
         data = np.genfromtxt(os.path.abspath(self.pitch_fname), dtype=np.float, delimiter=',', missing_values='--undefined--', filling_values=np.inf)
         time, pitch = data[:, 0], data[:, 1]
@@ -435,25 +511,35 @@ class Trial_channel:
         # Get defined indexes
         defined_indexes = np.where(pitch!=np.inf)[0]
         
-        # import matplotlib.pyplot as plt
-        # plt.figure()
-        # aux_p = np.log(pitch)
-        # aux_p[aux_p==np.inf] = 0
-        # plt.scatter(time, aux_p, s=5, label='data')
-        
         # Approximated window size
-        window_size = 300e-3
+        window_size = 100e-3
         n_steps_in_window = np.ceil(window_size/self.sampleStep)
         window_size = n_steps_in_window*self.sampleStep
 
         if kind.endswith('Manual'):
-            # Interpolate relevant moments of silence
-            # lista_aux = []
-            for i in range(len(defined_indexes)):
-                if 1<(defined_indexes[i]-defined_indexes[i-1])<=n_steps_in_window:
-                    pitch[defined_indexes[i-1]+1:defined_indexes[i]] = np.interp(x=time[defined_indexes[i-1]+1:defined_indexes[i]], xp=time[defined_indexes], fp=pitch[defined_indexes])
-                    # lista_aux+=list(np.arange(defined_indexes[i-1]+1,defined_indexes[i],1))
-        else:
+            # Log transformation
+            if 'Log' in kind:
+                logpitch = np.log(pitch)
+
+                # Interpolate relevant moments of silence
+                for i in range(len(defined_indexes)):
+                    if 1<(defined_indexes[i]-defined_indexes[i-1])<=n_steps_in_window:
+                        logpitch[defined_indexes[i-1]+1:defined_indexes[i]] = np.interp(x=time[defined_indexes[i-1]+1:defined_indexes[i]], xp=time[defined_indexes], fp=logpitch[defined_indexes])
+            
+                # Set left values to zero
+                logpitch[logpitch==np.inf] = 0
+                return logpitch.reshape(-1, 1)
+            else: 
+                # Interpolate relevant moments of silence
+                for i in range(len(defined_indexes)):
+                    if 1<(defined_indexes[i]-defined_indexes[i-1])<=n_steps_in_window:
+                        pitch[defined_indexes[i-1]+1:defined_indexes[i]] = np.interp(x=time[defined_indexes[i-1]+1:defined_indexes[i]], xp=time[defined_indexes], fp=pitch[defined_indexes])
+                
+                # Set left values to zero
+                pitch[pitch==np.inf] = 0
+                return pitch.reshape(-1,1)
+
+        elif kind.endswith('Phonemes'):
             # Load phonemes matrix, excluding '' label
             phonemes = self.f_phonemes(envelope=envelope, kind='Phonemes-Discrete-Manual')
             phonemes = np.delete(arr=phonemes, obj=-1, axis=1)
@@ -461,53 +547,49 @@ class Trial_channel:
             # Given that spacing between samples is 1/self.sr
             sound_indexes = np.where(phonemes.any(axis=1))[0]
 
-            # Within window of window_size of said phoneme if there is a silence it gets interpoled
-            # lista_aux = []
-            for i in range(len(sound_indexes)):
-                if 1<(sound_indexes[i]-sound_indexes[i-1])<=n_steps_in_window:
-                    pitch[sound_indexes[i-1]+1:sound_indexes[i]] = np.interp(x=time[sound_indexes[i-1]+1:sound_indexes[i]], xp=time[sound_indexes], fp=pitch[sound_indexes])
-                    # lista_aux+=list(np.arange(sound_indexes[i-1]+1,sound_indexes[i],1))
+            # Log transformation
+            if 'Log' in kind:
+                logpitch = np.log(pitch)
 
-        # Log transformation
-        logpitch = np.log(pitch).reshape(-1, 1)
+                # Within window of window_size of said phoneme if there is a silence it gets interpoled
+                for i in range(len(sound_indexes)):
+                    if 1<(sound_indexes[i]-sound_indexes[i-1])<=n_steps_in_window:
+                        logpitch[sound_indexes[i-1]+1:sound_indexes[i]] = np.interp(x=time[sound_indexes[i-1]+1:sound_indexes[i]], xp=time[defined_indexes], fp=logpitch[defined_indexes])
         
-        # Set left values to zero
-        logpitch[logpitch==np.inf]=0
-        # plt.scatter(time[lista_aux], logpitch[lista_aux].reshape(-1), s=5, label ='interpoled')
-        # plt.xlabel('Time (s)')
-        # plt.ylabel('logpitch')
-        # plt.legend()
-        # plt.grid(visible=True)
-        # plt.show(block=True)
-        return logpitch
+                # Set left values to zero
+                logpitch[logpitch==np.inf] = 0
+                return logpitch.reshape(-1, 1)
+            else: 
+                # Within window of window_size of said phoneme if there is a silence it gets interpoled
+                for i in range(len(sound_indexes)):
+                    if 1<(sound_indexes[i]-sound_indexes[i-1])<=n_steps_in_window:
+                        pitch[sound_indexes[i-1]+1:sound_indexes[i]] = np.interp(x=time[sound_indexes[i-1]+1:sound_indexes[i]], xp=time[defined_indexes], fp=pitch[defined_indexes])
 
-
-        # import matplotlib.pyplot as plt
-        # plt.figure()
-        # # plt.scatter(time[defined_indexes], pitch[defined_indexes], s=3)
-        # # plt.scatter(time[undefined_indexes], interpoled_data, s=3)
-        # plt.scatter(time, pitch, s=3)
-        # for i, m in enumerate(moments_of_silence):
-        #     plt.scatter(time[m[0]:m[1]], interpolado[i])
-        # # plt.scatter(time, logpitch, s=3)
-        # # plt.yticks([])
-        # plt.show()
+                # Set left values to zero
+                pitch[pitch==np.inf] = 0
+                return pitch.reshape(-1,1)
         
-        # # Match length with envelope
-        # # Repeat each value of the pitch to make audio_sr*sampleStep times (in particular, a multiple of audio_sr)
-        # pitch = np.array(np.repeat(pitch, self.audio_sr * self.sampleStep), dtype=np.float32)
+        elif kind.endswith('Raw'):
+            # Log transformation
+            if 'Log' in kind:
+                logpitch = np.log(pitch)
         
-        # pitch = processing.subsamplear(pitch, int(self.audio_sr/self.sr))
-        # pitch = pitch[:min(len(pitch), len(envelope))].reshape(-1,1)
-        # return pitch
-
+                # Set left values to zero
+                logpitch[logpitch==np.inf]=0
+                return logpitch.reshape(-1, 1)
+            else: 
+                # Set left values to zero
+                pitch[pitch==np.inf]=0
+                return pitch.reshape(-1,1)
+            
     def load_trial(self, stims:list): 
         """Extract EEG and calculates specified stimuli.
         Parameters
         ----------
         stims : list
             A list containing possible stimuli. Possible input values are: 
-            ['Envelope', 'Pitch', 'Pitch-Manual', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
+            ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
+            'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
             'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
 
         Returns
@@ -521,6 +603,8 @@ class Trial_channel:
         channel['Envelope'] = self.f_envelope()
 
         for stim in stims:
+            if stim.startswith('Mfccs'):
+                channel[stim] = self.f_mfccs(kind=stim)
             if stim.startswith('Pitch'):
                 channel[stim] = self.f_pitch(envelope=channel['Envelope'], kind=stim)
             if stim=='Spectrogram':
@@ -544,7 +628,9 @@ class Sesion_class:
             Session number, by default 21
         stim : str, optional
             Stimuli to use in the analysis, by default 'Envelope'. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
-            ['Envelope', 'Pitch', 'Pitch-Manual', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual']
+            ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
+            'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
+            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
         band : str, optional
             Neural frequency band, by default 'All'. It could be one of:
             ['Delta','Theta',Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
@@ -570,7 +656,9 @@ class Sesion_class:
         ------
         SyntaxError
             If 'stim' is not an allowed stimulus. Allowed stimuli are:
-            ['Envelope', 'Pitch', 'Pitch-Manual', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual']. 
+            ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
+            'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
+            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
             If more than one stimulus is wanted, the separator should be '_'.
         SyntaxError
             If 'band' is not an allowed band frecuency. Allowed bands are:
@@ -581,7 +669,9 @@ class Sesion_class:
         """
        
         # Check if band, stim and situation parameters where passed with the right syntax
-        allowed_stims = ['Envelope', 'Pitch', 'Pitch-Manual', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual']
+        allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', \
+                        'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', \
+                        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
         allowed_band_frequencies = ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
         allowed_situationes = ['Habla_Propia','Ambos_Habla','Escucha']
         for st in stim.split('_'):
@@ -625,8 +715,17 @@ class Sesion_class:
             self.export_paths['Envelope'] = self.procesed_data_path + f'Envelope/{self.envelope_filter}_Sit_{self.situation}/'
         else:
             self.export_paths['Envelope'] = self.procesed_data_path + f'Envelope/Sit_{self.situation}/'
-        self.export_paths['Pitch'] = self.procesed_data_path + f'Pitch_threshold_{self.silence_threshold}/Sit_{self.situation}_Faltantes/'
-        self.export_paths['Pitch-Manual'] = self.procesed_data_path + f'Pitch-Manual_threshold_{self.silence_threshold}/Sit_{self.situation}_Faltantes/'
+                
+        self.export_paths['Mfccs'] = self.procesed_data_path + f'Mfccs/Sit_{self.situation}/'
+        self.export_paths['Mfccs-Deltas'] = self.procesed_data_path + f'Mfccs-Deltas/Sit_{self.situation}/'
+        self.export_paths['Mfccs-Deltas-Deltas'] = self.procesed_data_path + f'Mfccs-Deltas-Deltas/Sit_{self.situation}/'
+        self.export_paths['Pitch-Log-Quad'] = self.procesed_data_path + f'Pitch-Log-Quad_threshold_{self.silence_threshold}/Sit_{self.situation}/'
+        self.export_paths['Pitch-Raw'] = self.procesed_data_path + f'Pitch-Raw_threshold_{self.silence_threshold}/Sit_{self.situation}/'
+        self.export_paths['Pitch-Log-Raw'] = self.procesed_data_path + f'Pitch-Log-Raw_threshold_{self.silence_threshold}/Sit_{self.situation}/'
+        self.export_paths['Pitch-Manual'] = self.procesed_data_path + f'Pitch-Manual_threshold_{self.silence_threshold}/Sit_{self.situation}/'
+        self.export_paths['Pitch-Log-Manual'] = self.procesed_data_path + f'Pitch-Log-Manual_threshold_{self.silence_threshold}/Sit_{self.situation}/'
+        self.export_paths['Pitch-Phonemes'] = self.procesed_data_path + f'Pitch-Phonemes_threshold_{self.silence_threshold}/Sit_{self.situation}/'
+        self.export_paths['Pitch-Log-Phonemes'] = self.procesed_data_path + f'Pitch-Log-Phonemes_threshold_{self.silence_threshold}/Sit_{self.situation}/'
         self.export_paths['Spectrogram'] = self.procesed_data_path + f'Spectrogram/Sit_{self.situation}/'
         self.export_paths['Phonemes-Envelope'] = self.procesed_data_path + f'Phonemes-Envelope/Sit_{self.situation}/'
         self.export_paths['Phonemes-Envelope-Manual'] = self.procesed_data_path + f'Phonemes-Manual/Sit_{self.situation}/'
@@ -973,7 +1072,9 @@ def load_data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str,
         Session number
     stim : str
         Stimuli to use in the analysis. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
-            ['Envelope', 'Pitch', 'Pitch-Manual', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual'].
+            ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
+            'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
+            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
     band : str
         Neural frequency band. It could be one of:
             ['Delta','Theta', 'Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
@@ -1009,12 +1110,16 @@ def load_data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str,
     ------
     SyntaxError
         If 'stimulus' is not an allowed stimulus. Allowed stimuli are:
-            ['Envelope', 'Pitch', 'Pitch-Manual', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual'].
+            ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
+            'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
+            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual'].
         If more than one stimulus is wanted, the separator should be '_'.
     """
 
     # Define allowed stimuli
-    allowed_stims = ['Envelope', 'Pitch', 'Pitch-Manual','Spectrogram', 'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete','Phonemes-Discrete-Manual', 'Phonemes-Onset','Phonemes-Onset-Manual']
+    allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes',\
+                    'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset',\
+                    'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
     allowed_situations = ['Habla_Propia','Ambos_Habla','Escucha']
     allowed_bands = ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
 

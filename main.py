@@ -24,7 +24,7 @@ start_time = datetime.now()
 # ==========
 
 # Stimuli, EEG frecuency band and dialogue situation
-stimuli = ['Pitch-Manual']
+stimuli = ['Mfccs-Deltas', 'Mfccs-Deltas-Deltas']
 bands = ['Theta']
 situation = 'Escucha'
 
@@ -127,7 +127,7 @@ for band in bands:
             
             # Store phonemes ocurrences to make boxplot
             for stimulus in stim.split('_'):
-                if 'Phonemes' in stimulus:
+                if stimulus.startswith('Phonemes'):
                     # Change to 1's every value that isn't 0. In this way the method works for every kind
                     matrix_1 = sujeto_1[stimulus].copy()
                     matrix_1[matrix_1!=0.] = 1
@@ -326,12 +326,13 @@ for band in bands:
         repeated_good_rmse_channels_subjects = np.stack(repeated_good_rmse_channels_subjects , axis=0)
         
         # Plot phoneme ocurrences
-        plot.phonemes_ocurrences(ocurrences=phoenemes_ocurrences, save_path=path_figures, save=save_figures, no_figures=no_figures)
+        if np.array([bool(d) for d in phoenemes_ocurrences.values()]).any():
+            plot.phonemes_ocurrences(ocurrences=phoenemes_ocurrences, save_path=path_figures, save=save_figures, no_figures=no_figures)
 
         # Plot average topomap across each subject
-        plot.average_topomap(average_coefficient_subjects=average_rmse_subjects, info=info, display_interactive_mode=display_interactive_mode,
+        plot.average_topomap(average_coefficient_subjects=average_rmse_subjects, stim=stim, info=info, display_interactive_mode=display_interactive_mode,
                              save=save_figures, save_path=path_figures, coefficient_name='RMSE', no_figures=no_figures)
-        plot.average_topomap(average_coefficient_subjects=average_correlation_subjects, display_interactive_mode=display_interactive_mode,
+        plot.average_topomap(average_coefficient_subjects=average_correlation_subjects, stim=stim, display_interactive_mode=display_interactive_mode,
                              info=info, save=save_figures, save_path=path_figures, coefficient_name='Correlation', test_result=False, no_figures=no_figures) # USING ZERO METHOD PRATT
         
         # Plot topomap with relevant times
@@ -339,7 +340,7 @@ for band in bands:
                                 sample_rate=sr, save_path=path_figures, save=save_figures, display_interactive_mode=display_interactive_mode, no_figures=no_figures)
 
         # Plot channel-wise correlation topomap 
-        plot.channel_wise_correlation_topomap(average_weights_subjects=average_weights_subjects, info=info, save=save_figures, 
+        plot.channel_wise_correlation_topomap(average_weights_subjects=average_weights_subjects, info=info, stim=stim save=save_figures, 
                                               save_path=path_figures, display_interactive_mode=display_interactive_mode, no_figures=no_figures)      
 
         # Plot weights
