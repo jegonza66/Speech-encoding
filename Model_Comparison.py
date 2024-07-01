@@ -1,16 +1,28 @@
-import pickle
-import matplotlib.pyplot as plt
-import numpy as np
-import os
-import mne
+# Standard libraries
+import matplotlib.pyplot as plt, numpy as np, os, mne
+
+# Specific libraries
 from scipy.spatial import ConvexHull
 
-model = 'Ridge'
-situacion = 'Escucha'
-tmin, tmax = -0.6, 0
+# Modules
+from funciones  import load_pickle, dump_pickle
 
-Run_graficos_path = 'gráficos/Model_Comparison/{}/{}/tmin{}_tmax{}/Convex_Hull/'.format(model, situacion, tmin, tmax)
-Save_fig = True
+
+# Model parametrs
+situation = 'Escucha'
+stims_preprocess = 'Normalize'
+eeg_preprocess = 'Standarize'
+tmin, tmax = -.2, .6
+
+# Relevant paths
+path_figures = f'figures/model_comparison/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/'
+
+# Code parameters
+save_figures = True
+
+
+# ===================================
+
 
 Bands = ['Theta']
 Stims = 'Envelope_Pitch_Phonemes'
