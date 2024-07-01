@@ -1,4 +1,4 @@
-librosa==0.8.1
+librosa==0.9.1
 mne==1.2.0
 pandas==1.4.4
 scikit-learn==1.2.1
@@ -13,3 +13,12 @@ matplotlib-venn
 ipython
 # multiprocess==0.70.16
 wordcloud==1.9.3
+kaldi_io==0.9.4
+tqdm==4.62.3
+matplotlib==3.3.4
+torch==1.13.1
+pysptk==0.1.18
+phonet==0.3.7
+scipy==1.10.0
+scikit_learn==1.0.2
+disvoice==0.1.8
