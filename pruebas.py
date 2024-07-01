@@ -6,6 +6,7 @@ import mne, librosa, librosa.display, platform, opensmile, textgrids
 import scipy.io.wavfile as wavfile
 from scipy import signal as sgn
 from praatio import pitch_and_intensity
+from disvoice.phonological.phonological import Phonological
 
 # Modules
 import processing, funciones, setup
