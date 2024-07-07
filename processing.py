@@ -319,6 +319,10 @@ def tfce(average_weights_subjects:np.ndarray,
         n_permutations=n_permutations,
         out_type="mask",
     )
+    if total_number_features>1:
+        p_tfce = p_tfce.reshape(total_number_features, n_delays)
+    else:
+        p_tfce = p_tfce.reshape(n_chan, n_delays)
 
     if verbose_tfce:
         t_f = datetime.now().replace(microsecond=0)-t_0
