@@ -14,7 +14,6 @@ import librosa
 # Default size is 10 pts, the scalings (10pts*scale) are:
 #'xx-small':0.579,'x-small':0.694,'small':0.833,'medium':1.0,'large':1.200,'x-large':1.440,'xx-large':1.728,None:1.0}
 import matplotlib.pylab as pylab
-import matplotlib.ticker as tkr
 params = {'legend.fontsize': 'x-large',
           'legend.title_fontsize': 'x-large',
           'figure.figsize': (8, 6),
@@ -361,6 +360,7 @@ def topomap(good_channels_indexes:np.ndarray,
         save_path_topo = save_path + 'cabezas_topomap/'
         os.makedirs(save_path_topo, exist_ok=True)
         fig.savefig(save_path_topo + f'{coefficient_name.lower()}_topomap_session_{session}_subject_{subject}.png')
+        fig.savefig(save_path_topo + f'{coefficient_name.lower()}_topomap_session_{session}_subject_{subject}.svg')
 
 #TODO CHECK DESCRIPTION
 def average_topomap(average_coefficient_subjects:np.ndarray, 
@@ -965,7 +965,7 @@ def channel_weights(info:mne.io.meas_info.Info,
                          label='Amplitude (a.u.)', 
                          aspect=15)
             
-        elif feat.startswith('Mfccs'):
+        elif feat.startswith('Mfccs') or feat.startswith('Deltas'):
             # Take mean across all band frequencies
             average_by_band = average_weights[:, index_slice[0]:index_slice[1], :].mean(axis=0)
 
@@ -988,9 +988,14 @@ def channel_weights(info:mne.io.meas_info.Info,
                 ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)] 
                 ylabels += [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)]
                 ylabels += [r'$\delta-\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)]
+            elif feat=='Deltas':
+                ylabels = [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat)]
+            elif feat=='Deltas-Deltas':
+                ylabels = [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
+                ylabels += [r'$\delta-\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
             ax[0,i_feat].set(xlabel='', 
                              yticklabels=ylabels[::2],
-                             ylabel="Mfcc's Index",
+                             ylabel=f"{feat}'s Index",
                              yticks= np.arange(0, n_feat, 2), 
                              title=f'{feat}')
             
@@ -1041,6 +1046,8 @@ def channel_weights(info:mne.io.meas_info.Info,
         save_path_graficos = save_path + 'individual_weights/'
         os.makedirs(save_path_graficos, exist_ok=True)
         fig.savefig(save_path_graficos + f'session_{session}_subject_{subject}.png')
+        fig.savefig(save_path_graficos + f'session_{session}_subject_{subject}.svg')
+
 
 #TODO CHECK DESCRIPTION
 def average_regression_weights(average_weights_subjects:np.ndarray, 
@@ -1090,7 +1097,7 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
 
     for i_feat, (feat, n_feat) in enumerate(zip(stimuli, n_feats)):
         # Create figure and title
-        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs'):
+        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs') or feat.startswith('Deltas'):
             fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(7, 12), layout='tight', sharex=True)
             ax, ax1 = ax[0], ax[1]
         else:
@@ -1131,12 +1138,12 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
         # Graph properties
         ax.legend()
         ax.grid(visible=True)
-        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs'):
+        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs') or feat.startswith('Deltas'):
             ax.set(xlabel='')
         else:
             ax.set(xlabel='Time (ms)')
 
-        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs'):
+        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs') or feat.startswith('Deltas'):
             if feat.startswith('Spectro'):
                 # Take mean across all band frequencies
                 average_by_band = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=0)
@@ -1161,7 +1168,7 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
                             shrink=1, 
                             label='Amplitude (a.u.)', 
                             aspect=15)
-            elif feat.startswith('Mfccs'):
+            elif feat.startswith('Mfccs') or feat.startswith('Deltas'):
                 # Take mean across all band frequencies
                 average_by_band = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=0)
 
@@ -1184,10 +1191,16 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
                     ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)] 
                     ylabels += [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)]
                     ylabels += [r'$\delta-\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)]
-                ax1.set(ylabel="Mfcc's Index", 
-                        yticks=np.arange(0, n_feat, 2), 
-                        yticklabels=ylabels[::2])
-
+                elif feat=='Deltas':
+                    ylabels = [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat)]
+                elif feat=='Deltas-Deltas':
+                    ylabels = [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
+                    ylabels += [r'$\delta-\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
+                ax1.set(yticklabels=ylabels[::2],
+                             ylabel=f"{feat}'s Index",
+                             yticks= np.arange(0, n_feat, 2), 
+                             title=f'{feat}')
+                
                 # Configure colorbar
                 fig.colorbar(im, 
                             ax=ax1, 
@@ -1339,12 +1352,6 @@ def plot_tvalue_pvalue_tfce(tvalue:np.ndarray,
                   display_interactive_mode:bool=False, 
                   save:bool=True,
                   no_figures:bool=False):
-    # Reshape p and tvalue. This is done in this way just for clarity
-    n_subj, n_chan_feat, n_delays = trf_subjects_shape 
-    tvalue = tvalue.reshape((n_chan_feat, n_delays)) # TODO creo que ya viene así
-    pvalue = np.reshape(pvalue, (n_chan_feat, n_delays))
-    x, y = np.mgrid[0:n_chan_feat, 0:n_delays]
-    time_labels = np.arange(np.round(times[0],1)*1e3, np.round(times[-1],2)*1e3+1e2, 1e2, dtype=int)
 
     # Turn on/off interactive mode
     plt.close()
@@ -1352,7 +1359,12 @@ def plot_tvalue_pvalue_tfce(tvalue:np.ndarray,
         plt.ion()
     else:
         plt.ioff()
-    
+
+    # Make grid and time labels
+    n_subj, n_chan_feat, n_delays = trf_subjects_shape 
+    x, y = np.mgrid[0:n_chan_feat, 0:n_delays]
+    time_labels = np.arange(np.round(times[0],1)*1e3, np.round(times[-1],2)*1e3+1e2, 1e2, dtype=int)
+
     # Create figure and title
     fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(16, 6), layout='tight')
     fig.suptitle(f'{stim}-{band}')
@@ -1474,7 +1486,7 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
     # Exit function
     plt.close()
     if no_figures:
-        return   
+        return
 
     # Turn on/off interactive mode
     if display_interactive_mode:
@@ -1485,12 +1497,17 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
     # Take mean over all subjects
     mean_average_weights_subjects = average_weights_subjects.mean(axis=0)
     stimuli = stim.split('_')
-
+    
+    # Create save path
+    save_path += 'TFCE/'
+    os.makedirs(save_path, exist_ok=True)
+    
     for i_feat, (feat, n_feat) in enumerate(zip(stimuli, n_feats)):
         # Make slicing of relevant features
         index_slice = sum(n_feats[:i_feat]),  sum(n_feats[:i_feat]) + n_feat
+        pvalue_feat = pvalue[index_slice[0]:index_slice[1]]
         
-        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs'):
+        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs') or feat.startswith('Deltas'):
             # Create figure and title
             fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(16, 8), layout='tight', sharey=True)
             fig.suptitle(f'P-value for {feat} - {band}')
@@ -1518,7 +1535,7 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
                             shrink=1, 
                             label='Amplitude (a.u.)', 
                             aspect=15)
-            elif feat.startswith('Mfccs'):
+            elif feat.startswith('Mfccs') or feat.startswith('Deltas'):
                 # Set figure configuration
                 if feat=='Mfccs':
                     ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat)]
@@ -1529,12 +1546,18 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
                     ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)] 
                     ylabels += [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)]
                     ylabels += [r'$\delta-\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)]
+                elif feat=='Deltas':
+                    ylabels = [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat)]
+                elif feat=='Deltas-Deltas':
+                    ylabels = [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
+                    ylabels += [r'$\delta-\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
                 ax[0].set(xlabel='Time (ms)',
-                          ylabel="Mfcc's Index", 
-                          yticks=np.arange(0, n_feat, 2), 
-                          yticklabels=ylabels[::2], 
-                          title='Weights')
-                                # Configure colorbar
+                          ylabel=f"{feat}'s Index",
+                          yticklabels=ylabels[::2],
+                          yticks= np.arange(0, n_feat, 2), 
+                          title=f'Weights')
+                
+                # Configure colorbar
                 fig.colorbar(im, 
                             ax=ax[0], 
                             orientation='horizontal', 
@@ -1557,20 +1580,13 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
                              shrink=1,
                              aspect=20)
                 
-            # Define specific parameters
-            n_subj, n_feat_tfce, n_delays = trf_subjects_shape 
-            pvalue = np.reshape(pvalue, (n_feat_tfce, n_delays))
-
-            # Keep just relevant pvalues for this feature
-            pvalue = pvalue[index_slice[0]:index_slice[1],:]
-
             # Mask p-values over threshold
-            pvalue[pvalue > pval_tresh] = 1
+            pvalue_feat[pvalue_feat > pval_tresh] = 1
 
             # Make p-value plot
             img = ax[1].pcolormesh(times*1000, 
                             np.arange(n_feat), 
-                            -np.log10(np.maximum(pvalue, 1e-5)),
+                            -np.log10(np.maximum(pvalue_feat, 1e-5)),
                             cmap="inferno", 
                             shading='auto')
 
@@ -1590,8 +1606,63 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
                 text.set_weight("bold")
                 plt.subplots_adjust(0, 0.05, 1, 0.9, wspace=0, hspace=0)
                 mne.viz.utils.plt_show()
-                    
-        elif n_feat==1:
+        elif n_feat==1 and n_feats!=[1]:
+            # Create figure and title
+            fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 6), layout='tight', sharey=False)
+            fig.suptitle(f'P-value for {feat} - {band}')
+
+            # Create evoked response as graph of weights averaged across all feats and all 
+            weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1)
+            evoked = mne.EvokedArray(data=weights, info=info)
+        
+            # Relabel time 0
+            evoked.shift_time(times[0], relative=True)
+            
+            # Plot
+            evoked.plot(
+                scalings={'eeg':1}, 
+                zorder='std', 
+                time_unit='ms',
+                show=False, 
+                spatial_colors=True, 
+                units='mTRF (a.u.)',
+                axes=ax,
+                gfp=False)
+
+            # Add mean of all channels
+            ax.plot(
+                times * 1000, #ms
+                evoked._data.mean(axis=0), 
+                'k--', 
+                label='Mean', 
+                zorder=130, 
+                linewidth=2)
+            
+            # Mask p-values over threshold
+            ax_p_val = ax.twinx()
+            pvalue_feat[pvalue_feat > pval_tresh] = 1
+            logp = -np.log10(np.maximum(pvalue_feat.reshape(-1), pval_tresh))
+
+            # Make vertical span
+            ax_p_val.plot(times*1e3, # ms
+                          logp,
+                          color='orange')
+            
+            ax_p_val.fill_between(times*1e3,
+                                  logp.min(),
+                                  logp, 
+                                  color='orange',
+                                  alpha=.1,
+                                  label=f'Passed {pval_tresh} threshold')
+                       
+            # Graph properties
+            ax.legend(loc=(.55,.7))
+            ax.grid(visible=True)
+            ax.set(yticks=[], xlabel='Times (ms)', title='P-value')
+            ax_p_val.set(ylabel=r"$-\log_{10}(p)$", yticks = np.linspace(logp.min(), logp.max(), 8))
+            ax_p_val.legend(loc=(.55,.8))
+
+        elif n_feat==1 and n_feats==[1]:
             # Create figure and title
             fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(16, 8), layout='tight', sharey=False)
             fig.suptitle(f'P-value for {feat} - {band}')
@@ -1627,20 +1698,17 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
             ax[0].legend()
             ax[0].grid(visible=True)
 
-            # Now define relevant parameters for pvalue
-            n_subj, n_chan, n_delays = trf_subjects_shape
-            pvalue = np.reshape(pvalue, (n_chan, n_delays))
-
             # Mask p-values over threshold
-            pvalue[pvalue > pval_tresh] = 1
-            
+            pvalue_feat = pvalue
+            pvalue_feat[pvalue_feat > pval_tresh] = 1
+
             # Probability plot
             img = ax[1].pcolormesh(times*1000, 
                                 np.arange(trf_subjects_shape[1]), 
-                                -np.log10(np.maximum(pvalue, 1e-5)),
+                                -np.log10(np.maximum(pvalue, pval_tresh)),
                                 cmap="inferno", 
                                 shading='auto')
-
+            
             # Configure plot
             ax[1].set(yticks=[],
                 xlabel='Times (ms)',
@@ -1656,18 +1724,10 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
                                 mappable=img)
             cbar.ax.get_xaxis().set_label_coords(0.5, -3)
 
-            if display_interactive_mode:
-                text = fig.suptitle('')
-                text.set_weight("bold")
-                plt.subplots_adjust(0, 0.05, 1, 0.9, wspace=0, hspace=0)
-                mne.viz.utils.plt_show()
-
-    # Save figures
-    if save:
-        save_path += 'TFCE/'
-        os.makedirs(save_path, exist_ok=True)
-        fig.savefig(save_path + f'pvalue_{feat.lower()}_{pval_tresh}.svg')
-        fig.savefig(save_path + f'pvalue_{feat.lower()}_{pval_tresh}.png')
+        # Save figures
+        if save:
+            fig.savefig(save_path + f'pvalue_{feat.lower()}_{pval_tresh}.svg')
+            fig.savefig(save_path + f'pvalue_{feat.lower()}_{pval_tresh}.png')
 
 # =====================
 # FIGURES OF VALIDATION
@@ -1871,6 +1931,8 @@ def corr_sujeto_decoding(sesion, sujeto, Valores_promedio, display_interactive_m
         except:
             pass
         fig.savefig(save_path_cabezas + '{}_Sesion{}_Sujeto{}.png'.format(name, sesion, sujeto))
+        fig.savefig(save_path_cabezas + '{}_Sesion{}_Sujeto{}.svg'.format(name, sesion, sujeto))
+
 
 
 def Plot_PSD(sesion, sujeto, Band, situacion, display_interactive_mode, Save, save_path, info, data, fmin=0, fmax=40):

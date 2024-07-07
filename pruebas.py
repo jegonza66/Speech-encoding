@@ -18,21 +18,25 @@ exp_info = setup.exp_info()
 
 # =====================
 # PHONOlOGICAL FEATURES
-phonologicalf=Phonological()
-file_audio=r'Datos/wavs/S21/s21.objects.01.channel1.wav'
-feats=phonologicalf.extract_features_file(file_audio, static=False, plots=True, fmt="dataframe")
+phonologicalf = Phonological()
+file_audio = r'Datos/wavs/S21/s21.objects.01.channel1.wav'
+feats=phonologicalf.extract_features_file(file_audio, static=False, plots=False, fmt="dataframe")
 print(feats)
-feats.columns
-feats.head()
+phon_feats = [feat for feat in feats.columns if feat!='time']
+sr = 128
+desire_time = np.linspace(0, envelope.shape[0]/sr + 1/sr , envelope.shape[0])
+phonological_features = []
+for phon_feat in phon_feats:
+    phonological_features.append(np.interp(desire_time, feats['time'].values, feats[f'{phon_feat}'].values))
+phonological_features = np.stack(phonological_features, axis=0).T
+
 plt.figure()
-plt.plot(feats['time'], feats['labial'], label = 'labial')
-plt.plot(feats['time'], feats['labial'], label = 'labial')
+plt.plot(feats['time'], feats['vocalic'], label = 'labial')
+plt.plot(desire_time, phonological_features[0], label = 'labial')
 plt.grid(True)
 plt.xlabel('Time (s)')
 plt.show()
 
-sr = 128
-number_of_samples_between_times = np.diff(feats['time'].values)*sr
 
 # #==========
 # # FUNCTIONS

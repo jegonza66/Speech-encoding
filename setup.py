@@ -12,3 +12,7 @@ class exp_info:
         self.ph_labels_man = ['(d)o', 'A', 'AH', 'CH', 'F', 'NY', 'R', 'Y', 'a', 'ap', 'b', 'br', 'c', 'chas', 'd',
                               'de', 'e', 'es', 'f', 'g', 'h', 'i', 'k', 'l', 'lg', 'm', 'n', 'ns', 'o', 'p', 'r', 's',
                               'si', 't', 'u', 'v', 'x', 'y']
+        
+        self.phonological_labels = ['vocalic', 'consonantal', 'back', 'anterior', 'open', 'close', 'nasal', 'stop', 
+                                    'continuant', 'lateral', 'flap', 'trill', 'voice', 'strident', 'labial', 'dental', 
+                                    'velar', 'pause']

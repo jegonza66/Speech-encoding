@@ -1,11 +1,11 @@
 # Standard libraries
 import numpy as np, pandas as pd, os, warnings
-import mne, librosa, platform, opensmile, textgrids
 
 # Specific libraries
-import scipy.io.wavfile as wavfile#, parselmouth
-from scipy import signal as sgn
+import mne, librosa, opensmile, textgrids, scipy.io.wavfile as wavfile
+from disvoice.phonological.phonological import Phonological
 from praatio import pitch_and_intensity
+from scipy import signal as sgn
 
 # Modules
 import processing, funciones, setup
@@ -153,7 +153,7 @@ class Trial_channel:
             envelope = processing.butter_filter(data=envelope, frecuencias=25, sampling_freq=self.audio_sr,
                                                 btype='lowpass', order=3, axis=0, ftype='NonCausal').reshape(-1,1)
         
-        # Resample
+        # Resample # TODO padear un cero en el envelope
         window_size, stride = int(self.audio_sr/self.sr), int(self.audio_sr/self.sr)
         envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)])
         return envelope.reshape(-1, 1)
@@ -204,7 +204,7 @@ class Trial_channel:
         ----------
         kind : str, optional
            Kind of pitch use, by default 'Log-Raw'. Available kinds are:
-            'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas'
+            'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas'
 
         Returns
         -------
@@ -214,11 +214,11 @@ class Trial_channel:
         Raises
         ------
         SyntaxError
-            Whether the input value of 'kind' is passed correctly. It must be a string among ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas'].
+            Whether the input value of 'kind' is passed correctly. It must be a string among ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas'].
         """
 
         # Check if given kind is a permited input value
-        allowed_kind = ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas']
+        allowed_kind = ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas']
         if kind not in allowed_kind:
             raise SyntaxError(f"{kind} is not an allowed kind of mfccs. Allowed kinds are: {allowed_kind}")
         
@@ -234,17 +234,28 @@ class Trial_channel:
         mfccs = librosa.feature.mfcc(y=wav, n_mfcc=12, n_mels=12, sr=self.audio_sr, n_fft=sample_window, hop_length=sample_window)
         
         # Append deltas and deltas deltas
-        if kind.endswith('Deltas'):
-            delta_mfccs = librosa.feature.delta(mfccs)
-            mfccs_features = np.concatenate((mfccs, delta_mfccs))
-            if kind.endswith('Deltas-Deltas'):
-                delta2_mfccs = librosa.feature.delta(mfccs, order=2)
-                mfccs_features = np.concatenate((mfccs, delta_mfccs, delta2_mfccs))
-                return mfccs_features.T
+        if kind.startswith('Mfccs'):
+            if kind.endswith('Deltas'):
+                delta_mfccs = librosa.feature.delta(mfccs)
+                mfccs_features = np.concatenate((mfccs, delta_mfccs))
+                if kind.endswith('Deltas-Deltas'):
+                    delta2_mfccs = librosa.feature.delta(mfccs, order=2)
+                    mfccs_features = np.concatenate((mfccs, delta_mfccs, delta2_mfccs))
+                    return mfccs_features.T
+                else:
+                    return mfccs_features.T
             else:
-                return mfccs_features.T
+                return mfccs.T
         else:
-            return mfccs.T
+            if kind.endswith('Deltas'):
+                delta_mfccs = librosa.feature.delta(mfccs)
+                if kind.endswith('Deltas-Deltas'):
+                    delta2_mfccs = librosa.feature.delta(mfccs, order=2)
+                    deltas = np.concatenate((delta_mfccs, delta2_mfccs))
+                    return deltas.T
+                else:
+                    return delta_mfccs.T
+
         # import librosa.display
         # librosa.display.specshow(mfccs, 
         #                         x_axis="time", 
@@ -425,6 +436,38 @@ class Trial_channel:
                     phonemes[i, updated_taggs.index(tagg)] = 1
         return phonemes
 
+    def f_phonolical_features(self, envelope:np.ndarray):
+        """Retrive phonological features as matrix
+
+        Parameters
+        ----------
+        envelope : np.ndarray
+            Envelope of the audio signal using Hilbert transform
+
+        Returns
+        -------
+        np.ndarray
+            Matrix with phonological features with shape SAMPLES X FEATURES
+        """
+        # Define phonological instance and phonological features
+        phonological = Phonological()
+        phon_features = phonological.extract_features_file(self.wav_fname, 
+                                                           static=False, 
+                                                           plots=False, 
+                                                           fmt="dataframe")
+        # Get feature names
+        phon_features_names = [feat for feat in phon_features.columns if feat!='time']
+        
+        # Interpole data in desire times
+        desire_time = np.linspace(0, envelope.shape[0]/self.sr + 1/sr , envelope.shape[0])
+        
+        phonological_features = []
+        for phon_feat in phon_features_names:
+            phonological_features.append(np.interp(desire_time, phon_features['time'].values, phon_features[f'{phon_feat}'].values))
+        
+        # Return data in desired shape
+        return np.stack(phonological_features, axis=0).T
+
     def f_pitch(self, envelope:np.ndarray, kind:str): 
         """Loads the pitch of the speaker, after calculating it from .wav file and stores it.
 
@@ -588,7 +631,7 @@ class Trial_channel:
         ----------
         stims : list
             A list containing possible stimuli. Possible input values are: 
-            ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
+            ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
             'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
 
@@ -603,7 +646,7 @@ class Trial_channel:
         channel['Envelope'] = self.f_envelope()
 
         for stim in stims:
-            if stim.startswith('Mfccs'):
+            if stim.startswith('Mfccs') or stim.startswith('Deltas'):
                 channel[stim] = self.f_mfccs(kind=stim)
             if stim.startswith('Pitch'):
                 channel[stim] = self.f_pitch(envelope=channel['Envelope'], kind=stim)
@@ -628,7 +671,7 @@ class Sesion_class:
             Session number, by default 21
         stim : str, optional
             Stimuli to use in the analysis, by default 'Envelope'. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
-            ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
+            ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
             'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
         band : str, optional
@@ -656,7 +699,7 @@ class Sesion_class:
         ------
         SyntaxError
             If 'stim' is not an allowed stimulus. Allowed stimuli are:
-            ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
+            ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
             'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
             If more than one stimulus is wanted, the separator should be '_'.
@@ -669,7 +712,7 @@ class Sesion_class:
         """
        
         # Check if band, stim and situation parameters where passed with the right syntax
-        allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', \
+        allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', \
                         'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', \
                         'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
         allowed_band_frequencies = ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
@@ -719,6 +762,8 @@ class Sesion_class:
         self.export_paths['Mfccs'] = self.procesed_data_path + f'Mfccs/Sit_{self.situation}/'
         self.export_paths['Mfccs-Deltas'] = self.procesed_data_path + f'Mfccs-Deltas/Sit_{self.situation}/'
         self.export_paths['Mfccs-Deltas-Deltas'] = self.procesed_data_path + f'Mfccs-Deltas-Deltas/Sit_{self.situation}/'
+        self.export_paths['Deltas'] = self.procesed_data_path + f'Deltas/Sit_{self.situation}/'
+        self.export_paths['Deltas-Deltas'] = self.procesed_data_path + f'Deltas-Deltas/Sit_{self.situation}/'
         self.export_paths['Pitch-Log-Quad'] = self.procesed_data_path + f'Pitch-Log-Quad_threshold_{self.silence_threshold}/Sit_{self.situation}/'
         self.export_paths['Pitch-Raw'] = self.procesed_data_path + f'Pitch-Raw_threshold_{self.silence_threshold}/Sit_{self.situation}/'
         self.export_paths['Pitch-Log-Raw'] = self.procesed_data_path + f'Pitch-Log-Raw_threshold_{self.silence_threshold}/Sit_{self.situation}/'
@@ -728,7 +773,7 @@ class Sesion_class:
         self.export_paths['Pitch-Log-Phonemes'] = self.procesed_data_path + f'Pitch-Log-Phonemes_threshold_{self.silence_threshold}/Sit_{self.situation}/'
         self.export_paths['Spectrogram'] = self.procesed_data_path + f'Spectrogram/Sit_{self.situation}/'
         self.export_paths['Phonemes-Envelope'] = self.procesed_data_path + f'Phonemes-Envelope/Sit_{self.situation}/'
-        self.export_paths['Phonemes-Envelope-Manual'] = self.procesed_data_path + f'Phonemes-Manual/Sit_{self.situation}/'
+        self.export_paths['Phonemes-Envelope-Manual'] = self.procesed_data_path + f'Phonemes-Envelope-Manual/Sit_{self.situation}/'
         self.export_paths['Phonemes-Discrete'] = self.procesed_data_path + f'Phonemes-Discrete/Sit_{self.situation}/'
         self.export_paths['Phonemes-Discrete-Manual'] = self.procesed_data_path + f'Phonemes-Discrete-Manual/Sit_{self.situation}/'
         self.export_paths['Phonemes-Onset'] = self.procesed_data_path + f'Phonemes-Onset/Sit_{self.situation}/'
@@ -1072,7 +1117,7 @@ def load_data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str,
         Session number
     stim : str
         Stimuli to use in the analysis. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
-            ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
+            ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
             'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
     band : str
@@ -1110,14 +1155,14 @@ def load_data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str,
     ------
     SyntaxError
         If 'stimulus' is not an allowed stimulus. Allowed stimuli are:
-            ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
+            ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
             'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual'].
         If more than one stimulus is wanted, the separator should be '_'.
     """
 
     # Define allowed stimuli
-    allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes',\
+    allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes',\
                     'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset',\
                     'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
     allowed_situations = ['Habla_Propia','Ambos_Habla','Escucha']
