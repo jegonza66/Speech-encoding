@@ -3,7 +3,7 @@ import numpy as np, pandas as pd, os, warnings
 
 # Specific libraries
 import mne, librosa, opensmile, textgrids, scipy.io.wavfile as wavfile
-from disvoice.phonological.phonological import Phonological
+from disvoice.phonological.phonological import Phonological # TODO Solve KALDI_ROOT when parsing
 from praatio import pitch_and_intensity
 from scipy import signal as sgn
 
@@ -459,7 +459,7 @@ class Trial_channel:
         phon_features_names = [feat for feat in phon_features.columns if feat!='time']
         
         # Interpole data in desire times
-        desire_time = np.linspace(0, envelope.shape[0]/self.sr + 1/sr , envelope.shape[0])
+        desire_time = np.linspace(0, envelope.shape[0]/self.sr + 1/self.sr , envelope.shape[0])
         
         phonological_features = []
         for phon_feat in phon_features_names:
@@ -633,7 +633,7 @@ class Trial_channel:
             A list containing possible stimuli. Possible input values are: 
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
+            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonological']
 
         Returns
         -------
@@ -650,6 +650,8 @@ class Trial_channel:
                 channel[stim] = self.f_mfccs(kind=stim)
             if stim.startswith('Pitch'):
                 channel[stim] = self.f_pitch(envelope=channel['Envelope'], kind=stim)
+            if stim=='Phonological':
+                channel[stim] = self.f_phonological_features(envelope=channel['Envelope'])
             if stim=='Spectrogram':
                 channel['Spectrogram'] = self.f_spectrogram()
             elif stim.startswith('Phonemes'):
@@ -673,7 +675,7 @@ class Sesion_class:
             Stimuli to use in the analysis, by default 'Envelope'. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
+            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonological']
         band : str, optional
             Neural frequency band, by default 'All'. It could be one of:
             ['Delta','Theta',Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
@@ -701,7 +703,7 @@ class Sesion_class:
             If 'stim' is not an allowed stimulus. Allowed stimuli are:
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
+            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonological']
             If more than one stimulus is wanted, the separator should be '_'.
         SyntaxError
             If 'band' is not an allowed band frecuency. Allowed bands are:
@@ -714,7 +716,7 @@ class Sesion_class:
         # Check if band, stim and situation parameters where passed with the right syntax
         allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', \
                         'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', \
-                        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
+                        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonological']
         allowed_band_frequencies = ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
         allowed_situationes = ['Habla_Propia','Ambos_Habla','Escucha']
         for st in stim.split('_'):
@@ -778,6 +780,7 @@ class Sesion_class:
         self.export_paths['Phonemes-Discrete-Manual'] = self.procesed_data_path + f'Phonemes-Discrete-Manual/Sit_{self.situation}/'
         self.export_paths['Phonemes-Onset'] = self.procesed_data_path + f'Phonemes-Onset/Sit_{self.situation}/'
         self.export_paths['Phonemes-Onset-Manual'] = self.procesed_data_path + f'Phonemes-Onset-Manual/Sit_{self.situation}/'
+        self.export_paths['Phonological'] = self.procesed_data_path + f'Phonological/Sit_{self.situation}/'
         
     def load_from_raw(self):
         """Loads raw data, this includes EEG, info and stimuli.
@@ -1119,7 +1122,7 @@ def load_data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str,
         Stimuli to use in the analysis. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
+            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonological']
     band : str
         Neural frequency band. It could be one of:
             ['Delta','Theta', 'Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
@@ -1157,14 +1160,14 @@ def load_data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str,
         If 'stimulus' is not an allowed stimulus. Allowed stimuli are:
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual'].
+            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonological'].
         If more than one stimulus is wanted, the separator should be '_'.
     """
 
     # Define allowed stimuli
     allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes',\
                     'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset',\
-                    'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
+                    'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonological']
     allowed_situations = ['Habla_Propia','Ambos_Habla','Escucha']
     allowed_bands = ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
 

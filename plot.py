@@ -937,6 +937,27 @@ def channel_weights(info:mne.io.meas_info.Info,
                          shrink=1, 
                          label='Amplitude (a.u)', 
                          aspect=15)
+        elif feat.startswith('Phonological'):
+            # Take mean across all phonemes
+            average_by_phon = average_weights[:, index_slice[0]:index_slice[1], :].mean(axis=0)
+
+            # Create colormesh figure
+            im = ax[0,i_feat].pcolormesh(times*1000,
+                            np.arange(n_feat), 
+                            average_by_phon, 
+                            cmap='jet', 
+                            shading='auto')
+
+            # Set figure configuration
+            ax[0,i_feat].tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
+            ax[0,i_feat].set(xlabel='', ylabel='Phonological features', yticks=np.arange(n_feat), yticklabels=exp_info.phonological_labels, title=f'{feat}')
+
+            fig.colorbar(im, 
+                         ax=ax[0,i_feat], 
+                         orientation='horizontal', 
+                         shrink=1, 
+                         label='Amplitude (a.u)', 
+                         aspect=15)
         elif feat.startswith('Spectro'):
             # Take mean across all band frequencies
             average_by_band = average_weights[:, index_slice[0]:index_slice[1], :].mean(axis=0)
@@ -964,7 +985,6 @@ def channel_weights(info:mne.io.meas_info.Info,
                          shrink=1, 
                          label='Amplitude (a.u.)', 
                          aspect=15)
-            
         elif feat.startswith('Mfccs') or feat.startswith('Deltas'):
             # Take mean across all band frequencies
             average_by_band = average_weights[:, index_slice[0]:index_slice[1], :].mean(axis=0)
@@ -1224,6 +1244,29 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
                     ax1.set(ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels_man)
                 else:
                     ax1.set(ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels)
+                
+                ax1.tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
+                
+                # Make color bar
+                fig.colorbar(im,
+                             ax=ax1,
+                             orientation='horizontal',
+                             label='Amplitude (a.u.)',
+                             shrink=1,
+                             aspect=20)
+            elif feat.startswith('Phonological'):
+                # Take mean across all phonemes
+                average_by_phon = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=0)
+
+                # Create colormesh figure
+                im = ax1.pcolormesh(times * 1000,
+                                np.arange(n_feat), 
+                                average_by_phon, 
+                                cmap='jet', 
+                                shading='auto')
+
+                # Set figure configuration
+                ax1.set(ylabel='Phonological', yticks=np.arange(n_feat), yticklabels=exp_info.phonological_labels)
                 
                 ax1.tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
                 
@@ -1507,7 +1550,7 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
         index_slice = sum(n_feats[:i_feat]),  sum(n_feats[:i_feat]) + n_feat
         pvalue_feat = pvalue[index_slice[0]:index_slice[1]]
         
-        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs') or feat.startswith('Deltas'):
+        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs') or feat.startswith('Deltas') ot feat.startswith('Phonolo'):
             # Create figure and title
             fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(16, 8), layout='tight', sharey=True)
             fig.suptitle(f'P-value for {feat} - {band}')
@@ -1570,6 +1613,17 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
                 else:
                     ax[0].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels)
                 
+                ax[0].tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
+                
+                # Make color bar
+                fig.colorbar(im,
+                             ax=ax[0],
+                             orientation='horizontal',
+                             label='Amplitude (a.u.)',
+                             shrink=1,
+                             aspect=20)
+            elif feat.startswith('Phonological'):
+                ax[0].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.phonological_labels)
                 ax[0].tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
                 
                 # Make color bar
