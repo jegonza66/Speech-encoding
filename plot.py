@@ -1550,7 +1550,7 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
         index_slice = sum(n_feats[:i_feat]),  sum(n_feats[:i_feat]) + n_feat
         pvalue_feat = pvalue[index_slice[0]:index_slice[1]]
         
-        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs') or feat.startswith('Deltas') ot feat.startswith('Phonolo'):
+        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs') or feat.startswith('Deltas') or feat.startswith('Phonolo'):
             # Create figure and title
             fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(16, 8), layout='tight', sharey=True)
             fig.suptitle(f'P-value for {feat} - {band}')
