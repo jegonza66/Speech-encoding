@@ -1,69 +1,104 @@
 # Standard libraries
-import matplotlib.pyplot as plt, numpy as np, os, mne
+import matplotlib.pyplot as plt, numpy as np, os, mne, pandas as pd, seaborn as sn, copy
 
 # Specific libraries
+# from statsmodels.stats.multitest import fdrcorrection
+from matplotlib_venn import venn3, venn2  # venn3_circles
 from scipy.spatial import ConvexHull
+from scipy.stats import wilcoxon
 
 # Modules
-from funciones  import load_pickle, dump_pickle
+from funciones import load_pickle, cohen_d
 
+# Default size is 10 pts, the scalings (10pts*scale) are:
+#'xx-small':0.579,'x-small':0.694,'small':0.833,'medium':1.0,'large':1.200,'x-large':1.440,'xx-large':1.728,None:1.0}
+import matplotlib.pylab as pylab
+params = {'legend.fontsize': 'x-large',
+          'legend.title_fontsize': 'x-large',
+          'figure.figsize': (8, 6),
+          'figure.titlesize': 'xx-large',
+          'axes.labelsize': 'x-large',
+          'axes.titlesize':'x-large',
+          'xtick.labelsize':'large',
+          'ytick.labelsize':'large'}
+pylab.rcParams.update(params)
 
 # Model parametrs
+model ='mtrf'
 situation = 'Escucha'
 stims_preprocess = 'Normalize'
 eeg_preprocess = 'Standarize'
 tmin, tmax = -.2, .6
 
 # Relevant paths
-path_figures = f'figures/model_comparison/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/'
+path_figures = os.path.normpath(f'figures/{model}/model_comparison/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/')
+final_corr_path = os.path.normpath(f'saves/{model}/{situation}/Final_Correlation/tmin{tmin}_tmax{tmax}/')
+preprocesed_data_path = os.path.normpath(f'saves/Preprocesed_Data/tmin-0.2_tmax0.6/') 
 
 # Code parameters
 save_figures = True
 
+# ================================================================================
+# CONVEX HULL:  it contrasts the correlation of each part against the joint model.
+path_convex_hull = os.path.join(path_figures,'convex_hull')
 
-# ===================================
+# Relevant parameters
+bands = ['Theta']
+# stims = ['Envelope', 'Pitch-Log-Raw', 'Phonemes-Discrete', 'Envelope_Pitch-Log-Raw_Phonemes-Discrete'] # TODO CHECK robutness to other stimuli
+# stims = ['_'.join(sorted(stim.split('_'))) for stim in stims ]
+stims = 'Phonological_Deltas_Spectrogram'
+stims = '_'.join(sorted(stims.split('_'))) 
+substims = stims.split('_')
+avg_corr, good_ch = {}, {}
 
+# Iterate over bands
+for band in bands:
+    # Fill dictionaries with data
+    for stim in substims + [stims]:
+        data = load_pickle(path=os.path.join(final_corr_path, f'{stim}_EEG_{band}.pkl'))
+        good_ch[stim] = data['repeated_good_correlation_channels_subjects'].ravel()
+        avg_corr[stim] = data['average_correlation_subjects'].ravel()
+        
+    # Make plot
+    plt.ioff()
+    plt.figure(layout='tight')
+    plt.title(band)
 
-Bands = ['Theta']
-Stims = 'Envelope_Pitch_Phonemes'
-sub_stims = Stims.split('_')
-Corr = {}
-Pass = {}
-
-for Band in Bands:
-    for stim in sub_stims + [Stims]:
-        f = open('saves/{}/{}/Final_Correlation/tmin{}_tmax{}/{}_EEG_{}.pkl'.format(model, situacion, tmin, tmax,
-                                                                                    stim, Band), 'rb')
-
-        corr_data, pass_data = pickle.load(f)
-        Corr[stim] = corr_data.ravel()
-        Pass[stim] = pass_data.ravel()
-        f.close()
-
-    # PLOT
-    plt.ion()
-    plt.figure()
-    plt.title(Band)
-
-    for i, stim in enumerate(sub_stims):
-        stim_points = np.array([Corr[Stims], Corr[stim]]).transpose()
+    for i, stim in enumerate(substims):
+        # Identify Hull (la cáscara de los datos, i.e, el borde)
+        stim_points = np.array([avg_corr[stims], avg_corr[stim]]).transpose()
         stim_hull = ConvexHull(stim_points)
 
-        plt.plot(Corr[Stims][Pass[stim] != 0], Corr[stim][Pass[stim] != 0], '.', color=f'C{i}',
-                 label=stim, ms=2.5)
+        # Plot good channels for each stim
+        plt.plot(avg_corr[stims][good_ch[stim] != 0], 
+                 avg_corr[stim][good_ch[stim] != 0], 
+                 '.', 
+                 color=f'C{i}',
+                 label=stim, 
+                 ms=2.5)
 
-        plt.plot(Corr[Stims][Pass[stim] == 0], Corr[stim][Pass[stim] == 0], '.', color='grey',
-                 alpha=0.5, label='Perm. test failed', ms=2)
-        plt.fill(stim_points[stim_hull.vertices, 0], stim_points[stim_hull.vertices, 1], color=f'C{i}',
-                 alpha=0.3, lw=0)
+        # Plot bad channels for each stim
+        plt.plot(avg_corr[stims][good_ch[stim] == 0], 
+                 avg_corr[stim][good_ch[stim] == 0], 
+                 '.', 
+                 color='grey',
+                alpha=0.5, 
+                label='Failed permutation test', 
+                markersize=2)
+        plt.fill(stim_points[stim_hull.vertices, 0], 
+                 stim_points[stim_hull.vertices, 1], 
+                 color=f'C{i}',
+                 alpha=0.3, 
+                 linewidth=0)
 
-    # Lines
-    plt.plot([plt.xlim()[0], 0.7], [plt.xlim()[0], 0.7], 'k--', zorder=0)
+    # Get limits
     xlimit, ylimit = plt.xlim(), plt.ylim()
+    # plt.set_xlim = xlimit
+    # plt.set_ylim = ylimit
+    plt.plot([xlimit[0], 0.7], [xlimit[0], 0.7], 'k--', zorder=0)
     plt.hlines(0, xlimit[0], xlimit[1], color='grey', linestyle='dashed')
     plt.vlines(0, ylimit[0], ylimit[1], color='grey', linestyle='dashed')
-    plt.set_xlim = xlimit
-    plt.set_ylim = ylimit
+    
     plt.ylabel('Individual model (r)')
     plt.xlabel('Full model (r)')
 
@@ -73,87 +108,67 @@ for Band in Bands:
     plt.legend(by_label.values(), by_label.keys(), markerscale=3)
 
     # Save
-    plt.tight_layout()
-    if Save_fig:
-        fig_savepath = Run_graficos_path + f'{Band}/'
-        os.makedirs(fig_savepath, exist_ok=True)
-        plt.savefig(fig_savepath + f'{Stims}.png')
-        plt.savefig(fig_savepath + f'{Stims}.svg')
+    if save_figures:
+        temp_path = os.path.join(path_convex_hull, f'{band}')
+        os.makedirs(temp_path, exist_ok=True)
+        plt.savefig(os.path.join(temp_path, f'{stims}.png'))
+        plt.savefig(os.path.join(temp_path, f'{stims}.svg'))
+    plt.close()
 
 
-## Violin / Topo (Bands)
-import pandas as pd
-import pickle
-import matplotlib.pyplot as plt
-import os
-import seaborn as sn
-import mne
+# ===================
+# VIOLIN/TOPO (BANDS)
+path_violin = os.path.join(path_figures,'violin_topo')
 
-tmin, tmax = -0.6, -0.003
-model = 'Ridge'
-situacion = 'Escucha'
-
-info_path = 'saves/Preprocesed_Data/tmin-0.6_tmax-0.003/EEG/info.pkl'
-f = open(info_path, 'rb')
-info = pickle.load(f)
-f.close()
-
-Run_graficos_path = 'gráficos/Model_Comparison/{}/{}/tmin{}_tmax{}/Violin Topo/'.format(model, situacion, tmin, tmax)
-Save_fig = True
-Correlaciones = {}
-
+# Relevant parameters
+colors_violin = {'All': 'darkgrey', 'Delta': 'darkgrey', 'Theta': 'C1', 'Alpha': 'darkgrey', 'Beta_1': 'darkgrey'}
+info = load_pickle(path=os.path.join(preprocesed_data_path,'/EEG/info.pkl'))
+bands = ['All', 'Delta', 'Theta', 'Alpha', 'Beta_1']
 stim = 'Spectrogram'
-Bands = ['All', 'Delta', 'Theta', 'Alpha', 'Beta_1']
+avg_corr = {}
 
-for Band in Bands:
-    f = open('saves/{}/{}/Final_Correlation/tmin{}_tmax{}/{}_EEG_{}.pkl'.format(model, situacion, tmin, tmax, stim, Band), 'rb')
-    Corr, Pass = pickle.load(f)
-    f.close()
 
-    Correlaciones[Band] = Corr.mean(0)
+# Make figure
+fig, axs = plt.subplots(figsize=(14, 5), ncols=5, nrows=2, layout='tight')
 
-my_pal = {'All': 'darkgrey', 'Delta': 'darkgrey', 'Theta': 'C1', 'Alpha': 'darkgrey', 'Beta_1': 'darkgrey'}
-
-fontsize = 19
-plt.rcParams.update({'font.size': fontsize})
-# fig, axs = plt.subplots(figsize=(10, 4), ncols=5, nrows=2, gridspec_kw={'wspace': 0.25})
-fig, axs = plt.subplots(figsize=(14, 5), ncols=5, nrows=2)
-
-for i, Band in enumerate(Bands):
-    ax = axs[0, i]
-    fig.tight_layout()
-    im = mne.viz.plot_topomap(Correlaciones[Band].ravel(), info, axes=ax, show=False, sphere=0.07, cmap='Reds',
-                              vmin=Correlaciones[Band].min(), vmax=Correlaciones[Band].max())
-    cbar = plt.colorbar(im[0], ax=ax, orientation='vertical', shrink=0.5)
-    cbar.ax.tick_params(labelsize=fontsize)
+# Iterate over bands
+for i, band in enumerate(bands):
+    data = load_pickle(path=os.path.join(final_corr_path, f'{stim}_EEG_{band}.pkl'))
+    avg_corr[band] = data['average_correlation_subjects'].mean(axis=0) # TODO CHECK mean
+    
+    # Make topomap
+    im = mne.viz.plot_topomap(avg_corr[band].ravel(), 
+                              info, 
+                              axes=axs[0, i], 
+                              show=False, 
+                              sphere=0.07, 
+                              cmap='Reds',
+                              vmin=avg_corr[band].min(), 
+                              vmax=avg_corr[band].max())
+    # And colorbar
+    cbar = plt.colorbar(im[0], ax=axs[0, i], orientation='vertical', shrink=0.5)
 
 for ax_row in axs[1:]:
     for ax in ax_row:
         ax.remove()
 
+
+plt.suptitle(situation)#TODO PONER CON FIG ARRIBA CREO
 ax = fig.add_subplot(2, 1, (2, 3))
+sn.violinplot(data=pd.DataFrame(avg_corr), palette=colors_violin, ax=ax)
 
-plt.suptitle(situacion)
-sn.violinplot(data=pd.DataFrame(Correlaciones), palette=my_pal, ax=ax)
-ax.set_ylabel('Correlation')
-ax.set_ylim([0, 0.5])
-ax.grid()
-ax.set_xticklabels(['Broad band', 'Delta', 'Theta', 'Alpha', 'Low Beta'])
-fig.tight_layout()
+ax.set(ylabel='Correlation', 
+       xticklabels=['Broad band', 'Delta', 'Theta', 'Alpha', 'Low Beta'],
+       ylim=[0, 0.5])
+ax.grid(visible=True)
 
-if Save_fig:
-    os.makedirs(Run_graficos_path, exist_ok=True)
-    plt.savefig(Run_graficos_path + '{}.png'.format(stim))
-    plt.savefig(Run_graficos_path + '{}.svg'.format(stim))
+if save_figures:
+    os.makedirs(path_violin, exist_ok=True)
+    plt.savefig(os.path.join(path_violin + f'{stim}.png'))
+    plt.savefig(os.path.join(path_violin + f'{stim}.svg'))
 
-## Violin / mTRF (Bands)
-import pandas as pd
-import pickle
-import matplotlib.pyplot as plt
-import os
-import seaborn as sn
-import mne
-import numpy as np
+# ===================
+# VIOLIN/MTRF (BANDS)
 
 info_path = 'saves/Preprocesed_Data/tmin-0.6_tmax-0.003/EEG/info.pkl'
 f = open(info_path, 'rb')
@@ -226,16 +241,15 @@ if Save_fig:
     plt.savefig(Run_graficos_path + '{}.png'.format(stim))
     plt.savefig(Run_graficos_path + '{}.svg'.format(stim))
 
-
-## Wilcoxon test topoplots
+# =======================
+# WILCOXON TEST TOPOPLOTS
 import numpy as np
 import pickle
 import matplotlib.pyplot as plt
 import os
 from scipy.stats import wilcoxon
 import mne
-from statsmodels.stats.multitest import fdrcorrection
-from funciones import cohen_d
+# from statsmodels.stats.multitest import fdrcorrection
 
 model = 'Ridge'
 Band = 'Theta'
@@ -383,13 +397,8 @@ for sit1, sit2 in zip(('Escucha', 'Escucha', 'Escucha', 'Escucha', 'Habla_Propia
             plt.savefig(Run_graficos_path + f'cohen_{sit1}-{sit2}.svg'.format(Band))
 
 
-
+# ===================
 ## Violin Plot Stims
-import pandas as pd
-import pickle
-import matplotlib.pyplot as plt
-import os
-import seaborn as sn
 
 Save_fig = True
 model = 'Ridge'
@@ -449,18 +458,9 @@ if Save_fig:
     os.makedirs(Run_graficos_path, exist_ok=True)
     plt.savefig(Run_graficos_path + '{}.png'.format(Band))
     plt.savefig(Run_graficos_path + '{}.svg'.format(Band))
-
+# ==========================
 ## Violin Plot Situation
-import pandas as pd
-import numpy as np
-import pickle
-import matplotlib
-import matplotlib.pyplot as plt
-import os
-import seaborn as sn
-from scipy.stats import wilcoxon
-import mne
-from statsmodels.stats.multitest import fdrcorrection
+
 
 model = 'Ridge'
 Band = 'Theta'
@@ -511,11 +511,6 @@ if Save_fig:
     plt.savefig(Run_graficos_path + 'Violin_plot.svg'.format(Band))
 
 ## TRF amplitude
-
-import numpy as np
-import pickle
-import matplotlib.pyplot as plt
-import mne
 
 model = 'Ridge'
 Band = 'Theta'
@@ -607,12 +602,6 @@ if Save_fig:
 
 
 ## Venn Diagrams
-from matplotlib_venn import venn3, venn2  # venn3_circles
-from matplotlib import pyplot as plt
-import pickle
-import os
-import numpy as np
-import copy
 
 tmin, tmax = -0.6, 0
 model = 'Ridge'
@@ -737,12 +726,6 @@ for Band in Bands:
 # Spectrogram_u_percent = r2u_3 * 100 /np.sum(sets_0)
 
 ## Box Plot Bandas Decoding
-import pandas as pd
-import pickle
-import matplotlib.pyplot as plt
-import os
-import seaborn as sn
-import numpy as np
 
 tmin, tmax = -0.4, 0.2
 model = 'Decoding'
@@ -801,11 +784,6 @@ for Band in Bands:
     print(f'Passed subjects: {Passed_subj}/{len(Pass)}')
 
 ## Heatmaps
-import numpy as np
-import matplotlib.pyplot as plt
-import pickle
-import os
-
 model = 'Ridge'
 situacion = 'Escucha'
 tmin, tmax = -0.6, -0.003
