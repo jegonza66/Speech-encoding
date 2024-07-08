@@ -436,7 +436,7 @@ class Trial_channel:
                     phonemes[i, updated_taggs.index(tagg)] = 1
         return phonemes
 
-    def f_phonolical_features(self, envelope:np.ndarray):
+    def f_phonological_features(self, envelope:np.ndarray):
         """Retrive phonological features as matrix
 
         Parameters

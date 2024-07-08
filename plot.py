@@ -831,7 +831,7 @@ def channel_wise_correlation_topomap(average_weights_subjects:np.ndarray,
                         ax=ax, 
                         shrink=0.85, 
                         orientation='vertical', 
-                        label='Correlation')
+                        label=f'Correlation')
     
     if save:
         os.makedirs(save_path, exist_ok=True)
@@ -972,7 +972,7 @@ def channel_weights(info:mne.io.meas_info.Info,
                             vmax=average_by_band.max())
 
             # Set figure configuration
-            bands_center = librosa.mel_frequencies(n_mels=n_feats+2, fmin=62, fmax=8000)[1:-1]
+            bands_center = librosa.mel_frequencies(n_mels=n_feat+2, fmin=62, fmax=8000)[1:-1]
             ax[0,i_feat].set(xlabel='', 
                              yticklabels=[int(bands_center[i]) for i in np.arange(0, len(bands_center), 2)],
                              ylabel='Frecuency (Hz)',
@@ -1104,8 +1104,12 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
     colormesh_form : bool, optional
         Whether to add graph with colormesh (only for multifeature attributes), by default False
     """
-    # Turn on/off interactive mode
+    # Exit function
     plt.close()
+    if no_figures:
+        return  
+
+    # Turn on/off interactive mode
     if display_interactive_mode:
         plt.ion()
     else:
@@ -1117,7 +1121,7 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
 
     for i_feat, (feat, n_feat) in enumerate(zip(stimuli, n_feats)):
         # Create figure and title
-        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs') or feat.startswith('Deltas'):
+        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs') or feat.startswith('Deltas') or feat.startswith('Phonol'):
             fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(7, 12), layout='tight', sharex=True)
             ax, ax1 = ax[0], ax[1]
         else:
@@ -1158,12 +1162,12 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
         # Graph properties
         ax.legend()
         ax.grid(visible=True)
-        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs') or feat.startswith('Deltas'):
+        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs') or feat.startswith('Deltas') or feat.startswith('Phonol'):
             ax.set(xlabel='')
         else:
             ax.set(xlabel='Time (ms)')
 
-        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs') or feat.startswith('Deltas'):
+        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs') or feat.startswith('Deltas') or feat.startswith('Phonol'):
             if feat.startswith('Spectro'):
                 # Take mean across all band frequencies
                 average_by_band = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=0)
@@ -1178,7 +1182,7 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
                                 vmax=average_by_band.max())
 
                 # Set figure configuration
-                bands_center = librosa.mel_frequencies(n_mels=18, fmin=62, fmax=8000)[1:-1]
+                bands_center = librosa.mel_frequencies(n_mels=n_feat+2, fmin=62, fmax=8000)[1:-1]
                 ax1.set(ylabel='Frecuency (Hz)', yticks=np.arange(0, n_feat, 2), yticklabels=[int(bands_center[i]) for i in np.arange(0, len(bands_center), 2)])
 
                 # Configure colorbar
@@ -1311,12 +1315,16 @@ def correlation_matrix_subjects(average_weights_subjects:np.ndarray,
     fontsize : int, optional
         _description_, by default 19
     """
+    # Exit function
+    plt.close()
+    if no_figures:
+        return  
+    
     # Relevant parameters
     stimuli = stim.split('_')
     n_subjects, n_chan, _, n_delays = average_weights_subjects.shape
 
     # Turn on/off interactive mode
-    plt.close()
     if display_interactive_mode:
         plt.ion()
     else:
@@ -1623,7 +1631,7 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
                              shrink=1,
                              aspect=20)
             elif feat.startswith('Phonological'):
-                ax[0].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.phonological_labels)
+                ax[0].set(xlabel='Time (ms)', ylabel='Phonological Features', yticks=np.arange(n_feat), yticklabels=exp_info.phonological_labels)
                 ax[0].tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
                 
                 # Make color bar
