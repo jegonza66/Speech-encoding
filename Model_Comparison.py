@@ -215,7 +215,7 @@ for band in bands:
 
         # Make plot
         venn3(subsets=areas, # left area diagran, right area diagram, shared area <--> (100, 010, 110, 001, 101, 011, 111).
-              set_labels=(stims[0], stims[1], stims[2]), 
+              set_labels=(all_stimuli[0], all_stimuli[1], all_stimuli[2]), 
               set_colors=('C0', 'C1', 'purple'), 
               alpha=0.45)
 
