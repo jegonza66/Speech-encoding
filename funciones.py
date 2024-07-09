@@ -11,6 +11,27 @@ class Suppress_print:
         sys.stdout.close()
         sys.stdout = self._original_stdout
 
+def all_possible_combinations(a:list):
+    """Make a list with all possible combinations of the elements of the list
+
+    Parameters
+    ----------
+    a : list
+        _description_
+
+    Returns
+    -------
+    list
+        list of lists with all possible combinations of the elements of the list
+    """
+    if len(a) == 0:
+        return [[]]
+    cs = []
+    for c in all_possible_combinations(a[1:]):
+        cs += [c, c+[a[0]]]
+    cs.remove()
+    return cs
+
 def load_pickle(path:str):
     """Loads pickle file
 

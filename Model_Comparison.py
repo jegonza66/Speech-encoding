@@ -8,7 +8,7 @@ from scipy.spatial import ConvexHull
 from scipy.stats import wilcoxon
 
 # Modules
-from funciones import load_pickle, cohen_d
+from funciones import load_pickle, cohen_d, all_possible_combinations
 
 # Default size is 10 pts, the scalings (10pts*scale) are:
 #'xx-small':0.579,'x-small':0.694,'small':0.833,'medium':1.0,'large':1.200,'x-large':1.440,'xx-large':1.728,None:1.0}
@@ -44,8 +44,6 @@ path_convex_hull = os.path.join(path_figures,'convex_hull')
 
 # Relevant parameters
 bands = ['Theta']
-# stims = ['Envelope', 'Pitch-Log-Raw', 'Phonemes-Discrete', 'Envelope_Pitch-Log-Raw_Phonemes-Discrete'] # TODO CHECK robutness to other stimuli
-# stims = ['_'.join(sorted(stim.split('_'))) for stim in stims ]
 stims = 'Phonological_Deltas_Spectrogram'
 stims = '_'.join(sorted(stims.split('_'))) 
 substims = stims.split('_')
@@ -93,8 +91,6 @@ for band in bands:
 
     # Get limits
     xlimit, ylimit = plt.xlim(), plt.ylim()
-    # plt.set_xlim = xlimit
-    # plt.set_ylim = ylimit
     plt.plot([xlimit[0], 0.7], [xlimit[0], 0.7], 'k--', zorder=0)
     plt.hlines(0, xlimit[0], xlimit[1], color='grey', linestyle='dashed')
     plt.vlines(0, ylimit[0], ylimit[1], color='grey', linestyle='dashed')
@@ -114,6 +110,128 @@ for band in bands:
         plt.savefig(os.path.join(temp_path, f'{stims}.png'))
         plt.savefig(os.path.join(temp_path, f'{stims}.svg'))
     plt.close()
+
+# ========================================================================================================
+# VENN DIAGRAMS: it makes diagrams explaining correlation of each part of a shared model (upto 3 features)
+path_venn_diagrams = os.path.join(path_figures,'venn_diagrams')
+
+# Relevant parameters
+bands = ['Theta']
+stimuli = ['Phonological', 'Deltas', 'Spectrogram']
+
+# Arrange shared stimuli
+stimuli = sorted(stimuli)
+double_combinations = ['_'.join(sorted(combination)) for combination in all_possible_combinations(stimuli) if len(combination)==2]
+triple_combinations = ['_'.join(sorted(combination)) for combination in all_possible_combinations(stimuli) if len(combination)==3]
+all_stimuli = stimuli + double_combinations + triple_combinations
+mean_correlations = {}
+
+# Iterate over bands
+for band in bands:
+    for stim in all_stimuli:
+        # Get average correlation of each stimulus
+        mean_correlations[stim] = load_pickle(path=os.path.join(final_corr_path, f'{stim}_EEG_{band}.pkl'))['average_correlation_subjects'].mean()
+
+    for stim12 in double_combinations:
+        stim1, stim2 = stim12.split('_')
+
+        # Get squared correlation of stimuli
+        rsquared_1 = mean_correlations[stim1] ** 2
+        rsquared_2 = mean_correlations[stim2] ** 2
+        rsquared_12 = mean_correlations[stim12] ** 2
+
+        # Explained by one and two, but not by shared model
+        rsquared_complement_12 = rsquared_1 + rsquared_2 - rsquared_12 #11
+
+        # Shared without each stimulus
+        rsquared_shared_with_1 = rsquared_12 - rsquared_2 #10
+        rsquared_shared_with_2 = rsquared_12 - rsquared_1 #01
+        
+        # Get list with areas
+        areas = [rsquared_shared_with_1, rsquared_shared_with_2, rsquared_complement_12] # note that the sum gives shared model
+        areas = [0 if area<0 else area.round(3) for area in areas]
+        
+        # Create figure and title
+        title = stim12.replace('_', ' and ')
+        plt.ioff()
+        plt.figure(layout='tight')
+        plt.title(f'Diagram {band} band - {title}')
+
+        # Make plot
+        venn2(subsets=areas, # left area diagran, right area diagram, shared area <--> (10, 01, 11)
+              set_labels=(stim1, stim2),
+              set_colors=('C0', 'C1'), 
+              alpha=0.45)
+
+        # Save figure
+        if save_figures:
+            temp_path = os.path.join(path_venn_diagrams, f'{band}')
+            os.makedirs(temp_path, exist_ok=True)
+            plt.savefig(os.path.join(temp_path, f'{stim12}.png'))
+            plt.savefig(os.path.join(temp_path, f'{stim12}.svg'))
+        plt.close()
+        
+        # Make a print with information
+        stim1_percent = (rsquared_shared_with_1 * 100 /np.sum(areas)).round(2)
+        stim2_percent = (rsquared_shared_with_2 * 100 /np.sum(areas)).round(2)
+        shared_percent = (rsquared_complement_12 * 100 /np.sum(areas)).round(2)
+        print(f'\nExclusive Percentage explained by {stim1} is {stim1_percent} %',
+              f'\nExclusive Percentage explained by {stim2} is {stim2_percent} %',
+              f'\nshared percentage explained is {shared_percent} %')
+
+    if triple_combinations:
+        # Get squared correlation of stimuli
+        rsquared_1 = mean_correlations[all_stimuli[0]]**2
+        rsquared_2 = mean_correlations[all_stimuli[1]]**2
+        rsquared_3 = mean_correlations[all_stimuli[2]]**2
+        rsquared_12 = mean_correlations[all_stimuli[3]]**2
+        rsquared_13 = mean_correlations[all_stimuli[4]]**2
+        rsquared_23 = mean_correlations[all_stimuli[5]]**2
+        rsquared_123 = mean_correlations[all_stimuli[6]]**2
+
+        # Shared without each stimulus
+        rsquared_shared_with_1 = rsquared_123 - rsquared_23 #100
+        rsquared_shared_with_2 = rsquared_123 - rsquared_13 #010
+        rsquared_shared_with_3 = rsquared_123 - rsquared_12 #001
+        
+        # Explained by subshared
+        rsquared_shared_with_12 = rsquared_13 + rsquared_23 - rsquared_3 - rsquared_123 #110
+        rsquared_shared_with_13 = rsquared_12 + rsquared_23 - rsquared_2 - rsquared_123 #101
+        rsquared_shared_with_23 = rsquared_12 + rsquared_13 - rsquared_1 - rsquared_123 #011
+
+        # Explained by one, two, three and full shared model but not by subshared models
+        rsquared_int_complement_submodels = rsquared_123 + rsquared_1 + rsquared_2 + rsquared_3 - rsquared_12 - rsquared_13 - rsquared_23 #111
+
+        areas = [rsquared_shared_with_1, rsquared_shared_with_2, rsquared_shared_with_3, \
+                 rsquared_shared_with_12, rsquared_shared_with_13, rsquared_shared_with_23,\
+                 rsquared_int_complement_submodels] 
+        areas = [0 if area<0 else area.round(3) for area in areas] # note that the sum gives shared model rsquared_123
+
+        # Create figure and title
+        title = all_stimuli[-1].replace('_', ', ')
+        plt.ioff()
+        plt.figure(layout='tight')
+        plt.title(f'Diagram {band} band - {title}')
+
+        # Make plot
+        venn3(subsets=areas, # left area diagran, right area diagram, shared area <--> (100, 010, 110, 001, 101, 011, 111).
+              set_labels=(stims[0], stims[1], stims[2]), 
+              set_colors=('C0', 'C1', 'purple'), 
+              alpha=0.45)
+
+        if save_figures:
+            temp_path = os.path.join(path_venn_diagrams, f'{band}')
+            os.makedirs(temp_path, exist_ok=True)
+            plt.savefig(os.path.join(temp_path, f'{all_stimuli[-1]}.png'))
+            plt.savefig(os.path.join(temp_path, f'{all_stimuli[-1]}.svg'))
+        plt.close()
+# Envelope_percent = rsquared_1 * 100 /np.sum(sets_0)
+# Pitch_percent = rsquared_2 * 100 /np.sum(sets_0)
+# Spectrogram_percent = rsquared_3 * 100 /np.sum(sets_0)
+#
+# Envelope_u_percent = rsquaredu_1 * 100 /np.sum(sets_0)
+# Pitch_u_percent = rsquaredu_2 * 100 /np.sum(sets_0)
+# Spectrogram_u_percent = rsquaredu_3 * 100 /np.sum(sets_0)
 
 
 # ===================
@@ -306,7 +424,7 @@ for sit1, sit2 in zip(('Escucha', 'Escucha', 'Escucha', 'Escucha', 'Habla_Propia
     pvals[f'{sit1}-{sit2}'] = pval
 
     if stat_test == 'fdr':
-        passed, corrected_pval = fdrcorrection(pvals=pval, alpha=0.05, method='p')
+        # passed, corrected_pval = fdrcorrection(pvals=pval, alpha=0.05, method='p')
 
         if mask:
             corrected_pval[~passed] = 1
@@ -601,129 +719,6 @@ if Save_fig:
     plt.savefig(Run_graficos_path + 'Subplots.svg'.format(Band))
 
 
-## Venn Diagrams
-
-tmin, tmax = -0.6, 0
-model = 'Ridge'
-situacion = 'Escucha'
-Run_graficos_path = 'gráficos/Model_Comparison/{}/{}/tmin{}_tmax{}/Venn_Diagrams/'.format(model, situacion, tmin, tmax)
-save_path = 'saves/{}/{}/Final_Correlation/tmin{}_tmax{}/'.format(model, situacion, tmin, tmax)
-Save_fig = True
-
-
-# f = open('saves/{}/{}/Final_Correlation/tmin{}_tmax{}/Mean_Correlations.pkl'.format(model, situacion, tmin, tmax), 'rb')
-# Mean_Correlations = pickle.load(f)
-# f.close()
-
-Bands = ['All', 'Delta', 'Theta', 'Alpha', 'Beta_1']
-Bands = ['Theta']
-
-
-for Band in Bands:
-    Mean_Correlations = {}
-
-    stims_base = ['Spectrogram', 'Phonemes']
-    stims = copy.copy(stims_base)
-
-    for i in range(len(stims_base)-1):
-        for j in range(i+1, len(stims_base)):
-            stims.append('{}_{}'.format(stims_base[i], stims_base[j]))
-    stims.append('_'.join(stims_base))
-
-    for stim in stims:
-        # open FInal correlation file
-        f = open(save_path + '{}_EEG_{}.pkl'.format(stim, Band), 'rb')
-        Final_correlation = pickle.load(f)
-        f.close()
-
-        Mean_Correlations[stim] = Final_correlation[0].mean()
-
-    if len(stims_base) == 2:
-        r2_1 = Mean_Correlations[stims[0]] ** 2
-        r2_2 = Mean_Correlations[stims[1]] ** 2
-        r2_12 = Mean_Correlations[stims[2]] ** 2
-        r2_int_12 = r2_1 + r2_2 - r2_12
-
-        r2u_1 = r2_12 - r2_2
-        # r2u_2 = Mean_Correlations[Band][stims[1]][0]**2 + r2_int_123 - r2_int_12 - r2_int_23
-        r2u_2 = r2_12 - r2_1
-
-        sets = [r2u_1, r2u_2, r2_int_12]
-        sets_0 = []
-        for set in sets:
-            if set < 0:
-                set = 0
-            sets_0.append(set)
-
-        plt.figure()
-        plt.title('{}'.format(Band))
-        venn2(subsets=np.array(sets_0).round(5), set_labels=(stims[0], stims[1]),
-              set_colors=('C0', 'C1'), alpha=0.45)
-        plt.tight_layout()
-
-        if Save_fig:
-            fig_savepath = Run_graficos_path + f'{Band}/'
-            os.makedirs(fig_savepath, exist_ok=True)
-            plt.savefig(fig_savepath + f'{stims[-1]}.png')
-            plt.savefig(fig_savepath + f'{stims[-1]}.svg')
-
-        stim1_percent = r2_1 * 100 /np.sum(sets_0)
-        stim2_percent = r2_2 * 100 /np.sum(sets_0)
-
-        Envelope_u_percent = r2u_1 * 100 /np.sum(sets_0)
-        Pitch_u_percent = r2u_2 * 100 /np.sum(sets_0)
-
-
-    if len(stims_base) == 3:
-        r2_1 = Mean_Correlations[stims[0]]**2
-        r2_2 = Mean_Correlations[stims[1]]**2
-        r2_3 = Mean_Correlations[stims[2]]**2
-        r2_12 = Mean_Correlations[stims[3]]**2
-        r2_13 = Mean_Correlations[stims[4]]**2
-        r2_23 = Mean_Correlations[stims[5]]**2
-        r2_123 = Mean_Correlations[stims[6]]**2
-
-        r2_int_12 = r2_1 + r2_2 - r2_12
-        r2_int_13 = r2_1 + r2_3 - r2_13
-        r2_int_23 = r2_2 + r2_3 - r2_23
-        r2_int_123 = r2_123 + r2_1 + r2_2 + r2_3 - r2_12 - r2_13 - r2_23
-
-        r2u_int_12 = r2_1 + r2_2 - r2_12 - r2_int_123
-        r2u_int_13 = r2_1 + r2_3 - r2_13 - r2_int_123
-        r2u_int_23 = r2_2 + r2_3 - r2_23 - r2_int_123
-
-        # r2u_1 = Mean_Correlations[Band][stims[0]][0]**2 + r2_int_123 - r2_int_12 - r2_int_13
-        r2u_1 = r2_123 - r2_23
-        # r2u_2 = Mean_Correlations[Band][stims[1]][0]**2 + r2_int_123 - r2_int_12 - r2_int_23
-        r2u_2 = r2_123 - r2_13
-        # r2u_3 = Mean_Correlations[Band][stims[2]][0]**2 + r2_int_123 - r2_int_13 - r2_int_23
-        r2u_3 = r2_123 - r2_12
-
-        sets = [r2u_1, r2u_2, r2u_int_12, r2u_3, r2u_int_13, r2u_int_23, r2_int_123]
-        sets_0 = []
-        for set in sets:
-            if set < 0:
-                set = 0
-            sets_0.append(set)
-
-        plt.figure()
-        plt.title('{}'.format(Band))
-        venn3(subsets=np.array(sets_0).round(5), set_labels=(stims[0], stims[1], stims[2]), set_colors=('C0', 'C1', 'purple'), alpha=0.45)
-
-        plt.tight_layout()
-        if Save_fig:
-            fig_savepath = Run_graficos_path + f'{Band}/'
-            os.makedirs(fig_savepath, exist_ok=True)
-            plt.savefig(fig_savepath + f'{stims[-1]}.png')
-            plt.savefig(fig_savepath + f'{stims[-1]}.svg')
-
-# Envelope_percent = r2_1 * 100 /np.sum(sets_0)
-# Pitch_percent = r2_2 * 100 /np.sum(sets_0)
-# Spectrogram_percent = r2_3 * 100 /np.sum(sets_0)
-#
-# Envelope_u_percent = r2u_1 * 100 /np.sum(sets_0)
-# Pitch_u_percent = r2u_2 * 100 /np.sum(sets_0)
-# Spectrogram_u_percent = r2u_3 * 100 /np.sum(sets_0)
 
 ## Box Plot Bandas Decoding
 
