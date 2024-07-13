@@ -29,7 +29,6 @@ def all_possible_combinations(a:list):
     cs = []
     for c in all_possible_combinations(a[1:]):
         cs += [c, c+[a[0]]]
-    cs.remove()
     return cs
 
 def load_pickle(path:str):

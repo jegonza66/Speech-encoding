@@ -1,6 +1,6 @@
 # Standard libraries
 import numpy as np, pandas as pd, matplotlib.pyplot as plt, os, seaborn as sns, mne, scipy.signal as sgn, warnings
-import warnings
+current_working_directory = os.getcwd()
 warnings.filterwarnings("ignore", message="This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.")
 warnings.filterwarnings("ignore", message="FixedFormatter should only be used together with FixedLocator")
 warnings.filterwarnings("ignore", message="More than 20 figures have been opened. Figures created through the pyplot interface (`matplotlib.pyplot.figure`) are retained until explicitly closed and may consume too much memory. (To control this warning, see the rcParam `figure.max_open_warning`). Consider using `matplotlib.pyplot.close()`.")
@@ -92,8 +92,12 @@ def phonemes_ocurrences(ocurrences:dict,
         ax.grid(visible=True, alpha=.3)
 
         if save:
-            fig.savefig(save_path + f'{stimulus}_ocurrences.png')
-            fig.savefig(save_path + f'{stimulus}_ocurrences.svg')
+            # This is done to avoid working with long paths
+            temp_path = os.path.normpath(save_path)
+            os.chdir(temp_path)
+            fig.savefig(f'{stimulus}_ocurrences.png')
+            fig.savefig(f'{stimulus}_ocurrences.svg')
+            os.chdir(current_working_directory)
 
 # TODO HALF CHECK
 def null_correlation_vs_correlation_good_channels(good_channels_indexes:np.ndarray,
@@ -182,10 +186,15 @@ def null_correlation_vs_correlation_good_channels(good_channels_indexes:np.ndarr
 
     # Wether graph is saved
     if save:
-        save_path_graficos = save_path + 'correlation_vs_null_correlation/'
-        os.makedirs(save_path_graficos, exist_ok=True)
-        fig.savefig(save_path_graficos + f'session{session}_subject{subject}.png')
-        fig.savefig(save_path_graficos + f'session{session}_subject{subject}.svg')
+        save_path += 'correlation_vs_null_correlation/'
+        os.makedirs(save_path, exist_ok=True)
+        # This is done to avoid working with long paths
+        temp_path = os.path.normpath(save_path)
+        os.chdir(temp_path)
+        fig.savefig(f'session{session}_subject{subject}.png')
+        fig.savefig(f'session{session}_subject{subject}.svg')
+        os.chdir(current_working_directory)
+
 
 # TODO CHECK DESCRIPTION
 def lateralized_channels(info:mne.io.meas_info.Info, 
@@ -223,14 +232,8 @@ def lateralized_channels(info:mne.io.meas_info.Info,
     else:
         plt.ioff()
 
-    # Lateralization comparison
-    if channels_right is None:
-        channels_right = ['B27', 'B28', 'B29', 'B30', 'C4', 'C5', 'C6', 'C7', 'C9', 'C10', 'B31', 'C3']
-    if channels_left is None:
-        channels_left = ['D8', 'D9', 'D10', 'D11', 'D7', 'D6', 'D5', 'D4', 'C31', 'C32', 'D12', 'D3']
-
-    # Create mask
-    mask = [i in channels_right + channels_left for i in info['ch_names']]
+    # Get lateralized channels
+    lateralized_channels = [i in channels_right + channels_left for i in info['ch_names']]
     
     # Create figure and title
     fig, ax = plt.subplots(nrows=1, ncols=1, layout='tight')
@@ -241,15 +244,21 @@ def lateralized_channels(info:mne.io.meas_info.Info,
                          pos=info, 
                          show=display_interactive_mode, 
                          sphere=0.07, 
-                         mask=np.array(mask),
+                         mask=np.array(lateralized_channels),
                          mask_params=dict(marker='o', markerfacecolor='k', markeredgecolor='k', linewidth=0, markersize=12), 
                          axes=ax)
     # Save figure
     if save:
         save_path += 'lateralization/'
         os.makedirs(save_path, exist_ok=True)
-        fig.savefig(save_path + f'masked_left_vs_right_chs_{len(channels_right)}_channels.png')
-        fig.savefig(save_path + f'masked_left_vs_right_chs_{len(channels_right)}_channels.svg')
+        
+        # This is done to avoid working with long paths
+        temp_path = os.path.normpath(save_path)
+        os.chdir(temp_path)
+        fig.savefig(f'masked_left_vs_right_chs_{len(channels_right)}_channels.png')
+        fig.savefig(f'masked_left_vs_right_chs_{len(channels_right)}_channels.svg')
+        os.chdir(current_working_directory)
+
 
 #TODO CHECK DESCRIPTION
 def topomap(good_channels_indexes:np.ndarray,
@@ -357,10 +366,16 @@ def topomap(good_channels_indexes:np.ndarray,
                     ticks=np.linspace(average_coefficient.min(), average_coefficient.max(), 9).round(decimals=3)
                     )
     if save:
-        save_path_topo = save_path + 'cabezas_topomap/'
-        os.makedirs(save_path_topo, exist_ok=True)
-        fig.savefig(save_path_topo + f'{coefficient_name.lower()}_topomap_session_{session}_subject_{subject}.png')
-        fig.savefig(save_path_topo + f'{coefficient_name.lower()}_topomap_session_{session}_subject_{subject}.svg')
+        save_path = save_path + 'cabezas_topomap/'
+        os.makedirs(save_path, exist_ok=True)
+
+        # This is done to avoid working with long paths
+        temp_path = os.path.normpath(save_path)
+        os.chdir(temp_path)
+        fig.savefig(f'{coefficient_name.lower()}_topomap_session_{session}_subject_{subject}.png')
+        fig.savefig(f'{coefficient_name.lower()}_topomap_session_{session}_subject_{subject}.svg')
+        os.chdir(current_working_directory)
+        
 
 #TODO CHECK DESCRIPTION
 def average_topomap(average_coefficient_subjects:np.ndarray, 
@@ -430,8 +445,6 @@ def average_topomap(average_coefficient_subjects:np.ndarray,
                               sphere=0.07, 
                               axes=ax)
     
-    # colorbar = plt.colorbar(im[0], shrink=0.85, orientation='horizontal', label=coefficient_name)
-    # # colorbar.ax.tick_params(labelsize=fontsize)
     plt.colorbar(im[0],
                  ax=ax, 
                  shrink=0.85,
@@ -442,30 +455,40 @@ def average_topomap(average_coefficient_subjects:np.ndarray,
                  )
     if save:
         os.makedirs(save_path, exist_ok=True)
-        fig.savefig(save_path + f'average_{coefficient_name.lower()}_topomap.png')
-        fig.savefig(save_path + f'average_{coefficient_name.lower()}_topomap.svg')
+      
+        # This is done to avoid working with long paths
+        temp_path = os.path.normpath(save_path)
+        os.chdir(temp_path)
+        fig.savefig(f'average_{coefficient_name.lower()}_topomap.png')
+        fig.savefig(f'average_{coefficient_name.lower()}_topomap.svg')
+        os.chdir(current_working_directory)
+        
 
     # Make Lateralization comparison
     if coefficient_name == 'Correlation':
-        # Relevant channels
+        # Left and right channels
         all_channels_right = ['B27','B28','B29','B30','B31','B32','C1','C2','C3','C4','C5','C6','C7','C8','C9','C10','C11','C12','C13','C14','C15','C16']
         all_channels_left = ['D1','D2','D3','D4','D5','D6','D7','D8','D9','D10','D11','D12','D13','C24','C25','C26','C27','C28','C29','C30','C31','C32']
-        sorted_chs_right = sorted([i for i in info['ch_names'] if i in all_channels_right])
-        sorted_chs_left = sorted([i for i in info['ch_names'] if i in all_channels_left])
 
-        # Correlation of relevant channels
-        mask_right = [i in all_channels_right for i in info['ch_names']]
-        mask_left = [i in all_channels_left for i in info['ch_names']]
-        corr_right = np.sort(mean_average_coefficient[mask_right])
-        corr_left = np.sort(mean_average_coefficient[mask_left])
+        # Get channels right and left that are used in the experiment
+        ordered_chs_right = [i for i in info['ch_names'] if i in all_channels_right]
+        ordered_chs_left = [i for i in info['ch_names'] if i in all_channels_left]
 
-        # Lateralization channels to use: currently working with last 
+        # Get filter coefficient to get respective correlations
+        corr_right = mean_average_coefficient[[i in all_channels_right for i in info['ch_names']]]
+        corr_left = mean_average_coefficient[[i in all_channels_left for i in info['ch_names']]]
+
+        # Now get relevant indexes, sorted by correlation
+        sorted_chs_right = [x for _, x in sorted(zip(corr_right, ordered_chs_right))]
+        sorted_chs_left = [x for _, x in sorted(zip(corr_left, ordered_chs_left))]
+
+        # Get most correlated channels for lateralization
         if number_of_lat_channels:
-            corr_right = corr_right[-number_of_lat_channels:]
-            corr_left = corr_left[-number_of_lat_channels:]
+            corr_right = np.sort(corr_right)[-number_of_lat_channels:]
+            corr_left = np.sort(corr_left)[-number_of_lat_channels:]
             sorted_chs_right = sorted_chs_right[-number_of_lat_channels:]
             sorted_chs_left = sorted_chs_left[-number_of_lat_channels:]
-        
+
         # Make figure and data to plot
         fig = plt.figure(layout='tight')
         data = pd.DataFrame({'Left': corr_left, 'Right': corr_right})
@@ -495,10 +518,15 @@ def average_topomap(average_coefficient_subjects:np.ndarray,
         test_results = wilcoxon(data['Left'], data['Right'])
 
         if save:
-            save_path_lat = save_path + 'lateralization/'
-            os.makedirs(save_path_lat, exist_ok=True)
-            fig.savefig(save_path_lat + f'left_vs_right_{coefficient_name.lower()}_{len(sorted_chs_right)}_channels.svg')
-            fig.savefig(save_path_lat + f'left_vs_right_{coefficient_name.lower()}_{len(sorted_chs_right)}_channels.png')
+            save_path += 'lateralization/'
+            os.makedirs(save_path, exist_ok=True)
+
+            # This is done to avoid working with long paths
+            temp_path = os.path.normpath(save_path)
+            os.chdir(temp_path)
+            fig.savefig(f'left_vs_right_{coefficient_name.lower()}_{len(sorted_chs_right)}_channels.png')
+            fig.savefig(f'left_vs_right_{coefficient_name.lower()}_{len(sorted_chs_right)}_channels.svg')
+            os.chdir(current_working_directory)
 
         lateralized_channels(info=info, 
                              channels_right=sorted_chs_right, 
@@ -510,6 +538,7 @@ def average_topomap(average_coefficient_subjects:np.ndarray,
         test_results = None
     if test_result:
         return test_results
+
 
 #TODO CHECK DESCRIPTION
 def topo_average_pval(pvalues_coefficient_subjects:np.ndarray, 
@@ -574,8 +603,14 @@ def topo_average_pval(pvalues_coefficient_subjects:np.ndarray,
 
     if save:
         os.makedirs(save_path, exist_ok=True)
-        fig.savefig(save_path + f'p-value_topo_{coefficient_name.lower()}.png')
-        fig.savefig(save_path + f'p-value_topo_{coefficient_name.lower()}.svg')
+
+        # This is done to avoid working with long paths
+        temp_path = os.path.normpath(save_path)
+        os.chdir(temp_path)
+        fig.savefig(f'p-value_topo_{coefficient_name.lower()}.png')
+        fig.savefig(f'p-value_topo_{coefficient_name.lower()}.svg')
+        os.chdir(current_working_directory)
+
 
 #TODO CHECK DESCRIPTION
 def topo_repeated_channels(repeated_good_coefficients_channels_subjects:np.ndarray, 
@@ -638,8 +673,14 @@ def topo_repeated_channels(repeated_good_coefficients_channels_subjects:np.ndarr
 
     if save:
         os.makedirs(save_path, exist_ok=True)
-        fig.savefig(save_path + f'topo_repeated_channels_{coefficient_name.lower()}.png')
-        fig.savefig(save_path + f'topo_repeated_channels_{coefficient_name.lower()}.svg')
+        
+        # This is done to avoid working with long paths
+        temp_path = os.path.normpath(save_path)
+        os.chdir(temp_path)
+        fig.savefig(f'topo_repeated_channels_{coefficient_name.lower()}.png')
+        fig.savefig(f'topo_repeated_channels_{coefficient_name.lower()}.svg')
+        os.chdir(current_working_directory)
+        
 
 #TODO CHECK DESCRIPTION
 def topo_map_relevant_times(average_weights_subjects:np.ndarray, 
@@ -757,8 +798,14 @@ def topo_map_relevant_times(average_weights_subjects:np.ndarray,
         plt.figtext(x=.05, y=.05, s='Red is reserved for positive peaks, blue for negative ones', fontdict={'weight':'light'})
         if save:
             os.makedirs(save_path, exist_ok=True)
-            fig.savefig(save_path + 'relevant_times.png')
-            fig.savefig(save_path + 'relevant_times.svg')
+            
+            # This is done to avoid working with long paths
+            temp_path = os.path.normpath(save_path)
+            os.chdir(temp_path)
+            fig.savefig('relevant_times.png')
+            fig.savefig('relevant_times.svg')
+            os.chdir(current_working_directory)
+
 
 #TODO CHECK DESCRIPTION
 def channel_wise_correlation_topomap(average_weights_subjects:np.ndarray, 
@@ -835,8 +882,14 @@ def channel_wise_correlation_topomap(average_weights_subjects:np.ndarray,
     
     if save:
         os.makedirs(save_path, exist_ok=True)
-        fig.savefig(save_path + 'channelwise_correlation_topo.png')
-        fig.savefig(save_path + 'channelwise_correlation_topo.svg')
+        
+        # This is done to avoid working with long paths
+        temp_path = os.path.normpath(save_path)
+        os.chdir(temp_path)
+        fig.savefig('channelwise_correlation_topo.png')
+        fig.savefig('channelwise_correlation_topo.svg')
+        os.chdir(current_working_directory)
+        
 
 #TODO CHECK DESCRIPTION
 def channel_weights(info:mne.io.meas_info.Info,
@@ -1063,10 +1116,15 @@ def channel_weights(info:mne.io.meas_info.Info,
             ax[0,i_feat].set_xlabel('Time (ms)')
     
     if save:
-        save_path_graficos = save_path + 'individual_weights/'
-        os.makedirs(save_path_graficos, exist_ok=True)
-        fig.savefig(save_path_graficos + f'session_{session}_subject_{subject}.png')
-        fig.savefig(save_path_graficos + f'session_{session}_subject_{subject}.svg')
+        save_path += 'individual_weights/'
+        os.makedirs(save_path, exist_ok=True)
+
+        # This is done to avoid working with long paths
+        temp_path = os.path.normpath(save_path)
+        os.chdir(temp_path)
+        fig.savefig(f'session_{session}_subject_{subject}.png')
+        fig.savefig(f'session_{session}_subject_{subject}.svg')
+        os.chdir(current_working_directory)
 
 
 #TODO CHECK DESCRIPTION
@@ -1285,8 +1343,13 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
 
         if save:
             os.makedirs(save_path, exist_ok=True)
-            fig.savefig(save_path + f'average_weights_{feat.lower()}.svg')
-            fig.savefig(save_path + f'average_weights_{feat.lower()}.png')
+        
+            # This is done to avoid working with long paths
+            temp_path = os.path.normpath(save_path)
+            os.chdir(temp_path)
+            fig.savefig(f'average_weights_{feat.lower()}.png')
+            fig.savefig(f'average_weights_{feat.lower()}.svg')
+            os.chdir(current_working_directory)
 
 #TODO CHECK DESCRIPTION
 def correlation_matrix_subjects(average_weights_subjects:np.ndarray, 
@@ -1386,8 +1449,14 @@ def correlation_matrix_subjects(average_weights_subjects:np.ndarray,
         # Save data
         if save:
             os.makedirs(save_path, exist_ok=True)
-            fig.savefig(save_path + f'TRF_correlation_matrix_{feat}.png')
-            fig.savefig(save_path + f'TRF_correlation_matrix_{feat}.svg')
+            
+            # This is done to avoid working with long paths
+            temp_path = os.path.normpath(save_path)
+            os.chdir(temp_path)
+            fig.savefig(f'TRF_correlation_matrix_{feat}.png')
+            fig.savefig(f'TRF_correlation_matrix_{feat}.svg')
+            os.chdir(current_working_directory)
+            
 
 #TODO CHECK DESCRIPTION E Y LABEL
 def plot_tvalue_pvalue_tfce(tvalue:np.ndarray,
@@ -1404,8 +1473,12 @@ def plot_tvalue_pvalue_tfce(tvalue:np.ndarray,
                   save:bool=True,
                   no_figures:bool=False):
 
-    # Turn on/off interactive mode
+    # Exit function
     plt.close()
+    if no_figures:
+        return  
+
+    # Turn on/off interactive mode
     if display_interactive_mode:
         plt.ion()
     else:
@@ -1516,8 +1589,14 @@ def plot_tvalue_pvalue_tfce(tvalue:np.ndarray,
     if save:
         save_path += 'TFCE/'
         os.makedirs(save_path, exist_ok=True)
-        plt.savefig(save_path + f'tvals_pvals_{band}_{stim}_{pval_tresh}.png')
-        plt.savefig(save_path + f'tvals_pvals_{band}_{stim}_{pval_tresh}.svg')
+
+        # This is done to avoid working with long paths
+        temp_path = os.path.normpath(save_path)
+        os.chdir(temp_path)
+        fig.savefig(f'tvals_{band}_{stim}_{pval_tresh:.0e}.png')
+        fig.savefig(f'tvals_{band}_{stim}_{pval_tresh:.0e}.svg')
+        os.chdir(current_working_directory)
+        
 
 #TODO CHECK DESCRIPTION E Y LABEL
 def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
@@ -1548,11 +1627,7 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
     # Take mean over all subjects
     mean_average_weights_subjects = average_weights_subjects.mean(axis=0)
     stimuli = stim.split('_')
-    
-    # Create save path
-    save_path += 'TFCE/'
-    os.makedirs(save_path, exist_ok=True)
-    
+        
     for i_feat, (feat, n_feat) in enumerate(zip(stimuli, n_feats)):
         # Make slicing of relevant features
         index_slice = sum(n_feats[:i_feat]),  sum(n_feats[:i_feat]) + n_feat
@@ -1788,8 +1863,16 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
 
         # Save figures
         if save:
-            fig.savefig(save_path + f'pvalue_{feat.lower()}_{pval_tresh}.svg')
-            fig.savefig(save_path + f'pvalue_{feat.lower()}_{pval_tresh}.png')
+            save_path += 'TFCE/'
+            os.makedirs(save_path, exist_ok=True)
+            
+            # This is done to avoid working with long paths
+            temp_path = os.path.normpath(save_path)
+            os.chdir(temp_path)
+            fig.savefig(f'pvalue_{feat.lower()}_{pval_tresh:.0e}.png')
+            fig.savefig(f'pvalue_{feat.lower()}_{pval_tresh:.0e}.svg')
+            os.chdir(current_working_directory)
+        
 
 # =====================
 # FIGURES OF VALIDATION
@@ -1868,10 +1951,16 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
     ax.legend()
 
     if save:
-        save_alpha = save_path + f'band_{band}/stim_{stim}/'
-        os.makedirs(save_alpha, exist_ok=True)
-        plt.savefig(save_alpha + f'session_{session}_subject_{subject}.png')
-        plt.savefig(save_alpha + f'session_{session}_subject_{subject}.svg')
+        save_path += f'band_{band}/stim_{stim}/'
+        os.makedirs(save_path, exist_ok=True)
+
+        # This is done to avoid working with long paths
+        temp_path = os.path.normpath(save_path)
+        os.chdir(temp_path)
+        fig.savefig(f'session_{session}_subject_{subject}.png')
+        fig.savefig(f'session_{session}_subject_{subject}.svg')
+        os.chdir(current_working_directory)
+    
 
 ##############################################################
 #TODO CHECK DESCRIPTION E Y LABEL
