@@ -37,9 +37,9 @@ preprocesed_data_path = os.path.normpath(f'saves/Preprocesed_Data/tmin-0.2_tmax0
 
 # Code parameters
 save_figures = True
-
 # ================================================================================
 # CONVEX HULL:  it contrasts the correlation of each part against the joint model.
+# ================================================================================
 path_convex_hull = os.path.join(path_figures,'convex_hull')
 
 # Relevant parameters
@@ -111,13 +111,14 @@ for band in bands:
         plt.savefig(os.path.join(temp_path, f'{stims}.svg'))
     plt.close()
 
-# ========================================================================================================
-# VENN DIAGRAMS: it makes diagrams explaining correlation of each part of a shared model (upto 3 features)
+# =========================================================================================================
+# VENN DIAGRAMS: it makes diagrams explaining correlation of each part of a shared model (upto 3 features).
+# =========================================================================================================
 path_venn_diagrams = os.path.join(path_figures,'venn_diagrams')
 
 # Relevant parameters
 bands = ['Theta']
-stimuli = ['Phonological', 'Deltas', 'Spectrogram']
+stimuli = ['Spectrogram', 'Phonological']
 
 # Arrange shared stimuli
 stimuli = sorted(stimuli)
@@ -131,6 +132,7 @@ for band in bands:
     for stim in all_stimuli:
         # Get average correlation of each stimulus
         mean_correlations[stim] = load_pickle(path=os.path.join(final_corr_path, f'{stim}_EEG_{band}.pkl'))['average_correlation_subjects'].mean()
+        # HACER SOBRE LOS CANALES BUENOS y/O LOS MEJORES PUTNTUADOS r2 VER COMO DEFINIR 12 MEJORES CANALEs (EN EL CODIGO ESTA POR ALGUN LADO)
 
     for stim12 in double_combinations:
         stim1, stim2 = stim12.split('_')
@@ -175,9 +177,10 @@ for band in bands:
         stim1_percent = (rsquared_shared_with_1 * 100 /np.sum(areas)).round(2)
         stim2_percent = (rsquared_shared_with_2 * 100 /np.sum(areas)).round(2)
         shared_percent = (rsquared_complement_12 * 100 /np.sum(areas)).round(2)
-        print(f'\nExclusive Percentage explained by {stim1} is {stim1_percent} %',
-              f'\nExclusive Percentage explained by {stim2} is {stim2_percent} %',
-              f'\nshared percentage explained is {shared_percent} %')
+        print(f'\nPercentage explained by {stim1} is {stim1_percent} %',
+              f'\nPercentage explained by {stim2} is {stim2_percent} %',
+              f'\nShared percentage explained is {shared_percent} %')
+        #TODO Y la variancia no explicada?
 
     if triple_combinations:
         # Get squared correlation of stimuli
@@ -194,7 +197,7 @@ for band in bands:
         rsquared_shared_with_2 = rsquared_123 - rsquared_13 #010
         rsquared_shared_with_3 = rsquared_123 - rsquared_12 #001
         
-        # Explained by subshared
+        # Explained by subshared, but not by all shared model
         rsquared_shared_with_12 = rsquared_13 + rsquared_23 - rsquared_3 - rsquared_123 #110
         rsquared_shared_with_13 = rsquared_12 + rsquared_23 - rsquared_2 - rsquared_123 #101
         rsquared_shared_with_23 = rsquared_12 + rsquared_13 - rsquared_1 - rsquared_123 #011
@@ -225,13 +228,15 @@ for band in bands:
             plt.savefig(os.path.join(temp_path, f'{all_stimuli[-1]}.png'))
             plt.savefig(os.path.join(temp_path, f'{all_stimuli[-1]}.svg'))
         plt.close()
-# Envelope_percent = rsquared_1 * 100 /np.sum(sets_0)
-# Pitch_percent = rsquared_2 * 100 /np.sum(sets_0)
-# Spectrogram_percent = rsquared_3 * 100 /np.sum(sets_0)
-#
-# Envelope_u_percent = rsquaredu_1 * 100 /np.sum(sets_0)
-# Pitch_u_percent = rsquaredu_2 * 100 /np.sum(sets_0)
-# Spectrogram_u_percent = rsquaredu_3 * 100 /np.sum(sets_0)
+
+        # # Make a print with information
+        # stim1_percent = (rsquared_shared_with_1 * 100 /np.sum(areas)).round(2)
+        # stim2_percent = (rsquared_shared_with_2 * 100 /np.sum(areas)).round(2)
+        # stim3_percent = (rsquared_shared_with_2 * 100 /np.sum(areas)).round(2)
+        # shared_percent = (rsquared_complement_12 * 100 /np.sum(areas)).round(2)
+        # print(f'\nExclusive Percentage explained by {stim1} is {stim1_percent} %',
+        #       f'\nExclusive Percentage explained by {stim2} is {stim2_percent} %',
+        #       f'\nshared percentage explained is {shared_percent} %')
 
 
 # ===================
