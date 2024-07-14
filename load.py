@@ -662,7 +662,7 @@ class Sesion_class:
     def __init__(self, sesion:int=21, stim:str='Envelope', band:str='All', sr:float=128, 
                  causal_filter_eeg:bool=True, envelope_filter:bool=False, situation:str='Escucha', 
                  silence_threshold:float=0.03, delays:np.ndarray=None,
-                 procesed_data_path:str=f'saves/Preprocesed_Data/tmin{-0.6}_tmax{-.002}/',
+                 preprocessed_data_path:str=f'saves/preprocessed_data/tmin{-0.6}_tmax{-.002}/',
                  praat_executable_path:str=r"C:\Program Files\Praat\Praat.exe"
                  ):
         """Construct an object for the given session containing all concerning data.
@@ -692,8 +692,8 @@ class Sesion_class:
             Silence threshold of the dialogue, by default 0.03
         delays : np.ndarray, optional
             Delay array to construct shifted matrix, by default np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
-        procesed_data_path : str, optional
-            Path directing to procesed data, by default f'saves/Preprocesed_Data/tmin{-0.6}_tmax{-0.002}/'
+        preprocessed_data_path : str, optional
+            Path directing to procesed data, by default f'saves/preprocessed_data/tmin{-0.6}_tmax{-0.002}/'
         praat_executable_path : str
             Path directing to Praat executable
 
@@ -745,42 +745,42 @@ class Sesion_class:
 
         # Relevant paths
         self.praat_executable_path = praat_executable_path
-        self.procesed_data_path = procesed_data_path
-        self.samples_info_path = self.procesed_data_path + f'samples_info/Sit_{self.situation}/'
+        self.preprocessed_data_path = preprocessed_data_path
+        self.samples_info_path = self.preprocessed_data_path + f'samples_info/Sit_{self.situation}/'
         self.phn_path = f"Datos/phonemes/S{self.sesion}/"
         self.phrases_path = f"Datos/phrases/S{self.sesion}/"
 
         # Define paths to export data
         self.export_paths = {}
         if self.causal_filter_eeg:
-            self.export_paths['EEG'] = self.procesed_data_path + f'EEG/Causal_Sit_{self.situation}_band_{self.band}/'
+            self.export_paths['EEG'] = self.preprocessed_data_path + f'EEG/Causal_Sit_{self.situation}_band_{self.band}/'
         else:
-            self.export_paths['EEG'] = self.procesed_data_path + f'EEG/Sit_{self.situation}_band_{self.band}/'
+            self.export_paths['EEG'] = self.preprocessed_data_path + f'EEG/Sit_{self.situation}_band_{self.band}/'
         if self.envelope_filter:
-            self.export_paths['Envelope'] = self.procesed_data_path + f'Envelope/{self.envelope_filter}_Sit_{self.situation}/'
+            self.export_paths['Envelope'] = self.preprocessed_data_path + f'Envelope/{self.envelope_filter}_Sit_{self.situation}/'
         else:
-            self.export_paths['Envelope'] = self.procesed_data_path + f'Envelope/Sit_{self.situation}/'
+            self.export_paths['Envelope'] = self.preprocessed_data_path + f'Envelope/Sit_{self.situation}/'
                 
-        self.export_paths['Mfccs'] = self.procesed_data_path + f'Mfccs/Sit_{self.situation}/'
-        self.export_paths['Mfccs-Deltas'] = self.procesed_data_path + f'Mfccs-Deltas/Sit_{self.situation}/'
-        self.export_paths['Mfccs-Deltas-Deltas'] = self.procesed_data_path + f'Mfccs-Deltas-Deltas/Sit_{self.situation}/'
-        self.export_paths['Deltas'] = self.procesed_data_path + f'Deltas/Sit_{self.situation}/'
-        self.export_paths['Deltas-Deltas'] = self.procesed_data_path + f'Deltas-Deltas/Sit_{self.situation}/'
-        self.export_paths['Pitch-Log-Quad'] = self.procesed_data_path + f'Pitch-Log-Quad_threshold_{self.silence_threshold}/Sit_{self.situation}/'
-        self.export_paths['Pitch-Raw'] = self.procesed_data_path + f'Pitch-Raw_threshold_{self.silence_threshold}/Sit_{self.situation}/'
-        self.export_paths['Pitch-Log-Raw'] = self.procesed_data_path + f'Pitch-Log-Raw_threshold_{self.silence_threshold}/Sit_{self.situation}/'
-        self.export_paths['Pitch-Manual'] = self.procesed_data_path + f'Pitch-Manual_threshold_{self.silence_threshold}/Sit_{self.situation}/'
-        self.export_paths['Pitch-Log-Manual'] = self.procesed_data_path + f'Pitch-Log-Manual_threshold_{self.silence_threshold}/Sit_{self.situation}/'
-        self.export_paths['Pitch-Phonemes'] = self.procesed_data_path + f'Pitch-Phonemes_threshold_{self.silence_threshold}/Sit_{self.situation}/'
-        self.export_paths['Pitch-Log-Phonemes'] = self.procesed_data_path + f'Pitch-Log-Phonemes_threshold_{self.silence_threshold}/Sit_{self.situation}/'
-        self.export_paths['Spectrogram'] = self.procesed_data_path + f'Spectrogram/Sit_{self.situation}/'
-        self.export_paths['Phonemes-Envelope'] = self.procesed_data_path + f'Phonemes-Envelope/Sit_{self.situation}/'
-        self.export_paths['Phonemes-Envelope-Manual'] = self.procesed_data_path + f'Phonemes-Envelope-Manual/Sit_{self.situation}/'
-        self.export_paths['Phonemes-Discrete'] = self.procesed_data_path + f'Phonemes-Discrete/Sit_{self.situation}/'
-        self.export_paths['Phonemes-Discrete-Manual'] = self.procesed_data_path + f'Phonemes-Discrete-Manual/Sit_{self.situation}/'
-        self.export_paths['Phonemes-Onset'] = self.procesed_data_path + f'Phonemes-Onset/Sit_{self.situation}/'
-        self.export_paths['Phonemes-Onset-Manual'] = self.procesed_data_path + f'Phonemes-Onset-Manual/Sit_{self.situation}/'
-        self.export_paths['Phonological'] = self.procesed_data_path + f'Phonological/Sit_{self.situation}/'
+        self.export_paths['Mfccs'] = self.preprocessed_data_path + f'Mfccs/Sit_{self.situation}/'
+        self.export_paths['Mfccs-Deltas'] = self.preprocessed_data_path + f'Mfccs-Deltas/Sit_{self.situation}/'
+        self.export_paths['Mfccs-Deltas-Deltas'] = self.preprocessed_data_path + f'Mfccs-Deltas-Deltas/Sit_{self.situation}/'
+        self.export_paths['Deltas'] = self.preprocessed_data_path + f'Deltas/Sit_{self.situation}/'
+        self.export_paths['Deltas-Deltas'] = self.preprocessed_data_path + f'Deltas-Deltas/Sit_{self.situation}/'
+        self.export_paths['Pitch-Log-Quad'] = self.preprocessed_data_path + f'Pitch-Log-Quad_threshold_{self.silence_threshold}/Sit_{self.situation}/'
+        self.export_paths['Pitch-Raw'] = self.preprocessed_data_path + f'Pitch-Raw_threshold_{self.silence_threshold}/Sit_{self.situation}/'
+        self.export_paths['Pitch-Log-Raw'] = self.preprocessed_data_path + f'Pitch-Log-Raw_threshold_{self.silence_threshold}/Sit_{self.situation}/'
+        self.export_paths['Pitch-Manual'] = self.preprocessed_data_path + f'Pitch-Manual_threshold_{self.silence_threshold}/Sit_{self.situation}/'
+        self.export_paths['Pitch-Log-Manual'] = self.preprocessed_data_path + f'Pitch-Log-Manual_threshold_{self.silence_threshold}/Sit_{self.situation}/'
+        self.export_paths['Pitch-Phonemes'] = self.preprocessed_data_path + f'Pitch-Phonemes_threshold_{self.silence_threshold}/Sit_{self.situation}/'
+        self.export_paths['Pitch-Log-Phonemes'] = self.preprocessed_data_path + f'Pitch-Log-Phonemes_threshold_{self.silence_threshold}/Sit_{self.situation}/'
+        self.export_paths['Spectrogram'] = self.preprocessed_data_path + f'Spectrogram/Sit_{self.situation}/'
+        self.export_paths['Phonemes-Envelope'] = self.preprocessed_data_path + f'Phonemes-Envelope/Sit_{self.situation}/'
+        self.export_paths['Phonemes-Envelope-Manual'] = self.preprocessed_data_path + f'Phonemes-Envelope-Manual/Sit_{self.situation}/'
+        self.export_paths['Phonemes-Discrete'] = self.preprocessed_data_path + f'Phonemes-Discrete/Sit_{self.situation}/'
+        self.export_paths['Phonemes-Discrete-Manual'] = self.preprocessed_data_path + f'Phonemes-Discrete-Manual/Sit_{self.situation}/'
+        self.export_paths['Phonemes-Onset'] = self.preprocessed_data_path + f'Phonemes-Onset/Sit_{self.situation}/'
+        self.export_paths['Phonemes-Onset-Manual'] = self.preprocessed_data_path + f'Phonemes-Onset-Manual/Sit_{self.situation}/'
+        self.export_paths['Phonological'] = self.preprocessed_data_path + f'Phonological/Sit_{self.situation}/'
         
     def load_from_raw(self):
         """Loads raw data, this includes EEG, info and stimuli.
@@ -916,7 +916,7 @@ class Sesion_class:
             funciones.dump_pickle(path=self.export_paths[key] + f'Sesion{self.sesion}.pkl', obj=[sujeto_1[key], sujeto_2[key]], rewrite=True)
 
         # Saves info of the setup                    
-        funciones.dump_pickle(path=self.procesed_data_path + 'EEG/info.pkl', obj=info, rewrite=True)
+        funciones.dump_pickle(path=self.preprocessed_data_path + 'EEG/info.pkl', obj=info, rewrite=True)
 
         # Redefine subjects dictionaries to return only used stimuli
         sujeto_1_return = {key: sujeto_1[key] for key in self.stim.split('_') + ['EEG']}
@@ -936,7 +936,7 @@ class Sesion_class:
         """
         # Load EEGs and procesed data
         eeg_sujeto_1, eeg_sujeto_2 = funciones.load_pickle(path=self.export_paths['EEG']+ f'Sesion{self.sesion}.pkl')
-        info = funciones.load_pickle(path=self.procesed_data_path + 'EEG/info.pkl')
+        info = funciones.load_pickle(path=self.preprocessed_data_path + 'EEG/info.pkl')
         samples_info = funciones.load_pickle(path=self.samples_info_path + f'samples_info_{self.sesion}.pkl')
         sujeto_1 = {'EEG': eeg_sujeto_1, 'info': info}
         sujeto_2 = {'EEG': eeg_sujeto_2, 'info': info}
@@ -1108,7 +1108,7 @@ class Sesion_class:
         else:
             return dic, speaker_labels, minimum
 
-def load_data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str, 
+def load_data(sesion:int, stim:str, band:str, sr:float, preprocessed_data_path:str, 
               praat_executable_path:str, situation:str='Escucha', 
               causal_filter_eeg:bool=True, envelope_filter:bool=False, 
               silence_threshold:float=0.03, delays:np.ndarray=None):
@@ -1134,7 +1134,7 @@ def load_data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str,
         Maximum window time
     praat_executable_path : str
         Path directing to Praat executable
-    procesed_data_path : str
+    preprocessed_data_path : str
         Path directing to procesed data
     situation : str, optional
         Situation considerer when performing the analysis, by default 'Escucha'. Allowed sitations are:
@@ -1191,7 +1191,7 @@ def load_data(sesion:int, stim:str, band:str, sr:float, procesed_data_path:str,
                                         envelope_filter=envelope_filter, 
                                         situation=situation,
                                         silence_threshold=silence_threshold, 
-                                        procesed_data_path=procesed_data_path, 
+                                        preprocessed_data_path=preprocessed_data_path, 
                                         praat_executable_path=praat_executable_path,
                                         delays=delays)
 

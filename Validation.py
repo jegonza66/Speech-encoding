@@ -82,7 +82,7 @@ for band in bands:
             alphas_stim = {}
         
         # Create relevant paths
-        procesed_data_path = f'saves/Preprocesed_Data/tmin{tmin}_tmax{tmax}/'
+        preprocessed_data_path = f'saves/preprocessed_data/tmin{tmin}_tmax{tmax}/'
         figures_path = f'figures/{model}_trace/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}_band_{band}/'
        
         # Iterate over sessions
@@ -100,7 +100,7 @@ for band in bands:
                                                          band=band,
                                                          sr=sr,
                                                          delays=delays,
-                                                         procesed_data_path=procesed_data_path,
+                                                         preprocessed_data_path=preprocessed_data_path,
                                                          situation=situation,
                                                          silence_threshold=0.03)
             eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']

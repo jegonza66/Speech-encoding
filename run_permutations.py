@@ -55,7 +55,7 @@ iterations = 5
 n_folds = 5
 
 # if model == 'Decoding':
-#     t_lags_fname = f'saves/mtrf/Decoding_t_lag/{situation}/Final_Correlation/tmin{tmin}_tmax{tmax}/Max_t_lags.pkl'
+#     t_lags_fname = f'saves/mtrf/Decoding_t_lag/{situation}/correlations/tmin{tmin}_tmax{tmax}/Max_t_lags.pkl'
 #     try:
 #         t_lags = load_pickle(path=t_lags_fname)
 #     except:
@@ -76,7 +76,7 @@ for band in bands:
         print('\n===========================\n','\tPARAMETERS\n\n','Model: ' + model+'\n','Band: ' + str(band)+'\n','Stimulus: ' + stim+'\n','Status: ' + situation+'\n',f'Time interval: ({tmin},{tmax})s\n','\n===========================\n')
         
         # Relevant paths
-        procesed_data_path = f'saves/Preprocesed_Data/tmin{tmin}_tmax{tmax}/'
+        preprocessed_data_path = f'saves/preprocessed_data/tmin{tmin}_tmax{tmax}/'
         path_null = f'saves/{model}/{situation}/null/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'
 
         # Iterate over sessions
@@ -89,7 +89,7 @@ for band in bands:
                                                               band=band,
                                                               sr=sr,
                                                               delays=delays,
-                                                              procesed_data_path=procesed_data_path,
+                                                              preprocessed_data_path=preprocessed_data_path,
                                                               situation=situation,
                                                               silence_threshold=0.03)
             eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']

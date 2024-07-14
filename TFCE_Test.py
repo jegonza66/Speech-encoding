@@ -22,11 +22,11 @@ times = np.linspace(delays[0] * np.sign(tmin) * 1 / sr, np.abs(delays[-1]) * np.
 n_iterations = 1000
 
 for Band in Bands:
-    procesed_data_path = 'saves/Preprocesed_Data/tmin{}_tmax{}/'.format(tmin, tmax)
+    preprocessed_data_path = 'saves/preprocessed_data/tmin{}_tmax{}/'.format(tmin, tmax)
     save_path = 'saves/Ridge/T_value_matrices/{}/'.format(Band)
 
     Sujeto_1, Sujeto_2 = Load.Load_Data(sesion=21, stim=stim, Band=Band, sr=sr, tmin=tmin, tmax=tmax,
-                                            procesed_data_path=procesed_data_path)
+                                            preprocessed_data_path=preprocessed_data_path)
     info = Sujeto_1['info']
     # LOAD STIMULUS BY SUBJECT
     dstims_para_sujeto_1, dstims_para_sujeto_2 = Load.Estimulos(stim=stim, Sujeto_1=Sujeto_1, Sujeto_2=Sujeto_2)

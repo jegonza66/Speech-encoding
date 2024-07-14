@@ -1,6 +1,6 @@
 # Standard libraries
-import os, numpy as np
 from datetime import datetime
+import os, numpy as np
 
 # Specific libraries
 from sklearn.model_selection import KFold
@@ -24,12 +24,12 @@ start_time = datetime.now()
 # ==========
 
 # Stimuli, EEG frecuency band and dialogue situation
-stimuli = ['Mfccs-Deltas', 'Mfccs-Deltas-Deltas']
+stimuli = ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope']
 bands = ['Theta']
 situation = 'Escucha'
 
 # Run setup
-sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
+sesiones = [21]#, 22, 23, 24, 25, 26, 27, 29, 30]
 
 # EEG sample rate
 sr = 128
@@ -68,7 +68,6 @@ try:
 except:
     print('\n\nAlphas file not found.\n\n')
 
-
 # ============
 # RUN ANALYSIS
 # ============
@@ -83,9 +82,9 @@ for band in bands:
         print('\n===========================\n','\tPARAMETERS\n\n','Model: ' + model+'\n','Band: ' + str(band)+'\n','Stimulus: ' + stim+'\n','Status: ' + situation+'\n',f'Time interval: ({tmin},{tmax})s\n','\n===========================\n')
         
         # Relevant paths
-        save_results_path = f'saves/{model}/{situation}/Final_Correlation/tmin{tmin}_tmax{tmax}/'
-        procesed_data_path = f'saves/Preprocesed_Data/tmin{tmin}_tmax{tmax}/'
-        path_original = f'saves/{model}/{situation}/Original/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'
+        save_results_path = f'saves/{model}/{situation}/final_correlation/tmin{tmin}_tmax{tmax}/'
+        preprocessed_data_path = f'saves/preprocessed_data/tmin{tmin}_tmax{tmax}/'
+        path_weights = f'saves/{model}/{situation}/weights/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'
         path_null = f'saves/{model}/{situation}/null/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'
         path_figures = f'figures/{model}/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'
         prat_executable_path = r"C:\Program Files\Praat\Praat.exe"
@@ -110,7 +109,7 @@ for band in bands:
                                                          band=band,
                                                          sr=sr,
                                                          delays=delays,
-                                                         procesed_data_path=procesed_data_path,
+                                                         preprocessed_data_path=preprocessed_data_path,
                                                          praat_executable_path=prat_executable_path,
                                                          situation=situation,
                                                          silence_threshold=0.03)
@@ -245,15 +244,6 @@ for band in bands:
                         topo_pvalues_corr[fold] = p_corr
                         topo_pvalues_rmse[fold] = p_rmse
 
-                # Saves model weights and correlations
-                if save_results:
-                    os.makedirs(path_original, exist_ok=True)
-                    dump_pickle(path=path_original + f'Pesos_Sesion{sesion}_Sujeto{sujeto}.pkl', 
-                                          obj=weights_per_fold.mean(0),
-                                          rewrite=True)
-                    dump_pickle(path=path_original + f'Corr_Rmse_Sesion{sesion}_Sujeto{sujeto}.pkl', 
-                                          obj=[correlation_per_channel, rmse_per_channel],
-                                          rewrite=True)
                 print(f'\n\t······  Run model for Subject {sujeto}\n')
 
                 # Take average weights, correlation and RMSE between folds of all channels
@@ -368,7 +358,7 @@ for band in bands:
 
         # TFCE across subjects
         # n_permutations = 4096
-        n_permutations = 512 
+        n_permutations = 1024 
         tvalue_tfce, pvalue_tfce, trf_subjects_shape = tfce(average_weights_subjects=average_weights_subjects, n_jobs=1, n_permutations=n_permutations)
 
         # Plot t and p values
@@ -378,19 +368,21 @@ for band in bands:
         
         plot.plot_pvalue_tfce(average_weights_subjects=average_weights_subjects, pvalue=pvalue_tfce, times=times, info=info,
                               trf_subjects_shape=trf_subjects_shape, n_feats=n_feats, band=band, stim=stim, pval_tresh=.05, 
-                              save_path=path_figures, display_interactive_mode=display_interactive_mode, save=save_figures, no_figures=no_figures)
+                              save_path=path_figures, display_interactive_mode=display_interactive_mode, save=save_figures, 
+                              no_figures=no_figures)
                 
         # Save results
         if save_results:
             os.makedirs(save_results_path, exist_ok=True)
+            os.makedirs(path_weights, exist_ok=True)
             dump_pickle(path=save_results_path+f'{stim}_EEG_{band}.pkl', 
-                                  obj={'average_correlation_subjects':average_correlation_subjects,
-                                       'repeated_good_correlation_channels_subjects':repeated_good_correlation_channels_subjects},
-                                  rewrite=True)
-            dump_pickle(path=path_original+f'total_weights_per_subject_{stim}_{band}.pkl', 
-                                  obj={'average_weights_subjects':average_weights_subjects},
-                                  rewrite=True)
-
+                        obj={'average_correlation_subjects':average_correlation_subjects,
+                            'repeated_good_correlation_channels_subjects':repeated_good_correlation_channels_subjects},
+                        rewrite=True)
+            dump_pickle(path='total_weights_per_subject.pkl', 
+                        obj={'average_weights_subjects':average_weights_subjects},
+                        rewrite=True)
+            
 # Get run time            
 run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
 text = f'PARAMETERS  \nModel: ' + model +f'\nBands: {bands}'+'\nStimuli: ' + f'{stimuli}'+'\nStatus: ' +situation+f'\nTime interval: ({tmin},{tmax})s'
@@ -398,6 +390,22 @@ if just_load_data:
     text += '\n\n\tJUST LOADING DATA'
 text += f'\n\n\t\t RUN TIME \n\n\t\t{run_time} hours'
 print(text)
+
+# Dump metadata
+metadata_path = f'saves/log/{datetime.now().strftime("%Y-%m-%d-%H:%M:%S")}/'
+metadata = {'stimuli':stimuli, 'bands':bands, 'situation':situation, 
+            'sesiones':sesiones, 'sr':sr, 'tmin':tmin, 'tmax':tmax, 
+            'save_figures':save_figures, 'save_results':save_results,
+            'umbral':umbral, 'no_figures':no_figures, 'statistical_test':statistical_test, 
+            'stims_preprocess':stims_preprocess, 'eeg_preprocess':eeg_preprocess, 'model':model, 
+            'estimator':estimator, 'n_folds':n_folds, 'default_alpha':default_alpha,
+            'save_results_path':save_results_path, 'preprocessed_data_path':preprocessed_data_path,
+            'path_original':path_weights, 'path_null':path_null, 'path_figures':path_figures,
+            'prat_executable_path':prat_executable_path, 'metadata_path': metadata_path,
+            'date': str(datetime.date()), 'run_time':run_time}
+dump_pickle(path = metadata_path + 'metadata.pkl', 
+            obj=metadata,
+            rewrite=True)
 
 # Send text to telegram bot
 mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=text)

@@ -50,7 +50,7 @@ delays = - np.arange(np.floor(tmin * sr), np.ceil(tmax * sr), dtype=int)
 times = np.linspace(delays[0] * np.sign(tmin) * 1 / sr, np.abs(delays[-1]) * np.sign(tmax) * 1 / sr, len(delays))
 
 # Paths
-procesed_data_path = 'saves/Preprocesed_Data/tmin{}_tmax{}/'.format(tmin, tmax)
+preprocessed_data_path = 'saves/preprocessed_data/tmin{}_tmax{}/'.format(tmin, tmax)
 Run_saves_path = 'saves/'
 
 
@@ -68,7 +68,7 @@ for sesion in sesiones:
     if Pitch:
         # LOAD DATA BY SUBJECT
         Sujeto_1, Sujeto_2 = Load.Load_Data(sesion=sesion, Band=Band, sr=sr, tmin=tmin, tmax=tmax,
-                                            procesed_data_path=procesed_data_path, situacion=situacion)
+                                            preprocessed_data_path=preprocessed_data_path, situacion=situacion)
         dstims_para_sujeto_1, dstims_para_sujeto_2, info = Load.Estimulos('Pitch', Sujeto_1, Sujeto_2)
         for sujeto, dstims in zip((1, 2), (dstims_para_sujeto_2, dstims_para_sujeto_1)):
             print('Sujeto {}'.format(sujeto))
@@ -80,7 +80,7 @@ for sesion in sesiones:
     else:
         # LOAD DATA BY SUBJECT
         Sujeto_1, Sujeto_2 = Load.Load_Data(sesion=sesion, stim=stim, Band=Band, sr=sr, tmin=tmin, tmax=tmax,
-                                            procesed_data_path=procesed_data_path, situacion=situacion)
+                                            preprocessed_data_path=preprocessed_data_path, situacion=situacion)
         # LOAD EEG BY SUBJECT
         eeg_sujeto_1, eeg_sujeto_2, info = Sujeto_1['EEG'], Sujeto_2['EEG'], Sujeto_1['info']
         N_Samples.append(len(eeg_sujeto_1))

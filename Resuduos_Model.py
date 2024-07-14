@@ -57,7 +57,7 @@ for Band in Bands:
     for stim in Stims:
         print('\n' + stim + '\n')
         # Paths
-        procesed_data_path = 'saves/Preprocesed_Data/tmin{}_tmax{}/'.format(tmin, tmax)
+        preprocessed_data_path = 'saves/preprocessed_data/tmin{}_tmax{}/'.format(tmin, tmax)
 
         # Start Run
         sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
@@ -68,7 +68,7 @@ for Band in Bands:
 
             # LOAD DATA BY SUBJECT
             Sujeto_1, Sujeto_2 = Load.Load_Data(sesion=sesion, Band=Band, sr=sr, tmin=tmin, tmax=tmax,
-                                                    procesed_data_path=procesed_data_path)
+                                                    preprocessed_data_path=preprocessed_data_path)
 
             # LOAD EEG BY SUBJECT
             eeg_sujeto_1, eeg_sujeto_2 = Sujeto_1['EEG'], Sujeto_2['EEG']

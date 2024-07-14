@@ -28,7 +28,7 @@ times = np.linspace(delays[0] * np.sign(tmin) * 1 / sr, np.abs(delays[-1]) * np.
 times = np.flip(-times)
 
 # Paths
-procesed_data_path = 'saves/Preprocesed_Data/tmin{}_tmax{}/'.format(tmin, tmax)
+preprocessed_data_path = 'saves/preprocessed_data/tmin{}_tmax{}/'.format(tmin, tmax)
 Run_graficos_path = 'gráficos/Decorrelation time/tmin{}_tmax{}/Stim_{}_EEG_Band_{}_Causal/'.format(tmin, tmax, stim, Band)
 
 Alpha_Corr_limit = 0.01
@@ -59,7 +59,7 @@ for sesion in sesiones:
 
     # LOAD DATA BY SUBJECT
     Sujeto_1, Sujeto_2 = Load.Load_Data(sesion=sesion, stim=stim, Band=Band, sr=sr, tmin=tmin, tmax=tmax,
-                                            procesed_data_path=procesed_data_path)
+                                            preprocessed_data_path=preprocessed_data_path)
     # LOAD EEG BY SUBJECT
     eeg_sujeto_1, eeg_sujeto_2, info = Sujeto_1['EEG'], Sujeto_2['EEG'], Sujeto_1['info']
 

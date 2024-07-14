@@ -61,7 +61,7 @@ for Band in Bands:
     for stim in Stims:
         print('\n' + stim + '\n')
         # Paths
-        procesed_data_path = 'saves/Preprocesed_Data/tmin{}_tmax{}/'.format(tmin, tmax)
+        preprocessed_data_path = 'saves/preprocessed_data/tmin{}_tmax{}/'.format(tmin, tmax)
         Run_graficos_path = 'gráficos/Ridge/Stims_{}_EEG_{}/tmin{}_tmax{}/Stim_{}_EEG_Band_{}/'.format(
             Stims_preprocess, EEG_preprocess, tmin, tmax, stim, Band)
         Path_origial = 'saves/Ridge/Original/Stims_{}_EEG_{}/tmin{}_tmax{}/Stim_{}_EEG_Band_{}/'.format(
@@ -79,7 +79,7 @@ for Band in Bands:
             startTime = datetime.now()
             # LOAD DATA BY SUBJECT
             Sujeto_1, Sujeto_2 = Load.Load_Data(sesion=sesion, stim=stim, Band=Band, sr=sr, tmin=tmin, tmax=tmax,
-                                                    procesed_data_path=procesed_data_path)
+                                                    preprocessed_data_path=preprocessed_data_path)
             print(datetime.now() - startTime)
 
             # LOAD EEG BY SUBJECT

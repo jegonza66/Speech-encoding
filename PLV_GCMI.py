@@ -33,7 +33,7 @@ delays = - np.arange(np.floor(tmin * sr), np.ceil(tmax * sr), dtype=int)
 times = np.linspace(delays[0] * np.sign(tmin) * 1 / sr, np.abs(delays[-1]) * np.sign(tmax) * 1 / sr, len(delays))
 
 # Paths
-procesed_data_path = 'saves/Preprocesed_Data/tmin{}_tmax{}/'.format(tmin, tmax)
+preprocessed_data_path = 'saves/preprocessed_data/tmin{}_tmax{}/'.format(tmin, tmax)
 Run_saves_path = 'saves/'
 
 for Band in Bands:
@@ -60,19 +60,19 @@ for Band in Bands:
                 graficos_save_path = 'gráficos/Brain_Brain/tmin{}_tmax{}/{}/'.format(tmin, tmax, Band)
                 print('Runing Brain to Brain synchronization...')
                 Sujeto_1_Escucha, Sujeto_2_Escucha = Load.Load_Data(sesion=sesion, stim=stim, Band=Band, sr=sr, tmin=tmin, tmax=tmax,
-                                                    procesed_data_path=procesed_data_path, situacion='Escucha')
+                                                    preprocessed_data_path=preprocessed_data_path, situacion='Escucha')
                 # LOAD EEG BY SUBJECT
                 eeg_sujeto_1_Escucha, eeg_sujeto_2_Escucha, info = Sujeto_1_Escucha['EEG'], Sujeto_2_Escucha['EEG'], \
                                                                    Sujeto_1_Escucha['info']
 
                 Sujeto_1_Habla, Sujeto_2_Habla = Load.Load_Data(sesion=sesion, stim=stim, Band=Band, sr=sr, tmin=tmin,
-                                                                tmax=tmax, procesed_data_path=procesed_data_path,
+                                                                tmax=tmax, preprocessed_data_path=preprocessed_data_path,
                                                                 situacion='Habla')
 
                 eeg_sujeto_1_Habla, eeg_sujeto_2_Habla = Sujeto_1_Habla['EEG'], Sujeto_2_Habla['EEG']
 
                 Sujeto_1_Silencio, Sujeto_2_Silencio = Load.Load_Data(sesion=sesion, stim=stim, Band=Band, sr=sr, tmin=tmin,
-                                                                tmax=tmax, procesed_data_path=procesed_data_path,
+                                                                tmax=tmax, preprocessed_data_path=preprocessed_data_path,
                                                                 situacion='Silencio')
 
                 eeg_sujeto_1_Silencio, eeg_sujeto_2_Silencio = Sujeto_1_Silencio['EEG'], Sujeto_2_Silencio['EEG']
@@ -129,7 +129,7 @@ for Band in Bands:
             else:
                 # LOAD DATA BY SUBJECT
                 Sujeto_1, Sujeto_2 = Load.Load_Data(sesion=sesion, stim=stim, Band=Band, sr=sr, tmin=tmin, tmax=tmax,
-                                                    procesed_data_path=procesed_data_path, situacion=situacion)
+                                                    preprocessed_data_path=preprocessed_data_path, situacion=situacion)
                 # LOAD EEG BY SUBJECT
                 eeg_sujeto_1, eeg_sujeto_2, info = Sujeto_1['EEG'], Sujeto_2['EEG'], Sujeto_1['info']
                 # LOAD STIMULUS BY SUBJECT
@@ -296,11 +296,11 @@ delays = - np.arange(np.floor(tmin * sr), np.ceil(tmax * sr), dtype=int)
 times = np.linspace(delays[0] * np.sign(tmin) * 1 / sr, np.abs(delays[-1]) * np.sign(tmax) * 1 / sr, len(delays))
 
 # Paths
-procesed_data_path = 'saves/Preprocesed_Data/tmin{}_tmax{}/'.format(tmin, tmax)
+preprocessed_data_path = 'saves/preprocessed_data/tmin{}_tmax{}/'.format(tmin, tmax)
 Run_saves_path = 'saves/'
 
 # Get info
-info_path = 'saves/Preprocesed_Data/tmin-0.6_tmax-0.003/EEG/info.pkl'
+info_path = 'saves/preprocessed_data/tmin-0.6_tmax-0.003/EEG/info.pkl'
 f = open(info_path, 'rb')
 info = pickle.load(f)
 f.close()
