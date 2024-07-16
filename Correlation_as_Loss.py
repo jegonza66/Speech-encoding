@@ -35,7 +35,7 @@ EEG_preprocess = 'Standarize'
 Stims_Order = ['Envelope', 'Pitch', 'Spectrogram', 'Phonemes']
 Stims = ['Envelope', 'Pitch', 'Envelope_Pitch']
 Stims = ['Envelope']
-Bands = ['Theta', 'Alpha', 'Beta_1', 'Beta_2', 'All']
+Bands = ['Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
 Bands = ['Theta']
 
 # Model parameters

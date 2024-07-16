@@ -252,10 +252,10 @@ def band_freq(band):
         elif band == 'Alpha':
             l_freq = 8
             h_freq = 13
-        elif band == 'Beta_1':
+        elif band == 'Beta1':
             l_freq = 13
             h_freq = 19
-        elif band == 'Beta_2':
+        elif band == 'Beta2':
             l_freq = 19
             h_freq = 25
         elif band == 'All':

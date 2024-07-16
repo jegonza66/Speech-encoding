@@ -21,7 +21,7 @@ Save = True
 # Define Parameters
 # Stimuli and EEG
 Stims = ['Envelope']
-Bands = ['Delta', 'Theta', 'Alpha', 'Beta_1', 'All', (1, 12)]
+Bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'All', (1, 12)]
 Bands = ['Theta']
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 total_subjects = len(sesiones)*2
@@ -283,7 +283,7 @@ Save = True
 # Define Parameters
 # Stimuli and EEG
 Stims = ['Envelope']
-Bands = ['Delta', 'Theta', 'Alpha', 'Beta_1', 'All']
+Bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'All']
 Bands = ['Theta']
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 total_subjects = len(sesiones)*2

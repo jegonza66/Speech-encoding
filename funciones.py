@@ -1,5 +1,5 @@
 # Standard libraries
-import numpy as np, pandas as pd, scipy, pickle, os, sys, mne, warnings
+import numpy as np, pandas as pd, scipy, pickle, os, sys, mne, warnings, csv
 from typing import Union
 
 class Suppress_print:
@@ -88,6 +88,40 @@ def dump_pickle(path:str, obj, rewrite:bool=False, verbose:bool=False):
     try:
         with open(file = path, mode = "wb") as archive:
             pickle.dump(file = archive, obj=obj)
+        if isfile and verbose:
+            print(f'Atention: file overwritten in {path}')
+    except:
+        raise Exception("Something went wrong when saving")
+    
+def dict_to_csv(path:str, obj:dict, rewrite:bool=False, verbose:bool=False):
+    """Dumps dict into csv
+
+    Parameters
+    ----------
+    path : str
+        Path to pickle file
+    obj : dict
+        Dictionary to save as csv
+    rewrite : bool, optional
+        If already exists a file named as path it rewrites it, by default False
+    verbose : bool, optional
+        Whether to print information about rewritting, by default False
+
+    Raises
+    ------
+    Exception
+        If the file already exists and rewrite wasnt called.
+    Exception
+        Something went wrong.
+    """
+    isfile = os.path.isfile(path)
+    if isfile and not rewrite:
+        raise Exception("This file already exists, change 'rewrite=True'.")
+    try:
+        with open(path, 'w') as csv_file:  
+            writer = csv.writer(csv_file, delimiter=':')
+            for key, value in obj.items():
+                writer.writerow([key, value])
         if isfile and verbose:
             print(f'Atention: file overwritten in {path}')
     except:

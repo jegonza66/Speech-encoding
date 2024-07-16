@@ -517,6 +517,14 @@ def average_topomap(average_coefficient_subjects:np.ndarray,
         # Make Wilcoxon test for comparisson
         test_results = wilcoxon(data['Left'], data['Right'])
 
+        # PLot and save lateralized channels used
+        lateralized_channels(info=info, 
+                             channels_right=sorted_chs_right, 
+                             channels_left=sorted_chs_left, 
+                             save_path=save_path,
+                             display_interactive_mode=display_interactive_mode,
+                             save=save)
+
         if save:
             save_path += 'lateralization/'
             os.makedirs(save_path, exist_ok=True)
@@ -527,13 +535,7 @@ def average_topomap(average_coefficient_subjects:np.ndarray,
             fig.savefig(f'left_vs_right_{coefficient_name.lower()}_{len(sorted_chs_right)}_channels.png')
             fig.savefig(f'left_vs_right_{coefficient_name.lower()}_{len(sorted_chs_right)}_channels.svg')
             os.chdir(current_working_directory)
-
-        lateralized_channels(info=info, 
-                             channels_right=sorted_chs_right, 
-                             channels_left=sorted_chs_left, 
-                             save_path=save_path,
-                             display_interactive_mode=display_interactive_mode,
-                             save=save)
+      
     else:
         test_results = None
     if test_result:

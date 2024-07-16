@@ -12,7 +12,7 @@ import Load
 Stims_preprocess = 'Normalize'
 EEG_preprocess = 'Standarize'
 stim = 'Envelope'
-Bands = ['Delta', 'Alpha', 'Beta_1', 'All']
+Bands = ['Delta', 'Alpha', 'Beta1', 'All']
 Save_matrices = True
 
 tmin, tmax = -0.6, -0.003

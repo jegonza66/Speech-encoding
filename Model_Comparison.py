@@ -31,7 +31,7 @@ eeg_preprocess = 'Standarize'
 tmin, tmax = -.2, .6
 
 # Relevant paths
-path_figures = os.path.normpath(f'figures/{model}/model_comparison/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/')
+path_figures = os.path.normpath(f'figures/{model}/model_comparison/{situation}/{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/')
 final_corr_path = os.path.normpath(f'saves/{model}/{situation}/correlations/tmin{tmin}_tmax{tmax}/')
 preprocesed_data_path = os.path.normpath(f'saves/preprocessed_data/tmin-0.2_tmax0.6/') 
 
@@ -244,9 +244,9 @@ for band in bands:
 # path_violin = os.path.join(path_figures,'violin_topo')
 
 # # Relevant parameters
-# colors_violin = {'All': 'darkgrey', 'Delta': 'darkgrey', 'Theta': 'C1', 'Alpha': 'darkgrey', 'Beta_1': 'darkgrey'}
+# colors_violin = {'All': 'darkgrey', 'Delta': 'darkgrey', 'Theta': 'C1', 'Alpha': 'darkgrey', 'Beta1': 'darkgrey'}
 # info = load_pickle(path=os.path.join(preprocesed_data_path,'/EEG/info.pkl'))
-# bands = ['All', 'Delta', 'Theta', 'Alpha', 'Beta_1']
+# bands = ['All', 'Delta', 'Theta', 'Alpha', 'Beta1']
 # stim = 'Spectrogram'
 # avg_corr = {}
 
@@ -313,7 +313,7 @@ for band in bands:
 # mTRFs = {}
 
 # stim = 'Spectrogram'
-# Bands = ['All', 'Delta', 'Theta', 'Alpha', 'Beta_1']
+# Bands = ['All', 'Delta', 'Theta', 'Alpha', 'Beta1']
 
 # for Band in Bands:
 #     f = open('saves/{}/{}/correlations/tmin{}_tmax{}/{}_EEG_{}.pkl'.format(model, situacion, tmin_corr, tmax_corr, stim, Band), 'rb')
@@ -325,7 +325,7 @@ for band in bands:
 # mTRFs_Theta = pickle.load(f)
 # f.close()
 
-# my_pal = {'All': 'darkgrey', 'Delta': 'darkgrey', 'Theta': 'C1', 'Alpha': 'darkgrey', 'Beta_1': 'darkgrey'}
+# my_pal = {'All': 'darkgrey', 'Delta': 'darkgrey', 'Theta': 'C1', 'Alpha': 'darkgrey', 'Beta1': 'darkgrey'}
 
 # fontsize = 17
 # plt.rcParams.update({'font.size': fontsize})
@@ -556,7 +556,7 @@ for band in bands:
 #     plt.savefig(Run_graficos_path + '{}.svg'.format(Band))
 
 # # Box plot
-# # my_pal = {'All': 'C0', 'Delta': 'C0', 'Theta': 'C0', 'Alpha': 'C0', 'Beta_1': 'C0'}
+# # my_pal = {'All': 'C0', 'Delta': 'C0', 'Theta': 'C0', 'Alpha': 'C0', 'Beta1': 'C0'}
 
 # fig, ax = plt.subplots()
 # ax = sn.boxplot(data=pd.DataFrame(Correlaciones), width=0.35)
@@ -735,7 +735,7 @@ for band in bands:
 # Save_fig = False
 
 # stim = 'Envelope'
-# Bands = ['All', 'Delta', 'Theta', 'Alpha', 'Beta_1']
+# Bands = ['All', 'Delta', 'Theta', 'Alpha', 'Beta1']
 
 # Correlaciones = pd.DataFrame(columns=['Corr', 'Sig'])
 
@@ -750,7 +750,7 @@ for band in bands:
 
 # Correlaciones['Permutations test'] = np.where(Correlaciones['Sig'] == 1, 'NonSignificant', 'Significant')
 
-# my_pal = {'All': 'C0', 'Delta': 'C0', 'Theta': 'C0', 'Alpha': 'C0', 'Beta_1': 'C0'}
+# my_pal = {'All': 'C0', 'Delta': 'C0', 'Theta': 'C0', 'Alpha': 'C0', 'Beta1': 'C0'}
 
 # fig, ax = plt.subplots()
 # ax = sn.boxplot(x='Band', y='Corr', data=Correlaciones, width=0.35, palette=my_pal)
@@ -790,7 +790,7 @@ for band in bands:
 # Run_graficos_path = 'gráficos/Model_Comparison/{}/{}/tmin{}_tmax{}/Heatmaps/'.format(model, situacion, tmin, tmax)
 # Save_fig = True
 
-# Bands = ['All', 'Delta', 'Theta', 'Alpha', 'Beta_1']
+# Bands = ['All', 'Delta', 'Theta', 'Alpha', 'Beta1']
 # Stims = ['Spectrogram', 'Envelope', 'Pitch', 'Shimmer']
 
 # Corrs_map = np.zeros((len(Stims), len(Bands)))
@@ -858,7 +858,7 @@ for band in bands:
 # Run_graficos_path = 'gráficos/Model_Comparison/{}/{}/tmin{}_tmax{}/'.format(model, situacion, tmin, tmax)
 # Save_fig = False
 
-# Bands = ['Delta', 'Theta', 'Alpha', 'Beta_1', 'Beta_2', 'All']
+# Bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
 # Bands = ['Theta']
 # for Band in Bands:
 

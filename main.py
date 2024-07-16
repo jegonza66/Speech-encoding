@@ -6,7 +6,7 @@ import os, numpy as np
 from sklearn.model_selection import KFold
 
 # Modules
-from funciones  import load_pickle, dump_pickle, iteration_percentage
+from funciones  import load_pickle, dump_pickle, dict_to_csv, iteration_percentage
 from mtrf_models import Receptive_field_adaptation
 from load import load_data
 from processing import tfce
@@ -24,12 +24,19 @@ start_time = datetime.now()
 # ==========
 
 # Stimuli, EEG frecuency band and dialogue situation
-stimuli = ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope']
+# stimuli = ['Deltas', 'Envelope', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Spectrogram', 'Phonological']
+# stimuli = ['Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Manual']
+# stimuli = ['Pitch-Raw', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Envelope', 'Pitch-Log-Quad']
+
+# stimuli = ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw']
+stimuli = ['Envelope_Phonemes-Discrete-Manual','Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
+# stimuli = ['Deltas_Phonological','Deltas_Phonological_Spectrogram','Deltas_Spectrogram', 'Phonological_Spectrogram']
+
 bands = ['Theta']
 situation = 'Escucha'
 
 # Run setup
-sesiones = [21]#, 22, 23, 24, 25, 26, 27, 29, 30]
+sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 
 # EEG sample rate
 sr = 128
@@ -48,6 +55,10 @@ no_figures = False
 
 # Include random permutations analaysis
 statistical_test = False
+umbral = 0.05/128 # TODO que onda con features no unidimensionales
+
+# TFCE number of permutations
+n_permutations = 512#4096
 
 # Model and normalization of input
 stims_preprocess = 'Normalize'
@@ -82,11 +93,11 @@ for band in bands:
         print('\n===========================\n','\tPARAMETERS\n\n','Model: ' + model+'\n','Band: ' + str(band)+'\n','Stimulus: ' + stim+'\n','Status: ' + situation+'\n',f'Time interval: ({tmin},{tmax})s\n','\n===========================\n')
         
         # Relevant paths
-        save_results_path = f'saves/{model}/{situation}/final_correlation/tmin{tmin}_tmax{tmax}/'
-        preprocessed_data_path = f'saves/preprocessed_data/tmin{tmin}_tmax{tmax}/'
-        path_weights = f'saves/{model}/{situation}/weights/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'
-        path_null = f'saves/{model}/{situation}/null/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'
-        path_figures = f'figures/{model}/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'
+        save_results_path = f'saves/{model}/{situation}/correlations/tmin{tmin}_tmax{tmax}/{band}/'
+        preprocessed_data_path = f'saves/preprocessed_data/{situation}/tmin{tmin}_tmax{tmax}/{band}/'
+        path_weights = f'saves/{model}/{situation}/weights/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
+        path_null = f'saves/{model}/{situation}/null/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
+        path_figures = f'figures/{model}/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
         prat_executable_path = r"C:\Program Files\Praat\Praat.exe"
 
         # Make lists to store relevant data across sobjects
@@ -236,7 +247,6 @@ for band in bands:
                         p_rmse = ((null_root_mean_square_error < root_mean_square_error).sum(0) + 1) / (iterations + 1)
 
                         # Threshold
-                        umbral = 0.05/128 # TODO que onda con features no unidimensionales
                         proba_correlation_per_channel[fold][p_corr < umbral] = p_corr[p_corr < umbral]
                         proba_rmse_per_channel[fold][p_rmse < umbral] = p_rmse[p_rmse < umbral]
                         
@@ -244,7 +254,7 @@ for band in bands:
                         topo_pvalues_corr[fold] = p_corr
                         topo_pvalues_rmse[fold] = p_rmse
 
-                print(f'\n\t······  Run model for Subject {sujeto}\n')
+                print(f'\n\t······  Run model\n')
 
                 # Take average weights, correlation and RMSE between folds of all channels
                 average_weights = weights_per_fold.mean(axis=0) # info['nchan'], np.sum(n_feats), len(delays)
@@ -356,9 +366,7 @@ for band in bands:
                                         info=info, display_interactive_mode=display_interactive_mode, save=save_figures, 
                                         save_path=path_figures, coefficient_name='RMSE', no_figures=no_figures)
 
-        # TFCE across subjects
-        # n_permutations = 4096
-        n_permutations = 1024 
+        # TFCE across subjects 
         tvalue_tfce, pvalue_tfce, trf_subjects_shape = tfce(average_weights_subjects=average_weights_subjects, n_jobs=1, n_permutations=n_permutations)
 
         # Plot t and p values
@@ -375,11 +383,11 @@ for band in bands:
         if save_results:
             os.makedirs(save_results_path, exist_ok=True)
             os.makedirs(path_weights, exist_ok=True)
-            dump_pickle(path=save_results_path+f'{stim}_EEG_{band}.pkl', 
+            dump_pickle(path=save_results_path+f'{stim}.pkl', 
                         obj={'average_correlation_subjects':average_correlation_subjects,
                             'repeated_good_correlation_channels_subjects':repeated_good_correlation_channels_subjects},
                         rewrite=True)
-            dump_pickle(path='total_weights_per_subject.pkl', 
+            dump_pickle(path=path_weights+'total_weights_per_subject.pkl', 
                         obj={'average_weights_subjects':average_weights_subjects},
                         rewrite=True)
             
@@ -392,18 +400,19 @@ text += f'\n\n\t\t RUN TIME \n\n\t\t{run_time} hours'
 print(text)
 
 # Dump metadata
-metadata_path = f'saves/log/{datetime.now().strftime("%Y-%m-%d-%H:%M:%S")}/'
+metadata_path = f'saves/log/{datetime.now().strftime("%Y-%m-%d--%H-%M-%S")}/'
+os.makedirs(metadata_path, exist_ok=True)
 metadata = {'stimuli':stimuli, 'bands':bands, 'situation':situation, 
             'sesiones':sesiones, 'sr':sr, 'tmin':tmin, 'tmax':tmax, 
-            'save_figures':save_figures, 'save_results':save_results,
+            'save_figures':save_figures, 'save_results':save_results, 'tfce_permutations':n_permutations,
             'umbral':umbral, 'no_figures':no_figures, 'statistical_test':statistical_test, 
             'stims_preprocess':stims_preprocess, 'eeg_preprocess':eeg_preprocess, 'model':model, 
             'estimator':estimator, 'n_folds':n_folds, 'default_alpha':default_alpha,
             'save_results_path':save_results_path, 'preprocessed_data_path':preprocessed_data_path,
             'path_original':path_weights, 'path_null':path_null, 'path_figures':path_figures,
             'prat_executable_path':prat_executable_path, 'metadata_path': metadata_path,
-            'date': str(datetime.date()), 'run_time':run_time}
-dump_pickle(path = metadata_path + 'metadata.pkl', 
+            'date': str(datetime.now()), 'run_time':str(run_time), 'just_loading_data':just_load_data}
+dict_to_csv(path=metadata_path+'metadata.csv', 
             obj=metadata,
             rewrite=True)
 

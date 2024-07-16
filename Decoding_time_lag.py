@@ -35,7 +35,7 @@ except:
 
 # Stimuli and EEG
 Stims = ['Envelope']
-Bands = ['Delta', 'Theta', 'Alpha', 'Beta_1', 'All']
+Bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'All']
 
 # Standarization
 Stims_preprocess = 'Normalize'
@@ -198,7 +198,7 @@ Stims_preprocess = 'Normalize'
 EEG_preprocess = 'Standarize'
 
 stim = 'Envelope'
-Bands = ['All', 'Delta', 'Theta', 'Alpha', 'Beta_1']
+Bands = ['All', 'Delta', 'Theta', 'Alpha', 'Beta1']
 
 Display_Total_Figures = True
 Save_Total_Figures = True

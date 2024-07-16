@@ -33,7 +33,7 @@ times = (delays/sr)
 
 # Stimuli, EEG frecuency band and dialogue situation
 stimuli = ['Envelope']
-bands = ['Theta']#['Alpha', 'Beta_1', 'All']
+bands = ['Theta']#['Alpha', 'Beta1', 'All']
 situation = 'Escucha'
 
 # Model and normalization of input
@@ -77,7 +77,7 @@ for band in bands:
         
         # Relevant paths
         preprocessed_data_path = f'saves/preprocessed_data/tmin{tmin}_tmax{tmax}/'
-        path_null = f'saves/{model}/{situation}/null/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/stim_{stim}_EEG_band_{band}/'
+        path_null = f'saves/{model}/{situation}/null/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
 
         # Iterate over sessions
         for sesion in sesiones:
@@ -168,11 +168,11 @@ for band in bands:
                 # Save permutations
                 os.makedirs(path_null, exist_ok=True)
                 dump_pickle(path=path_null+ f'Corr_Rmse_fake_Sesion{sesion}_Sujeto{sujeto}.pkl',
-                                        obj=(null_correlation_per_channel_per_fold, null_errors_per_fold),
-                                        rewrite=True)
+                            obj=(null_correlation_per_channel_per_fold, null_errors_per_fold),
+                            rewrite=True)
                 dump_pickle(path=path_null+ f'Pesos_fake_Sesion{sesion}_Sujeto{sujeto}.pkl',
-                                        obj=null_weights_per_fold.mean(axis=0),
-                                        rewrite=True)
+                            obj=null_weights_per_fold.mean(axis=0),
+                            rewrite=True)
 
                 # if model == 'Decoding':
                 #     dump_pickle(path=path_null + f'Patterns_fake_Sesion{sesion}_Sujeto{sujeto}.pkl',

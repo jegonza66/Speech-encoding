@@ -190,29 +190,38 @@ exp_info = setup.exp_info()
 # window_size, stride = 125, 125
 # envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)]).reshape(-1,1)
 
-# # =====
-# # PITCH
+# =====
+# PITCH
 
-# # HIPER PARAMS
-# silence_threshold = .03
-# minPitch = 50
-# maxPitch = 300
-# sampleStep = 1/128
-# praat_executable_path = 'C:/Program Files/Praat/Praat.exe'
-# output_folder = f"Datos/PRUEBA_threshold_{silence_threshold}"
-# os.makedirs(output_folder, exist_ok=True)
+# HIPER PARAMS
+silence_threshold = .03
+minPitch = 50
+maxPitch = 300
+sampleStep = 1/128
+praat_executable_path = 'C:/Program Files/Praat/Praat.exe'
+output_folder = f"Datos/PRUEBA_threshold_{silence_threshold}"
+os.makedirs(output_folder, exist_ok=True)
 
 
-# wav_fname = r'C:\repos\Speech-encoding\repo_speech_encoding\Datos\wavs\S21\s21.objects.01.channel1.wav'
-# pitch_fname = r'C:\repos\Speech-encoding\repo_speech_encoding\Datos\PRUEBA_threshold_0.03\S21\s21.objects.01.channel1.txt'
-# pitch_and_intensity.extractPI(inputFN=os.path.abspath(wav_fname), 
-#                             outputFN=os.path.abspath(pitch_fname), 
-#                             praatEXE=praat_executable_path, 
-#                             minPitch=minPitch,
-#                             maxPitch=maxPitch, 
-#                             sampleStep=sampleStep, 
-#                             silenceThreshold=silence_threshold,
-#                             pitchQuadInterp=False)
+wav_fname = r'C:\repos\Speech-encoding\repo_speech_encoding\Datos\wavs\S21\s21.objects.01.channel1.wav'
+pitch_fname = r'C:\repos\Speech-encoding\repo_speech_encoding\Datos\PRUEBA_threshold_0.03\S21\s21.objects.01.channel1.txt'
+
+
+wav_fname='Datos/wavs/S21/s21.objects.04.channel1.wav'
+pitch_fname='Datos/pitch_threshold_0.03/S21/s21.objects.04.channel1.txt'
+praat_executable_path = 'C:\\Program Files\\Praat\\Praat.exe'
+silence_threshold = .03
+minPitch = 50
+maxPitch = 300
+sampleStep = 1/128
+pitch_and_intensity.extractPI(inputFN=os.path.abspath(wav_fname), 
+                            outputFN=os.path.abspath(pitch_fname), 
+                            praatEXE=praat_executable_path, 
+                            minPitch=minPitch,
+                            maxPitch=maxPitch, 
+                            sampleStep=sampleStep, 
+                            silenceThreshold=silence_threshold,
+                            pitchQuadInterp=False)
     
 # # Loads data
 # data = np.genfromtxt(os.path.abspath(pitch_fname), dtype=np.float, delimiter=',', missing_values='--undefined--', filling_values=np.inf)
