@@ -31,7 +31,7 @@ class Trial_channel:
             Channel used to record the audio (it can be from subject 1 and 2), by default 1
         band : str, optional
             Neural frequency band, by default 'All'. It could be one of:
-            ['Delta','Theta',Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
+            ['Delta','Theta',Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
         sr : float, optional
             Sample rate in Hz of the EEG, by default 128
         delays : np.ndarray, optional
@@ -50,11 +50,11 @@ class Trial_channel:
         ------
         SyntaxError
             If 'band' is not an allowed band frecuency. Allowed bands are:
-            ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
+            ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
         """
         # Participants sex, ordered by session
         sex_list = ['M', 'M', 'M', 'F', 'F', 'F', 'F', 'M', 'M', 'M', 'F', 'F', 'F', 'F', 'M', 'M', 'M', 'F', 'F', 'M']
-        allowed_band_frequencies = ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
+        allowed_band_frequencies = ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
         if band in allowed_band_frequencies:
             self.band= band
         else:
@@ -76,7 +76,7 @@ class Trial_channel:
         self.praat_executable_path = praat_executable_path
         self.eeg_fname = f"Datos/EEG/S{s}/s{s}-{channel}-Trial{trial}-Deci-Filter-Trim-ICA-Pruned.set"
         self.wav_fname = f"Datos/wavs/S{s}/s{s}.objects.{trial:02d}.channel{channel}.wav"
-        self.pitch_fname = f"Datos/pitch_threshold_{silence_threshold}/S{s}/s{s}.objects.{trial:02d}.channel{channel}.txt"
+        self.pitch_fname = f"S{s}/s{s}.objects.{trial:02d}.channel{channel}.txt"
         self.phn_fname = f"Datos/phonemes/S{s}/s{s}.objects.{trial:02d}.channel{channel}.aligned_fa.TextGrid"
         self.phn_fname_manual = f"Datos/phonemes/S{s}/manual/s{s}_objects_{trial:02d}_channel{channel}_aligned_faTAMARA.TextGrid"
         self.phrases_fname = f"Datos/phrases/S{s}/s{s}.objects.{trial:02d}.channel{channel}.phrases"
@@ -495,10 +495,11 @@ class Trial_channel:
             raise SyntaxError(f"{kind} is not an allowed kind of pitch. Allowed phonemes are: {allowed_kind}")
         
         # Makes path for storing data
-        output_folder = f'Datos/{kind}_threshold_{self.silence_threshold}'
+        output_folder = f'Datos/{kind}_threshold_{self.silence_threshold}/'
         
         # Create paths and distinguish subject
         os.makedirs(output_folder, exist_ok=True)
+        self.pitch_fname = os.path.join(output_folder, self.pitch_fname)
         if self.sex == 'M':
             minPitch = 50
             maxPitch = 300
@@ -678,7 +679,7 @@ class Sesion_class:
             'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonological']
         band : str, optional
             Neural frequency band, by default 'All'. It could be one of:
-            ['Delta','Theta',Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
+            ['Delta','Theta',Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
         sr : float, optional
             Sample rate in Hz of the EEG, by default 128
         causal_filter_eeg : bool, optional
@@ -707,7 +708,7 @@ class Sesion_class:
             If more than one stimulus is wanted, the separator should be '_'.
         SyntaxError
             If 'band' is not an allowed band frecuency. Allowed bands are:
-            ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
+            ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
         SyntaxError
             If situation is not an allowed situation. Allowed situations are: 
             ['Habla_Propia','Ambos_Habla','Escucha']
@@ -717,7 +718,7 @@ class Sesion_class:
         allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', \
                         'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', \
                         'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonological']
-        allowed_band_frequencies = ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
+        allowed_band_frequencies = ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
         allowed_situationes = ['Habla_Propia','Ambos_Habla','Escucha']
         for st in stim.split('_'):
             if st in allowed_stims:
@@ -753,34 +754,34 @@ class Sesion_class:
         # Define paths to export data
         self.export_paths = {}
         if self.causal_filter_eeg:
-            self.export_paths['EEG'] = self.preprocessed_data_path + f'EEG/Causal_Sit_{self.situation}_band_{self.band}/'
+            self.export_paths['EEG'] = self.preprocessed_data_path + f'EEG/Causal/'
         else:
-            self.export_paths['EEG'] = self.preprocessed_data_path + f'EEG/Sit_{self.situation}_band_{self.band}/'
+            self.export_paths['EEG'] = self.preprocessed_data_path + f'EEG/'
         if self.envelope_filter:
-            self.export_paths['Envelope'] = self.preprocessed_data_path + f'Envelope/{self.envelope_filter}_Sit_{self.situation}/'
+            self.export_paths['Envelope'] = self.preprocessed_data_path + f'Envelope/{self.envelope_filter}/'
         else:
-            self.export_paths['Envelope'] = self.preprocessed_data_path + f'Envelope/Sit_{self.situation}/'
+            self.export_paths['Envelope'] = self.preprocessed_data_path + f'Envelope/'
                 
-        self.export_paths['Mfccs'] = self.preprocessed_data_path + f'Mfccs/Sit_{self.situation}/'
-        self.export_paths['Mfccs-Deltas'] = self.preprocessed_data_path + f'Mfccs-Deltas/Sit_{self.situation}/'
-        self.export_paths['Mfccs-Deltas-Deltas'] = self.preprocessed_data_path + f'Mfccs-Deltas-Deltas/Sit_{self.situation}/'
-        self.export_paths['Deltas'] = self.preprocessed_data_path + f'Deltas/Sit_{self.situation}/'
-        self.export_paths['Deltas-Deltas'] = self.preprocessed_data_path + f'Deltas-Deltas/Sit_{self.situation}/'
-        self.export_paths['Pitch-Log-Quad'] = self.preprocessed_data_path + f'Pitch-Log-Quad_threshold_{self.silence_threshold}/Sit_{self.situation}/'
-        self.export_paths['Pitch-Raw'] = self.preprocessed_data_path + f'Pitch-Raw_threshold_{self.silence_threshold}/Sit_{self.situation}/'
-        self.export_paths['Pitch-Log-Raw'] = self.preprocessed_data_path + f'Pitch-Log-Raw_threshold_{self.silence_threshold}/Sit_{self.situation}/'
-        self.export_paths['Pitch-Manual'] = self.preprocessed_data_path + f'Pitch-Manual_threshold_{self.silence_threshold}/Sit_{self.situation}/'
-        self.export_paths['Pitch-Log-Manual'] = self.preprocessed_data_path + f'Pitch-Log-Manual_threshold_{self.silence_threshold}/Sit_{self.situation}/'
-        self.export_paths['Pitch-Phonemes'] = self.preprocessed_data_path + f'Pitch-Phonemes_threshold_{self.silence_threshold}/Sit_{self.situation}/'
-        self.export_paths['Pitch-Log-Phonemes'] = self.preprocessed_data_path + f'Pitch-Log-Phonemes_threshold_{self.silence_threshold}/Sit_{self.situation}/'
-        self.export_paths['Spectrogram'] = self.preprocessed_data_path + f'Spectrogram/Sit_{self.situation}/'
-        self.export_paths['Phonemes-Envelope'] = self.preprocessed_data_path + f'Phonemes-Envelope/Sit_{self.situation}/'
-        self.export_paths['Phonemes-Envelope-Manual'] = self.preprocessed_data_path + f'Phonemes-Envelope-Manual/Sit_{self.situation}/'
-        self.export_paths['Phonemes-Discrete'] = self.preprocessed_data_path + f'Phonemes-Discrete/Sit_{self.situation}/'
-        self.export_paths['Phonemes-Discrete-Manual'] = self.preprocessed_data_path + f'Phonemes-Discrete-Manual/Sit_{self.situation}/'
-        self.export_paths['Phonemes-Onset'] = self.preprocessed_data_path + f'Phonemes-Onset/Sit_{self.situation}/'
-        self.export_paths['Phonemes-Onset-Manual'] = self.preprocessed_data_path + f'Phonemes-Onset-Manual/Sit_{self.situation}/'
-        self.export_paths['Phonological'] = self.preprocessed_data_path + f'Phonological/Sit_{self.situation}/'
+        self.export_paths['Mfccs'] = self.preprocessed_data_path + f'Mfccs/'
+        self.export_paths['Mfccs-Deltas'] = self.preprocessed_data_path + f'Mfccs-Deltas/'
+        self.export_paths['Mfccs-Deltas-Deltas'] = self.preprocessed_data_path + f'Mfccs-Deltas-Deltas/'
+        self.export_paths['Deltas'] = self.preprocessed_data_path + f'Deltas/'
+        self.export_paths['Deltas-Deltas'] = self.preprocessed_data_path + f'Deltas-Deltas/'
+        self.export_paths['Pitch-Log-Quad'] = self.preprocessed_data_path + f'Pitch-Log-Quad_threshold_{self.silence_threshold}/'
+        self.export_paths['Pitch-Raw'] = self.preprocessed_data_path + f'Pitch-Raw_threshold_{self.silence_threshold}/'
+        self.export_paths['Pitch-Log-Raw'] = self.preprocessed_data_path + f'Pitch-Log-Raw_threshold_{self.silence_threshold}/'
+        self.export_paths['Pitch-Manual'] = self.preprocessed_data_path + f'Pitch-Manual_threshold_{self.silence_threshold}/'
+        self.export_paths['Pitch-Log-Manual'] = self.preprocessed_data_path + f'Pitch-Log-Manual_threshold_{self.silence_threshold}/'
+        self.export_paths['Pitch-Phonemes'] = self.preprocessed_data_path + f'Pitch-Phonemes_threshold_{self.silence_threshold}/'
+        self.export_paths['Pitch-Log-Phonemes'] = self.preprocessed_data_path + f'Pitch-Log-Phonemes_threshold_{self.silence_threshold}/'
+        self.export_paths['Spectrogram'] = self.preprocessed_data_path + f'Spectrogram/'
+        self.export_paths['Phonemes-Envelope'] = self.preprocessed_data_path + f'Phonemes-Envelope/'
+        self.export_paths['Phonemes-Envelope-Manual'] = self.preprocessed_data_path + f'Phonemes-Envelope-Manual/'
+        self.export_paths['Phonemes-Discrete'] = self.preprocessed_data_path + f'Phonemes-Discrete/'
+        self.export_paths['Phonemes-Discrete-Manual'] = self.preprocessed_data_path + f'Phonemes-Discrete-Manual/'
+        self.export_paths['Phonemes-Onset'] = self.preprocessed_data_path + f'Phonemes-Onset/'
+        self.export_paths['Phonemes-Onset-Manual'] = self.preprocessed_data_path + f'Phonemes-Onset-Manual/'
+        self.export_paths['Phonological'] = self.preprocessed_data_path + f'Phonological/'
         
     def load_from_raw(self):
         """Loads raw data, this includes EEG, info and stimuli.
@@ -1125,7 +1126,7 @@ def load_data(sesion:int, stim:str, band:str, sr:float, preprocessed_data_path:s
             'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonological']
     band : str
         Neural frequency band. It could be one of:
-            ['Delta','Theta', 'Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
+            ['Delta','Theta', 'Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
     sr : float
         Sample rate in Hz of the EEG
     tmin : float
@@ -1169,7 +1170,7 @@ def load_data(sesion:int, stim:str, band:str, sr:float, preprocessed_data_path:s
                     'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset',\
                     'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonological']
     allowed_situations = ['Habla_Propia','Ambos_Habla','Escucha']
-    allowed_bands = ['Delta','Theta','Alpha','Beta_1','Beta_2','All','Delta_Theta','Alpha_Delta_Theta']
+    allowed_bands = ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
 
     # And conditions
     condition_1 = all(stimulus in allowed_stims for stimulus in stim.split('_'))
