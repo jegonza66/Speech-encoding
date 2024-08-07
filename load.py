@@ -844,18 +844,26 @@ class Sesion_class:
                 trial_channel_1 = channel_1.load_trial(stims=self.stim.split('_'))
                 trial_channel_2 = channel_2.load_trial(stims=self.stim.split('_'))
     
-                # Load data to dictionary taking stimuli and eeg from speaker. I.e: each subject predicts its own EEG
+                # Load data to dictionary taking stimuli and eeg from speaker. I.e: each subject predicts its own EEG 
                 if self.situation == 'Habla_Propia' or self.situation == 'Ambos_Habla':
                     trial_sujeto_1 = {key: trial_channel_1[key] for key in trial_channel_1.keys()}
                     trial_sujeto_2 = {key: trial_channel_2[key] for key in trial_channel_2.keys()}
+                # TODO para predecir en 'Ambos_Habla' no habría que armar los estímulos con alguna especie de suma entre las señales de ambos participantes?
+                # Actualmente lo que sucede es predecir siempre con el mismo estímulo que el hablante (en este caso 1), pero tomando únicamente los momentos en que hablan en simultáneo.
                 
+                # Por otro lado, en un trial, x ejemplo el primero, la frecuencia de los eventos es
+                # 0:3484, 1:2778, 2:2399, 3:510
+                # siendo (0 es silencio, 1 habla el locutor, 2 habla el interlocutor, 3 hablan en simultaneo). Sospecho que entonces las predicciones sobre habla simultánea
+                # no van a ser tan buenas. El experimento no está específicamente diseñado para que esta situación suceda una cantidad de veces comparable con el resto.
+                # ¿Se podría hacer algo para ponderar este hecho en los resultados?
+
                 # Load data to dictionary taking stimuli from speaker and eeg from listener. I.e: predicts own EEG using stimuli from interlocutor
                 else:
                     trial_sujeto_1 = {key: trial_channel_2[key] for key in trial_channel_2.keys() if key!='EEG'} 
                     trial_sujeto_2 = {key: trial_channel_1[key] for key in trial_channel_1.keys() if key!='EEG'}
                     trial_sujeto_1['EEG'], trial_sujeto_2['EEG'] = trial_channel_1['EEG'], trial_channel_2['EEG']
 
-                # Labeling of current speaker. {3:both_speaking,2:speaks_listener,3:speaks_interlocutor,0:silence} 
+                # Labeling of current speaker. {3:both_speaking,2:speaks_locutor,1:speaks_interlocutor,0:silence}.# TODO: la diferencia entre _1 y _2 ese que se permutan los valores 1 y 2 (cambia la perspectiva de quién es locutor e interlocutor)
                 current_speaker_1 = self.labeling(trial=trial, channel=2)
                 current_speaker_2 = self.labeling(trial=trial, channel=1)
 
@@ -974,24 +982,24 @@ class Sesion_class:
         ubi_speaker = self.phrases_path + f'/s{self.sesion}.objects.{trial:02d}.channel{channel}.phrases'
         h1t = pd.read_table(ubi_speaker, header=None, sep="\t")
 
-        # Replace text by 1, silence by 0 and '#' by ''
+        # Replace and '#' by ''. And then all text by 1 and silences by 0 
         h1t.iloc[:, 2] = (h1t.iloc[:, 2].replace("#", "").apply(len) > 0).apply(int)
         
         # Take difference in time and multiply it by sample rate in order to match envelope length (almost, miss by a sample or two)
         samples = np.round((h1t[1] - h1t[0]) * self.sr).astype("int")
         speaker = np.repeat(h1t.iloc[:, 2], samples).ravel()
-
+        
         # Same with listener
         listener_channel = (channel - 3) * -1
         ubi_listener = self.phrases_path + f'/s{self.sesion}.objects.{trial:02d}.channel{listener_channel}.phrases'
         h2t = pd.read_table(ubi_listener, header=None, sep="\t")
 
-        # Replace text by 1, silence by 0 and '#' by ''
+        # Replace and '#' by ''. And then all text by 1 and silences by 0
         h2t.iloc[:, 2] = (h2t.iloc[:, 2].replace("#", "").apply(len) > 0).apply(int)
         samples = np.round((h2t[1] - h2t[0]) * self.sr).astype("int")
         listener = np.repeat(h2t.iloc[:, 2], samples).ravel()
 
-        # If there are difference in length, corrects with 0-padding
+        # If there are differences in length, corrects them with 0-padding
         diff = len(speaker) - len(listener)
         if diff > 0:
             listener = np.concatenate([listener, np.repeat(0, diff)])
