@@ -8,7 +8,7 @@ from scipy.spatial import ConvexHull
 from scipy.stats import wilcoxon
 
 # Modules
-from funciones import load_pickle, cohen_d, all_possible_combinations
+from funciones import load_pickle, cohen_d, all_possible_combinations, get_maximum_correlation_channels
 
 # Default size is 10 pts, the scalings (10pts*scale) are:
 #'xx-small':0.579,'x-small':0.694,'small':0.833,'medium':1.0,'large':1.200,'x-large':1.440,'xx-large':1.728,None:1.0}
@@ -25,15 +25,18 @@ pylab.rcParams.update(params)
 
 # Model parametrs
 model ='mtrf'
-situation = 'Escucha'
+situation = 'Ambos_Habla'
 stims_preprocess = 'Normalize'
 eeg_preprocess = 'Standarize'
 tmin, tmax = -.2, .6
 
+# Whether to use or not just relevant channels
+relevant_channels = 12 # None
+
 # Relevant paths
-path_figures = os.path.normpath(f'figures/{model}/model_comparison/{situation}/{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/')
+path_figures = os.path.normpath(f'figures/{model}/model_comparison/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/')
 final_corr_path = os.path.normpath(f'saves/{model}/{situation}/correlations/tmin{tmin}_tmax{tmax}/')
-preprocesed_data_path = os.path.normpath(f'saves/preprocessed_data/tmin-0.2_tmax0.6/') 
+preprocesed_data_path = os.path.normpath(f'saves/preprocessed_data/tmin-0.2_tmax0.6/{situation}/') 
 
 # Code parameters
 save_figures = True
@@ -44,7 +47,7 @@ path_convex_hull = os.path.join(path_figures,'convex_hull')
 
 # Relevant parameters
 bands = ['Theta']
-stims = 'Phonological_Deltas_Spectrogram'
+stims = 'Deltas_Spectrogram_Phonological'
 stims = '_'.join(sorted(stims.split('_'))) 
 substims = stims.split('_')
 avg_corr, good_ch = {}, {}
@@ -53,10 +56,15 @@ avg_corr, good_ch = {}, {}
 for band in bands:
     # Fill dictionaries with data
     for stim in substims + [stims]:
-        data = load_pickle(path=os.path.join(final_corr_path, f'{stim}_EEG_{band}.pkl'))
-        good_ch[stim] = data['repeated_good_correlation_channels_subjects'].ravel()
-        avg_corr[stim] = data['average_correlation_subjects'].ravel()
-        
+        data = load_pickle(path=os.path.join(final_corr_path, band, stim +'.pkl'))
+        if relevant_channels:
+            filter_relevant_channels_filter = get_maximum_correlation_channels(data['average_correlation_subjects'].mean(axis=0), number_of_lat_channels=relevant_channels)
+            good_ch[stim] = data['repeated_good_correlation_channels_subjects'][:,filter_relevant_channels_filter].ravel()
+            avg_corr[stim] = data['average_correlation_subjects'][:,filter_relevant_channels_filter].ravel()
+        else:
+            good_ch[stim] = data['repeated_good_correlation_channels_subjects'].ravel()
+            avg_corr[stim] = data['average_correlation_subjects'].ravel()
+
     # Make plot
     plt.ioff()
     plt.figure(layout='tight')
@@ -107,8 +115,12 @@ for band in bands:
     if save_figures:
         temp_path = os.path.join(path_convex_hull, f'{band}')
         os.makedirs(temp_path, exist_ok=True)
-        plt.savefig(os.path.join(temp_path, f'{stims}.png'))
-        plt.savefig(os.path.join(temp_path, f'{stims}.svg'))
+        if relevant_channels:
+            plt.savefig(os.path.join(temp_path, f'relevant_channels_{relevant_channels}_{stims}.png'))
+            plt.savefig(os.path.join(temp_path, f'relevant_channels_{relevant_channels}_{stims}.svg'))
+        else:
+            plt.savefig(os.path.join(temp_path, f'{stims}.png'))
+            plt.savefig(os.path.join(temp_path, f'{stims}.svg'))
     plt.close()
 
 # =========================================================================================================
@@ -118,7 +130,7 @@ path_venn_diagrams = os.path.join(path_figures,'venn_diagrams')
 
 # Relevant parameters
 bands = ['Theta']
-stimuli = ['Spectrogram', 'Phonological']
+stimuli = ['Phonological', 'Spectrogram', 'Deltas']
 
 # Arrange shared stimuli
 stimuli = sorted(stimuli)
@@ -131,8 +143,12 @@ mean_correlations = {}
 for band in bands:
     for stim in all_stimuli:
         # Get average correlation of each stimulus
-        mean_correlations[stim] = load_pickle(path=os.path.join(final_corr_path, f'{stim}_EEG_{band}.pkl'))['average_correlation_subjects'].mean()
-        # HACER SOBRE LOS CANALES BUENOS y/O LOS MEJORES PUTNTUADOS r2 VER COMO DEFINIR 12 MEJORES CANALEs (EN EL CODIGO ESTA POR ALGUN LADO)
+        data = load_pickle(path=os.path.join(final_corr_path, band, stim +'.pkl'))['average_correlation_subjects']
+        if relevant_channels:
+            filter_relevant_channels_filter = get_maximum_correlation_channels(data.mean(axis=0), number_of_lat_channels=relevant_channels)
+            mean_correlations[stim] = data[:,filter_relevant_channels_filter].mean()
+        else:
+            mean_correlations[stim] = data.mean()
 
     for stim12 in double_combinations:
         stim1, stim2 = stim12.split('_')
@@ -169,8 +185,12 @@ for band in bands:
         if save_figures:
             temp_path = os.path.join(path_venn_diagrams, f'{band}')
             os.makedirs(temp_path, exist_ok=True)
-            plt.savefig(os.path.join(temp_path, f'{stim12}.png'))
-            plt.savefig(os.path.join(temp_path, f'{stim12}.svg'))
+            if relevant_channels:
+                plt.savefig(os.path.join(temp_path, f'relevant_channels_{relevant_channels}_{stim12}.png'))
+                plt.savefig(os.path.join(temp_path, f'relevant_channels_{relevant_channels}_{stim12}.svg'))
+            else:
+                plt.savefig(os.path.join(temp_path, f'{stim12}.png'))
+                plt.savefig(os.path.join(temp_path, f'{stim12}.svg'))
         plt.close()
         
         # Make a print with information
@@ -225,8 +245,12 @@ for band in bands:
         if save_figures:
             temp_path = os.path.join(path_venn_diagrams, f'{band}')
             os.makedirs(temp_path, exist_ok=True)
-            plt.savefig(os.path.join(temp_path, f'{all_stimuli[-1]}.png'))
-            plt.savefig(os.path.join(temp_path, f'{all_stimuli[-1]}.svg'))
+            if relevant_channels:
+                plt.savefig(os.path.join(temp_path, f'relevant_channels_{relevant_channels}_{all_stimuli[-1]}.png'))
+                plt.savefig(os.path.join(temp_path, f'relevant_channels_{relevant_channels}_{all_stimuli[-1]}.svg'))
+            else:
+                plt.savefig(os.path.join(temp_path, f'{all_stimuli[-1]}.png'))
+                plt.savefig(os.path.join(temp_path, f'{all_stimuli[-1]}.svg'))
         plt.close()
 
         # # Make a print with information

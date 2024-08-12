@@ -232,6 +232,67 @@ def match_lengths(dic, speaker_labels, minimum_length):
             print(dic, speaker_labels, minimum)
             return dic, speaker_labels, minimum
 
+def get_maximum_correlation_channels(average_correlation_across_subject:np.ndarray,
+                                     number_of_lat_channels:int=12,
+                                     lateralization:bool=False):
+    """Get 
+
+    Parameters
+    ----------
+    average_correlation_across_subject : np.ndarray
+        _description_
+    number_of_lat_channels : int
+        _description_
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
+    # Get channels of headset
+    montage = mne.channels.make_standard_montage('biosemi128')
+    channel_names = montage.ch_names
+
+    # List of all left and right channels
+    all_channels_right = ['B27','B28','B29','B30','B31','B32','C1','C2','C3','C4','C5','C6','C7','C8','C9','C10','C11','C12','C13','C14','C15','C16']
+    all_channels_left = ['D1','D2','D3','D4','D5','D6','D7','D8','D9','D10','D11','D12','D13','C24','C25','C26','C27','C28','C29','C30','C31','C32']
+    
+    if lateralization:
+        # Get right and left channels that are used in this experiment
+        ordered_chs_right = [ch for ch in channel_names if ch in all_channels_right]
+        ordered_chs_left = [ch for ch in channel_names if ch in all_channels_left]
+
+        # Filter coefficient to get respective correlations
+        corr_right = average_correlation_across_subject[[ch in all_channels_right for ch in channel_names]]
+        corr_left = average_correlation_across_subject[[ch in all_channels_left for ch in channel_names]]
+
+        # Now get relevant indexes, sorted by correlation
+        sorted_chs_right = [x for _, x in sorted(zip(corr_right, ordered_chs_right))]
+        sorted_chs_left = [x for _, x in sorted(zip(corr_left, ordered_chs_left))]
+
+        # Get most correlated channels for lateralization
+        if number_of_lat_channels:
+            corr_right = np.sort(corr_right)[-number_of_lat_channels:]
+            corr_left = np.sort(corr_left)[-number_of_lat_channels:]
+            sorted_chs_right = sorted_chs_right[-number_of_lat_channels:]
+            sorted_chs_left = sorted_chs_left[-number_of_lat_channels:]
+        return [ch in sorted_chs_left for ch in channel_names], [ch in sorted_chs_right for ch in channel_names]
+    else:
+        # List all channels
+        all_channels = all_channels_left+all_channels_right
+
+        # Get channels that are used in the experiment and corresponding correlations
+        ordered_chs = [ch for ch in channel_names if ch in all_channels]
+        corr = average_correlation_across_subject[[ch in all_channels for ch in channel_names]]
+
+        # Now get relevant indexes, sorted by correlation
+        sorted_chs = [x for _, x in sorted(zip(corr, ordered_chs))]
+
+        # Get most correlated channels for lateralization
+        if number_of_lat_channels:
+            corr = np.sort(corr)[-number_of_lat_channels:]
+            sorted_chs = sorted_chs[-number_of_lat_channels:]
+        return [ch in sorted_chs for ch in channel_names]
 
 def maximo_comun_divisor(a, b):
     temporal = 0
