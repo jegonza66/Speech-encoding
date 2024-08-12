@@ -535,6 +535,7 @@ def average_topomap(average_coefficient_subjects:np.ndarray,
             fig.savefig(f'left_vs_right_{coefficient_name.lower()}_{len(sorted_chs_right)}_channels.png')
             fig.savefig(f'left_vs_right_{coefficient_name.lower()}_{len(sorted_chs_right)}_channels.svg')
             os.chdir(current_working_directory)
+        
       
     else:
         test_results = None
@@ -1629,6 +1630,7 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
     # Take mean over all subjects
     mean_average_weights_subjects = average_weights_subjects.mean(axis=0)
     stimuli = stim.split('_')
+    save_path += 'TFCE/'
         
     for i_feat, (feat, n_feat) in enumerate(zip(stimuli, n_feats)):
         # Make slicing of relevant features
@@ -1865,7 +1867,6 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
 
         # Save figures
         if save:
-            save_path += 'TFCE/'
             os.makedirs(save_path, exist_ok=True)
             
             # This is done to avoid working with long paths
