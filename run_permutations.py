@@ -34,7 +34,7 @@ times = (delays/sr)
 # Stimuli, EEG frecuency band and dialogue situation
 stimuli = ['Envelope']
 bands = ['Theta']#['Alpha', 'Beta1', 'All']
-situation = 'Escucha'
+situation = 'External'
 
 # Model and normalization of input
 stims_preprocess = 'Normalize'

@@ -25,7 +25,7 @@ pylab.rcParams.update(params)
 
 # Model parametrs
 model ='mtrf'
-situation = 'Ambos_Habla'
+situation = 'Internal_BS'
 stims_preprocess = 'Normalize'
 eeg_preprocess = 'Standarize'
 tmin, tmax = -.2, .6
@@ -329,7 +329,7 @@ for band in bands:
 # times = np.flip(-times)
 
 # model = 'Ridge'
-# situacion = 'Ambos_Habla'
+# situacion = 'Internal_BS'
 
 # Run_graficos_path = 'gráficos/Model_Comparison/{}/{}/tmin{}_tmax{}/Violin mTRF/'.format(model, situacion, tmin_corr, tmax_corr)
 # Save_fig = True
@@ -401,7 +401,7 @@ for band in bands:
 # model = 'Ridge'
 # Band = 'Theta'
 # stim = 'Spectrogram'
-# situaciones = ['Escucha', 'Habla_Propia', 'Ambos', 'Ambos_Habla', 'Silencio']
+# situaciones = ['External', 'Internal', 'Ambos', 'Internal_BS', 'Silencio']
 # tmin, tmax = -0.6, -0.003
 # stat_test = 'log'  # fdr/log/cohen
 # mask = False
@@ -435,8 +435,8 @@ for band in bands:
 # stats = {}
 # pvals = {}
 
-# for sit1, sit2 in zip(('Escucha', 'Escucha', 'Escucha', 'Escucha', 'Habla_Propia', 'Habla_Propia', 'Ambos', 'Ambos', 'Ambos', 'Ambos_Habla'),
-#                       ('Habla_Propia', 'Ambos', 'Silencio', 'Ambos_Habla', 'Silencio', 'Ambos_Habla', 'Ambos_Habla', 'Silencio', 'Habla_Propia', 'Silencio')):
+# for sit1, sit2 in zip(('External', 'External', 'External', 'External', 'Internal', 'Internal', 'Ambos', 'Ambos', 'Ambos', 'Internal_BS'),
+#                       ('Internal', 'Ambos', 'Silencio', 'Internal_BS', 'Silencio', 'Internal_BS', 'Internal_BS', 'Silencio', 'Internal', 'Silencio')):
 #     print(sit1, sit2)
 
 #     dist1 = Correlaciones[sit1]
@@ -549,7 +549,7 @@ for band in bands:
 
 # Save_fig = True
 # model = 'Ridge'
-# situacion = 'Escucha'
+# situacion = 'External'
 # tmin, tmax = -0.6, 0
 # Run_graficos_path = 'gráficos/Model_Comparison/{}/{}/tmin{}_tmax{}/Violin Plots/'.format(model, situacion, tmin, tmax)
 
@@ -612,7 +612,7 @@ for band in bands:
 # model = 'Ridge'
 # Band = 'Theta'
 # stim = 'Spectrogram'
-# situaciones = ['Escucha', 'Habla_Propia', 'Ambos', 'Ambos_Habla', 'Silencio']
+# situaciones = ['External', 'Internal', 'Ambos', 'Internal_BS', 'Silencio']
 # tmin, tmax = -0.6, -0.003
 # fdr = True
 # if fdr:
@@ -639,7 +639,7 @@ for band in bands:
 
 #     Correlaciones[situacion] = Corr.transpose().ravel()
 
-# my_pal = {'Escucha': 'darkgrey', 'Habla_Propia': 'darkgrey', 'Ambos': 'darkgrey', 'Ambos_Habla': 'darkgrey', 'Silencio': 'darkgrey'}
+# my_pal = {'External': 'darkgrey', 'Internal': 'darkgrey', 'Ambos': 'darkgrey', 'Internal_BS': 'darkgrey', 'Silencio': 'darkgrey'}
 
 # plt.figure(figsize=(19, 5))
 # sn.violinplot(data=pd.DataFrame(Correlaciones), palette=my_pal)
@@ -672,9 +672,9 @@ for band in bands:
 # Save_fig = True
 
 # Listening_25_folds_path = 'saves/25_folds/{}/{}/Original/Stims_{}_EEG_{}/tmin{}_tmax{}/Stim_{}_EEG_Band_{}/Pesos_Totales_{}_{}.pkl'.\
-#     format(model, 'Escucha', Stims_preprocess, EEG_preprocess, tmin, tmax, stim, Band, stim, Band)
+#     format(model, 'External', Stims_preprocess, EEG_preprocess, tmin, tmax, stim, Band, stim, Band)
 # Listening_path = 'saves/{}/{}/Original/Stims_{}_EEG_{}/tmin{}_tmax{}/Stim_{}_EEG_Band_{}/Pesos_Totales_{}_{}.pkl'.\
-#     format(model, 'Escucha', Stims_preprocess, EEG_preprocess, tmin, tmax, stim, Band, stim, Band)
+#     format(model, 'External', Stims_preprocess, EEG_preprocess, tmin, tmax, stim, Band, stim, Band)
 # Ambos_path = 'saves/{}/{}/Original/Stims_{}_EEG_{}/tmin{}_tmax{}/Stim_{}_EEG_Band_{}/Pesos_Totales_{}_{}.pkl'.\
 #     format(model, 'Ambos', Stims_preprocess, EEG_preprocess, tmin, tmax, stim, Band, stim, Band)
 
@@ -753,7 +753,7 @@ for band in bands:
 
 # tmin, tmax = -0.4, 0.2
 # model = 'Decoding'
-# situacion = 'Escucha'
+# situacion = 'External'
 
 # Run_graficos_path = 'gráficos/Model_Comparison/{}/{}/tmin{}_tmax{}/Box Plots/'.format(model, situacion, tmin, tmax)
 # Save_fig = False
@@ -809,7 +809,7 @@ for band in bands:
 
 # ## Heatmaps
 # model = 'Ridge'
-# situacion = 'Escucha'
+# situacion = 'External'
 # tmin, tmax = -0.6, -0.003
 # Run_graficos_path = 'gráficos/Model_Comparison/{}/{}/tmin{}_tmax{}/Heatmaps/'.format(model, situacion, tmin, tmax)
 # Save_fig = True
@@ -875,7 +875,7 @@ for band in bands:
 # info = mne.create_info(ch_names=channel_names[:], sfreq=128, ch_types='eeg').set_montage(montage)
 
 # model = 'Ridge'
-# situacion = 'Escucha'
+# situacion = 'External'
 # alpha = 100
 # tmin, tmax = -0.6, -0.003
 

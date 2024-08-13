@@ -26,7 +26,7 @@ Bands = ['Theta']
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 total_subjects = len(sesiones)*2
 
-situacion = 'Escucha'
+situacion = 'External'
 tmin, tmax = -0.4, 0.2
 sr = 128
 delays = - np.arange(np.floor(tmin * sr), np.ceil(tmax * sr), dtype=int)
@@ -60,7 +60,7 @@ for Band in Bands:
                 graficos_save_path = 'gráficos/Brain_Brain/tmin{}_tmax{}/{}/'.format(tmin, tmax, Band)
                 print('Runing Brain to Brain synchronization...')
                 Sujeto_1_Escucha, Sujeto_2_Escucha = Load.Load_Data(sesion=sesion, stim=stim, Band=Band, sr=sr, tmin=tmin, tmax=tmax,
-                                                    preprocessed_data_path=preprocessed_data_path, situacion='Escucha')
+                                                    preprocessed_data_path=preprocessed_data_path, situacion='External')
                 # LOAD EEG BY SUBJECT
                 eeg_sujeto_1_Escucha, eeg_sujeto_2_Escucha, info = Sujeto_1_Escucha['EEG'], Sujeto_2_Escucha['EEG'], \
                                                                    Sujeto_1_Escucha['info']
@@ -288,8 +288,8 @@ Bands = ['Theta']
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 total_subjects = len(sesiones)*2
 
-situacion = 'Escucha'
-situcaiones = ['Escucha', 'Ambos', 'Ambos_Habla', 'Habla_Propia', 'Silencio']
+situacion = 'External'
+situcaiones = ['External', 'Ambos', 'Internal_BS', 'Internal', 'Silencio']
 tmin, tmax = -0.4, 0.2
 sr = 128
 delays = - np.arange(np.floor(tmin * sr), np.ceil(tmax * sr), dtype=int)

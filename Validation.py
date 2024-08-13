@@ -20,7 +20,7 @@ start_time = datetime.now()
 # Stimuli, EEG frecuency band and dialogue situation
 stimuli = ['Envelope']
 bands = ['Theta']
-situation = 'Escucha'
+situation = 'External'
 
 # Run setup
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]

@@ -20,7 +20,7 @@ times = list(np.linspace(delays[0] * np.sign(tmin) * 1 / sr, np.abs(delays[-1]) 
 skip = 2
 times = times[::skip]
 t_lags = np.arange(len(times))*skip
-situacion = 'Escucha'
+situacion = 'External'
 
 # Model parameters
 set_alpha = None
@@ -192,7 +192,7 @@ times = np.linspace(delays[0] * np.sign(tmin) * 1 / sr, np.abs(delays[-1]) * np.
 skip = 2
 times = times[::skip]
 t_lags = np.arange(len(times))*skip
-situacion = 'Escucha'
+situacion = 'External'
 
 Stims_preprocess = 'Normalize'
 EEG_preprocess = 'Standarize'

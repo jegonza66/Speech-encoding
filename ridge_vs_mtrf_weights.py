@@ -3,8 +3,8 @@ from funciones import load_pickle
 
 # ==================================================================
 # Read and extract weights to compute porcentual relative difference
-path_mtrf_weights = 'saves/mtrf/Escucha/Original/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/stim_Envelope_EEG_band_Theta/total_weights_per_subject_Envelope_Theta.pkl'
-path_ridge_weights = 'saves/Ridge/Escucha/Original/Stims_Normalize_EEG_Standarize/tmin-0.6_tmax0.2/Stim_Envelope_EEG_Band_Theta/Pesos_Totales_Envelope_Theta.pkl'
+path_mtrf_weights = 'saves/mtrf/External/Original/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/stim_Envelope_EEG_band_Theta/total_weights_per_subject_Envelope_Theta.pkl'
+path_ridge_weights = 'saves/Ridge/External/Original/Stims_Normalize_EEG_Standarize/tmin-0.6_tmax0.2/Stim_Envelope_EEG_Band_Theta/Pesos_Totales_Envelope_Theta.pkl'
 
 # Compute porcentual relative difference
 w_mtrf = load_pickle(path=path_mtrf_weights)['average_weights_subjects'].mean(axis=0)[:, 0, :]

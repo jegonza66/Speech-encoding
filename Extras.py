@@ -43,7 +43,7 @@ except:
 # Stimuli and EEG
 stim = 'Envelope'
 Band = 'Theta'
-situacion = 'Ambos_Habla'
+situacion = 'Internal_BS'
 tmin, tmax = -0.6, -0.003
 sr = 128
 delays = - np.arange(np.floor(tmin * sr), np.ceil(tmax * sr), dtype=int)

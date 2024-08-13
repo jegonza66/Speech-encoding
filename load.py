@@ -661,7 +661,7 @@ class Trial_channel:
 
 class Sesion_class: 
     def __init__(self, sesion:int=21, stim:str='Envelope', band:str='All', sr:float=128, 
-                 causal_filter_eeg:bool=True, envelope_filter:bool=False, situation:str='Escucha', 
+                 causal_filter_eeg:bool=True, envelope_filter:bool=False, situation:str='External', 
                  silence_threshold:float=0.03, delays:np.ndarray=None,
                  preprocessed_data_path:str=f'saves/preprocessed_data/tmin{-0.6}_tmax{-.002}/',
                  praat_executable_path:str=r"C:\Program Files\Praat\Praat.exe"
@@ -687,8 +687,8 @@ class Sesion_class:
         envelope_filter : bool, optional
             Whether to use or not an envelope filter, by default False
         situation : str, optional
-            Situation considerer when performing the analysis, by default 'Escucha'. Allowed sitations are:
-            ['Habla_Propia','Ambos_Habla','Escucha']
+            Situation considerer when performing the analysis, by default 'External'. Allowed sitations are:
+            ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
         silence_threshold : float, optional
             Silence threshold of the dialogue, by default 0.03
         delays : np.ndarray, optional
@@ -711,7 +711,7 @@ class Sesion_class:
             ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
         SyntaxError
             If situation is not an allowed situation. Allowed situations are: 
-            ['Habla_Propia','Ambos_Habla','Escucha']
+            ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
         """
        
         # Check if band, stim and situation parameters where passed with the right syntax
@@ -719,7 +719,7 @@ class Sesion_class:
                         'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', \
                         'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonological']
         allowed_band_frequencies = ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
-        allowed_situationes = ['Habla_Propia','Ambos_Habla','Escucha']
+        allowed_situationes = ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
         for st in stim.split('_'):
             if st in allowed_stims:
                 pass
@@ -845,25 +845,18 @@ class Sesion_class:
                 trial_channel_2 = channel_2.load_trial(stims=self.stim.split('_'))
     
                 # Load data to dictionary taking stimuli and eeg from speaker. I.e: each subject predicts its own EEG 
-                if self.situation == 'Habla_Propia' or self.situation == 'Ambos_Habla':
+                if self.situation.startswith('Internal'):
                     trial_sujeto_1 = {key: trial_channel_1[key] for key in trial_channel_1.keys()}
                     trial_sujeto_2 = {key: trial_channel_2[key] for key in trial_channel_2.keys()}
-                # TODO para predecir en 'Ambos_Habla' no habría que armar los estímulos con alguna especie de suma entre las señales de ambos participantes?
-                # Actualmente lo que sucede es predecir siempre con el mismo estímulo que el hablante (en este caso 1), pero tomando únicamente los momentos en que hablan en simultáneo.
+                # TODO para predecir en 'Internal_BS' no habría que armar los estímulos con alguna especie de suma entre las señales de ambos participantes?                
                 
-                # Por otro lado, en un trial, x ejemplo el primero, la frecuencia de los eventos es
-                # 0:3484, 1:2778, 2:2399, 3:510
-                # siendo (0 es silencio, 1 habla el locutor, 2 habla el interlocutor, 3 hablan en simultaneo). Sospecho que entonces las predicciones sobre habla simultánea
-                # no van a ser tan buenas. El experimento no está específicamente diseñado para que esta situación suceda una cantidad de veces comparable con el resto.
-                # ¿Se podría hacer algo para ponderar este hecho en los resultados?
-
                 # Load data to dictionary taking stimuli from speaker and eeg from listener. I.e: predicts own EEG using stimuli from interlocutor
                 else:
                     trial_sujeto_1 = {key: trial_channel_2[key] for key in trial_channel_2.keys() if key!='EEG'} 
                     trial_sujeto_2 = {key: trial_channel_1[key] for key in trial_channel_1.keys() if key!='EEG'}
                     trial_sujeto_1['EEG'], trial_sujeto_2['EEG'] = trial_channel_1['EEG'], trial_channel_2['EEG']
 
-                # Labeling of current speaker. {3:both_speaking,2:speaks_locutor,1:speaks_interlocutor,0:silence}.# TODO: la diferencia entre _1 y _2 ese que se permutan los valores 1 y 2 (cambia la perspectiva de quién es locutor e interlocutor)
+                # Labeling of current speaker. {3:both_speaking,2:speaks_locutor,1:speaks_interlocutor,0:silence}. La diferencia entre _1 y _2 ese que se permutan los valores 1 y 2 (cambia la perspectiva de quién es locutor e interlocutor)
                 current_speaker_1 = self.labeling(trial=trial, channel=2)
                 current_speaker_2 = self.labeling(trial=trial, channel=1)
 
@@ -953,12 +946,6 @@ class Sesion_class:
         # Loads stimuli to each subject
         for stimulus in self.stim.split('_'):
             sujeto_1[stimulus], sujeto_2[stimulus] = funciones.load_pickle(path=self.export_paths[stimulus]+f'Sesion{self.sesion}.pkl')
-            # if stimulus == 'Pitch':
-            #     # Remove missing values
-            #     if self.valores_faltantes == None: #TODO CREO QUE ACA VA 0 TODAVIA NO VIMOS ESTOS DATOS
-            #         sujeto_1[stimulus], sujeto_2[stimulus] = sujeto_1[stimulus][sujeto_1[stimulus]!=0], sujeto_2[stimulus][sujeto_2[stimulus]!=0]
-            #     elif self.valores_faltantes:
-            #         sujeto_1[stimulus], sujeto_2[stimulus] = sujeto_1[stimulus][sujeto_1[stimulus]==0], sujeto_2[stimulus][sujeto_2[stimulus]==0]
         return {'Sujeto_1': sujeto_1, 'Sujeto_2': sujeto_2}, samples_info
     
     def labeling(self, trial:int, channel:int):
@@ -1022,7 +1009,7 @@ class Sesion_class:
         np.ndarray
             Indexes to keep for the analysis
         """
-        if self.situation == 'Todo':
+        if 'All_Times' in self.situation:
             return np.arange(len(speaker_labels))
         
         # Change 0 with 4s, because shifted matrix pad zeros that could be mistaken with situation 0    
@@ -1033,16 +1020,16 @@ class Sesion_class:
         shifted_matrix_speaker_labels = processing.shifted_matrix(features=speaker_labels, delays=self.delays).astype(float)
 
         # Make the appropiate label
-        if self.situation == 'Silencio':
-            situation_label = 4
-        elif self.situation == 'Escucha':
+        if self.situation.startswith('External'):
             situation_label = 1
-        elif self.situation == 'Habla' or self.situation == 'Habla_Propia':
+        elif self.situation.startswith('Internal'):
             situation_label = 2
-        elif self.situation == 'Ambos' or self.situation == 'Ambos_Habla':
+        elif self.situation.endswith('BS'):
             situation_label = 3
-        
-        # Shifted matrix index where the given situation is ocurring in all row (number of samples dimension) # TODO: discutir si dejar 0 o no.
+        else: # Silence
+            situation_label = 4
+
+        # Shifted matrix index where the given situation is ocurring in all row (number of samples dimension) # TODO: discutir si dejar 0 (silencios) o no.
         # return ((shifted_matrix_speaker_labels==situation_label) | (shifted_matrix_speaker_labels==0)).all(axis=1).nonzero()[0]
         return ((shifted_matrix_speaker_labels==situation_label)).all(axis=1).nonzero()[0]
     
@@ -1118,7 +1105,7 @@ class Sesion_class:
             return dic, speaker_labels, minimum
 
 def load_data(sesion:int, stim:str, band:str, sr:float, preprocessed_data_path:str, 
-              praat_executable_path:str, situation:str='Escucha', 
+              praat_executable_path:str, situation:str='External', 
               causal_filter_eeg:bool=True, envelope_filter:bool=False, 
               silence_threshold:float=0.03, delays:np.ndarray=None):
     """Loads sessions of both subjects
@@ -1146,8 +1133,8 @@ def load_data(sesion:int, stim:str, band:str, sr:float, preprocessed_data_path:s
     preprocessed_data_path : str
         Path directing to procesed data
     situation : str, optional
-        Situation considerer when performing the analysis, by default 'Escucha'. Allowed sitations are:
-            ['Habla_Propia','Ambos_Habla','Escucha']
+        Situation considerer when performing the analysis, by default 'External'. Allowed sitations are:
+            ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
     causal_filter_eeg : bool, optional
         Whether to use or not a cusal filter, by default True
     envelope_filter : bool, optional
@@ -1177,7 +1164,7 @@ def load_data(sesion:int, stim:str, band:str, sr:float, preprocessed_data_path:s
     allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes',\
                     'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset',\
                     'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonological']
-    allowed_situations = ['Habla_Propia','Ambos_Habla','Escucha']
+    allowed_situations = ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
     allowed_bands = ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
 
     # And conditions

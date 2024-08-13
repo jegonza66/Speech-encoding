@@ -20,7 +20,7 @@ EEG_preprocess = 'Standarize'
 # Stimuli and EEG
 stim = 'Spectrogram'
 Band = 'Theta'
-situacion = 'Escucha'
+situacion = 'External'
 tmin, tmax = -0.4, 0.2
 sr = 128
 delays = - np.arange(np.floor(tmin * sr), np.ceil(tmax * sr), dtype=int)

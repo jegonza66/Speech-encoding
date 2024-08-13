@@ -24,16 +24,19 @@ start_time = datetime.now()
 # ==========
 
 # Stimuli, EEG frecuency band and dialogue situation
-# stimuli = ['Deltas', 'Envelope', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Spectrogram', 'Phonological']
+stimuli = ['Phonological_Deltas', 'Deltas_Spectrogram', 'Spectrogram_Phonological']#, 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Phonological']
+stimuli = ['Deltas_Phonological_Spectrogram']
+stimuli = ['Phonological']
+
 # stimuli = ['Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Manual']
-# stimuli = ['Pitch-Raw', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Envelope', 'Pitch-Log-Quad']
+# stimuli = ['Pitch-Raw', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Pitch-Log-Quad']
 
 # stimuli = ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw']
-stimuli = ['Envelope_Phonemes-Discrete-Manual','Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
+# stimuli = ['Envelope_Phonemes-Discrete-Manual','Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
 # stimuli = ['Deltas_Phonological','Deltas_Phonological_Spectrogram','Deltas_Spectrogram', 'Phonological_Spectrogram']
 
-bands = ['Theta']
-situation = 'Escucha'
+bands = ['Theta'] #, 'Delta', 'Alpha', 'Beta1', 'Beta2', 'All', 'Delta_Theta', 'Alpha_Delta_Theta']
+situation = 'Internal' #'Internal_BS' #'External' # 'Internal'
 
 # Run setup
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
