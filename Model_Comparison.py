@@ -36,7 +36,7 @@ relevant_channels = 12 # None
 # Relevant paths
 path_figures = os.path.normpath(f'figures/{model}/model_comparison/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/')
 final_corr_path = os.path.normpath(f'saves/{model}/{situation}/correlations/tmin{tmin}_tmax{tmax}/')
-preprocesed_data_path = os.path.normpath(f'saves/preprocessed_data/tmin-0.2_tmax0.6/{situation}/') 
+preprocesed_data_path = os.path.normpath(f'saves/preprocessed_data/{situation}/tmin-0.2_tmax0.6/') 
 
 # Code parameters
 save_figures = True
@@ -263,56 +263,82 @@ for band in bands:
         #       f'\nshared percentage explained is {shared_percent} %')
 
 
-# # ===================
-# # VIOLIN/TOPO (BANDS)
-# path_violin = os.path.join(path_figures,'violin_topo')
+# Relevant parameters
+bands = ['Theta']
+stimuli = ['Phonological', 'Spectrogram', 'Deltas']
 
-# # Relevant parameters
-# colors_violin = {'All': 'darkgrey', 'Delta': 'darkgrey', 'Theta': 'C1', 'Alpha': 'darkgrey', 'Beta1': 'darkgrey'}
-# info = load_pickle(path=os.path.join(preprocesed_data_path,'/EEG/info.pkl'))
-# bands = ['All', 'Delta', 'Theta', 'Alpha', 'Beta1']
-# stim = 'Spectrogram'
-# avg_corr = {}
+# Arrange shared stimuli
+stimuli = sorted(stimuli)
+double_combinations = ['_'.join(sorted(combination)) for combination in all_possible_combinations(stimuli) if len(combination)==2]
+triple_combinations = ['_'.join(sorted(combination)) for combination in all_possible_combinations(stimuli) if len(combination)==3]
+all_stimuli = stimuli + double_combinations + triple_combinations
+mean_correlations = {}
 
+# Iterate over bands
+for band in bands:
+    for stim in all_stimuli:
+        # Get average correlation of each stimulus
+        data = load_pickle(path=os.path.join(final_corr_path, band, stim +'.pkl'))['average_correlation_subjects']
+        if relevant_channels:
+            filter_relevant_channels_filter = get_maximum_correlation_channels(data.mean(axis=0), number_of_lat_channels=relevant_channels)
+            mean_correlations[stim] = data[:,filter_relevant_channels_filter].mean()
+        else:
+            mean_correlations[stim] = data.mean()
+# ===================
+# VIOLIN/TOPO (BANDS)
+# ===================
+path_violin = os.path.join(path_figures,'violin_topo')
 
-# # Make figure
-# fig, axs = plt.subplots(figsize=(14, 5), ncols=5, nrows=2, layout='tight')
+# Relevant parameters
+bands = ['All', 'Delta', 'Theta', 'Alpha', 'Beta1']
+stimulus = 'Spectrogram'
+avg_corr = {} 
 
-# # Iterate over bands
-# for i, band in enumerate(bands):
-#     data = load_pickle(path=os.path.join(final_corr_path, f'{stim}_EEG_{band}.pkl'))
-#     avg_corr[band] = data['average_correlation_subjects'].mean(axis=0) # TODO CHECK mean
+# Make figure
+fig, axs = plt.subplots(figsize=(14, 5), ncols=5, nrows=2, layout='tight')
+plt.suptitle(situation) #TODO PONER CON FIG ARRIBA CREO
+
+# Iterate over bands
+for i, band in enumerate(bands):
+    info = load_pickle(path=os.path.join(preprocesed_data_path, band, 'EEG/info.pkl'))  #TODO check path
+    data = load_pickle(path=os.path.join(final_corr_path, band, stimulus +'.pkl'))
+    avg_corr[band] = data['average_correlation_subjects'].mean(axis=0) # TODO CHECK mean if correct axis
     
-#     # Make topomap
-#     im = mne.viz.plot_topomap(avg_corr[band].ravel(), 
-#                               info, 
-#                               axes=axs[0, i], 
-#                               show=False, 
-#                               sphere=0.07, 
-#                               cmap='Reds',
-#                               vmin=avg_corr[band].min(), 
-#                               vmax=avg_corr[band].max())
-#     # And colorbar
-#     cbar = plt.colorbar(im[0], ax=axs[0, i], orientation='vertical', shrink=0.5)
+    # Make topomap
+    im = mne.viz.plot_topomap(avg_corr[band].ravel(), 
+                              info, 
+                              axes=axs[0, i], 
+                              show=False, 
+                              sphere=0.07, 
+                              cmap='Reds',
+                              vmin=avg_corr[band].min(), 
+                              vmax=avg_corr[band].max())
+    # Add colorbar
+    cbar = plt.colorbar(im[0], ax=axs[0, i], orientation='vertical', shrink=0.5)
 
-# for ax_row in axs[1:]:
-#     for ax in ax_row:
-#         ax.remove()
+# Remove axis that aren't used
+for ax_row in axs[1:]:
+    for ax in ax_row:
+        ax.remove()
 
+# Make violin plots
+ax = fig.add_subplot(2, 1, (2, 3))
+sn.violinplot(data=pd.DataFrame(avg_corr), 
+              palette={band: 'darkgrey' for band in bands}, 
+              ax=ax)
 
-# plt.suptitle(situation)#TODO PONER CON FIG ARRIBA CREO
-# ax = fig.add_subplot(2, 1, (2, 3))
-# sn.violinplot(data=pd.DataFrame(avg_corr), palette=colors_violin, ax=ax)
+# Set configuration of labels
+ax.set(ylabel='Correlation', 
+       xticklabels=['Broad band', 'Delta', 'Theta', 'Alpha', 'Low Beta'],
+       ylim=[0, 0.5])
+ax.grid(visible=True)
 
-# ax.set(ylabel='Correlation', 
-#        xticklabels=['Broad band', 'Delta', 'Theta', 'Alpha', 'Low Beta'],
-#        ylim=[0, 0.5])
-# ax.grid(visible=True)
-
-# if save_figures:
-#     os.makedirs(path_violin, exist_ok=True)
-#     plt.savefig(os.path.join(path_violin + f'{stim}.png'))
-#     plt.savefig(os.path.join(path_violin + f'{stim}.svg'))
+# Save figure
+if save_figures:
+    os.makedirs(path_violin, exist_ok=True)
+    plt.savefig(os.path.join(path_violin, f'{stimulus}.png'))
+    plt.savefig(os.path.join(path_violin, f'{stimulus}.svg'))
+plt.close()
 
 # # ===================
 # # VIOLIN/MTRF (BANDS)
