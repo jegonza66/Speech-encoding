@@ -26,7 +26,7 @@ start_time = datetime.now()
 # Stimuli, EEG frecuency band and dialogue situation
 stimuli = ['Phonological_Deltas', 'Deltas_Spectrogram', 'Spectrogram_Phonological']#, 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Phonological']
 stimuli = ['Deltas_Phonological_Spectrogram']
-stimuli = ['Phonological']
+stimuli = ['Pitch-Raw', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Pitch-Log-Quad']
 
 # stimuli = ['Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Manual']
 # stimuli = ['Pitch-Raw', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Pitch-Log-Quad']
@@ -36,7 +36,7 @@ stimuli = ['Phonological']
 # stimuli = ['Deltas_Phonological','Deltas_Phonological_Spectrogram','Deltas_Spectrogram', 'Phonological_Spectrogram']
 
 bands = ['Theta'] #, 'Delta', 'Alpha', 'Beta1', 'Beta2', 'All', 'Delta_Theta', 'Alpha_Delta_Theta']
-situation = 'Internal' #'Internal_BS' #'External' # 'Internal'
+situation = 'External_BS' #'Internal_BS' #'External' # 'Internal' # 'External_BS'
 
 # Run setup
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
@@ -85,7 +85,7 @@ except:
 # ============
 # RUN ANALYSIS
 # ============
-just_load_data = False
+just_load_data = True
 
 for band in bands:
     for stim in stimuli:
