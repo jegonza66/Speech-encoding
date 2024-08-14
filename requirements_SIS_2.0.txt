@@ -13,12 +13,13 @@ matplotlib-venn
 ipython
 # multiprocess==0.70.16
 wordcloud==1.9.3
-kaldi_io==0.9.4
 tqdm==4.62.3
 matplotlib==3.3.4
 torch==1.13.1
-pysptk==0.1.18
-phonet==0.3.7
 scipy==1.10.0
 scikit_learn==1.0.2
-disvoice==0.1.8
+# pysptk==0.1.18 ## This 3 packages couldn't be downloaded
+phonet==0.3.7## este es el importante (disvoice no es más que una implementación se puede prescindir de khaldi)
+# El problema es que no actualizan el paquete hace años y quedó sólamente útil para python 3.6 aparentemente :S
+# kaldi_io==0.9.4
+# disvoice==0.1.8##
