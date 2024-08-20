@@ -18,7 +18,7 @@ exp_info = setup.exp_info()
 class Trial_channel:
     def __init__(self, s:int=21, trial:int=1, channel:int=1, band:str='All', sr:float=128, 
                  causal_filter_eeg:bool=True, envelope_filter:bool=False, silence_threshold:float=0.03,
-                 praat_executable_path:str= r"C:\Program Files\Praat\Praat.exe"):
+                 praat_executable_path:str=r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe"): #r"C:\Program Files\Praat\Praat.exe" r"C:\Program Files\Praat\Praat.exe"):
         """Extract transcriptions, audio signal and EEG signal of given session and channel to calculate specific features.
 
         Parameters
@@ -664,7 +664,7 @@ class Sesion_class:
                  causal_filter_eeg:bool=True, envelope_filter:bool=False, situation:str='External', 
                  silence_threshold:float=0.03, delays:np.ndarray=None,
                  preprocessed_data_path:str=f'saves/preprocessed_data/tmin{-0.6}_tmax{-.002}/',
-                 praat_executable_path:str=r"C:\Program Files\Praat\Praat.exe"
+                 praat_executable_path:str=r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"r"C:\Program Files\Praat\Praat.exe"
                  ):
         """Construct an object for the given session containing all concerning data.
 
@@ -747,7 +747,7 @@ class Sesion_class:
         # Relevant paths
         self.praat_executable_path = praat_executable_path
         self.preprocessed_data_path = preprocessed_data_path
-        self.samples_info_path = self.preprocessed_data_path + f'samples_info/Sit_{self.situation}/'
+        self.samples_info_path = self.preprocessed_data_path + f'samples_info/'
         self.phn_path = f"Datos/phonemes/S{self.sesion}/"
         self.phrases_path = f"Datos/phrases/S{self.sesion}/"
 

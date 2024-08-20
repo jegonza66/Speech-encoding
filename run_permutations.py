@@ -6,7 +6,7 @@ from datetime import datetime
 from sklearn.model_selection import KFold
 
 # Modules
-from funciones import load_pickle, dump_pickle
+from funciones import load_pickle, dump_pickle, dict_to_csv
 from simulations import simulation_mtrf
 from load import load_data
 
@@ -32,7 +32,9 @@ delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
 times = (delays/sr)
 
 # Stimuli, EEG frecuency band and dialogue situation
-stimuli = ['Envelope']
+stimuli = ['Pitch-Log-Raw', 'Spectrogram', 'Deltas','Phonemes-Discrete-Manual']
+# stimuli = ['Envelope', 'Phonological', 'Deltas', 'Phonemes-Discrete-Manual','Pitch-Log-Raw','Spectrogram']
+
 bands = ['Theta']#['Alpha', 'Beta1', 'All']
 situation = 'External'
 
@@ -51,7 +53,7 @@ except:
     print('\n\nAlphas file not found.\n\n')
 
 # Number of folds and iterations
-iterations = 5
+iterations = 200
 n_folds = 5
 
 # if model == 'Decoding':
@@ -76,8 +78,9 @@ for band in bands:
         print('\n===========================\n','\tPARAMETERS\n\n','Model: ' + model+'\n','Band: ' + str(band)+'\n','Stimulus: ' + stim+'\n','Status: ' + situation+'\n',f'Time interval: ({tmin},{tmax})s\n','\n===========================\n')
         
         # Relevant paths
-        preprocessed_data_path = f'saves/preprocessed_data/tmin{tmin}_tmax{tmax}/'
+        preprocessed_data_path = f'saves/preprocessed_data/{situation}/tmin{tmin}_tmax{tmax}/{band}/'
         path_null = f'saves/{model}/{situation}/null/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
+        praat_executable_path=r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"
 
         # Iterate over sessions
         for sesion in sesiones:
@@ -85,13 +88,14 @@ for band in bands:
             
             # Load data by subject, EEG and info
             sujeto_1, sujeto_2, samples_info = load_data(sesion=sesion,
-                                                              stim=stim,
-                                                              band=band,
-                                                              sr=sr,
-                                                              delays=delays,
-                                                              preprocessed_data_path=preprocessed_data_path,
-                                                              situation=situation,
-                                                              silence_threshold=0.03)
+                                                         stim=stim,
+                                                         band=band,
+                                                         sr=sr,
+                                                         delays=delays,
+                                                         preprocessed_data_path=preprocessed_data_path,
+                                                         praat_executable_path=prat_executable_path,
+                                                         situation=situation,
+                                                         silence_threshold=0.03)
             eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
 
             if just_load_data:
@@ -187,6 +191,21 @@ if just_load_data:
     text += '\n\n\tJUST LOADING DATA'
 text += f'\n\n\t\t RUN TIME \n\n\t\t{run_time} hours'
 print(text)
+
+# Dump metadata
+metadata_path = f'saves/log/{datetime.now().strftime("%Y-%m-%d--%H-%M-%S")}/'
+os.makedirs(metadata_path, exist_ok=True)
+metadata = {'stimuli':stimuli, 'bands':bands, 'situation':situation, 
+            'sesiones':sesiones, 'sr':sr, 'tmin':tmin, 'tmax':tmax, 
+            'stims_preprocess':stims_preprocess, 'eeg_preprocess':eeg_preprocess, 'model':model, 
+            'n_folds':n_folds, 'default_alpha':default_alpha,
+            'preprocessed_data_path':preprocessed_data_path,
+            'path_null':path_null,'metadata_path': metadata_path,
+            'n_folds':n_folds, 'n_iterations':iterations,
+            'date': str(datetime.now()), 'run_time':str(run_time), 'just_loading_data':just_load_data}
+dict_to_csv(path=metadata_path+'metadata.csv', 
+            obj=metadata,
+            rewrite=True)
 
 # Send text to telegram bot
 mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=text)
