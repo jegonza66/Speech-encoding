@@ -844,13 +844,13 @@ class Sesion_class:
                 trial_channel_1 = channel_1.load_trial(stims=self.stim.split('_'))
                 trial_channel_2 = channel_2.load_trial(stims=self.stim.split('_'))
     
-                # Load data to dictionary taking stimuli and eeg from speaker. I.e: each subject predicts its own EEG 
+                # Load data to dictionary taking own stimuli and eeg signal. I.e: each subject predicts its own EEG with its own stimuli
                 if self.situation.startswith('Internal'):
                     trial_sujeto_1 = {key: trial_channel_1[key] for key in trial_channel_1.keys()}
                     trial_sujeto_2 = {key: trial_channel_2[key] for key in trial_channel_2.keys()}
                 # TODO para predecir en 'Internal_BS' no habría que armar los estímulos con alguna especie de suma entre las señales de ambos participantes?                
                 
-                # Load data to dictionary taking stimuli from speaker and eeg from listener. I.e: predicts own EEG using stimuli from interlocutor
+                # Load data to dictionary taking own eeg signal and interlocutors stimuli. I.e: predicts own EEG using stimuli from interlocutor
                 else:
                     trial_sujeto_1 = {key: trial_channel_2[key] for key in trial_channel_2.keys() if key!='EEG'} 
                     trial_sujeto_2 = {key: trial_channel_1[key] for key in trial_channel_1.keys() if key!='EEG'}
@@ -993,7 +993,7 @@ class Sesion_class:
         elif diff < 0:
             speaker = np.concatenate([speaker, np.repeat(0, np.abs(diff))])
 
-        # Return an array with envelope length, with values 3 if both speak; 2, just listener; 1, speaker and 0 silence
+        # Return an array with envelope length, having values 3 if both participants are speaking; 2, if just locutor; 1, interlocutor and 0, silence
         return speaker + listener * 2
     
     def shifted_indexes_to_keep(self, speaker_labels:np.ndarray):
@@ -1020,12 +1020,12 @@ class Sesion_class:
         shifted_matrix_speaker_labels = processing.shifted_matrix(features=speaker_labels, delays=self.delays).astype(float)
 
         # Make the appropiate label
-        if self.situation.startswith('External'):
+        if self.situation.endswith('BS'):
+            situation_label = 3
+        elif self.situation.startswith('External'):
             situation_label = 1
         elif self.situation.startswith('Internal'):
             situation_label = 2
-        elif self.situation.endswith('BS'):
-            situation_label = 3
         else: # Silence
             situation_label = 4
 
