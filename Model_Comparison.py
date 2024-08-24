@@ -154,19 +154,19 @@ for band in bands:
         stim1, stim2 = stim12.split('_')
 
         # Get squared correlation of stimuli
-        rsquared_1 = mean_correlations[stim1] ** 2
-        rsquared_2 = mean_correlations[stim2] ** 2
-        rsquared_12 = mean_correlations[stim12] ** 2
+        variance_1 = mean_correlations[stim1] ** 2
+        variance_2 = mean_correlations[stim2] ** 2
+        variance_12 = mean_correlations[stim12] ** 2 # this represent the union of the two
 
-        # Explained by one and two, but not by shared model
-        rsquared_complement_12 = rsquared_1 + rsquared_2 - rsquared_12 #11
+        # This represent the shared variances explained by the intersections of sets 1 and 2 (intersection between 1 and 2)
+        variance_intersection_12 = variance_1 + variance_2 - variance_12 #11
 
-        # Shared without each stimulus
-        rsquared_shared_with_1 = rsquared_12 - rsquared_2 #10
-        rsquared_shared_with_2 = rsquared_12 - rsquared_1 #01
+        # This is the realtive complemente of 1 and 2: portion of the variance solely explained by 1 and 2, respectively
+        variance_explained_by_1 = variance_12 - variance_2 #10
+        variance_explained_by_2 = variance_12 - variance_1 #01
         
         # Get list with areas
-        areas = [rsquared_shared_with_1, rsquared_shared_with_2, rsquared_complement_12] # note that the sum gives shared model
+        areas = [variance_explained_by_1, variance_explained_by_2, variance_intersection_12] # note that the sum gives shared model
         areas = [0 if area<0 else area.round(3) for area in areas]
         
         # Create figure and title
@@ -194,9 +194,9 @@ for band in bands:
         plt.close()
         
         # Make a print with information
-        stim1_percent = (rsquared_shared_with_1 * 100 /np.sum(areas)).round(2)
-        stim2_percent = (rsquared_shared_with_2 * 100 /np.sum(areas)).round(2)
-        shared_percent = (rsquared_complement_12 * 100 /np.sum(areas)).round(2)
+        stim1_percent = (variance_explained_by_1 * 100 /np.sum(areas)).round(2)
+        stim2_percent = (variance_explained_by_2 * 100 /np.sum(areas)).round(2)
+        shared_percent = (variance_intersection_12 * 100 /np.sum(areas)).round(2)
         print(f'\nPercentage explained by {stim1} is {stim1_percent} %',
               f'\nPercentage explained by {stim2} is {stim2_percent} %',
               f'\nShared percentage explained is {shared_percent} %')
@@ -204,31 +204,31 @@ for band in bands:
 
     if triple_combinations:
         # Get squared correlation of stimuli
-        rsquared_1 = mean_correlations[all_stimuli[0]]**2
-        rsquared_2 = mean_correlations[all_stimuli[1]]**2
-        rsquared_3 = mean_correlations[all_stimuli[2]]**2
-        rsquared_12 = mean_correlations[all_stimuli[3]]**2
-        rsquared_13 = mean_correlations[all_stimuli[4]]**2
-        rsquared_23 = mean_correlations[all_stimuli[5]]**2
-        rsquared_123 = mean_correlations[all_stimuli[6]]**2
+        variance_1 = mean_correlations[all_stimuli[0]]**2
+        variance_2 = mean_correlations[all_stimuli[1]]**2
+        variance_3 = mean_correlations[all_stimuli[2]]**2
+        variance_12 = mean_correlations[all_stimuli[3]]**2
+        variance_13 = mean_correlations[all_stimuli[4]]**2
+        variance_23 = mean_correlations[all_stimuli[5]]**2
+        variance_123 = mean_correlations[all_stimuli[6]]**2
 
         # Shared without each stimulus
-        rsquared_shared_with_1 = rsquared_123 - rsquared_23 #100
-        rsquared_shared_with_2 = rsquared_123 - rsquared_13 #010
-        rsquared_shared_with_3 = rsquared_123 - rsquared_12 #001
+        variance_shared_with_1 = variance_123 - variance_23 #100
+        variance_shared_with_2 = variance_123 - variance_13 #010
+        variance_shared_with_3 = variance_123 - variance_12 #001
         
         # Explained by subshared, but not by all shared model
-        rsquared_shared_with_12 = rsquared_13 + rsquared_23 - rsquared_3 - rsquared_123 #110
-        rsquared_shared_with_13 = rsquared_12 + rsquared_23 - rsquared_2 - rsquared_123 #101
-        rsquared_shared_with_23 = rsquared_12 + rsquared_13 - rsquared_1 - rsquared_123 #011
+        variance_shared_with_12 = variance_13 + variance_23 - variance_3 - variance_123 #110
+        variance_shared_with_13 = variance_12 + variance_23 - variance_2 - variance_123 #101
+        variance_shared_with_23 = variance_12 + variance_13 - variance_1 - variance_123 #011
 
         # Explained by one, two, three and full shared model but not by subshared models
-        rsquared_int_complement_submodels = rsquared_123 + rsquared_1 + rsquared_2 + rsquared_3 - rsquared_12 - rsquared_13 - rsquared_23 #111
+        variance_int_complement_submodels = variance_123 + variance_1 + variance_2 + variance_3 - variance_12 - variance_13 - variance_23 #111
 
-        areas = [rsquared_shared_with_1, rsquared_shared_with_2, rsquared_shared_with_3, \
-                 rsquared_shared_with_12, rsquared_shared_with_13, rsquared_shared_with_23,\
-                 rsquared_int_complement_submodels] 
-        areas = [0 if area<0 else area.round(3) for area in areas] # note that the sum gives shared model rsquared_123
+        areas = [variance_shared_with_1, variance_shared_with_2, variance_shared_with_3, \
+                 variance_shared_with_12, variance_shared_with_13, variance_shared_with_23,\
+                 variance_int_complement_submodels] 
+        areas = [0 if area<0 else area.round(3) for area in areas] # note that the sum gives shared model variance_123
 
         # Create figure and title
         title = all_stimuli[-1].replace('_', ', ')
@@ -254,10 +254,10 @@ for band in bands:
         plt.close()
 
         # # Make a print with information
-        # stim1_percent = (rsquared_shared_with_1 * 100 /np.sum(areas)).round(2)
-        # stim2_percent = (rsquared_shared_with_2 * 100 /np.sum(areas)).round(2)
-        # stim3_percent = (rsquared_shared_with_2 * 100 /np.sum(areas)).round(2)
-        # shared_percent = (rsquared_complement_12 * 100 /np.sum(areas)).round(2)
+        # stim1_percent = (variance_shared_with_1 * 100 /np.sum(areas)).round(2)
+        # stim2_percent = (variance_shared_with_2 * 100 /np.sum(areas)).round(2)
+        # stim3_percent = (variance_shared_with_2 * 100 /np.sum(areas)).round(2)
+        # shared_percent = (variance_complement_12 * 100 /np.sum(areas)).round(2)
         # print(f'\nExclusive Percentage explained by {stim1} is {stim1_percent} %',
         #       f'\nExclusive Percentage explained by {stim2} is {stim2_percent} %',
         #       f'\nshared percentage explained is {shared_percent} %')

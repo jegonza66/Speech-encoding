@@ -34,6 +34,7 @@ times = (delays/sr)
 # Stimuli, EEG frecuency band and dialogue situation
 stimuli = ['Pitch-Log-Raw', 'Spectrogram', 'Deltas','Phonemes-Discrete-Manual']
 # stimuli = ['Envelope', 'Phonological', 'Deltas', 'Phonemes-Discrete-Manual','Pitch-Log-Raw','Spectrogram']
+stimuli = ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw']
 
 bands = ['Theta']#['Alpha', 'Beta1', 'All']
 situation = 'External'
@@ -93,7 +94,7 @@ for band in bands:
                                                          sr=sr,
                                                          delays=delays,
                                                          preprocessed_data_path=preprocessed_data_path,
-                                                         praat_executable_path=prat_executable_path,
+                                                         praat_executable_path=praat_executable_path,
                                                          situation=situation,
                                                          silence_threshold=0.03)
             eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']

@@ -24,20 +24,20 @@ start_time = datetime.now()
 # ==========
 
 # Stimuli, EEG frecuency band and dialogue situation
-stimuli = ['Phonological_Deltas', 'Deltas_Spectrogram', 'Spectrogram_Phonological']#, 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Phonological']
-stimuli = ['Deltas_Phonological_Spectrogram']
-stimuli = ['Pitch-Raw', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Pitch-Log-Quad']
-
+stimuli = ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Envelope']
+#stimuli = ['Phonological', 'Deltas', 'Spectrogram']
 # stimuli = ['Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Manual']
 # stimuli = ['Pitch-Raw', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Pitch-Log-Quad']
 
 # stimuli = ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw']
-# stimuli = ['Envelope_Phonemes-Discrete-Manual','Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
-# stimuli = ['Deltas_Phonological','Deltas_Phonological_Spectrogram','Deltas_Spectrogram', 'Phonological_Spectrogram']
-
+# stimuli = ['Envelope_Phonemes-Discrete-Manual', 'Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
+# stimuli = ['Deltas_Phonological', 'Deltas_Spectrogram', 'Phonological_Spectrogram', 'Deltas_Phonological_Spectrogram',]
+stimuli = ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw','Envelope_Phonemes-Discrete-Manual', 'Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
+stimuli =  ['Envelope']
 bands = ['Theta'] #, 'Delta', 'Alpha', 'Beta1', 'Beta2', 'All', 'Delta_Theta', 'Alpha_Delta_Theta']
 situation = 'External_BS' #'Internal_BS' #'External' # 'Internal' # 'External_BS'
-
+situation = 'External' 
+# stimuli = ['Pitch-Log-Raw']
 # Run setup
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 
@@ -61,7 +61,7 @@ statistical_test = False
 umbral = 0.05/128 # TODO que onda con features no unidimensionales
 
 # TFCE number of permutations
-n_permutations = 512#4096
+n_permutations = 1024#4096
 
 # Model and normalization of input
 stims_preprocess = 'Normalize'
@@ -85,7 +85,7 @@ except:
 # ============
 # RUN ANALYSIS
 # ============
-just_load_data = True
+just_load_data = False
 
 for band in bands:
     for stim in stimuli:
@@ -101,7 +101,7 @@ for band in bands:
         path_weights = f'saves/{model}/{situation}/weights/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
         path_null = f'saves/{model}/{situation}/null/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
         path_figures = f'figures/{model}/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
-        prat_executable_path = r"C:\Program Files\Praat\Praat.exe"
+        prat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"
 
         # Make lists to store relevant data across sobjects
         average_weights_subjects = []
