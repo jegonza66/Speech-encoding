@@ -1193,15 +1193,27 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
         index_slice = sum(n_feats[:i_feat]),  sum(n_feats[:i_feat]) + n_feat
 
         # Create evoked response as graph of weights averaged across all feats and all 
-        weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1)
+        weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1) #-mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1).mean(axis=0)
         evoked = mne.EvokedArray(data=weights, info=info)
     
         # Relabel time 0
         evoked.shift_time(times[0], relative=True)
         
         # Plot
-        evoked.plot(
-            scalings={'eeg':1}, 
+        # evoked.plot(
+        #     scalings={'eeg':1}, 
+        #     zorder='std', 
+        #     time_unit='ms',
+        #     show=False, 
+        #     spatial_colors=True, 
+        #     # unit=False, 
+        #     units='mTRF (a.u.)',
+        #     axes=ax,
+        #     gfp=False)
+        # Plot
+        evoked.plot_joint(times=[0.03,0.118,0.204], show=False)
+        plt.show(block=False)
+            # scalings={'eeg':1}, 
             zorder='std', 
             time_unit='ms',
             show=False, 
@@ -1212,13 +1224,14 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
             gfp=False)
 
         # Add mean of all channels
-        ax.plot(
+        plt.plot(
             times * 1000, #ms
             evoked._data.mean(0), 
             'k--', 
             label='Mean', 
             zorder=130, 
             linewidth=2)
+        plt.show()
         
         # Graph properties
         ax.legend()
