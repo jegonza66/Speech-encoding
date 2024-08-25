@@ -1200,20 +1200,8 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
         evoked.shift_time(times[0], relative=True)
         
         # Plot
-        # evoked.plot(
-        #     scalings={'eeg':1}, 
-        #     zorder='std', 
-        #     time_unit='ms',
-        #     show=False, 
-        #     spatial_colors=True, 
-        #     # unit=False, 
-        #     units='mTRF (a.u.)',
-        #     axes=ax,
-        #     gfp=False)
-        # Plot
-        evoked.plot_joint(times=[0.03,0.118,0.204], show=False)
-        plt.show(block=False)
-            # scalings={'eeg':1}, 
+        evoked.plot(
+            scalings={'eeg':1}, 
             zorder='std', 
             time_unit='ms',
             show=False, 
@@ -1222,6 +1210,18 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
             units='mTRF (a.u.)',
             axes=ax,
             gfp=False)
+        # # Plot
+        # evoked.plot_joint(times=[0.03,0.118,0.204], show=False)
+        # plt.show(block=False)
+        #     # scalings={'eeg':1}, 
+        #     zorder='std', 
+        #     time_unit='ms',
+        #     show=False, 
+        #     spatial_colors=True, 
+        #     # unit=False, 
+        #     units='mTRF (a.u.)',
+        #     axes=ax,
+        #     gfp=False)
 
         # Add mean of all channels
         plt.plot(
@@ -1231,7 +1231,6 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
             label='Mean', 
             zorder=130, 
             linewidth=2)
-        plt.show()
         
         # Graph properties
         ax.legend()

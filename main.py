@@ -36,7 +36,7 @@ stimuli = ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete
 stimuli =  ['Envelope']
 bands = ['Theta'] #, 'Delta', 'Alpha', 'Beta1', 'Beta2', 'All', 'Delta_Theta', 'Alpha_Delta_Theta']
 situation = 'External_BS' #'Internal_BS' #'External' # 'Internal' # 'External_BS'
-situation = 'External' 
+# situation = 'External' 
 # stimuli = ['Pitch-Log-Raw']
 # Run setup
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
