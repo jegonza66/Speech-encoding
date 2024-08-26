@@ -24,7 +24,7 @@ start_time = datetime.now()
 # ==========
 
 # Stimuli, EEG frecuency band and dialogue situation
-stimuli = ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Envelope']
+# stimuli = ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Envelope']
 #stimuli = ['Phonological', 'Deltas', 'Spectrogram']
 # stimuli = ['Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Manual']
 # stimuli = ['Pitch-Raw', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Pitch-Log-Quad']
@@ -32,7 +32,7 @@ stimuli = ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Envelope']
 # stimuli = ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw']
 # stimuli = ['Envelope_Phonemes-Discrete-Manual', 'Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
 # stimuli = ['Deltas_Phonological', 'Deltas_Spectrogram', 'Phonological_Spectrogram', 'Deltas_Phonological_Spectrogram',]
-stimuli = ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw','Envelope_Phonemes-Discrete-Manual', 'Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
+# stimuli = ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw','Envelope_Phonemes-Discrete-Manual', 'Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
 stimuli =  ['Envelope']
 bands = ['Theta'] #, 'Delta', 'Alpha', 'Beta1', 'Beta2', 'All', 'Delta_Theta', 'Alpha_Delta_Theta']
 situation = 'External_BS' #'Internal_BS' #'External' # 'Internal' # 'External_BS'
@@ -75,12 +75,7 @@ n_folds = 5
 # Preset alpha (penalization parameter)
 set_alpha = None
 default_alpha = 400
-alpha_correlation_limit = 0.01
-alphas_fname = f'saves/alphas/alphas_corr{alpha_correlation_limit}.pkl'
-try:
-    alphas = load_pickle(path=alphas_fname)
-except:
-    print('\n\nAlphas file not found.\n\n')
+correlation_limit_percentage = 0.01
 
 # ============
 # RUN ANALYSIS
@@ -102,7 +97,9 @@ for band in bands:
         path_null = f'saves/{model}/{situation}/null/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
         path_figures = f'figures/{model}/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
         prat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"
-
+        alphas_directory = os.path.normpath(f'saves/alphas/{situation}/stims_{stims_preprocess}/EEG_{eeg_preprocess}//tmin{tmin}_tmax{tmax}/{band}/{stim}/') 
+        alphas_path = os.path.join(alphas_directory, f'corr_limit_{correlation_limit_percentage}.pkl')
+        
         # Make lists to store relevant data across sobjects
         average_weights_subjects = []
         average_correlation_subjects = []
@@ -186,12 +183,13 @@ for band in bands:
                 # Set alpha for specific subject
                 if set_alpha is None:
                     try:
-                        alpha = alphas[band][stim][sesion][sujeto]
+                        alphas = load_pickle(path=alphas_path)
+                        alpha = alphas[sesion][sujeto]
                     except:
                         alpha = default_alpha
                 else:
                     alpha = set_alpha
-               
+
                 # Make the Kfold test
                 kf_test = KFold(n_folds, shuffle=False)
 
