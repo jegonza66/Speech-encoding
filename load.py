@@ -754,34 +754,34 @@ class Sesion_class:
         # Define paths to export data
         self.export_paths = {}
         if self.causal_filter_eeg:
-            self.export_paths['EEG'] = os.path.join(self.preprocessed_data_path, f'EEG/Causal/')
+            self.export_paths['EEG'] = os.path.join(self.preprocessed_data_path, 'EEG/Causal/')
         else:
-            self.export_paths['EEG'] = os.path.join(self.preprocessed_data_pat, 'EEG/')
+            self.export_paths['EEG'] = os.path.join(self.preprocessed_data_path, 'EEG/')
         if self.envelope_filter:
-            self.export_paths['Envelope'] = os.path.join(self.preprocessed_data_pat, f'Envelope/{self.envelope_filter}/')
+            self.export_paths['Envelope'] = os.path.join(self.preprocessed_data_path, f'Envelope/{self.envelope_filter}/')
         else:
-            self.export_paths['Envelope'] = os.path.join(self.preprocessed_data_pat, 'Envelope/')
+            self.export_paths['Envelope'] = os.path.join(self.preprocessed_data_path, 'Envelope/')
                 
-        self.export_paths['Mfccs'] = os.path.join(self.preprocessed_data_pat, 'Mfccs/')
-        self.export_paths['Mfccs-Deltas'] = os.path.join(self.preprocessed_data_pat, 'Mfccs-Deltas/')
-        self.export_paths['Mfccs-Deltas-Deltas'] = os.path.join(self.preprocessed_data_pat, 'Mfccs-Deltas-Deltas/')
-        self.export_paths['Deltas'] = os.path.join(self.preprocessed_data_pat, 'Deltas/')
-        self.export_paths['Deltas-Deltas'] = os.path.join(self.preprocessed_data_pat, 'Deltas-Deltas/')
-        self.export_paths['Pitch-Log-Quad'] = os.path.join(self.preprocessed_data_pat, f'Pitch-Log-Quad_threshold_{self.silence_threshold}/')
-        self.export_paths['Pitch-Raw'] = os.path.join(self.preprocessed_data_pat, f'Pitch-Raw_threshold_{self.silence_threshold}/')
-        self.export_paths['Pitch-Log-Raw'] = os.path.join(self.preprocessed_data_pat, f'Pitch-Log-Raw_threshold_{self.silence_threshold}/')
-        self.export_paths['Pitch-Manual'] = os.path.join(self.preprocessed_data_pat, f'Pitch-Manual_threshold_{self.silence_threshold}/')
-        self.export_paths['Pitch-Log-Manual'] = os.path.join(self.preprocessed_data_pat, f'Pitch-Log-Manual_threshold_{self.silence_threshold}/')
-        self.export_paths['Pitch-Phonemes'] = os.path.join(self.preprocessed_data_pat, f'Pitch-Phonemes_threshold_{self.silence_threshold}/')
-        self.export_paths['Pitch-Log-Phonemes'] = os.path.join(self.preprocessed_data_pat, f'Pitch-Log-Phonemes_threshold_{self.silence_threshold}/')
-        self.export_paths['Spectrogram'] = os.path.join(self.preprocessed_data_pat, 'Spectrogram/')
-        self.export_paths['Phonemes-Envelope'] = os.path.join(self.preprocessed_data_pat, 'Phonemes-Envelope/')
-        self.export_paths['Phonemes-Envelope-Manual'] = os.path.join(self.preprocessed_data_pat, 'Phonemes-Envelope-Manual/')
-        self.export_paths['Phonemes-Discrete'] = os.path.join(self.preprocessed_data_pat, 'Phonemes-Discrete/')
-        self.export_paths['Phonemes-Discrete-Manual'] = os.path.join(self.preprocessed_data_pat, 'Phonemes-Discrete-Manual/')
-        self.export_paths['Phonemes-Onset'] = os.path.join(self.preprocessed_data_pat, 'Phonemes-Onset/')
-        self.export_paths['Phonemes-Onset-Manual'] = os.path.join(self.preprocessed_data_pat, 'Phonemes-Onset-Manual/')
-        self.export_paths['Phonological'] = os.path.join(self.preprocessed_data_pat, 'Phonological/')
+        self.export_paths['Mfccs'] = os.path.join(self.preprocessed_data_path, 'Mfccs/')
+        self.export_paths['Mfccs-Deltas'] = os.path.join(self.preprocessed_data_path, 'Mfccs-Deltas/')
+        self.export_paths['Mfccs-Deltas-Deltas'] = os.path.join(self.preprocessed_data_path, 'Mfccs-Deltas-Deltas/')
+        self.export_paths['Deltas'] = os.path.join(self.preprocessed_data_path, 'Deltas/')
+        self.export_paths['Deltas-Deltas'] = os.path.join(self.preprocessed_data_path, 'Deltas-Deltas/')
+        self.export_paths['Pitch-Log-Quad'] = os.path.join(self.preprocessed_data_path, f'Pitch-Log-Quad_threshold_{self.silence_threshold}/')
+        self.export_paths['Pitch-Raw'] = os.path.join(self.preprocessed_data_path, f'Pitch-Raw_threshold_{self.silence_threshold}/')
+        self.export_paths['Pitch-Log-Raw'] = os.path.join(self.preprocessed_data_path, f'Pitch-Log-Raw_threshold_{self.silence_threshold}/')
+        self.export_paths['Pitch-Manual'] = os.path.join(self.preprocessed_data_path, f'Pitch-Manual_threshold_{self.silence_threshold}/')
+        self.export_paths['Pitch-Log-Manual'] = os.path.join(self.preprocessed_data_path, f'Pitch-Log-Manual_threshold_{self.silence_threshold}/')
+        self.export_paths['Pitch-Phonemes'] = os.path.join(self.preprocessed_data_path, f'Pitch-Phonemes_threshold_{self.silence_threshold}/')
+        self.export_paths['Pitch-Log-Phonemes'] = os.path.join(self.preprocessed_data_path, f'Pitch-Log-Phonemes_threshold_{self.silence_threshold}/')
+        self.export_paths['Spectrogram'] = os.path.join(self.preprocessed_data_path, 'Spectrogram/')
+        self.export_paths['Phonemes-Envelope'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Envelope/')
+        self.export_paths['Phonemes-Envelope-Manual'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Envelope-Manual/')
+        self.export_paths['Phonemes-Discrete'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Discrete/')
+        self.export_paths['Phonemes-Discrete-Manual'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Discrete-Manual/')
+        self.export_paths['Phonemes-Onset'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Onset/')
+        self.export_paths['Phonemes-Onset-Manual'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Onset-Manual/')
+        self.export_paths['Phonological'] = os.path.join(self.preprocessed_data_path, 'Phonological/')
         
     def load_from_raw(self):
         """Loads raw data, this includes EEG, info and stimuli.
@@ -915,10 +915,10 @@ class Sesion_class:
 
             # Save preprocesed data
             os.makedirs(self.export_paths[key], exist_ok=True)
-            funciones.dump_pickle(path=self.export_paths[key] + f'Sesion{self.sesion}.pkl', obj=[sujeto_1[key], sujeto_2[key]], rewrite=True)
+            funciones.dump_pickle(path=os.path.join(self.export_paths[key], f'Sesion{self.sesion}.pkl'), obj=[sujeto_1[key], sujeto_2[key]], rewrite=True)
 
         # Saves info of the setup                    
-        funciones.dump_pickle(path=self.preprocessed_data_path + 'EEG/info.pkl', obj=info, rewrite=True)
+        funciones.dump_pickle(path=os.path.join(self.preprocessed_data_path, 'EEG/info.pkl'), obj=info, rewrite=True)
 
         # Redefine subjects dictionaries to return only used stimuli
         sujeto_1_return = {key: sujeto_1[key] for key in self.stim.split('_') + ['EEG']}
@@ -937,15 +937,15 @@ class Sesion_class:
             Sessions of both subjects.
         """
         # Load EEGs and procesed data
-        eeg_sujeto_1, eeg_sujeto_2 = funciones.load_pickle(path=self.export_paths['EEG']+ f'Sesion{self.sesion}.pkl')
-        info = funciones.load_pickle(path=self.preprocessed_data_path + 'EEG/info.pkl')
+        eeg_sujeto_1, eeg_sujeto_2 = funciones.load_pickle(path=os.path.join(self.export_paths['EEG'], f'Sesion{self.sesion}.pkl'))
+        info = funciones.load_pickle(path=os.path.join(self.preprocessed_data_path, 'EEG/info.pkl'))
         samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_pat, f'samples_info_{self.sesion}.pkl'))
         sujeto_1 = {'EEG': eeg_sujeto_1, 'info': info}
         sujeto_2 = {'EEG': eeg_sujeto_2, 'info': info}
         
         # Loads stimuli to each subject
         for stimulus in self.stim.split('_'):
-            sujeto_1[stimulus], sujeto_2[stimulus] = funciones.load_pickle(path=self.export_paths[stimulus]+f'Sesion{self.sesion}.pkl')
+            sujeto_1[stimulus], sujeto_2[stimulus] = funciones.load_pickle(path=os.path.join(self.export_paths[stimulus], f'Sesion{self.sesion}.pkl'))
         return {'Sujeto_1': sujeto_1, 'Sujeto_2': sujeto_2}, samples_info
     
     def labeling(self, trial:int, channel:int):
