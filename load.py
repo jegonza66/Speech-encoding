@@ -802,7 +802,7 @@ class Sesion_class:
 
         # Try to open preprocessed info of samples, if not crates raw. This dictionary contains data of trial lengths and indexes to keep up to given trial
         try:
-            samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_pat, f'samples_info_{self.sesion}.pkl'))
+            samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.sesion}.pkl'))
             loaded_samples_info = True
         except:
             loaded_samples_info = False
@@ -903,7 +903,7 @@ class Sesion_class:
         # Saves relevant indexes 
         if not loaded_samples_info:
             os.makedirs(self.samples_info_path, exist_ok=True)
-            funciones.dump_pickle(path=os.path.join(self.samples_info_pat, f'samples_info_{self.sesion}.pkl'), obj=samples_info, rewrite=True)
+            funciones.dump_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.sesion}.pkl'), obj=samples_info, rewrite=True)
 
         # Save results
         for key in sujeto_1:
@@ -939,7 +939,7 @@ class Sesion_class:
         # Load EEGs and procesed data
         eeg_sujeto_1, eeg_sujeto_2 = funciones.load_pickle(path=os.path.join(self.export_paths['EEG'], f'Sesion{self.sesion}.pkl'))
         info = funciones.load_pickle(path=os.path.join(self.preprocessed_data_path, 'EEG/info.pkl'))
-        samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_pat, f'samples_info_{self.sesion}.pkl'))
+        samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.sesion}.pkl'))
         sujeto_1 = {'EEG': eeg_sujeto_1, 'info': info}
         sujeto_2 = {'EEG': eeg_sujeto_2, 'info': info}
         
@@ -966,7 +966,7 @@ class Sesion_class:
         """
         
         # Read phrases into pandas.DataFrame
-        ubi_speaker = os.path.join(self.phrases_pat, f'/s{self.sesion}.objects.{trial:02d}.channel{channel}.phrases')
+        ubi_speaker = os.path.join(self.phrases_path, f'/s{self.sesion}.objects.{trial:02d}.channel{channel}.phrases')
         h1t = pd.read_table(ubi_speaker, header=None, sep="\t")
 
         # Replace and '#' by ''. And then all text by 1 and silences by 0 
@@ -978,7 +978,7 @@ class Sesion_class:
         
         # Same with listener
         listener_channel = (channel - 3) * -1
-        ubi_listener = os.path.join(self.phrases_pat, f'/s{self.sesion}.objects.{trial:02d}.channel{listener_channel}.phrases')
+        ubi_listener = os.path.join(self.phrases_path, f'/s{self.sesion}.objects.{trial:02d}.channel{listener_channel}.phrases')
         h2t = pd.read_table(ubi_listener, header=None, sep="\t")
 
         # Replace and '#' by ''. And then all text by 1 and silences by 0
