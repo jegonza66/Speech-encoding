@@ -33,7 +33,7 @@ delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
 times = (delays/sr)
 
 # Stimuli, EEG frecuency band and dialogue situation
-stimuli = ['Envelope']
+stimuli = ['Spectrogram', 'Deltas', 'Phonological']
 bands = ['Theta']#['Alpha', 'Beta1', 'All']
 situation = 'External' #'External_BS' 'Internal_BS' 'Internal'
 
