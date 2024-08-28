@@ -23,6 +23,7 @@ start_time = datetime.now()
 
 # Run setup
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
+sesiones = [27]
 
 # EEG sample rate
 sr = 128
@@ -40,7 +41,7 @@ times = (delays/sr)
 # stimuli = ['Envelope', 'Spectrogram', 'Deltas', 'Phonological', 'Pitch-Log-Raw', 'Mfccs', \
 #            'Mfccs-Deltas', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Pitch-Log-Raw', \
 #            'Phonological_Spectrogram','Phonological_Deltas','Phonological_Deltas_Spectrogram']
-stimuli = ['Spectrogram']
+stimuli = ['Pitch-Log-Raw']
 bands = ['Theta']#['Alpha', 'Beta1', 'All']
 situation = 'External_BS' #'External' 'External_BS' 'Internal_BS' 'Internal'
 
@@ -102,7 +103,7 @@ for band in bands:
                                                          sr=sr,
                                                          delays=delays,
                                                          preprocessed_data_path=preprocessed_data_path,
-                                                         praat_executable_path=os.path.normpath(r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe"),
+                                                         praat_executable_path=os.path.normpath(r"C:\Program Files\Praat\Praat.exe"),#os.path.normpath(r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe"),
                                                          situation=situation,
                                                          silence_threshold=0.03)
             eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
@@ -113,6 +114,7 @@ for band in bands:
             # Load stimuli by subject (i.e: concatenated stimuli features)
             stims_sujeto_1 = np.hstack([sujeto_1[stimulus] for stimulus in stim.split('_')]) 
             stims_sujeto_2 = np.hstack([sujeto_2[stimulus] for stimulus in stim.split('_')])
+
             n_feats = [sujeto_1[stimulus].shape[1] for stimulus in stim.split('_')]
             delayed_length_per_stimuli = [n_feat*len(delays) for n_feat in n_feats]
 
@@ -170,7 +172,10 @@ for band in bands:
                         weights_per_fold[fold] = mtrf.coefs
                         
                         # Predict and save
-                        predicted, eeg_val = mtrf.predict(stims)
+                        if subject==2:
+                            predicted, eeg_val = mtrf.predict(stims)
+                        else:
+                            predicted, eeg_val = mtrf.predict(stims)
 
                         # Calculates and saves correlation of each channel
                         correlation_matrix = np.array([np.corrcoef(eeg_val[:, j], predicted[:, j])[0,1] for j in range(eeg_val.shape[1])])
