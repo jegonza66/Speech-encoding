@@ -33,9 +33,15 @@ delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
 times = (delays/sr)
 
 # Stimuli, EEG frecuency band and dialogue situation
-stimuli = ['Spectrogram', 'Deltas', 'Phonological']
+# Stimuli ranked according to corrrelation
+# Phonological_Spectrogram','Phonological_Deltas','Phonological_Deltas_Spectrograma','Phonological',
+# 'Deltas','Deltas_Spectrogram','Spectrogram','Mfccs_Deltas','Phonemes-Onset-Manual_Envelope','Envelope','Pitch-Log-Raw','Pitch-Log-Raw_Phoneme'
+
+stimuli = ['Envelope', 'Spectrogram', 'Deltas', 'Phonological', 'Pitch-Log-Raw', 'Mfccs', \
+           'Mfccs-Deltas', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Pitch-Log-Raw', \
+           'Phonological_Spectrogram','Phonological_Deltas','Phonological_Deltas_Spectrogram']
 bands = ['Theta']#['Alpha', 'Beta1', 'All']
-situation = 'External' #'External_BS' 'Internal_BS' 'Internal'
+situation = 'External_BS' #'External' 'External_BS' 'Internal_BS' 'Internal'
 
 # Model, estimator and normalization of input
 estimator = 'time_delaying_ridge'
@@ -47,7 +53,6 @@ model = 'mtrf'
 no_figures = False
 save_figures = True
 save_alphas = True
-
 
 # Make k-fold test with 5 folds (remain 20% as validation set, then interchange to cross validate)
 n_folds = 5
