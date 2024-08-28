@@ -1934,6 +1934,7 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
         _description_, by default False
     """
     # Exit function
+    plt.close()
     if no_figures:
         return
     
@@ -1961,7 +1962,7 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
                     label=f'{int(correlation_limit_percentage*100)}% of maximum correlation')
     
     # Axes parameters
-    ax.set(xlabel=r'Ridge parameter $\alpha$', ylabel='Mean correlation', xscale='log')
+    ax.set(xlabel=r'Ridge parameter $\alpha$', ylabel='Mean correlation', xscale='log', xlim=([alphas_swept[0], alphas_swept[-1]]))
     ax.grid(visible=True)
     ax.legend()
 
