@@ -1966,7 +1966,6 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
     ax.legend()
 
     if save:
-        save_path += f'band_{band}/stim_{stim}/'
         os.makedirs(save_path, exist_ok=True)
 
         # This is done to avoid working with long paths

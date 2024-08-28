@@ -76,54 +76,54 @@ for file in [f for f in os.listdir(filtered_mistake_folder) if f.endswith('.Text
                 
 
 
-        # Extend on more phoneme of silence till end of trial 
-        labels.append("")
-        times.append((ph.xmin, trial_tmax))
-        samples.append(np.round((trial_tmax - ph.xmax) * self.sr).astype("int"))
+        # # Extend on more phoneme of silence till end of trial 
+        # labels.append("")
+        # times.append((ph.xmin, trial_tmax))
+        # samples.append(np.round((trial_tmax - ph.xmax) * self.sr).astype("int"))
 
-        # If use envelope amplitude to make continuous stimuli: the total number of samples must match the samples use for stimuli
-        diferencia = np.sum(samples) - len(envelope)
+        # # If use envelope amplitude to make continuous stimuli: the total number of samples must match the samples use for stimuli
+        # diferencia = np.sum(samples) - len(envelope)
 
-        if diferencia > 0:
-            # Making the way back checking when does the number of samples of the ith phoneme exceed diferencia
-            for ith_phoneme in [-i-1 for i in range(len(samples))]:
-                if diferencia > samples[ith_phoneme]:
-                    diferencia -= samples[ith_phoneme]
-                    samples[ith_phoneme] = 0
-                # When samples is greater than the difference, takes the remaining samples to match the envelope
-                else:
-                    samples[ith_phoneme] -= diferencia
-                    break
-        elif diferencia < 0:
-            # In this case, the last silence is prolonged
-            samples[-1] -= diferencia
+        # if diferencia > 0:
+        #     # Making the way back checking when does the number of samples of the ith phoneme exceed diferencia
+        #     for ith_phoneme in [-i-1 for i in range(len(samples))]:
+        #         if diferencia > samples[ith_phoneme]:
+        #             diferencia -= samples[ith_phoneme]
+        #             samples[ith_phoneme] = 0
+        #         # When samples is greater than the difference, takes the remaining samples to match the envelope
+        #         else:
+        #             samples[ith_phoneme] -= diferencia
+        #             break
+        # elif diferencia < 0:
+        #     # In this case, the last silence is prolonged
+        #     samples[-1] -= diferencia
         
-        # Make a list with phoneme labels tha already are in the known set
-        updated_taggs = exp_info_labels + [ph for ph in np.unique(labels) if ph not in exp_info_labels]
+        # # Make a list with phoneme labels tha already are in the known set
+        # updated_taggs = exp_info_labels + [ph for ph in np.unique(labels) if ph not in exp_info_labels]
 
-        # Repeat each label the number of times it was sampled
-        phonemes_tgrid = np.repeat(labels, samples)
+        # # Repeat each label the number of times it was sampled
+        # phonemes_tgrid = np.repeat(labels, samples)
         
-        # Make empty array of phonemes
-        phonemes = np.zeros(shape = (np.sum(samples), len(updated_taggs)))
+        # # Make empty array of phonemes
+        # phonemes = np.zeros(shape = (np.sum(samples), len(updated_taggs)))
         
-        # Match phoneme with kind
-        if kind.startswith('Phonemes-Envelope'):
-            for i, tagg in enumerate(phonemes_tgrid):
-                phonemes[i, updated_taggs.index(tagg)] = envelope[i]
-        elif kind.startswith('Phonemes-Discrete'):
-            for i, tagg in enumerate(phonemes_tgrid):
-                phonemes[i, updated_taggs.index(tagg)] = 1
-        elif kind.startswith('Phonemes-Onset'):
-            # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
-            phonemes_onset = [phonemes_tgrid[0]]
-            for i in range(1, len(phonemes_tgrid)):
-                if phonemes_tgrid[i] == phonemes_tgrid[i-1]:
-                    phonemes_onset.append(0)
-                else:
-                    phonemes_onset.append(phonemes_tgrid[i])
-            # Match phoneme with envelope
-            for i, tagg in enumerate(phonemes_onset):
-                if tagg!=0:
-                    phonemes[i, updated_taggs.index(tagg)] = 1
-        return phonemes
+        # # Match phoneme with kind
+        # if kind.startswith('Phonemes-Envelope'):
+        #     for i, tagg in enumerate(phonemes_tgrid):
+        #         phonemes[i, updated_taggs.index(tagg)] = envelope[i]
+        # elif kind.startswith('Phonemes-Discrete'):
+        #     for i, tagg in enumerate(phonemes_tgrid):
+        #         phonemes[i, updated_taggs.index(tagg)] = 1
+        # elif kind.startswith('Phonemes-Onset'):
+        #     # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
+        #     phonemes_onset = [phonemes_tgrid[0]]
+        #     for i in range(1, len(phonemes_tgrid)):
+        #         if phonemes_tgrid[i] == phonemes_tgrid[i-1]:
+        #             phonemes_onset.append(0)
+        #         else:
+        #             phonemes_onset.append(phonemes_tgrid[i])
+        #     # Match phoneme with envelope
+        #     for i, tagg in enumerate(phonemes_onset):
+        #         if tagg!=0:
+        #             phonemes[i, updated_taggs.index(tagg)] = 1
+        # return phonemes

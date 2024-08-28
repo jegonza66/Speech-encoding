@@ -45,13 +45,9 @@ eeg_preprocess = 'Standarize'
 model = 'mtrf'
 
 # Preset alpha (penalization parameter)
-alpha_correlation_limit = 0.01
-default_alpha = 1000
-alphas_fname = f'saves/alphas/alphas_corr{alpha_correlation_limit}.pkl'
-try:
-    alphas = load_pickle(path=alphas_fname)
-except:
-    print('\n\nAlphas file not found.\n\n')
+correlation_limit_percentage = 0.01
+default_alpha = 400
+set_alpha = None
 
 # Number of folds and iterations
 iterations = 200
@@ -82,6 +78,8 @@ for band in bands:
         preprocessed_data_path = f'saves/preprocessed_data/{situation}/tmin{tmin}_tmax{tmax}/{band}/'
         path_null = f'saves/{model}/{situation}/null/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
         praat_executable_path=r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"
+        alphas_directory = os.path.normpath(f'saves/alphas/{situation}/stims_{stims_preprocess}/EEG_{eeg_preprocess}//tmin{tmin}_tmax{tmax}/{band}/{stim}/') 
+        alphas_path = os.path.join(alphas_directory, f'corr_limit_{correlation_limit_percentage}.pkl')
 
         # Iterate over sessions
         for sesion in sesiones:
@@ -125,10 +123,14 @@ for band in bands:
                 print(f'\n\t······  Running permutations for Subject {sujeto}\n')
                 
                 # Set alpha for specific subject
-                try:
-                    alpha = alphas[band][stim][sesion][sujeto]
-                except:
-                    alpha = default_alpha
+                if set_alpha is None:
+                    try:
+                        alphas = load_pickle(path=alphas_path)
+                        alpha = alphas[sesion][sujeto]
+                    except:
+                        alpha = default_alpha
+                else:
+                    alpha = set_alpha
             
                 # Make k-fold test with 5 folds (remain 20% as validation set, then interchange to cross validate)
                 kf_test = KFold(n_folds, shuffle=False)

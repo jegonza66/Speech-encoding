@@ -6,7 +6,7 @@ from datetime import datetime
 from sklearn.model_selection import KFold
 
 # Modules
-from funciones  import load_pickle, dump_pickle
+from funciones  import load_pickle, dump_pickle, dict_to_csv, iteration_percentage
 from mtrf_models import Receptive_field_adaptation
 from plot import hyperparameter_selection
 from load import load_data
@@ -17,10 +17,9 @@ api_token, chat_id = '5448153732:AAGhKraJQquEqMfpD3cb4rnTcrKB6U1ViMA', 103434754
      
 start_time = datetime.now()
 
-# Stimuli, EEG frecuency band and dialogue situation
-stimuli = ['Envelope']
-bands = ['Theta']
-situation = 'External'
+# ==========
+# PARAMETERS
+# ==========
 
 # Run setup
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
@@ -33,35 +32,44 @@ tmin, tmax = -.2, .6
 delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
 times = (delays/sr)
 
+# Stimuli, EEG frecuency band and dialogue situation
+# Stimuli ranked according to corrrelation
+# Phonological_Spectrogram','Phonological_Deltas','Phonological_Deltas_Spectrograma','Phonological',
+# 'Deltas','Deltas_Spectrogram','Spectrogram','Mfccs_Deltas','Phonemes-Onset-Manual_Envelope','Envelope','Pitch-Log-Raw','Pitch-Log-Raw_Phoneme'
+
+stimuli = ['Envelope', 'Spectrogram', 'Deltas', 'Phonological', 'Pitch-Log-Raw', 'Mfccs', \
+           'Mfccs-Deltas', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Pitch-Log-Raw', \
+           'Phonological_Spectrogram','Phonological_Deltas','Phonological_Deltas_Spectrogram']
+bands = ['Theta']#['Alpha', 'Beta1', 'All']
+situation = 'External_BS' #'External' 'External_BS' 'Internal_BS' 'Internal'
+
+# Model, estimator and normalization of input
+estimator = 'time_delaying_ridge'
+stims_preprocess = 'Normalize'
+eeg_preprocess = 'Standarize'
+model = 'mtrf'
+
 # Save figures
 no_figures = False
 save_figures = True
 save_alphas = True
 
-# Model, estimator and normalization of input
-estimator = 'time_delaying_ridge'
-model = 'mtrf'
-stims_preprocess = 'Normalize'
-eeg_preprocess = 'Standarize'
-
 # Make k-fold test with 5 folds (remain 20% as validation set, then interchange to cross validate)
 n_folds = 5
 
-# Preset alpha (penalization pararameter)
+# Correlation limit percentage to select alpha
 correlation_limit_percentage = 0.01
-alphas_path = f'saves/Alphas/{situation}/stims_{stims_preprocess}/eeg_{eeg_preprocess}/'
-try:
-    alphas = load_pickle(path=alphas_path+f'Alphas_corr_limit_{correlation_limit_percentage}.pkl')
-except:
-    alphas = {}
 
 # Make gridsearch sweep
-min_order, max_order, steps = -1, 6, 16 #32
+min_order, max_order, steps = -1, 6, 32 #
 alphas_swept = np.logspace(min_order, max_order, steps)
 alpha_step = np.diff(np.log(alphas_swept))[0]
 
+# ============
+# RUN ANALYSIS
+# ============
+just_load_data = False
 
-# DEFINO PARAMETROS
 for band in bands:
     for stim in stimuli:
         ordered_stims, ordered_band = sorted(stim.split('_')), sorted(band.split('_'))
@@ -70,29 +78,21 @@ for band in bands:
         # Update
         print('\n===========================\n','\tPARAMETERS\n\n','Model: ' + model+'\n','Band: ' + str(band)+'\n','Stimulus: ' + stim+'\n','Status: ' + situation+'\n',f'Time interval: ({tmin},{tmax})s\n','\n===========================\n')
         
-        # Try to access alphas 
-        try:
-            alphas_band = alphas[band]
-            try:
-                alphas_stim = alphas_band[stim]
-            except:
-                alphas_stim = {}
-        except:
-            alphas_band = {}
-            alphas_stim = {}
-        
         # Create relevant paths
-        preprocessed_data_path = f'saves/preprocessed_data/tmin{tmin}_tmax{tmax}/'
-        figures_path = f'figures/{model}_trace/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}_band_{band}/'
+        preprocessed_data_path = os.path.normpath(f'saves/preprocessed_data/{situation}/tmin{tmin}_tmax{tmax}/{band}/')
+        figures_path = os.path.normpath(f'figures/{model}_trace/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}')
+        alphas_directory = os.path.normpath(f'saves/alphas/{situation}/stims_{stims_preprocess}/EEG_{eeg_preprocess}//tmin{tmin}_tmax{tmax}/{band}/{stim}/') 
+        alphas_path = os.path.join(alphas_directory, f'corr_limit_{correlation_limit_percentage}.pkl')
+        
+        # Try to access alphas
+        try:
+            alphas = load_pickle(path=alphas_path)
+        except:
+            alphas = {s: {} for s in sesiones} 
        
         # Iterate over sessions
         for sesion in sesiones:
             print(f'\n\n------->\tStart of session {sesion}\n')
-
-            try:
-                alphas_sesion = alphas_stim[sesion]
-            except:
-                alphas_sesion = {}
 
             # Load data by subject, EEG and info
             sujeto_1, sujeto_2, samples_info = load_data(sesion=sesion,
@@ -101,9 +101,13 @@ for band in bands:
                                                          sr=sr,
                                                          delays=delays,
                                                          preprocessed_data_path=preprocessed_data_path,
+                                                         praat_executable_path=os.path.normpath(r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe"),
                                                          situation=situation,
                                                          silence_threshold=0.03)
             eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
+            
+            if just_load_data:
+                continue
 
             # Load stimuli by subject (i.e: concatenated stimuli features)
             stims_sujeto_1 = np.hstack([sujeto_1[stimulus] for stimulus in stim.split('_')]) 
@@ -118,14 +122,14 @@ for band in bands:
             for subject, eeg, stims, relevant_indexes in zip((1, 2), (eeg_sujeto_1, eeg_sujeto_2), (stims_sujeto_1, stims_sujeto_2), (relevant_indexes_1, relevant_indexes_2)):
                 print(f'\n\n\t······  Running model for Subject {subject}\n')
 
+                # Take some metrics for each alpha
                 standarized_betas = np.zeros(len(alphas_swept))
                 errors = np.zeros(len(alphas_swept))
                 correlations = np.zeros(len(alphas_swept))
                 correlations_std = np.zeros(len(alphas_swept))
                 
-                # Make sweep
+                # Make sweep, initializing empty variables to store relevant data of each fold in each alpha
                 for i_alpha, alpha in enumerate(alphas_swept):
-                    # Initialize empty variables to store relevant data of each fold in each alpha
                     weights_per_fold = np.zeros((n_folds, info['nchan'], np.sum(n_feats), len(delays)), dtype=np.float16)
                     correlation_per_channel = np.zeros((n_folds, info['nchan']))
                     rmse_per_channel = np.zeros((n_folds, info['nchan']))
@@ -184,31 +188,50 @@ for band in bands:
                 good_indexes_range = np.where(relative_difference < correlation_limit_percentage)[0]
 
                 # Get the very last one, because the greater the alpha, the smoothest the signal gets
-                alpha_index = good_indexes_range[-1]
-                alpha_subject = alphas_swept[int(alpha_index)]
-
+                alpha_subject = alphas_swept[int(good_indexes_range[-1])]
+                
                 # Make the alpha selection process plot
                 hyperparameter_selection(alphas_swept=alphas_swept,correlations=correlations, correlations_std=correlations_std, alpha_subject=alpha_subject,
                                          correlation_limit_percentage=correlation_limit_percentage, session=sesion, subject=subject, stim=stim, band=band, 
                                          save_path=figures_path, save=save_figures, no_figures=no_figures)
-                
-                # Update dictionary
-                alphas_sesion[subject] = alpha_subject
-            alphas_stim[sesion] = alphas_sesion
-        alphas_band[stim] = alphas_stim
-    alphas[band] = alphas_band
 
-# Save results
-os.makedirs(name=alphas_path, exist_ok=True)
-if save_alphas:
-    dump_pickle(path=alphas_path+f'Alphas_corr_limit_{correlation_limit_percentage}', obj=alphas, rewrite=True)
+                # Update dictionary
+                alphas[sesion][subject] = alpha_subject
+
+                # Save results
+                os.makedirs(name=alphas_directory, exist_ok=True)
+                if save_alphas:
+                    dump_pickle(path=alphas_path, obj=alphas, rewrite=True)
+                
+                # Print the progress of the iteration
+                iteration_percentage(txt=f'\n------->\tEnd of session {sesion}\n', i=sesiones.index(sesion), length_of_iterator=len(sesiones))
 
 # Get run time            
 run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
 text = f'PARAMETERS  \nModel: ' + model +f'\nBands: {bands}'+'\nStimuli: ' + f'{stimuli}'+'\nStatus: ' +situation+f'\nTime interval: ({tmin},{tmax})s'
-text += '\n\n\talpha selection'
+if just_load_data:
+    text += '\n\n\tJUST LOADING DATA'
+else:
+    text += '\n\n\talpha selection'
 text += f'\n\n\t\t RUN TIME \n\n\t\t{run_time} hours'
 print(text)
+
+# Dump metadata
+metadata_path = f'saves/log/{datetime.now().strftime("%Y-%m-%d--%H-%M-%S")}/'
+os.makedirs(metadata_path, exist_ok=True)
+metadata = {'stimuli':stimuli, 'bands':bands, 'situation':situation, 
+            'sesiones':sesiones, 'sr':sr, 'tmin':tmin, 'tmax':tmax, 
+            'save_figures':save_figures, 'no_figures':no_figures, 
+            'stims_preprocess':stims_preprocess, 'eeg_preprocess':eeg_preprocess, 'model':model, 
+            'estimator':estimator, 'n_folds':n_folds, 'preprocessed_data_path':preprocessed_data_path,
+            'figures_path':figures_path,'alphas_directory':alphas_directory,'alphas_path':alphas_path,
+            'correlation_limit_percentage':correlation_limit_percentage, 'min_order':min_order, 
+            'max_order':max_order, 'steps':steps, 'alphas_swept':alphas_swept, 'alpha_step':alpha_step,
+            'metadata_path': metadata_path,
+            'date': str(datetime.now()), 'run_time':str(run_time), 'just_loading_data':just_load_data}
+dict_to_csv(path=metadata_path+'metadata.csv', 
+            obj=metadata,
+            rewrite=True)
 
 # Send text to telegram bot
 mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=text)
