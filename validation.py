@@ -37,9 +37,10 @@ times = (delays/sr)
 # Phonological_Spectrogram','Phonological_Deltas','Phonological_Deltas_Spectrograma','Phonological',
 # 'Deltas','Deltas_Spectrogram','Spectrogram','Mfccs_Deltas','Phonemes-Onset-Manual_Envelope','Envelope','Pitch-Log-Raw','Pitch-Log-Raw_Phoneme'
 
-stimuli = ['Envelope', 'Spectrogram', 'Deltas', 'Phonological', 'Pitch-Log-Raw', 'Mfccs', \
-           'Mfccs-Deltas', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Pitch-Log-Raw', \
-           'Phonological_Spectrogram','Phonological_Deltas','Phonological_Deltas_Spectrogram']
+# stimuli = ['Envelope', 'Spectrogram', 'Deltas', 'Phonological', 'Pitch-Log-Raw', 'Mfccs', \
+#            'Mfccs-Deltas', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Pitch-Log-Raw', \
+#            'Phonological_Spectrogram','Phonological_Deltas','Phonological_Deltas_Spectrogram']
+stimuli = ['Spectrogram']
 bands = ['Theta']#['Alpha', 'Beta1', 'All']
 situation = 'External_BS' #'External' 'External_BS' 'Internal_BS' 'Internal'
 

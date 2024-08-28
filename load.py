@@ -74,12 +74,12 @@ class Trial_channel:
 
         # Relevant paths
         self.praat_executable_path = praat_executable_path
-        self.eeg_fname = f"Datos/EEG/S{s}/s{s}-{channel}-Trial{trial}-Deci-Filter-Trim-ICA-Pruned.set"
-        self.wav_fname = f"Datos/wavs/S{s}/s{s}.objects.{trial:02d}.channel{channel}.wav"
-        self.pitch_fname = f"S{s}/s{s}.objects.{trial:02d}.channel{channel}.txt"
-        self.phn_fname = f"Datos/phonemes/S{s}/s{s}.objects.{trial:02d}.channel{channel}.aligned_fa.TextGrid"
-        self.phn_fname_manual = f"Datos/phonemes/S{s}/manual/s{s}_objects_{trial:02d}_channel{channel}_aligned_faTAMARA.TextGrid"
-        self.phrases_fname = f"Datos/phrases/S{s}/s{s}.objects.{trial:02d}.channel{channel}.phrases"
+        self.eeg_fname = os.path.normpath(f"Datos/EEG/S{s}/s{s}-{channel}-Trial{trial}-Deci-Filter-Trim-ICA-Pruned.set")
+        self.wav_fname = os.path.normpath(f"Datos/wavs/S{s}/s{s}.objects.{trial:02d}.channel{channel}.wav")
+        self.pitch_fname = os.path.normpath(f"S{s}/s{s}.objects.{trial:02d}.channel{channel}.txt")
+        self.phn_fname = os.path.normpath(f"Datos/phonemes/S{s}/s{s}.objects.{trial:02d}.channel{channel}.aligned_fa.TextGrid")
+        self.phn_fname_manual = os.path.normpath(f"Datos/phonemes/S{s}/manual/s{s}_objects_{trial:02d}_channel{channel}_aligned_faTAMARA.TextGrid")
+        self.phrases_fname = os.path.normpath(f"Datos/phrases/S{s}/s{s}.objects.{trial:02d}.channel{channel}.phrases")
         
     def f_eeg(self):
         """Extract eeg file downsample it to get the same rate as self.sr and stores its data inside the class instance.
@@ -495,7 +495,7 @@ class Trial_channel:
             raise SyntaxError(f"{kind} is not an allowed kind of pitch. Allowed phonemes are: {allowed_kind}")
         
         # Makes path for storing data
-        output_folder = f'Datos/{kind}_threshold_{self.silence_threshold}/'
+        output_folder = os.path.normpath(f'Datos/{kind}_threshold_{self.silence_threshold}/')
         
         # Create paths and distinguish subject
         os.makedirs(output_folder, exist_ok=True)
@@ -663,7 +663,7 @@ class Sesion_class:
     def __init__(self, sesion:int=21, stim:str='Envelope', band:str='All', sr:float=128, 
                  causal_filter_eeg:bool=True, envelope_filter:bool=False, situation:str='External', 
                  silence_threshold:float=0.03, delays:np.ndarray=None,
-                 preprocessed_data_path:str=f'saves/preprocessed_data/tmin{-0.6}_tmax{-.002}/',
+                 preprocessed_data_path:str=os.path.normpath(f'saves/preprocessed_data/tmin{-0.6}_tmax{-.002}/'),
                  praat_executable_path:str=r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"r"C:\Program Files\Praat\Praat.exe"
                  ):
         """Construct an object for the given session containing all concerning data.
@@ -966,7 +966,8 @@ class Sesion_class:
         """
         
         # Read phrases into pandas.DataFrame
-        ubi_speaker = os.path.join(self.phrases_path, f'/s{self.sesion}.objects.{trial:02d}.channel{channel}.phrases')
+        ubi_speaker = os.path.join(self.phrases_path, f's{self.sesion}.objects.{trial:02d}.channel{channel}.phrases')
+        
         h1t = pd.read_table(ubi_speaker, header=None, sep="\t")
 
         # Replace and '#' by ''. And then all text by 1 and silences by 0 
@@ -978,7 +979,7 @@ class Sesion_class:
         
         # Same with listener
         listener_channel = (channel - 3) * -1
-        ubi_listener = os.path.join(self.phrases_path, f'/s{self.sesion}.objects.{trial:02d}.channel{listener_channel}.phrases')
+        ubi_listener = os.path.join(self.phrases_path, f's{self.sesion}.objects.{trial:02d}.channel{listener_channel}.phrases')
         h2t = pd.read_table(ubi_listener, header=None, sep="\t")
 
         # Replace and '#' by ''. And then all text by 1 and silences by 0
