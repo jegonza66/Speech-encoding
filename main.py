@@ -35,9 +35,8 @@ start_time = datetime.now()
 # stimuli = ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw','Envelope_Phonemes-Discrete-Manual', 'Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
 stimuli =  ['Envelope']
 bands = ['Theta'] #, 'Delta', 'Alpha', 'Beta1', 'Beta2', 'All', 'Delta_Theta', 'Alpha_Delta_Theta']
-situation = 'External_BS' #'Internal_BS' #'External' # 'Internal' # 'External_BS'
-# situation = 'External' 
-# stimuli = ['Pitch-Log-Raw']
+situation = 'External' #'Internal_BS' #'External' # 'Internal' # 'External_BS'
+
 # Run setup
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 
@@ -110,6 +109,9 @@ for band in bands:
         repeated_good_rmse_channels_subjects = []
         phoenemes_ocurrences = {sesion:{} for sesion in sesiones}
 
+        # Store total number of subjects (18) to save figures and results just in this case
+        total_number_of_subjects = 0
+
         # Iterate over sessions
         for sesion in sesiones:
             print(f'\n------->\tStart of session {sesion}\n')
@@ -179,7 +181,7 @@ for band in bands:
             # Run model for each subject
             for sujeto, eeg, stims, relevant_indexes in zip((1, 2), (eeg_sujeto_1, eeg_sujeto_2), (stims_sujeto_1, stims_sujeto_2), (relevant_indexes_1, relevant_indexes_2)):
                 print(f'\n\t······  Running model for Subject {sujeto}\n')
-                
+
                 # Set alpha for specific subject
                 if set_alpha is None:
                     try:
@@ -225,7 +227,7 @@ for band in bands:
 
                     # Predict and save
                     predicted, eeg_test = mtrf.predict(stims)
-
+                    
                     # Calculates and saves correlation of each channel
                     correlation_matrix = np.array([np.corrcoef(eeg_test[:, j], predicted[:, j])[0,1] for j in range(eeg_test.shape[1])])
                     correlation_per_channel[fold] = correlation_matrix
@@ -254,7 +256,7 @@ for band in bands:
                         # p-value topographic distribution
                         topo_pvalues_corr[fold] = p_corr
                         topo_pvalues_rmse[fold] = p_rmse
-
+                                
                 print(f'\n\t······  Run model\n')
 
                 # Take average weights, correlation and RMSE between folds of all channels
@@ -307,6 +309,9 @@ for band in bands:
                 pvalues_rmse_subjects.append(topo_pval_rmse_sujeto)
                 repeated_good_correlation_channels_subjects.append(repeated_good_correlation_channels)
                 repeated_good_rmse_channels_subjects.append(repeated_good_rmse_channels)
+                
+                # Update the number of subjects
+                total_number_of_subjects+=1
             
             # Print the progress of the iteration
             iteration_percentage(txt=f'\n------->\tEnd of session {sesion}\n', i=sesiones.index(sesion), length_of_iterator=len(sesiones))
@@ -329,6 +334,9 @@ for band in bands:
         # Plot phoneme ocurrences
         if np.array([bool(d) for d in phoenemes_ocurrences.values()]).any():
             plot.phonemes_ocurrences(ocurrences=phoenemes_ocurrences, save_path=path_figures, save=save_figures, no_figures=no_figures)
+
+        # Plot average results only if all subjects are analyzed
+        no_figures=True if (total_number_of_subjects==18) else no_figures
 
         # Plot average topomap across each subject
         plot.average_topomap(average_coefficient_subjects=average_rmse_subjects, stim=stim, info=info, display_interactive_mode=display_interactive_mode,
@@ -381,7 +389,7 @@ for band in bands:
                               no_figures=no_figures)
                 
         # Save results
-        if save_results:
+        if save_results and total_number_of_subjects==18:
             os.makedirs(save_results_path, exist_ok=True)
             os.makedirs(path_weights, exist_ok=True)
             dump_pickle(path=save_results_path+f'{stim}.pkl', 
@@ -394,7 +402,7 @@ for band in bands:
             
 # Get run time            
 run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
-text = f'PARAMETERS  \nModel: ' + model +f'\nBands: {bands}'+'\nStimuli: ' + f'{stimuli}'+'\nStatus: ' +situation+f'\nTime interval: ({tmin},{tmax})s'
+text = f'PARAMETERS  \nModel: ' + model +f'\nBands: {bands}'+'\nStimuli: ' + f'{stimuli}'+'\nStatus: ' +situation+f'\nTime interval: ({tmin},{tmax})s'+f'\nNumber of subjects analyzed: {total_number_of_subjects}. Sessions {sesiones}'
 if just_load_data:
     text += '\n\n\tJUST LOADING DATA'
 text += f'\n\n\t\t RUN TIME \n\n\t\t{run_time} hours'
@@ -404,7 +412,7 @@ print(text)
 metadata_path = f'saves/log/{datetime.now().strftime("%Y-%m-%d--%H-%M-%S")}/'
 os.makedirs(metadata_path, exist_ok=True)
 metadata = {'stimuli':stimuli, 'bands':bands, 'situation':situation, 
-            'sesiones':sesiones, 'sr':sr, 'tmin':tmin, 'tmax':tmax, 
+            'sesiones':sesiones, 'sr':sr, 'tmin':tmin, 'tmax':tmax, 'total_number_of_subjects':total_number_of_subjects, 
             'save_figures':save_figures, 'save_results':save_results, 'tfce_permutations':n_permutations,
             'umbral':umbral, 'no_figures':no_figures, 'statistical_test':statistical_test, 
             'stims_preprocess':stims_preprocess, 'eeg_preprocess':eeg_preprocess, 'model':model, 
