@@ -3,7 +3,7 @@ import numpy as np, pandas as pd, os, warnings
 
 # Specific libraries
 import mne, librosa, opensmile, textgrids, scipy.io.wavfile as wavfile
-from disvoice.phonological.phonological import Phonological # TODO Solve KALDI_ROOT when parsing
+from phonet.phonet import Phonet# TODO Solve KALDI_ROOT when parsing
 from praatio import pitch_and_intensity
 from scipy import signal as sgn
 
@@ -450,20 +450,23 @@ class Trial_channel:
             Matrix with phonological features with shape SAMPLES X FEATURES
         """
         # Define phonological instance and phonological features
-        phonological = Phonological()
-        phon_features = phonological.extract_features_file(self.wav_fname, 
-                                                           static=False, 
-                                                           plots=False, 
-                                                           fmt="dataframe")
-        # Get feature names
-        phon_features_names = [feat for feat in phon_features.columns if feat!='time']
+        phon_features = Phonet(["all"]).get_PLLR(audio_file=self.wav_fname, plot_flag=False)
+        Phonet(['all']).get_PLLR(audio_file=r'Datos/wavs/S21/s21.objects.01.channel1.wav', plot_flag=False)
         
         # Interpole data in desire times
         desire_time = np.linspace(0, envelope.shape[0]/self.sr + 1/self.sr , envelope.shape[0])
+
+        # Get feature names
+        phon_features_names = [feat for feat in phon_features.columns if feat!='time']
         
         phonological_features = []
         for phon_feat in phon_features_names:
-            phonological_features.append(np.interp(desire_time, phon_features['time'].values, phon_features[f'{phon_feat}'].values))
+            phonological_features.append(np.interp(
+                                                desire_time, 
+                                                phon_features['time'].values, 
+                                                phon_features[f'{phon_feat}'].values
+                                                )
+                                        )
         
         # Return data in desired shape
         return np.stack(phonological_features, axis=0).T
