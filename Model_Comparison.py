@@ -1,5 +1,7 @@
 # Standard libraries
 import matplotlib.pyplot as plt, numpy as np, os, mne, pandas as pd, seaborn as sn, copy
+from matplotlib.colors import Normalize
+import matplotlib.cm as cm
 
 # Specific libraries
 # from statsmodels.stats.multitest import fdrcorrection
@@ -11,7 +13,8 @@ from scipy.stats import wilcoxon
 from funciones import load_pickle, cohen_d, all_possible_combinations, get_maximum_correlation_channels
 
 # Default size is 10 pts, the scalings (10pts*scale) are:
-#'xx-small':0.579,'x-small':0.694,'small':0.833,'medium':1.0,'large':1.200,'x-large':1.440,'xx-large':1.728,None:1.0}
+#'xx-small':0.579,'x-small':0.694,'s
+# mall':0.833,'medium':1.0,'large':1.200,'x-large':1.440,'xx-large':1.728,None:1.0}
 import matplotlib.pylab as pylab
 params = {'legend.fontsize': 'x-large',
           'legend.title_fontsize': 'x-large',
@@ -25,10 +28,13 @@ pylab.rcParams.update(params)
 
 # Model parametrs
 model ='mtrf'
-situation = 'Internal_BS'
+situation = 'External'
 stims_preprocess = 'Normalize'
 eeg_preprocess = 'Standarize'
 tmin, tmax = -.2, .6
+sr = 128
+montage = mne.channels.make_standard_montage('biosemi128')
+info_mne = mne.create_info(ch_names=montage.ch_names[:], sfreq=sr, ch_types='eeg').set_montage(montage)
 
 # Whether to use or not just relevant channels
 relevant_channels = 12 # None
@@ -36,6 +42,7 @@ relevant_channels = 12 # None
 # Relevant paths
 path_figures = os.path.normpath(f'figures/{model}/model_comparison/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/')
 final_corr_path = os.path.normpath(f'saves/{model}/{situation}/correlations/tmin{tmin}_tmax{tmax}/')
+weights_path = os.path.normpath(f'saves/{model}/{situation}/weights//stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/')
 preprocesed_data_path = os.path.normpath(f'saves/preprocessed_data/{situation}/tmin-0.2_tmax0.6/') 
 
 # Code parameters
@@ -284,6 +291,157 @@ for band in bands:
             mean_correlations[stim] = data[:,filter_relevant_channels_filter].mean()
         else:
             mean_correlations[stim] = data.mean()
+
+# ================================================================================================================
+# CORRELATION MATRIX TOPOMAP: make matrix with correlation topomap ordering across features, situations and bands.
+# ================================================================================================================
+path_correlation_matrix_topo = os.path.join(path_figures,'correlation_matrix_topo')
+
+# Relevant parameters
+situation = 'External'
+bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
+# bands = ['Theta']
+# stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Deltas', 'Phonemes-Discrete-Manual', 'Pitch-Log-Raw']
+stimuli = ['Envelope']
+n_stims, n_bands = len(stimuli), len(bands)
+stimuli = sorted(stimuli)
+
+# Get mean correlations across subjects and total max and min
+correlations = {(stim,band):load_pickle(path=os.path.join(final_corr_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
+minimum_cor, maximum_cor = min([correlation.min() for correlation in correlations.values()]), max([correlation.max() for correlation in correlations.values()])
+
+# Create figure and title
+fig, axes = plt.subplots(figsize=(3*n_stims,1.5*n_bands), nrows=n_bands, ncols=n_stims, layout="constrained")
+fig.suptitle('Correlation topomaps')
+if n_stims==1:
+    axes = axes.reshape(n_bands, 1)
+elif n_bands==1:
+    axes = axes.reshape(1, n_stims)
+
+# Configure axis
+for ax, col in zip(axes[0], stimuli):
+    ax.set_title(col)
+for ax, row in zip(axes[:,0], bands):
+    ax.set_ylabel(row, rotation=90)
+
+# Build scale
+normalizer = Normalize(vmin=np.round(minimum_cor,2), vmax=np.round(maximum_cor,2))
+im = cm.ScalarMappable(norm=normalizer, cmap='Reds')
+
+# Iterate over bands
+for i, band in enumerate(bands):
+    for j, stim in enumerate(stimuli):
+        # Get average correlation of each stimulus across subjects
+        average_correlation = correlations[(stim,band)]
+
+        # Plot topomap        
+        mne.viz.plot_topomap(
+            data=average_correlation, 
+            pos=info_mne, 
+            axes=axes[i, j], 
+            show=False, 
+            sphere=0.07, 
+            cmap='Reds', 
+            vlim=(average_correlation.min(), average_correlation.max()),
+            # cnorm=normalizer
+            )
+
+# Make colorbar
+fig.colorbar(im, ax=axes.ravel().tolist())
+
+# Save figure
+if save_figures:
+    temp_path = os.path.join(path_correlation_matrix_topo,'_'.join(stimuli)+'/')
+    os.makedirs(temp_path, exist_ok=True)
+    plt.savefig(os.path.join(temp_path, f'correlation_matrix_topo.png'))
+    plt.savefig(os.path.join(temp_path, f'correlation_matrix_topo.svg'))
+plt.close()
+
+# ==============================================================================================================
+# SIMILARITY MATRIX TOPOMAP: make matrix with similarity topomap ordering across features, situations and bands.
+# ==============================================================================================================
+path_similarities_matrix_topo = os.path.join(path_figures,'similarities_matrix_topo')
+
+# Relevant parameters
+situation = 'External'
+bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
+# bands = ['Theta']
+# stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Deltas', 'Phonemes-Discrete-Manual', 'Pitch-Log-Raw']
+stimuli = ['Envelope']
+n_stims, n_bands = len(stimuli), len(bands)
+stimuli = sorted(stimuli)
+
+# Get similarities across subjects and total max and min
+similarities = {}
+for band in bands:
+    for stim in stimuli:
+        average_weights_subjects = load_pickle(path=os.path.join(weights_path, band, stim, 'total_weights_per_subject.pkl'))['average_weights_subjects']
+        n_subjects, n_chan, _, _ = average_weights_subjects.shape
+        average_weights = average_weights_subjects.mean(axis=2)
+        correlation_matrices = np.zeros(shape=(n_chan, n_subjects, n_subjects))
+
+        # Calculate correlation betweem subjects
+        for channel in range(n_chan):
+            matrix = average_weights[:,channel,:] # TODO HAVE ONE MORE DIMENSION
+            correlation_matrices[channel] = np.corrcoef(matrix)
+
+        # Correlacion por canal
+        absolute_correlation_per_channel = np.zeros(n_chan)
+        for channel in range(n_chan):
+            channel_corr_values = correlation_matrices[channel][np.tril_indices(n_subjects, k=-1)]
+            absolute_correlation_per_channel[channel] = np.mean(np.abs(channel_corr_values))
+        
+        # Append to similarities
+        similarities[(stim, band)] = absolute_correlation_per_channel
+minimum_sim, maximum_sim = min([similarity.min() for similarity in similarities.values()]), max([similarity.max() for similarity in similarities.values()])
+
+# Create figure and title
+fig, axes = plt.subplots(figsize=(3*n_stims,1.5*n_bands), nrows=n_bands, ncols=n_stims, layout="constrained")
+fig.suptitle('Similarity topomaps')
+if n_stims==1:
+    axes = axes.reshape(n_bands, 1)
+elif n_bands==1:
+    axes = axes.reshape(1, n_stims)
+
+# Set axis labels
+for ax, col in zip(axes[0], stimuli):
+    ax.set_title(col)
+for ax, row in zip(axes[:,0], bands):
+    ax.set_ylabel(row, rotation=90)
+
+# Build scale
+normalizer = Normalize(vmin=np.round(minimum_sim,2), vmax=np.round(maximum_sim,2))
+im = cm.ScalarMappable(norm=normalizer, cmap='Greens')
+
+# Iterate over bands
+for i, band in enumerate(bands):
+    for j, stim in enumerate(stimuli):
+        # Get average correlation of each stimulus across subjects
+        similarity = similarities[(stim,band)]
+
+        # Plot topomap        
+        mne.viz.plot_topomap(
+            data=similarity, 
+            pos=info_mne, 
+            axes=axes[i, j], 
+            show=False, 
+            sphere=0.07, 
+            cmap='Greens', 
+            vlim=(similarity.min(), similarity.max()),
+            # cnorm=normalizer
+            )
+
+# Add colorbar
+fig.colorbar(im, ax=axes.ravel().tolist())
+
+# Save figure
+if save_figures:
+    temp_path = os.path.join(path_similarities_matrix_topo,'_'.join(stimuli)+'/')
+    os.makedirs(temp_path, exist_ok=True)
+    plt.savefig(os.path.join(temp_path, f'similarities_matrix_topo.png'))
+    plt.savefig(os.path.join(temp_path, f'similarities_matrix_topo.svg'))
+plt.close()
+
 # ===================
 # VIOLIN/TOPO (BANDS)
 # ===================
