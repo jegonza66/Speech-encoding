@@ -281,7 +281,8 @@ def band_freq(band):
 def tfce(average_weights_subjects:np.ndarray,
          n_jobs:int=1, 
          n_permutations:int=1024, 
-         threshold_tfce:dict=dict(start=0, step=0.2), 
+         threshold_tfce:dict=dict(start=0, step=0.2),
+         stimulus:str, 
          verbose_tfce:bool=True):
     """_summary_
 
@@ -303,25 +304,38 @@ def tfce(average_weights_subjects:np.ndarray,
 
     # Get relevant parameters
     n_subjects, n_chan, total_number_features, n_delays  = average_weights_subjects.shape
+    stimuli_connected_by_frequency = ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Spectrogram']
 
     # Get desire shape
-    if total_number_features > 1:
+    if stimulus in stimuli_connected_by_frequency:
         weights_subjects_mean_across_channels = average_weights_subjects.copy().mean(axis=1)
         weights_subjects = weights_subjects_mean_across_channels.reshape(n_subjects, total_number_features, n_delays)
-    else:
-        weights_subjects = average_weights_subjects.copy().reshape(n_subjects, n_chan, n_delays)
-
-    t_tfce, clusters, p_tfce, H0 = mne.stats.permutation_cluster_1samp_test(
-        X=weights_subjects,
-        n_jobs=n_jobs,
-        threshold=threshold_tfce,
-        adjacency=None,
-        n_permutations=n_permutations,
-        out_type="mask",
-    )
-    if total_number_features>1:
+        t_tfce, clusters, p_tfce, H0 = mne.stats.permutation_cluster_1samp_test(
+                                                                                X=weights_subjects,
+                                                                                n_jobs=n_jobs,
+                                                                                threshold=threshold_tfce,
+                                                                                adjacency=None,
+                                                                                n_permutations=n_permutations,
+                                                                                out_type="mask",
+                                                                                verbose=verbose_tfce
+                                                                                )
         p_tfce = p_tfce.reshape(total_number_features, n_delays)
     else:
+        t_tfce_feat, p_tfce_feat = [], []
+        for feat in range(total_number_features):
+            t_tfce_feat, clusters, p_tfce_feat, H0 = mne.stats.permutation_cluster_1samp_test(
+                                                                                            X=average_weights_subjects[n_subjects, n_chan, feat, n_delays],
+                                                                                            n_jobs=n_jobs,
+                                                                                            threshold=threshold_tfce,
+                                                                                            adjacency=None,
+                                                                                            n_permutations=n_permutations,
+                                                                                            out_type="mask",
+                                                                                            verbose=verbose_tfce
+                                                                                            )
+            t_tfce_feat.append(t_tfce_feat)
+            p_tfce_feat.append(p_tfce_feat)
+        t_tfce_feat, p_tfce_feat = np.stack(t_tfce_feat, axis=0), np.stack(p_tfce_feat, axis=0) #TODO Check axis and dimension
+            
         p_tfce = p_tfce.reshape(n_chan, n_delays)
 
     if verbose_tfce:
