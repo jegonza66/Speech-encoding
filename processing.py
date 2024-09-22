@@ -4,6 +4,8 @@ from datetime import datetime
 from scipy import signal
 
 
+
+
 class Standarize():
     def __init__(self, axis:int=0):
         """Standarize train and test data to be used in a linear regressor model. 
@@ -277,78 +279,83 @@ def band_freq(band):
 
     return l_freq, h_freq
 
-# TODO CHECK DESCRIPTION
-def tfce(average_weights_subjects:np.ndarray,
-         n_jobs:int=1, 
-         n_permutations:int=1024, 
-         threshold_tfce:dict=dict(start=0, step=0.2),
-         stimulus:str, 
-         verbose_tfce:bool=True):
-    """_summary_
+# # TODO CHECK DESCRIPTION
+# def tfce(average_weights_subjects:np.ndarray,
+#          stimulus:str, 
+#          n_jobs:int=1, 
+#          n_permutations:int=1024, 
+#          threshold_tfce:dict=dict(start=0, step=0.2),
+#          verbose_tfce:bool=True):
+#     """_summary_
 
-    Parameters
-    ----------
-    average_weights_subjects : np.ndarray
-        _description_
-    n_permutations : int, optional
-        _description_, by default 1024
-    threshold_tfce : dict, optional
-        _description_, by default dict(start=0, step=0.2)
+#     Parameters
+#     ----------
+#     average_weights_subjects : np.ndarray
+#         _description_
+#     n_permutations : int, optional
+#         _description_, by default 1024
+#     threshold_tfce : dict, optional
+#         _description_, by default dict(start=0, step=0.2)
 
-    Returns
-    -------
-    _type_
-        _description_
-    """
-    t_0 = datetime.now().replace(microsecond=0)
+#     Returns
+#     -------
+#     _type_
+#         _description_
+#     """
+#     t_0 = datetime.now().replace(microsecond=0)
 
-    # Get relevant parameters
-    n_subjects, n_chan, total_number_features, n_delays  = average_weights_subjects.shape
-    stimuli_connected_by_frequency = ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Spectrogram']
+#     # Get relevant parameters
+#     n_subjects, n_chan, total_number_features, n_delays  = average_weights_subjects.shape
+#     stimuli_connected_by_frequency = ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Spectrogram']
 
-    # Get desire shape
-    if stimulus in stimuli_connected_by_frequency:
-        weights_subjects_mean_across_channels = average_weights_subjects.copy().mean(axis=1)
-        weights_subjects = weights_subjects_mean_across_channels.reshape(n_subjects, total_number_features, n_delays)
-        t_tfce, clusters, p_tfce, H0 = mne.stats.permutation_cluster_1samp_test(
-                                                                                X=weights_subjects,
-                                                                                n_jobs=n_jobs,
-                                                                                threshold=threshold_tfce,
-                                                                                adjacency=None,
-                                                                                n_permutations=n_permutations,
-                                                                                out_type="mask",
-                                                                                verbose=verbose_tfce
-                                                                                )
-        p_tfce = p_tfce.reshape(total_number_features, n_delays)
-    else:
-        t_tfce_feat, p_tfce_feat = [], []
-        for feat in range(total_number_features):
-            t_tfce_feat, clusters, p_tfce_feat, H0 = mne.stats.permutation_cluster_1samp_test(
-                                                                                            X=average_weights_subjects[n_subjects, n_chan, feat, n_delays],
-                                                                                            n_jobs=n_jobs,
-                                                                                            threshold=threshold_tfce,
-                                                                                            adjacency=None,
-                                                                                            n_permutations=n_permutations,
-                                                                                            out_type="mask",
-                                                                                            verbose=verbose_tfce
-                                                                                            )
-            t_tfce_feat.append(t_tfce_feat)
-            p_tfce_feat.append(p_tfce_feat)
-        t_tfce_feat, p_tfce_feat = np.stack(t_tfce_feat, axis=0), np.stack(p_tfce_feat, axis=0) #TODO Check axis and dimension
+#     # Get adjacency matrix
+#     montage = mne.channels.make_standard_montage('biosemi128')
+#     info_mne = mne.create_info(ch_names=montage.ch_names[:], sfreq=sr, ch_types='eeg').set_montage(montage)
+#     adj_matrix = mne.channels.find_ch_adjacency(info=info_mne)
+
+#     # Get desire shape
+#     if stimulus in stimuli_connected_by_frequency:
+#         weights_subjects_mean_across_channels = average_weights_subjects.copy().mean(axis=1)
+#         weights_subjects = weights_subjects_mean_across_channels.reshape(n_subjects, total_number_features, n_delays)
+#         t_tfce, clusters, p_tfce, H0 = mne.stats.permutation_cluster_1samp_test(
+#                                                                                 X=weights_subjects,
+#                                                                                 adjacency=adj_matrix,
+#                                                                                 n_jobs=n_jobs,
+#                                                                                 threshold=threshold_tfce,
+#                                                                                 n_permutations=n_permutations,
+#                                                                                 out_type="mask",
+#                                                                                 verbose=verbose_tfce
+#                                                                                 )
+#         p_tfce = p_tfce.reshape(total_number_features, n_delays)
+#     else:
+#         t_tfce_feat, p_tfce_feat = [], []
+#         for feat in range(total_number_features):
+#             t_tfce_feat, clusters, p_tfce_feat, H0 = mne.stats.permutation_cluster_1samp_test(
+#                                                                                             X=average_weights_subjects[n_subjects, n_chan, feat, n_delays],
+#                                                                                             adjacency=adj_matrix,
+#                                                                                             n_jobs=n_jobs,
+#                                                                                             threshold=threshold_tfce,
+#                                                                                             n_permutations=n_permutations,
+#                                                                                             out_type="mask",
+#                                                                                             verbose=verbose_tfce
+#                                                                                             )
+#             t_tfce_feat.append(t_tfce_feat)
+#             p_tfce_feat.append(p_tfce_feat)
+#         t_tfce_feat, p_tfce_feat = np.stack(t_tfce_feat, axis=0), np.stack(p_tfce_feat, axis=0) #TODO Check axis and dimension
             
-        p_tfce = p_tfce.reshape(n_chan, n_delays)
+#         p_tfce = p_tfce.reshape(n_chan, n_delays)
 
-    if verbose_tfce:
-        t_f = datetime.now().replace(microsecond=0)-t_0
-        print(f'Performed TFCE succesfully in {t_f}')
+#     if verbose_tfce:
+#         t_f = datetime.now().replace(microsecond=0)-t_0
+#         print(f'Performed TFCE succesfully in {t_f}')
 
-    return t_tfce, p_tfce, weights_subjects.shape
+#     return t_tfce, p_tfce, weights_subjects.shape
 
-###############
+# ###############
 
-# def butter_bandpass_filter(data, frecuencia, sampling_freq, order, axis):
-#     frecuencia /= (sampling_freq / 2)
-#     b, a = signal.butter(order, frecuencia, btype='lowpass')
-#     y = signal.filtfilt(b, a, data, axis=axis, padlen=None)
-#     return y
+# # def butter_bandpass_filter(data, frecuencia, sampling_freq, order, axis):
+# #     frecuencia /= (sampling_freq / 2)
+# #     b, a = signal.butter(order, frecuencia, btype='lowpass')
+# #     y = signal.filtfilt(b, a, data, axis=axis, padlen=None)
+# #     return y
 
