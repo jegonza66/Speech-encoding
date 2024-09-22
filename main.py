@@ -12,7 +12,8 @@ from load import load_data
 from processing import tfce
 from setup import exp_info
 import plot
-
+patttt = r'C:\Users\User\repos\Speech-encoding\saves\alphas\External\stims_Normalize\EEG_Standarize\tmin-0.2_tmax0.6\Theta\Spectrogram\corr_limit_0.01.pkl'
+load_pickle(path=patttt)
 # Notofication bot
 from labos.notificacion_bot import mensaje_tel
 api_token, chat_id = '5448153732:AAGhKraJQquEqMfpD3cb4rnTcrKB6U1ViMA', 1034347542
@@ -25,7 +26,7 @@ start_time = datetime.now()
 
 # Stimuli, EEG frecuency band and dialogue situation
 # stimuli = ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Envelope']
-#stimuli = ['Phonological', 'Deltas', 'Spectrogram']
+# stimuli = ['Phonological', 'Deltas', 'Spectrogram']
 # stimuli = ['Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Manual']
 # stimuli = ['Pitch-Raw', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Pitch-Log-Quad']
 
@@ -33,10 +34,28 @@ start_time = datetime.now()
 # stimuli = ['Envelope_Phonemes-Discrete-Manual', 'Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
 # stimuli = ['Deltas_Phonological', 'Deltas_Spectrogram', 'Phonological_Spectrogram', 'Deltas_Phonological_Spectrogram',]
 # stimuli = ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw', 'Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
-stimuli =  ['Envelope']
-bands = ['Theta'] #, 'Delta', 'Alpha', 'Beta1', 'Beta2', 'All', 'Delta_Theta', 'Alpha_Delta_Theta']
+# bands = ['Theta'] #, 'Delta', 'Alpha', 'Beta1', 'Beta2', 'All', 'Delta_Theta', 'Alpha_Delta_Theta']
 situation = 'External' #'Internal_BS' #'External' # 'Internal' # 'External_BS'
+stimuli = ['Envelope', 'Spectrogram', 'Deltas', 'Phonological', 'Mfccs', 'Mfccs-Deltas', 'Phonological_Spectrogram','Phonological_Deltas']
+stimuli+= ['Phonological_Deltas_Spectrogram','Pitch-Log-Raw','Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
+stimuli+= ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw']
+stimuli+= ['Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
+bands = ['Delta','Theta', 'Alpha', 'Beta1', 'Beta2']
+bands = ['Theta']
+stimuli = ['Mfccs-Deltas-Deltas']
+bands = ['Beta2']#, 'Beta2']
+bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
+# stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Deltas', 'Phonemes-Discrete-Manual', 'Pitch-Log-Raw'] 
+stimuli = ['Phonemes-Discrete', 'Phonemes-Onset'] 
 
+situation = 'External' #'External' 'External_BS' 'Internal_BS' 'Internal'
+
+# bands = ['Theta']
+stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Deltas', 'Phonemes-Discrete-Manual', 'Pitch-Log-Raw'] 
+stimuli = ['Envelope']
+bands = ['Beta1', 'Beta2']
+
+situation = 'Internal' 
 # Run setup
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 
@@ -336,7 +355,7 @@ for band in bands:
             plot.phonemes_ocurrences(ocurrences=phoenemes_ocurrences, save_path=path_figures, save=save_figures, no_figures=no_figures)
 
         # Plot average results only if all subjects are analyzed
-        no_figures=True if (total_number_of_subjects==18) else no_figures
+        no_figures=True if (total_number_of_subjects!=18) else no_figures
 
         # Plot average topomap across each subject
         plot.average_topomap(average_coefficient_subjects=average_rmse_subjects, stim=stim, info=info, display_interactive_mode=display_interactive_mode,
@@ -374,31 +393,34 @@ for band in bands:
             plot.topo_repeated_channels(repeated_good_coefficients_channels_subjects=repeated_good_rmse_channels_subjects, 
                                         info=info, display_interactive_mode=display_interactive_mode, save=save_figures, 
                                         save_path=path_figures, coefficient_name='RMSE', no_figures=no_figures)
-
-        # TFCE across subjects 
-        tvalue_tfce, pvalue_tfce, trf_subjects_shape = tfce(average_weights_subjects=average_weights_subjects, n_jobs=1, n_permutations=n_permutations)
-
-        # Plot t and p values
-        plot.plot_tvalue_pvalue_tfce(tvalue=tvalue_tfce, pvalue=pvalue_tfce, trf_subjects_shape=trf_subjects_shape, times=times, 
-                                     band=band, stim=stim, n_feats=n_feats, info=info, pval_tresh=.05, save_path=path_figures, 
-                                     display_interactive_mode=display_interactive_mode, save=save_figures, no_figures=no_figures)
-        
-        plot.plot_pvalue_tfce(average_weights_subjects=average_weights_subjects, pvalue=pvalue_tfce, times=times, info=info,
-                              trf_subjects_shape=trf_subjects_shape, n_feats=n_feats, band=band, stim=stim, pval_tresh=.05, 
-                              save_path=path_figures, display_interactive_mode=display_interactive_mode, save=save_figures, 
-                              no_figures=no_figures)
-                
+        print('LLEGUE')
         # Save results
         if save_results and total_number_of_subjects==18:
+            print('SÏ LLEGUE')
             os.makedirs(save_results_path, exist_ok=True)
             os.makedirs(path_weights, exist_ok=True)
             dump_pickle(path=save_results_path+f'{stim}.pkl', 
                         obj={'average_correlation_subjects':average_correlation_subjects,
                             'repeated_good_correlation_channels_subjects':repeated_good_correlation_channels_subjects},
-                        rewrite=True)
+                        rewrite=True,
+                        verbose=True)
             dump_pickle(path=path_weights+'total_weights_per_subject.pkl', 
                         obj={'average_weights_subjects':average_weights_subjects},
                         rewrite=True)
+        # # TFCE across subjects 
+        # tvalue_tfce, pvalue_tfce, trf_subjects_shape = tfce(average_weights_subjects=average_weights_subjects, n_jobs=1, n_permutations=n_permutations, stimulus=stim)
+
+        # # Plot t and p values
+        # plot.plot_tvalue_pvalue_tfce(tvalue=tvalue_tfce, pvalue=pvalue_tfce, trf_subjects_shape=trf_subjects_shape, times=times, 
+        #                              band=band, stim=stim, n_feats=n_feats, info=info, pval_tresh=.05, save_path=path_figures, 
+        #                              display_interactive_mode=display_interactive_mode, save=save_figures, no_figures=no_figures)
+        
+        # plot.plot_pvalue_tfce(average_weights_subjects=average_weights_subjects, pvalue=pvalue_tfce, times=times, info=info,
+        #                       trf_subjects_shape=trf_subjects_shape, n_feats=n_feats, band=band, stim=stim, pval_tresh=.05, 
+        #                       save_path=path_figures, display_interactive_mode=display_interactive_mode, save=save_figures, 
+        #                       no_figures=no_figures)
+                
+        
             
 # Get run time            
 run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
