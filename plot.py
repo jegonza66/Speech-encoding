@@ -1224,7 +1224,7 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
         #     gfp=False)
 
         # Add mean of all channels
-        plt.plot(
+        ax.plot(
             times * 1000, #ms
             evoked._data.mean(0), 
             'k--', 
