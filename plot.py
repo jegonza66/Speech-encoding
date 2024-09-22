@@ -791,8 +791,8 @@ def topo_map_relevant_times(average_weights_subjects:np.ndarray,
                          orientation='vertical',
                          shrink=0.6,
                          aspect=15,
-                         boundaries=[f(x) for x in np.linspace(chan_weight_j.min(), chan_weight_j.max(), 100)],
-                         ticks=[f(x) for x in np.linspace(chan_weight_j.min(),chan_weight_j.max(), 4)])
+                         boundaries=[f(x) for x in np.linspace(chan_weight_j.min(), chan_weight_j.max(), 100) if x not in [np.inf, 0]],
+                         ticks=[f(x) for x in np.linspace(chan_weight_j.min(),chan_weight_j.max(), 4) if x not in [np.inf, 0]])
             # cbar.formatter.set_powerlimits((-2, 2))
             # cbar.ax.xaxis.get_offset_text().set_position((.5,.5))
 
