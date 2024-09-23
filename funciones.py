@@ -146,46 +146,46 @@ def iteration_percentage(txt:str, i:int, length_of_iterator:int):
         percentage_bar =  f"[{'·'*(l):50s}] {(l*2)/100:.0%}\n"
     sys.stdout.write(txt+'\n'+percentage_bar)
 
-def mne_to_numpy(obj:Union[mne.io.array.array.RawArray,mne.io.eeglab.eeglab.RawEEGLAB,list], verbose:bool=True):
-    """Transform mne arrays and Raw EEG objects to numpy ndarrays. If obj is 1D, returns a flatten array.
+# def mne_to_numpy(obj:Union[mne.io.array.array.RawArray,mne.io.eeglab.eeglab.RawEEGLAB,list], verbose:bool=True):
+#     """Transform mne arrays and Raw EEG objects to numpy ndarrays. If obj is 1D, returns a flatten array.
 
-    Parameters
-    ----------
-    obj : Union[mne.io.array.array.RawArray,mne.io.eeglab.eeglab.RawEEGLAB,lisr]
-        mne Array, RawEEGLAB or list of them.
-    verbose : bool
-        Wether to print warning that data already is np.ndarray.
+#     Parameters
+#     ----------
+#     obj : Union[mne.io.array.array.RawArray,mne.io.eeglab.eeglab.RawEEGLAB,lisr]
+#         mne Array, RawEEGLAB or list of them.
+#     verbose : bool
+#         Wether to print warning that data already is np.ndarray.
 
-    Returns
-    -------
-    np.array
-        Array representation of object if it's not a list
-    list
-        A list of arrays representation of given list of objects
-    """
-    def to_numpy(obj_sub:Union[mne.io.array.array.RawArray,mne.io.eeglab.eeglab.RawEEGLAB]):
+#     Returns
+#     -------
+#     np.array
+#         Array representation of object if it's not a list
+#     list
+#         A list of arrays representation of given list of objects
+#     """
+#     def to_numpy(obj_sub:Union[mne.io.array.array.RawArray,mne.io.eeglab.eeglab.RawEEGLAB]):
         
-        # Check is it's already a np.ndarray
-        if isinstance(obj_sub, np.ndarray):
-            if verbose:
-                warnings.warn(f'The object passed already is a np.ndarray')
-            return obj_sub
+#         # Check is it's already a np.ndarray
+#         if isinstance(obj_sub, np.ndarray):
+#             if verbose:
+#                 warnings.warn(f'The object passed already is a np.ndarray')
+#             return obj_sub
 
-        # In general, mne objects are shaped as #chann X #samples, and usually we use #samples X #chann
-        data = obj_sub.get_data().T
-        # Assuming object doesn't have more than 2D. For 1D data, makes it flatten
-        if data.shape[1]==1:
-            return data.flatten()
-        else:
-            return data
+#         # In general, mne objects are shaped as #chann X #samples, and usually we use #samples X #chann
+#         data = obj_sub.get_data().T
+#         # Assuming object doesn't have more than 2D. For 1D data, makes it flatten
+#         if data.shape[1]==1:
+#             return data.flatten()
+#         else:
+#             return data
 
-    if isinstance(obj, list):
-        output_list = []
-        for arr in obj:
-            output_list.append(to_numpy(obj_sub=arr))
-        return output_list
-    else:
-        return to_numpy(obj_sub=obj)
+#     if isinstance(obj, list):
+#         output_list = []
+#         for arr in obj:
+#             output_list.append(to_numpy(obj_sub=arr))
+#         return output_list
+#     else:
+#         return to_numpy(obj_sub=obj)
     
 def match_lengths(dic, speaker_labels, minimum_length):
         """Match length of speaker labels and trial dictionary.

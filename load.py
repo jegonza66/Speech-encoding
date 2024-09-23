@@ -122,7 +122,7 @@ class Trial_channel:
 
         Returns
         -------
-        mne.io.meas_info.Info
+        mne.Info
             Montage of the measurment.
         """
         # Define montage and info object

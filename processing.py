@@ -3,9 +3,6 @@ import numpy as np, copy, mne
 from datetime import datetime
 from scipy import signal
 
-
-
-
 class Standarize():
     def __init__(self, axis:int=0):
         """Standarize train and test data to be used in a linear regressor model. 
@@ -279,77 +276,90 @@ def band_freq(band):
 
     return l_freq, h_freq
 
-# # TODO CHECK DESCRIPTION
-# def tfce(average_weights_subjects:np.ndarray,
-#          stimulus:str, 
-#          n_jobs:int=1, 
-#          n_permutations:int=1024, 
-#          threshold_tfce:dict=dict(start=0, step=0.2),
-#          verbose_tfce:bool=True):
-#     """_summary_
+# TODO CHECK DESCRIPTION
+def tfce(average_weights_subjects:np.ndarray,
+         stimulus:str, 
+         n_jobs:int=-1, 
+         sr:int=128,
+         n_permutations:int=64, 
+         threshold_tfce:dict=dict(start=0, step=0.2),
+         verbose_tfce:bool=True):
+    """_summary_
 
-#     Parameters
-#     ----------
-#     average_weights_subjects : np.ndarray
-#         _description_
-#     n_permutations : int, optional
-#         _description_, by default 1024
-#     threshold_tfce : dict, optional
-#         _description_, by default dict(start=0, step=0.2)
+    Parameters
+    ----------
+    average_weights_subjects : np.ndarray
+        _description_
+    n_permutations : int, optional
+        _description_, by default 1024
+    threshold_tfce : dict, optional
+        _description_, by default dict(start=0, step=0.2)
 
-#     Returns
-#     -------
-#     _type_
-#         _description_
-#     """
-#     t_0 = datetime.now().replace(microsecond=0)
+    Returns
+    -------
+    _type_
+        _description_
+    """
+    t_0 = datetime.now().replace(microsecond=0)
 
-#     # Get relevant parameters
-#     n_subjects, n_chan, total_number_features, n_delays  = average_weights_subjects.shape
-#     stimuli_connected_by_frequency = ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Spectrogram']
+    # Get relevant parameters
+    n_subjects, n_chan, total_number_features, n_delays  = average_weights_subjects.shape
+    stimuli_correlated_by_frequency = ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Spectrogram']
 
-#     # Get adjacency matrix
-#     montage = mne.channels.make_standard_montage('biosemi128')
-#     info_mne = mne.create_info(ch_names=montage.ch_names[:], sfreq=sr, ch_types='eeg').set_montage(montage)
-#     adj_matrix = mne.channels.find_ch_adjacency(info=info_mne)
+    # Perform it across features, averaging first across channels
+    if stimulus in stimuli_correlated_by_frequency:
+        weights_subjects_mean_across_channels = average_weights_subjects.copy().mean(axis=1)
+        weights = weights_subjects_mean_across_channels.reshape(n_subjects, n_delays, total_number_features)
+        t_tfce, clusters, p_tfce, H0 = mne.stats.permutation_cluster_1samp_test(
+                                                                                X=weights,
+                                                                                adjacency=None,
+                                                                                n_jobs=n_jobs,
+                                                                                threshold=threshold_tfce,
+                                                                                n_permutations=n_permutations,
+                                                                                out_type="mask",
+                                                                                verbose=verbose_tfce
+                                                                                )
+        p_tfce = p_tfce.reshape(t_tfce.shape)
+        if verbose_tfce:
+            t_f = datetime.now().replace(microsecond=0)-t_0
+            print(f'Performed TFCE succesfully in {t_f}')
 
-#     # Get desire shape
-#     if stimulus in stimuli_connected_by_frequency:
-#         weights_subjects_mean_across_channels = average_weights_subjects.copy().mean(axis=1)
-#         weights_subjects = weights_subjects_mean_across_channels.reshape(n_subjects, total_number_features, n_delays)
-#         t_tfce, clusters, p_tfce, H0 = mne.stats.permutation_cluster_1samp_test(
-#                                                                                 X=weights_subjects,
-#                                                                                 adjacency=adj_matrix,
-#                                                                                 n_jobs=n_jobs,
-#                                                                                 threshold=threshold_tfce,
-#                                                                                 n_permutations=n_permutations,
-#                                                                                 out_type="mask",
-#                                                                                 verbose=verbose_tfce
-#                                                                                 )
-#         p_tfce = p_tfce.reshape(total_number_features, n_delays)
-#     else:
-#         t_tfce_feat, p_tfce_feat = [], []
-#         for feat in range(total_number_features):
-#             t_tfce_feat, clusters, p_tfce_feat, H0 = mne.stats.permutation_cluster_1samp_test(
-#                                                                                             X=average_weights_subjects[n_subjects, n_chan, feat, n_delays],
-#                                                                                             adjacency=adj_matrix,
-#                                                                                             n_jobs=n_jobs,
-#                                                                                             threshold=threshold_tfce,
-#                                                                                             n_permutations=n_permutations,
-#                                                                                             out_type="mask",
-#                                                                                             verbose=verbose_tfce
-#                                                                                             )
-#             t_tfce_feat.append(t_tfce_feat)
-#             p_tfce_feat.append(p_tfce_feat)
-#         t_tfce_feat, p_tfce_feat = np.stack(t_tfce_feat, axis=0), np.stack(p_tfce_feat, axis=0) #TODO Check axis and dimension
-            
-#         p_tfce = p_tfce.reshape(n_chan, n_delays)
+        # Return average across channels
+        return t_tfce, p_tfce
+    
+    # Do it independently for each feature
+    else:
+        # Get adjacency matrix
+        montage = mne.channels.make_standard_montage('biosemi128')
+        info_mne = mne.create_info(ch_names=montage.ch_names[:], sfreq=sr, ch_types='eeg').set_montage(montage)
+        adj_matrix, names = mne.channels.find_ch_adjacency(info=info_mne, ch_type='eeg')
 
-#     if verbose_tfce:
-#         t_f = datetime.now().replace(microsecond=0)-t_0
-#         print(f'Performed TFCE succesfully in {t_f}')
+        # Get average across subjects
+        # weights_subjects_mean_across_subjects = average_weights_subjects.copy().mean(axis=0)
+        t_tfce, p_tfce = [], []
+        for feat in range(total_number_features):
+            # It performs tfce on https://mne.tools/1.6/generated/mne.stats.permutation_cluster_test.html
+            weights = average_weights_subjects.copy()[:, :, feat, :].reshape(n_subjects, n_delays, n_chan)
+            t_tfce_feat, clusters, p_tfce_feat, H0 = mne.stats.permutation_cluster_1samp_test(
+                                                                                            X=weights,
+                                                                                            adjacency=adj_matrix,
+                                                                                            n_jobs=n_jobs,
+                                                                                            threshold=threshold_tfce,
+                                                                                            n_permutations=n_permutations,
+                                                                                            out_type="mask",
+                                                                                            verbose=verbose_tfce
+                                                                                            )
+            t_tfce.append(t_tfce_feat)
+            p_tfce.append(p_tfce_feat.reshape(t_tfce_feat.shape))
+            print(f'Feature {feat+1} out of {total_number_features}')
+        t_tfce, p_tfce = np.stack(t_tfce, axis=0), np.stack(p_tfce, axis=0) 
 
-#     return t_tfce, p_tfce, weights_subjects.shape
+        if verbose_tfce:
+            t_f = datetime.now().replace(microsecond=0)-t_0
+            print(f'Performed TFCE succesfully in {t_f}')
+
+        # Return average across channels
+        return t_tfce, p_tfce
 
 # ###############
 
