@@ -57,7 +57,7 @@ if __name__=="__main__":
     wav_file = r'C:\repos\Speech-encoding\repo_speech_encoding\Datos\wavs\S21\s21.objects.01.channel1.wav'
     fs, signal = read(wav_file)
     phoeneme_obj = Phoenemes(audio_file=wav_file)
-    time,  phonemes = phoeneme_obj.compute_phonemes()
+    time,  phonemes = phoeneme_obj.compute_phonemes() #7161
     clean_phonemes = []
 
     for ph in phonemes:
@@ -73,7 +73,7 @@ if __name__=="__main__":
     exp_info = setup.exp_info()
     grid = textgrids.TextGrid(r'C:\repos\Speech-encoding\repo_speech_encoding\Datos\phonemes\S21\s21.objects.01.channel1.aligned_fa.TextGrid')
     phonemes_grid = grid['transcription : phones']
-    labels = []
+    labels = [] #351
 
     for ph in phonemes_grid:
         label = ph.text.transcode()
@@ -97,5 +97,5 @@ if __name__=="__main__":
         else:
             pass
 
-    clean_labels
-    even_cleaner_phonemes
+    clean_labels[:30]
+    even_cleaner_phonemes[:30]
