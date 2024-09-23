@@ -1975,6 +1975,7 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
         fig.savefig(f'session_{session}_subject_{subject}.png')
         fig.savefig(f'session_{session}_subject_{subject}.svg')
         os.chdir(current_working_directory)
+        plt.close(fig)
     
 
 ##############################################################
