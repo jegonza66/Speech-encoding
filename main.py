@@ -395,21 +395,28 @@ for band in bands:
             plot.topo_repeated_channels(repeated_good_coefficients_channels_subjects=repeated_good_rmse_channels_subjects, 
                                         info=info, display_interactive_mode=display_interactive_mode, save=save_figures, 
                                         save_path=path_figures, coefficient_name='RMSE', no_figures=no_figures)
-        
-        # # TFCE across subjects 
-        # tvalue_tfce, pvalue_tfce, trf_subjects_shape = tfce(average_weights_subjects=average_weights_subjects, n_jobs=1, n_permutations=n_permutations, stimulus=stim)
+        if perform_tfce:
+            del average_weights, average_rmse, average_correlation, correlation_per_channel, rmse_per_channel, correlation_matrix, root_mean_square_error,\
+                eeg_test, eeg, stims, stims_sujeto_1, stims_sujeto_2, sujeto_1, sujeto_2, eeg_sujeto_1, eeg_sujeto_2, predicted
+            
+            # Compute TFCE across
+            tvalue_tfce, pvalue_tfce = tfce(
+                                            average_weights_subjects=average_weights_subjects, 
+                                            n_jobs=-1, 
+                                            n_permutations=n_permutations, 
+                                            stimulus=stim,
+                                            verbose_tfce=True
+                                            )
 
-        # # Plot t and p values
-        # plot.plot_tvalue_pvalue_tfce(tvalue=tvalue_tfce, pvalue=pvalue_tfce, trf_subjects_shape=trf_subjects_shape, times=times, 
-        #                              band=band, stim=stim, n_feats=n_feats, info=info, pval_tresh=.05, save_path=path_figures, 
-        #                              display_interactive_mode=display_interactive_mode, save=save_figures, no_figures=no_figures)
-        
-        # plot.plot_pvalue_tfce(average_weights_subjects=average_weights_subjects, pvalue=pvalue_tfce, times=times, info=info,
-        #                       trf_subjects_shape=trf_subjects_shape, n_feats=n_feats, band=band, stim=stim, pval_tresh=.05, 
-        #                       save_path=path_figures, display_interactive_mode=display_interactive_mode, save=save_figures, 
-        #                       no_figures=no_figures)
-                
-        
+            # Plot t and p values
+            plot.plot_tvalue_pvalue_tfce(tvalue=tvalue_tfce, pvalue=pvalue_tfce, trf_subjects_shape=trf_subjects_shape, times=times, 
+                                         band=band, stim=stim, n_feats=n_feats, info=info, pval_tresh=.05, save_path=path_figures, 
+                                         display_interactive_mode=display_interactive_mode, save=save_figures, no_figures=no_figures)
+            
+            plot.plot_pvalue_tfce(average_weights_subjects=average_weights_subjects, pvalue=pvalue_tfce, times=times, info=info,
+                                  trf_subjects_shape=trf_subjects_shape, n_feats=n_feats, band=band, stim=stim, pval_tresh=.05, 
+                                  save_path=path_figures, display_interactive_mode=display_interactive_mode, save=save_figures, 
+                                  no_figures=no_figures)
             
 # Get run time            
 run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
