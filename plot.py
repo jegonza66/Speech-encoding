@@ -197,7 +197,7 @@ def null_correlation_vs_correlation_good_channels(good_channels_indexes:np.ndarr
 
 
 # TODO CHECK DESCRIPTION
-def lateralized_channels(info:mne.io.meas_info.Info, 
+def lateralized_channels(info:mne.Info, 
                          save_path:str, 
                          channels_right:list=['B27', 'B28', 'B29', 'B30', 'C4', 'C5', 'C6', 'C7', 'C9', 'C10', 'B31', 'C3'], 
                          channels_left:list=['D8', 'D9', 'D10', 'D11', 'D7', 'D6', 'D5', 'D4', 'C31', 'C32', 'D12', 'D3'], 
@@ -208,7 +208,7 @@ def lateralized_channels(info:mne.io.meas_info.Info,
 
     Parameters
     ----------
-    info : mne.io.meas_info.Info
+    info : mne.Info
         _description_
     save_path : str
         _description_
@@ -263,7 +263,7 @@ def lateralized_channels(info:mne.io.meas_info.Info,
 #TODO CHECK DESCRIPTION
 def topomap(good_channels_indexes:np.ndarray,
             average_coefficient:np.ndarray, 
-            info:mne.io.meas_info.Info,
+            info:mne.Info,
             coefficient_name:str, 
             save:bool, 
             save_path:str, 
@@ -279,7 +279,7 @@ def topomap(good_channels_indexes:np.ndarray,
         _description_
     average_coefficient : np.ndarray
         _description_
-    info : mne.io.meas_info.Info
+    info : mne.Info
         _description_
     coefficient_name : str
         _description_
@@ -318,8 +318,7 @@ def topomap(good_channels_indexes:np.ndarray,
                                   show=False, 
                                   sphere=0.07, 
                                   cmap='Greys', 
-                                  vmin=average_coefficient.min(), 
-                                  vmax=average_coefficient.max()
+                                  vlim=(average_coefficient.min(), average_coefficient.max())
                                   )
         
         # Mask for good channels
@@ -354,9 +353,9 @@ def topomap(good_channels_indexes:np.ndarray,
                                   show=False, 
                                   sphere=0.07, 
                                   cmap='Greys',
-                                  vmin=average_coefficient.min(), 
-                                  vmax=average_coefficient.max()
+                                  vlim=(average_coefficient.min(), average_coefficient.max())
                                   )
+                                  
         plt.colorbar(im[0], 
                     ax=ax, 
                     shrink=0.85, 
@@ -379,7 +378,7 @@ def topomap(good_channels_indexes:np.ndarray,
 
 #TODO CHECK DESCRIPTION
 def average_topomap(average_coefficient_subjects:np.ndarray, 
-                          info:mne.io.meas_info.Info,
+                          info:mne.Info,
                           stim:str,
                           save:bool, 
                           save_path:str, 
@@ -394,7 +393,7 @@ def average_topomap(average_coefficient_subjects:np.ndarray,
     ----------
     average_coefficient_subjects : np.ndarray
         _description_
-    info : mne.io.meas_info.Info
+    info : mne.Info
         _description_
     save : bool
         _description_
@@ -439,8 +438,7 @@ def average_topomap(average_coefficient_subjects:np.ndarray,
     im = mne.viz.plot_topomap(data=mean_average_coefficient, 
                               pos=info, 
                               cmap='OrRd',
-                              vmin=mean_average_coefficient.min(), 
-                              vmax=mean_average_coefficient.max(),
+                              vlim=(mean_average_coefficient.min(), mean_average_coefficient.max()),
                               show=False, 
                               sphere=0.07, 
                               axes=ax)
@@ -545,7 +543,7 @@ def average_topomap(average_coefficient_subjects:np.ndarray,
 
 #TODO CHECK DESCRIPTION
 def topo_average_pval(pvalues_coefficient_subjects:np.ndarray, 
-              info:mne.io.meas_info.Info, 
+              info:mne.Info, 
               save:bool, 
               save_path:str, 
               coefficient_name:str,
@@ -557,7 +555,7 @@ def topo_average_pval(pvalues_coefficient_subjects:np.ndarray,
     ----------
     pvalues_coefficient_subjects : np.ndarray
         _description_
-    info : mne.io.meas_info.Info
+    info : mne.Info
         _description_
     save : bool
         _description_
@@ -593,8 +591,7 @@ def topo_average_pval(pvalues_coefficient_subjects:np.ndarray,
     im = mne.viz.plot_topomap(data=topo_pval, 
                               pos=info, 
                               cmap='OrRd',
-                              vmin=0, 
-                              vmax=topo_pval.max(),
+                              vlim=(0, topo_pval.max()),
                               show=False, 
                               sphere=0.07,
                               axes=ax)
@@ -617,7 +614,7 @@ def topo_average_pval(pvalues_coefficient_subjects:np.ndarray,
 
 #TODO CHECK DESCRIPTION
 def topo_repeated_channels(repeated_good_coefficients_channels_subjects:np.ndarray, 
-                      info:mne.io.meas_info.Info, 
+                      info:mne.Info, 
                       save:bool, 
                       save_path:str, 
                       coefficient_name:str, 
@@ -629,7 +626,7 @@ def topo_repeated_channels(repeated_good_coefficients_channels_subjects:np.ndarr
     ----------
     repeated_good_coefficients_channels_subjects : np.ndarrays
         _description_
-    info : mne.io.meas_info.Info
+    info : mne.Info
         _description_
     save : bool
         _description_
@@ -663,8 +660,7 @@ def topo_repeated_channels(repeated_good_coefficients_channels_subjects:np.ndarr
     im = mne.viz.plot_topomap(data=sum_of_repeated_chan, 
                               pos=info, 
                               cmap='OrRd',
-                              vmin=0, 
-                              vmax=18,
+                              vlim=(0, 18),
                               show=False, 
                               sphere=0.07, 
                               axes=ax)
@@ -687,7 +683,7 @@ def topo_repeated_channels(repeated_good_coefficients_channels_subjects:np.ndarr
 
 #TODO CHECK DESCRIPTION
 def topo_map_relevant_times(average_weights_subjects:np.ndarray, 
-                            info:mne.io.meas_info.Info,
+                            info:mne.Info,
                             n_feats:list, 
                             band:str, 
                             stim:str, 
@@ -703,7 +699,7 @@ def topo_map_relevant_times(average_weights_subjects:np.ndarray,
     ----------
     average_weights_subjects : np.ndarray
         _description_
-    info : mne.io.meas_info.Info
+    info : mne.Info
         _description_
     n_feats : list
         _description_
@@ -780,9 +776,10 @@ def topo_map_relevant_times(average_weights_subjects:np.ndarray,
                                       pos=info, 
                                       axes=ax,
                                       show=False,
-                                      sphere=0.07, cmap=cmaps[j],
-                                      vmin=chan_weight_j.min().round(3),
-                                      vmax=chan_weight_j.max().round(3))
+                                      sphere=0.07, 
+                                      cmap=cmaps[j],
+                                      vlim=(chan_weight_j.min().round(3),chan_weight_j.max().round(3))
+                                      )
             
             # Configure colorbar
             f = lambda x: round(x, -int(np.floor(np.log10(abs(x)))))
@@ -812,7 +809,7 @@ def topo_map_relevant_times(average_weights_subjects:np.ndarray,
 
 #TODO CHECK DESCRIPTION
 def channel_wise_correlation_topomap(average_weights_subjects:np.ndarray, 
-                                     info:mne.io.meas_info.Info, 
+                                     info:mne.Info, 
                                      stim:str,
                                      save:bool, 
                                      save_path:str,
@@ -824,7 +821,7 @@ def channel_wise_correlation_topomap(average_weights_subjects:np.ndarray,
     ----------
     average_weights_subjects : np.ndarray
         _description_
-    info : mne.io.meas_info.Info
+    info : mne.Info
         _description_
     save : bool
         _description_
@@ -873,8 +870,8 @@ def channel_wise_correlation_topomap(average_weights_subjects:np.ndarray,
                               show=False, 
                               sphere=0.07,
                               cmap='Greens', 
-                              vmin=absolute_correlation_per_channel.min(),
-                              vmax=absolute_correlation_per_channel.max())
+                              vlim=(absolute_correlation_per_channel.min(),absolute_correlation_per_channel.max())
+                              )
     
     # Make colorbar
     cbar = plt.colorbar(im[0], 
@@ -895,7 +892,7 @@ def channel_wise_correlation_topomap(average_weights_subjects:np.ndarray,
         
 
 #TODO CHECK DESCRIPTION
-def channel_weights(info:mne.io.meas_info.Info,
+def channel_weights(info:mne.Info,
                     save:bool, 
                     save_path:str, 
                     average_correlation:np.ndarray, 
@@ -913,7 +910,7 @@ def channel_weights(info:mne.io.meas_info.Info,
 
     Parameters
     ----------
-    info : mne.io.meas_info.Info
+    info : mne.Info
         mne Info object depicting biosemi configuration of eeg channels 
     save : bool
         Whether to store the figure
@@ -1132,7 +1129,7 @@ def channel_weights(info:mne.io.meas_info.Info,
 
 #TODO CHECK DESCRIPTION
 def average_regression_weights(average_weights_subjects:np.ndarray, 
-                               info:mne.io.meas_info.Info,
+                               info:mne.Info,
                                save:bool, 
                                save_path:str,
                                times:np.ndarray,
@@ -1146,7 +1143,7 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
     ----------
     average_weights_subjects : np.ndarray
         _description_
-    info : mne.io.meas_info.Info
+    info : mne.Info
         mne Info object depicting biosemi configuration of eeg channels 
     save : bool
         Whether to store the figure
@@ -1480,7 +1477,7 @@ def plot_tvalue_pvalue_tfce(tvalue:np.ndarray,
                   times:np.ndarray, 
                   band:str, 
                   stim:str,
-                  info:mne.io.meas_info.Info,
+                  info:mne.Info,
                   n_feats:list, 
                   pval_tresh:float, 
                   save_path:str, 
@@ -1620,7 +1617,7 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
                 trf_subjects_shape:tuple, 
                 band:str, 
                 stim:str,
-                info:mne.io.meas_info.Info,
+                info:mne.Info,
                 n_feats:list, 
                 pval_tresh:float, 
                 save_path:str, 
@@ -2365,8 +2362,7 @@ def ch_heatmap_topo(total_data, info, delays, times, display_interactive_mode, S
 
     # ax.set_title('Mean = {:.3f} +/- {:.3f}'.format(max_pahse_sync.mean(), max_pahse_sync.std()))
     im = mne.viz.plot_topomap(max_pahse_sync, info, cmap='Reds',
-                              vmin=max_pahse_sync.min(),
-                              vmax=max_pahse_sync.max(),
+                              vlim=(max_pahse_sync.min(),max_pahse_sync.max()),
                               show=False, sphere=0.07, axes=ax)
     cb = plt.colorbar(im[0], shrink=1, orientation='horizontal')
     cb.set_label('r')
