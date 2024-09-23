@@ -43,15 +43,23 @@ stimuli = ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete
 # excluding pitch-log-raw because of its sparsity in External_BS
 
 stimuli = ['Envelope', 'Spectrogram', 'Deltas', 'Phonological', 'Mfccs', \
-           'Mfccs-Deltas', 'Phonological_Spectrogram','Phonological_Deltas',\
+           'Mfccs-Deltas', 'Mfccs-Deltas-Deltas','Phonological_Spectrogram','Phonological_Deltas',\
            'Phonological_Deltas_Spectrogram','Pitch-Log-Raw','Phonemes-Discrete-Manual',\
            'Phonemes-Onset-Manual','Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', \
            'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw', \
            'Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
-bands = ['Theta']#
-bands = ['Delta', 'Alpha', 'Beta1', 'Beta2']
-situation = 'External' #'External' 'External_BS' 'Internal_BS' 'Internal'
+bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
+stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Deltas', 'Phonemes-Discrete-Manual', 'Pitch-Log-Raw', 'Phonemes-Discrete', 'Phonemes-Onset'] 
 
+stimuli = ['Mfccs', \
+           'Mfccs-Deltas', 'Mfccs-Deltas-Deltas','Phonological_Spectrogram','Phonological_Deltas',\
+           'Phonological_Deltas_Spectrogram','Phonemes-Discrete',\
+           'Phonemes-Onset','Phonemes-Discrete_Pitch-Log-Raw_Envelope', \
+           'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw', \
+           'Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
+situation = 'Internal' #'External' 'External_BS' 'Internal_BS' 'Internal'
+
+#PARA INTERNAL NO CORRIO 'Phonemes-Discrete-Manual', 'Pitch-Log-Raw''Phonemes-Discrete', 'Phonemes-Onset'
 # Model, estimator and normalization of input
 estimator = 'time_delaying_ridge'
 stims_preprocess = 'Normalize'
@@ -193,6 +201,7 @@ for band in bands:
                     correlations[i_alpha] = correlation_per_channel.mean()
                     correlations_std[i_alpha] = correlation_per_channel.std()
                     print(f'\r·················· Sweeping progress  {int((i_alpha + 1) * 100 / steps)}% ··················', end='')
+                print('\n')
                 
                 # Find all indexes where the relative difference between the correlation and its maximum is within corr_limit_percent
                 relative_difference = abs((correlations.max() - correlations)/correlations.max())
