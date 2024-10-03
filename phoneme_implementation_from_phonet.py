@@ -1,101 +1,124 @@
 # Standard libraries
-import pandas as pd, numpy as np
+import numpy as np
 from scipy.io.wavfile import read
 
 # Specific libraries
 from phonet import Phonet
-import python_speech_features as pyfeat
 from scipy.signal import resample_poly
-import gc
-
-#IDEA HEREDAR CLASE DE PHONET QUE PERMITA CALCULAR LOS FONEMAS UTILIZADOS COMO VARIABLES TEMPORALES
 
 class Phoenemes(Phonet):
     def __init__(self, audio_file:str):
         super().__init__(phonological_classes='All')
         self.audio_file = audio_file
+        
+        # Modify parameters used to calculate Mfcc's inline with sample frequency of experiment
+        self.sr = 128
+        self.size_frame = 1/self.sr
+        self.time_shift = 1/self.sr
     
     def compute_phonemes(self):
-
         # Read the audio (.wav) file
-        fs, signal=read(self.audio_file)
+        fs, signal = read(self.audio_file)
         if fs!=16000:
-            signal, fs =resample_poly(signal, 16000, fs), 16e3
+            signal, fs = resample_poly(signal, 16000, fs), 16e3
         
         # This method extracts log-Mel-filterbank energies used as inputs of the model
-        feat = self.get_feat(signal,fs)        
+        feat = self.get_feat(signal, fs)        
 
-        nf=int(feat.shape[0]/self.len_seq) # len_seq=40 always
+        nf = int(feat.shape[0]/self.len_seq) # len_seq=40 always
 
-        start, end =0, self.len_seq
-        Feat = []
+        # Get features
+        features = []
+        start, end = 0, self.len_seq
         for j in range(nf):
-            featmat_t=feat[start:end,:]
-            Feat.append(featmat_t)
+            features.append(feat[start:end,:])
             start += self.len_seq
             end += self.len_seq
+        features = np.stack(features, axis=0)
+        features = features-self.MU
+        features = features/self.STD
         
-        Feat = np.stack(Feat, axis=0)
-        Feat = Feat-self.MU
-        Feat = Feat/self.STD
-        df={}
-        dfa={}
-        pred_mat_phon=np.asarray(self.model_phon.predict(Feat))
-        pred_mat_phon_seq=np.concatenate(pred_mat_phon,0)
-        pred_vec_phon=np.argmax(pred_mat_phon_seq,1)
+        # Get phonemes and times
+        pred_mat_phon = np.asarray(self.model_phon.predict(features))
+        pred_mat_phon_seq = np.concatenate(pred_mat_phon, axis=0)
+        pred_vec_phon = np.argmax(pred_mat_phon_seq, axis=1)
 
         nf=int(len(signal)/(self.time_shift*fs)-1)
         if nf>len(pred_vec_phon):
             nf=len(pred_vec_phon)
         
-        phonemes_list=self.number2phoneme(pred_vec_phon[:nf])
-
-        t2=np.arange(nf)*self.time_shift
-        return t2, phonemes_list
+        phonemes_list = self.number2phoneme(pred_vec_phon[:nf])
+        times = np.arange(nf)*self.time_shift
+        return times, phonemes_list
     
 if __name__=="__main__":
+    import scipy.io.wavfile as wavfile
+    from scipy import signal as sgn
+    import processing
     wav_file = r'C:\repos\Speech-encoding\repo_speech_encoding\Datos\wavs\S21\s21.objects.01.channel1.wav'
-    fs, signal = read(wav_file)
-    phoeneme_obj = Phoenemes(audio_file=wav_file)
-    time,  phonemes = phoeneme_obj.compute_phonemes() #7161
-    clean_phonemes = []
-
-    for ph in phonemes:
-        if ph != '<p:>':
-            clean_phonemes.append(ph)
-        else:
-            pass
-    even_cleaner_phonemes = [v for i, v in enumerate(clean_phonemes) if i == 0 or v != clean_phonemes[i-1]]
     
-    # Get older vesion to compare
-    import textgrids
-    import setup
-    exp_info = setup.exp_info()
-    grid = textgrids.TextGrid(r'C:\repos\Speech-encoding\repo_speech_encoding\Datos\phonemes\S21\s21.objects.01.channel1.aligned_fa.TextGrid')
-    phonemes_grid = grid['transcription : phones']
-    labels = [] #351
+    # Read file
+    wav = wavfile.read(wav_file)[1]
+    wav = wav.astype("float")
 
-    for ph in phonemes_grid:
-        label = ph.text.transcode()
-        label = label.replace(' ', '')
-        label = label.replace('º', '')
-        label = label.replace('-', '')
+    # Calculate envelope
+    envelope = np.abs(sgn.hilbert(wav))
+    
+    # Apply lowpass butterworth filter
+    envelope = processing.butter_filter(data=envelope, frecuencias=25, sampling_freq=16000,
+                                            btype='lowpass', order=3, axis=0, ftype='Causal').reshape(-1,1)
+    
+    
+    # Resample # TODO padear un cero en el envelope
+    window_size, stride = int(16000/128), int(16000/128)
+    envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)])
+    envelope = envelope.reshape(-1, 1)
+    # ================
+    
+    # Check if given kind is a permited input value
+    allowed_kind = ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
+    if kind not in allowed_kind:
+        raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
 
-        # Rename silences
-        if label in ['sil','sp','sile','silsil','SP','s¡p','sils']:
-            label = ""
-        
-        # Check if the phoneme is in the list
-        if not(label in exp_info.ph_labels_man or label==""):
-            print(f'"{label}" is not in not a recognized phoneme. Will be added as silence.')
-            label = ""
-        labels.append(label)
-    clean_labels = []
-    for ph in labels:
-        if ph != '':
-            clean_labels.append(ph)
-        else:
-            pass
+    phoneme_obj = Phoenemes(audio_file=wav_file)
+    # phoneme_obj = Phoenemes(audio_file=self.wav_fname)
+    time,  sec_phonemes = phoneme_obj.compute_phonemes() #9167
+    sec_phonemes = [phon if phon!='<p:>' else '' for phon in sec_phonemes]
 
-    clean_labels[:30]
-    even_cleaner_phonemes[:30]
+    # Match features length
+    difference = len(sec_phonemes) - len(envelope)
+
+    if difference > 0:
+        sec_phonemes = sec_phonemes[:-difference]
+    elif difference < 0:
+        # In this case, silences are append
+        for i in range(difference):
+            sec_phonemes.append('')
+    
+    # Make a list with phoneme labels tha already are in the known set
+    updated_taggs = np.unique(sec_phonemes).tolist()
+
+    # Make empty array of phonemes
+    phonemes = np.zeros(shape=(len(sec_phonemes), len(updated_taggs)))
+    
+    # Match phoneme with kind
+    if kind.startswith('Phonemes-Envelope'):
+        for i, tagg in enumerate(sec_phonemes):
+            phonemes[i, updated_taggs.index(tagg)] = envelope[i]
+    elif kind.startswith('Phonemes-Discrete'):
+        for i, tagg in enumerate(sec_phonemes):
+            phonemes[i, updated_taggs.index(tagg)] = 1
+    elif kind.startswith('Phonemes-Onset'):
+        # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
+        phonemes_onset = [sec_phonemes[0]]
+        for i in range(1, len(sec_phonemes)):
+            if sec_phonemes[i] == sec_phonemes[i-1]:
+                phonemes_onset.append(0)
+            else:
+                phonemes_onset.append(sec_phonemes[i])
+        # Match phoneme with envelope
+        for i, tagg in enumerate(phonemes_onset):
+            if tagg!=0:
+                phonemes[i, updated_taggs.index(tagg)] = 1
+    return phonemes, updated_taggs
+

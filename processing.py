@@ -339,7 +339,7 @@ def tfce(average_weights_subjects:np.ndarray,
         t_tfce, p_tfce = [], []
         for feat in range(total_number_features):
             # It performs tfce on https://mne.tools/1.6/generated/mne.stats.permutation_cluster_test.html
-            weights = average_weights_subjects.copy()[:, :, feat, :].reshape(n_subjects, n_delays, n_chan)
+            weights = average_weights_subjects.copy()[:, :, feat, :].swapaxes(1, 2)
             t_tfce_feat, clusters, p_tfce_feat, H0 = mne.stats.permutation_cluster_1samp_test(
                                                                                             X=weights,
                                                                                             adjacency=adj_matrix,

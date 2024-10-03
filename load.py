@@ -383,7 +383,6 @@ class Trial_channel:
             times.append((ph.xmin, ph.xmax))
             samples.append(np.round((ph.xmax - ph.xmin) * self.sr).astype("int"))
 
-
         # Extend on more phoneme of silence till end of trial 
         labels.append("")
         times.append((ph.xmin, trial_tmax))
