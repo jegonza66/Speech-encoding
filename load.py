@@ -756,9 +756,9 @@ class Sesion_class:
         # Define paths to export data
         self.export_paths = {}
         if self.causal_filter_eeg:
-            self.export_paths['EEG'] = os.path.join(self.preprocessed_data_path, 'EEG/Causal/')
+            self.export_paths['EEG'] = os.path.join(self.preprocessed_data_path, f'EEG/{band}/Causal/')
         else:
-            self.export_paths['EEG'] = os.path.join(self.preprocessed_data_path, 'EEG/')
+            self.export_paths['EEG'] = os.path.join(self.preprocessed_data_path, f'EEG/{band}/')
         if self.envelope_filter:
             self.export_paths['Envelope'] = os.path.join(self.preprocessed_data_path, f'Envelope/{self.envelope_filter}/')
         else:
