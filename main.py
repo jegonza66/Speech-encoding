@@ -100,7 +100,7 @@ for band in bands:
         
         # Relevant paths
         save_results_path = f'saves/{model}/{situation}/correlations/tmin{tmin}_tmax{tmax}/{band}/'
-        preprocessed_data_path = f'saves/preprocessed_data/{situation}/tmin{tmin}_tmax{tmax}/{band}/'
+        preprocessed_data_path = f'saves/preprocessed_data/{situation}/tmin{tmin}_tmax{tmax}/'
         path_weights = f'saves/{model}/{situation}/weights/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
         path_null = f'saves/{model}/{situation}/null/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
         path_figures = f'figures/{model}/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'

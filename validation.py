@@ -96,7 +96,7 @@ for band in bands:
         print('\n===========================\n','\tPARAMETERS\n\n','Model: ' + model+'\n','Band: ' + str(band)+'\n','Stimulus: ' + stim+'\n','Status: ' + situation+'\n',f'Time interval: ({tmin},{tmax})s\n','\n===========================\n')
         
         # Create relevant paths
-        preprocessed_data_path = os.path.normpath(f'saves/preprocessed_data/{situation}/tmin{tmin}_tmax{tmax}/{band}/')
+        preprocessed_data_path = os.path.normpath(f'saves/preprocessed_data/{situation}/tmin{tmin}_tmax{tmax}/')
         figures_path = os.path.normpath(f'figures/{model}_trace/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}')
         alphas_directory = os.path.normpath(f'saves/alphas/{situation}/stims_{stims_preprocess}/EEG_{eeg_preprocess}//tmin{tmin}_tmax{tmax}/{band}/{stim}/') 
         alphas_path = os.path.join(alphas_directory, f'corr_limit_{correlation_limit_percentage}.pkl')
