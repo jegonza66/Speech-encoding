@@ -38,12 +38,15 @@ start_time = datetime.now()
 # stimuli+= ['Phonological_Deltas_Spectrogram','Pitch-Log-Raw','Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
 # stimuli+= ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw']
 # stimuli+= ['Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
-stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Deltas', 'Phonemes-Discrete-Manual', 'Pitch-Log-Raw'] 
-
+stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Deltas', 'Phonemes-Discrete', 'Pitch-Log-Raw'] 
+stimuli = ['Envelope']
 bands = ['Beta1'] #, 'Delta', 'Alpha', 'Beta1', 'Beta2', 'All', 'Delta_Theta', 'Alpha_Delta_Theta']
 # bands = ['Delta','Theta', 'Alpha', 'Beta1', 'Beta2']
 situation = 'External' #'Internal_BS' #'External' # 'Internal' # 'External_BS'
 
+stimuli = ['Envelope']
+bands = ['Beta2']
+situation = 'Internal' #'External' 'External_BS' 'Internal_BS' 
 # Run setup
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 

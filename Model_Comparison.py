@@ -296,11 +296,11 @@ save_figures = True
 # CORRELATION MATRIX TOPOMAP: make matrix with correlation topomap ordering across features, situations and bands.
 # ================================================================================================================
 path_correlation_matrix_topo = os.path.join(path_figures,'correlation_matrix_topo')
-print(path_correlation_matrix_topo)
+
 # Relevant parameters
 bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
 # bands = ['Theta']
-stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Deltas', 'Phonemes-Discrete-Manual', 'Phonological'] # 'Envelope_Phonemes-Discrete-Manual'
+stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Deltas', 'Phonemes-Discrete', 'Phonological'] # 'Envelope_Phonemes-Discrete-Manual'
 # stimuli = ['Envelope_Phonemes-Discrete-Manual']
 
 # stimuli = ['Envelope', 'Spectrogram', 'Deltas', 'Phonological', 'Mfccs', 'Mfccs-Deltas', 'Phonological_Spectrogram','Phonological_Deltas']
@@ -360,8 +360,8 @@ fig.colorbar(im, ax=axes.ravel().tolist())
 if save_figures:
     temp_path = os.path.join(path_correlation_matrix_topo,'_'.join(sorted(stimuli)))
     os.makedirs(temp_path, exist_ok=True)
-    plt.savefig(os.path.join(temp_path, f'correlation_matrix_topo_2.png'))
-    plt.savefig(os.path.join(temp_path, f'correlation_matrix_topo_2.svg'))
+    plt.savefig(os.path.join(temp_path, f'correlation_matrix_topo.png'))
+    plt.savefig(os.path.join(temp_path, f'correlation_matrix_topo.svg'))
 plt.close()
 # # ==============================================================================================================
 # # SIMILARITY MATRIX TOPOMAP: make matrix with similarity topomap ordering across features, situations and bands.
