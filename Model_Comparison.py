@@ -28,7 +28,7 @@ pylab.rcParams.update(params)
 
 # Model parametrs
 model ='mtrf'
-situation = 'Internal'
+situation = 'External'
 stims_preprocess = 'Normalize'
 eeg_preprocess = 'Standarize'
 tmin, tmax = -.2, .6
@@ -301,7 +301,7 @@ path_correlation_matrix_topo = os.path.join(path_figures,'correlation_matrix_top
 bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
 # bands = ['Theta']
 stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Deltas', 'Phonemes-Discrete', 'Phonological'] # 'Envelope_Phonemes-Discrete-Manual'
-# stimuli = ['Envelope_Phonemes-Discrete-Manual']
+stimuli = ['Envelope', 'Phonological']
 
 # stimuli = ['Envelope', 'Spectrogram', 'Deltas', 'Phonological', 'Mfccs', 'Mfccs-Deltas', 'Phonological_Spectrogram','Phonological_Deltas']
 # stimuli+= ['Phonological_Deltas_Spectrogram','Pitch-Log-Raw','Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
@@ -355,13 +355,14 @@ for i, band in enumerate(bands):
 
 # Make colorbar
 fig.colorbar(im, ax=axes.ravel().tolist())
+fig.show()
 
 # Save figure
 if save_figures:
     temp_path = os.path.join(path_correlation_matrix_topo,'_'.join(sorted(stimuli)))
     os.makedirs(temp_path, exist_ok=True)
-    plt.savefig(os.path.join(temp_path, f'correlation_matrix_topo.png'))
-    plt.savefig(os.path.join(temp_path, f'correlation_matrix_topo.svg'))
+    fig.savefig(os.path.join(temp_path, f'correlation_matrix_topo.png'))
+    fig.savefig(os.path.join(temp_path, f'correlation_matrix_topo.svg'))
 plt.close()
 # # ==============================================================================================================
 # # SIMILARITY MATRIX TOPOMAP: make matrix with similarity topomap ordering across features, situations and bands.
