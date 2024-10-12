@@ -364,6 +364,151 @@ if save_figures:
     fig.savefig(os.path.join(temp_path, f'correlation_matrix_topo.png'))
     fig.savefig(os.path.join(temp_path, f'correlation_matrix_topo.svg'))
 plt.close()
+# ================================================================================================================
+# CORRELATION MATRIX TOPOMAP: make matrix with correlation topomap ordering across features, situations and bands.
+# ================================================================================================================
+path_correlation_matrix_topo = os.path.join(path_figures,'lateralization_matrix_topo')
+
+# Relevant parameters
+bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
+# bands = ['Theta']
+stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Deltas', 'Phonemes-Discrete', 'Phonological'] # 'Envelope_Phonemes-Discrete-Manual'
+stimuli = ['Envelope', 'Phonological']
+
+# stimuli = ['Envelope', 'Spectrogram', 'Deltas', 'Phonological', 'Mfccs', 'Mfccs-Deltas', 'Phonological_Spectrogram','Phonological_Deltas']
+# stimuli+= ['Phonological_Deltas_Spectrogram','Pitch-Log-Raw','Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
+# stimuli+= ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw']
+# stimuli+= ['Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
+
+# stimuli = ['Envelope']
+n_stims, n_bands = len(stimuli), len(bands)
+# stimuli = sorted(stimuli)
+
+# Get mean correlations across subjects and total max and min
+correlations = {(stim,band):load_pickle(path=os.path.join(final_corr_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
+minimum_cor, maximum_cor = min([correlation.min() for correlation in correlations.values()]), max([correlation.max() for correlation in correlations.values()])
+
+# # Create figure and title
+# fig, axes = plt.subplots(figsize=(3*n_stims,1.5*n_bands), nrows=n_bands, ncols=n_stims, layout="constrained")
+# fig.suptitle('Lateralization visualization')
+# if n_stims==1:
+#     axes = axes.reshape(n_bands, 1)
+# elif n_bands==1:
+#     axes = axes.reshape(1, n_stims)
+
+# # Configure axis
+# for ax, col in zip(axes[0], stimuli):
+#     ax.set_title(col)
+# for ax, row in zip(axes[:,0], bands):
+#     ax.set_ylabel(row, rotation=90)
+
+# Build scale
+# normalizer = LogNorm(vmin=np.round(minimum_cor,2), vmax=np.round(maximum_cor,2))
+normalizer = Normalize(vmin=np.round(minimum_cor,2), vmax=np.round(maximum_cor,2))
+im = cm.ScalarMappable(norm=normalizer, cmap='Reds')
+
+# Get groups to make average correlations
+n_groups = 10
+posicion_x = np.array([montage._get_ch_pos()[ch][0] for ch in montage._get_ch_pos()])
+posicion_y = np.array([montage._get_ch_pos()[ch][1] for ch in montage._get_ch_pos()])
+bins_x = np.linspace(posicion_x.min(), posicion_x.max(), n_groups)
+bins_y = np.linspace(posicion_y.min(), posicion_y.max(), n_groups)
+
+groups_x = []
+groups_y = []
+
+for i in range(1, n_groups):
+    group_x, group_y = [], []
+    for ch in montage._get_ch_pos():
+        x_value = montage._get_ch_pos()[ch][0]
+        y_value = montage._get_ch_pos()[ch][1]
+        if bins_x[i-1]<=x_value<=bins_x[i]:
+            group_x.append(info_mne.ch_names.index(ch))
+        if bins_y[i-1]<=y_value<=bins_y[i]:
+            group_y.append(info_mne.ch_names.index(ch))
+    groups_x.append(group_x)
+    groups_y.append(group_y)
+
+mne.viz.plot_sensors(
+                    info=info_mne,
+                    show_names=True,
+                    block=False,
+                    pointsize=75,
+                    # cmap=matplotlib.colors.Colormap('pers', N=6),
+                    # kind='select',
+                    ch_groups=groups_x
+                    )
+mne.viz.plot_sensors(
+                    info=info_mne,
+                    show_names=True,
+                    block=False,
+                    pointsize=75,
+                    # cmap=matplotlib.colors.Colormap('pers', N=6),
+                    # kind='select',
+                    ch_groups=groups_y
+                    )
+# Para ver si está balanceado
+# plt.figure()
+# plt.hist(posicion_x, bins)
+# plt.grid(visible=True)
+# plt.yticks(ticks=np.arange(0,20))
+# plt.show(block=False)
+
+# Iterate over bands
+for i, band in enumerate(bands):
+    for j, stim in enumerate(stimuli):
+        # Get average correlation of each stimulus across subjects
+        average_correlation = correlations[(stim,band)]
+        
+        fig, axes = plt.subplots(nrows=2, ncols=2)
+
+        # Get average correlation of each stimulus across subjects
+        fig.suptitle(t=f'{band}-{stim}')
+
+        # Plot topomap        
+        mne.viz.plot_topomap(
+                            data=average_correlation, 
+                            pos=info_mne, 
+                            # axes=axes[i, j], 
+                            show=False, 
+                            sphere=0.07, 
+                            cmap='Reds', 
+                            vlim=(minimum_cor, maximum_cor),
+                            axes=axes[0,0],
+                            cnorm=normalizer
+                            )
+        axes[1, 0].scatter(np.arange(n_groups-1),[average_correlation[group].mean() for group in groups_x])
+        axes[1, 0].plot(np.arange(n_groups-1),[average_correlation[group].mean() for group in groups_x])
+
+        axes[1, 0].set_xlabel('Groups')
+        axes[1, 0].set_ylabel('Average correlation')
+        axes[1, 0].grid(visible=True)
+
+        # Grafico invertido los ejes
+        axes[0, 1].scatter([average_correlation[group].mean() for group in groups_y], np.arange(n_groups-1))
+        axes[0, 1].plot([average_correlation[group].mean() for group in groups_y], np.arange(n_groups-1))
+
+        axes[0, 1].set_xlabel('Average correlation')
+        axes[0, 1].set_ylabel('Groups')
+        axes[0, 1].grid(visible=True)
+
+        axes[1, 1].set_axis_off()
+        fig.show()
+
+
+
+# Make colorbar
+fig.colorbar(im, ax=axes.ravel().tolist())
+fig.show()
+
+# Save figure
+if save_figures:
+    temp_path = os.path.join(path_correlation_matrix_topo,'_'.join(sorted(stimuli)))
+    os.makedirs(temp_path, exist_ok=True)
+    fig.savefig(os.path.join(temp_path, f'correlation_matrix_topo.png'))
+    fig.savefig(os.path.join(temp_path, f'correlation_matrix_topo.svg'))
+plt.close()
+
 # # ==============================================================================================================
 # # SIMILARITY MATRIX TOPOMAP: make matrix with similarity topomap ordering across features, situations and bands.
 # # ==============================================================================================================
