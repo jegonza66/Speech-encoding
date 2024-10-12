@@ -9,6 +9,7 @@ from sklearn.model_selection import KFold
 from funciones import load_pickle, dump_pickle, dict_to_csv
 from simulations import simulation_mtrf
 from load import load_data
+load_pickle(path=r"C:\repos\Speech-encoding\repo_speech_encoding\saves\preprocessed_data\External\tmin-0.2_tmax0.6\EEG\Theta\info.pkl")
 
 # Notofication bot
 from labos.notificacion_bot import mensaje_tel
@@ -32,11 +33,8 @@ delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
 times = (delays/sr)
 
 # Stimuli, EEG frecuency band and dialogue situation
-stimuli = ['Pitch-Log-Raw', 'Spectrogram', 'Deltas','Phonemes-Discrete-Manual']
-# stimuli = ['Envelope', 'Phonological', 'Deltas', 'Phonemes-Discrete-Manual','Pitch-Log-Raw','Spectrogram']
-stimuli = ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw']
-
-bands = ['Theta']#['Alpha', 'Beta1', 'All']
+stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Deltas', 'Phonemes-Discrete', 'Pitch-Log-Raw', 'Phonemes-Onset'] 
+bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
 situation = 'External'
 
 # Model and normalization of input
@@ -75,9 +73,9 @@ for band in bands:
         print('\n===========================\n','\tPARAMETERS\n\n','Model: ' + model+'\n','Band: ' + str(band)+'\n','Stimulus: ' + stim+'\n','Status: ' + situation+'\n',f'Time interval: ({tmin},{tmax})s\n','\n===========================\n')
         
         # Relevant paths
-        preprocessed_data_path = f'saves/preprocessed_data/{situation}/tmin{tmin}_tmax{tmax}/{band}/'
+        preprocessed_data_path = f'saves/preprocessed_data/{situation}/tmin{tmin}_tmax{tmax}/'
         path_null = f'saves/{model}/{situation}/null/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
-        praat_executable_path=r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"
+        praat_executable_path=r"C:\Program Files\Praat\Praat.exe"#r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" 
         alphas_directory = os.path.normpath(f'saves/alphas/{situation}/stims_{stims_preprocess}/EEG_{eeg_preprocess}//tmin{tmin}_tmax{tmax}/{band}/{stim}/') 
         alphas_path = os.path.join(alphas_directory, f'corr_limit_{correlation_limit_percentage}.pkl')
 
@@ -146,23 +144,24 @@ for band in bands:
 
                     # Run permutations # TODO parallelize it
                     null_weights_per_fold, null_correlation_per_channel_per_fold, null_errors_per_fold = simulation_mtrf(
-                        iterations=iterations,
-                        fold=fold,
-                        stims=stims,
-                        eeg=eeg,
-                        sr=sr,
-                        tmin=tmin,
-                        tmax=tmax,
-                        relevant_indexes=relevant_indexes,
-                        alpha=alpha,
-                        train_indexes=train_indexes,
-                        test_indexes=test_indexes,
-                        stims_preprocess=stims_preprocess,
-                        eeg_preprocess=eeg_preprocess,
-                        null_correlation=null_correlation_per_channel_per_fold,
-                        null_weights=null_weights_per_fold,
-                        null_errors=null_errors_per_fold, 
-                        n_jobs=n_jobs)
+                                                                                                                        iterations=iterations,
+                                                                                                                        fold=fold,
+                                                                                                                        stims=stims,
+                                                                                                                        eeg=eeg,
+                                                                                                                        sr=sr,
+                                                                                                                        tmin=tmin,
+                                                                                                                        tmax=tmax,
+                                                                                                                        relevant_indexes=relevant_indexes,
+                                                                                                                        alpha=alpha,
+                                                                                                                        train_indexes=train_indexes,
+                                                                                                                        test_indexes=test_indexes,
+                                                                                                                        stims_preprocess=stims_preprocess,
+                                                                                                                        eeg_preprocess=eeg_preprocess,
+                                                                                                                        null_correlation=null_correlation_per_channel_per_fold,
+                                                                                                                        null_weights=null_weights_per_fold,
+                                                                                                                        null_errors=null_errors_per_fold, 
+                                                                                                                        n_jobs=n_jobs
+                                                                                                                        )
                     # if model == 'decoding':
                     #     t_lag = np.where(times == t_lags[band])[0][0]
                     #     Fake_Model = mtrf_models.mne_mtrf_decoding(tmin, tmax, sr, info, alpha, t_lag)

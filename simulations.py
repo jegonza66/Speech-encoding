@@ -9,7 +9,7 @@ import numpy as np, copy
 from mtrf_models import Receptive_field_adaptation
 
 def permutations(iteration:int, eeg:np.ndarray, stims:np.ndarray, tmin:float, tmax:float, sr:int, alpha:float, relevant_indexes:list, 
-                     train_indexes:np.ndarray, test_indexes:np.ndarray, stims_preprocess:float, eeg_preprocess:float):
+                     train_indexes:np.ndarray, test_indexes:np.ndarray, stims_preprocess:float, eeg_preprocess:float, n_jobs:int=-1):
         
         # Define null model
         null_model = Receptive_field_adaptation(
@@ -23,7 +23,7 @@ def permutations(iteration:int, eeg:np.ndarray, stims:np.ndarray, tmin:float, tm
                         stims_preprocess=stims_preprocess, 
                         eeg_preprocess=eeg_preprocess,
                         fit_intercept=False,
-                        n_jobs=1,
+                        n_jobs=n_jobs,
                         shuffle=True, 
                         estimator='time_delaying_ridge')
 
@@ -80,7 +80,8 @@ def simulation_mtrf(iterations:int,
                                                                                               train_indexes=train_indexes, 
                                                                                               test_indexes=test_indexes, 
                                                                                               stims_preprocess=stims_preprocess, 
-                                                                                              eeg_preprocess=eeg_preprocess)
+                                                                                              eeg_preprocess=eeg_preprocess,
+                                                                                              n_jobs=n_jobs)
         if len(iterations)>=10:
             if i in iterations[::int(len(iterations)/10)]:
                 print("\t\t\rProgress {}%".format(int((i + 1) * 100 / len(iterations))), end='')
