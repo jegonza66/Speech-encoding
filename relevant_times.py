@@ -3,18 +3,6 @@ import matplotlib.pyplot as plt, numpy as np, os, mne, pandas as pd, seaborn as 
 from matplotlib.colors import Normalize
 from datetime import datetime
 import matplotlib.cm as cm
-
-# Specific libraries
-
-# Modules
-from funciones import load_pickle, dump_pickle
-from processing import tfce
-from setup import exp_info
-phonological_labels = list(exp_info().phonological_labels)
-
-# Default size is 10 pts, the scalings (10pts*scale) are:
-#'xx-small':0.579,'x-small':0.694,'s
-# mall':0.833,'medium':1.0,'large':1.200,'x-large':1.440,'xx-large':1.728,None:1.0}
 import matplotlib.pylab as pylab
 params = {'legend.fontsize': 'x-large',
           'legend.title_fontsize': 'x-large',
@@ -26,29 +14,43 @@ params = {'legend.fontsize': 'x-large',
           'ytick.labelsize':'large'}
 pylab.rcParams.update(params)
 
-# Model parametrs
-model ='mtrf'
-stims_preprocess = 'Normalize'
-eeg_preprocess = 'Standarize'
+# Specific libraries
 
+# Modules
+from funciones import load_pickle, dump_pickle
+from processing import tfce
+from setup import exp_info
+phonological_labels = list(exp_info().phonological_labels)
+
+# ===========
+# PARAMETERS
 tmin, tmax, sr = -.2, .6, 128
 delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
 times = (delays/sr)
 
 montage = mne.channels.make_standard_montage('biosemi128')
 info_mne = mne.create_info(ch_names=montage.ch_names[:], sfreq=sr, ch_types='eeg').set_montage(montage)
+stims_preprocess = 'Normalize'
+eeg_preprocess = 'Standarize'
+model = 'mtrf'
 
+# TFCE parameters
+pval_tresh, n_permutations = .05, 2500
+
+# Code parameters
+save_figures = True
 #==================
 # FEATURE SELECTION
-# Whether to use or not just relevant channels
-pval_tresh, n_permutations = .05, 2500
-situation = 'External'
-bands = ['Delta','Theta', 'Alpha', 'Beta1', 'Beta2']
 stimuli = ['Envelope', 'Spectrogram', 'Deltas', 'Phonological', 'Mfccs', 'Mfccs-Deltas', 'Phonological_Spectrogram','Phonological_Deltas']
 stimuli+= ['Phonological_Deltas_Spectrogram','Pitch-Log-Raw','Phonemes-Discrete', 'Phonemes-Onset']
 stimuli+= ['Phonemes-Discrete_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw']
 stimuli+= ['Envelope_Phonemes-Onset', 'Envelope_Phonemes-Discrete']
 stimuli = ['Envelope', 'Spectrogram', 'Deltas', 'Phonological', 'Mfccs', 'Mfccs-Deltas', 'Pitch-Log-Raw', 'Phonemes-Discrete']
+
+bands = ['Delta','Theta', 'Alpha', 'Beta1', 'Beta2']
+# bands = ['Theta']
+
+situation = 'External'
 
 # Relevant paths
 path_figures = os.path.normpath(f'figures/{model}/relevant_times/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/')
@@ -56,49 +58,99 @@ final_corr_path = os.path.normpath(f'saves/{model}/{situation}/correlations/tmin
 weights_path = os.path.normpath(f'saves/{model}/{situation}/weights//stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/')
 path_TFCE = f'saves/{model}/{situation}/TFCE/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/'
 
-# Code parameters
-save_figures = True
-
-# ============
-# RUN ANALYSIS
-# ============
-# stimuli =['Envelope','Phonological']
+# =========
+# RUN TFCE
+significant_n_channels = {band:{stimulus:None for stimulus in stimuli} for band in bands}
 pvalues = {band:{stimulus:None for stimulus in stimuli} for band in bands}
+
 for band in bands:
-    for stim in stimuli:
+    for stimulus in stimuli:
 
         # Sort stimuli and bands
-        ordered_stims, ordered_band = sorted(stim.split('_')), sorted(band.split('_'))
-        stim, band = '_'.join(ordered_stims), '_'.join(ordered_band)
+        ordered_stims, ordered_band = sorted(stimulus.split('_')), sorted(band.split('_'))
+        stimulus, band = '_'.join(ordered_stims), '_'.join(ordered_band)
 
         # Update
-        print('\n===========================\n','\tPARAMETERS\n\n','Model: ' + model+'\n','Band: ' + str(band)+'\n','Stimulus: ' + stim+'\n','Status: ' + situation+'\n','\n===========================\n')
+        print('\n===========================\n','\tPARAMETERS\n\n','Model: ' + model+'\n','Band: ' + str(band)+'\n','Stimulus: ' + stimulus+'\n','Status: ' + situation+'\n','\n===========================\n')
 
         # Loads TFCE
         try:
             print("\nLoading data")
-            tvalue_tfce, pvalue_tfce = load_pickle(path=os.path.join(path_TFCE, band, stim + f'_{n_permutations}.pkl'))
-            pvalues[band][stim] = pvalue_tfce
-            print('\n===========================\n','Band: ' + str(band)+'\n','Stimulus: ' + stim+'\n','Status: ' + situation+'\n','\n\tLoad succesful\n','\n===========================\n')
+            tvalue_tfce, pvalue_tfce = load_pickle(path=os.path.join(path_TFCE, band, stimulus + f'_{n_permutations}.pkl'))
+            pvalues[band][stimulus] = pvalue_tfce
+            print('\n===========================\n','\nBand: ' + str(band)+'\n','Stimulus: ' + stimulus+'\n','Status: ' + situation+'\n','\n\tLoad succesful\n','\n===========================\n')
         except:
             print("\nLoad fail", "\nComputing TFCE")
 
             # Load weights (n_subjects, n_chan, n_feats, n_delays) 
-            average_weights_subjects = load_pickle(path=os.path.join(weights_path, band, stim, 'total_weights_per_subject.pkl'))['average_weights_subjects']
+            average_weights_subjects = load_pickle(path=os.path.join(weights_path, band, stimulus, 'total_weights_per_subject.pkl'))['average_weights_subjects']
 
             # Compute TFCE to get p-value
             tvalue_tfce, pvalue_tfce = tfce(
                                             average_weights_subjects=average_weights_subjects,
-                                            stimulus=stim, 
+                                            stimulus=stimulus, 
                                             n_jobs=-1, 
                                             n_permutations=n_permutations
                                             )
             
             # Save TFCE
             os.makedirs(os.path.join(path_TFCE, band), exist_ok=True)
-            dump_pickle(path=os.path.join(path_TFCE, band, stim + f'_{n_permutations}.pkl'), obj=(tvalue_tfce, pvalue_tfce), rewrite=True)
+            dump_pickle(path=os.path.join(path_TFCE, band, stimulus + f'_{n_permutations}.pkl'), obj=(tvalue_tfce, pvalue_tfce), rewrite=True)
             
-            pvalues[band][stim] = pvalue_tfce
+            # Fill dictionary
+            pvalues[band][stimulus] = pvalue_tfce
+
+        if pvalues[band][stimulus].ndim==3:
+            n_features, n_delays, n_channels = pvalues[band][stimulus].shape
+            significant_delays = np.zeros(shape=(n_features, n_delays))
+
+            # Iteate over columns to get number of channels per feature that passes the threshold
+            for feature in range(n_features):
+                for delay in range(n_delays):
+                    # Count how many channels pass the threshold for a given feature and delay
+                    ppval = pvalues[band][stimulus][feature][delay]
+                    significant_delays[feature, delay] = len(ppval[ppval<pval_tresh])
+            significant_n_channels[band][stimulus] = significant_delays
+
+            plt.figure()
+            plt.title(stimulus+' '+ band)
+            if n_features==1:
+                img = plt.pcolormesh(
+                                    # times*1e3, # x
+                                    # np.arange(n_features), # y
+                                    significant_n_channels[band][stimulus], # z
+                                    shading='auto'
+                                    )
+                plt.yticks([])
+                plt.xticks(ticks=np.arange(n_delays)[::25], labels=[int(t) for t in (times[::25]*1e3).round(-1)])
+            else:
+                img = plt.pcolormesh(
+                                    times*1e3, # x
+                                    np.arange(n_features), # y
+                                    significant_n_channels[band][stimulus], # z
+                                    shading='auto'
+                                    )
+                plt.ylabel('Features')
+                
+            cbar = plt.colorbar( 
+                                orientation="vertical", 
+                                label=r"#of significant channels",
+                                fraction=0.05, 
+                                pad=0.025, 
+                                mappable=img
+                                )
+            if stimulus.startswith('Phonolog'):
+                plt.yticks(ticks=np.arange(significant_n_channels[band][stimulus].shape[0]).tolist(),labels=phonological_labels)
+            # plt.xticks(ticks=[0,26,103], labels=[-200,0,600])
+            # plt.yticks(ticks=[])
+            plt.xlabel('Time (ms)')
+            plt.show(block=False)
+
+        else: #TODO ojo sobre éstos tipos de pvalues no se puede calcular el número de canales significantes ¿no habría que unificar el criterio si pretendemos comparar la latencia?
+            n_delays, n_features = pvalues[band][stimulus].shape
+            significant_delays = np.zeros(shape=(n_features, n_delays))
+
+
         
         # pvalue_tfce[0][pvalue_tfce[0]>0.05]=1
         # plt.figure()
@@ -107,30 +159,10 @@ for band in bands:
 
         # Make pvalue figures
 
-# Iteate over columns to get number of channels per feature that passes the threshold
-significant_n_channels = {band:{stimulus:None for stimulus in stimuli} for band in bands}
-for band in bands:
-    for stimulus in stimuli:
-        pvalues[band][stimulus].shape
-        n_features, n_delays, n_channels = pvalues[band][stimulus].shape
-        n_features, n_delays, n_channels
-        significant_delays = np.zeros(shape=(n_features, n_delays))
-        for feature in range(n_features):
-            for delay in range(n_delays):
-                # Count how many channels pass the threshold for a given feature and delay
-                ppval = pvalues[band][stimulus][feature][delay]
-                significant_delays[feature, delay] = len(ppval[ppval<pval_tresh])
-        significant_n_channels[band][stimulus] = significant_delays
+
 for stimulus in stimuli:
     data = significant_n_channels['Theta'][stimulus]
-    plt.figure()
-    plt.pcolormesh(data)
-    if stimulus.startswith('Phonolog'):
-        plt.yticks(ticks=np.arange(data.shape[0]).tolist(),labels=phonological_labels)
-    plt.xticks(ticks=[0,26,103], labels=[-200,0,600])
-    plt.ylabel('# of significant channels')
-    plt.xlabel('Time (ms)')
-    plt.show(block=False)
+    
 
 # # ============================================
 # # Order stimuli according latence in each band
