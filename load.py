@@ -940,7 +940,7 @@ class Sesion_class:
         """
         # Load EEGs and procesed data
         eeg_sujeto_1, eeg_sujeto_2 = funciones.load_pickle(path=os.path.join(self.export_paths['EEG'], f'Sesion{self.sesion}.pkl'))
-        info = funciones.load_pickle(path=os.path.join(self.preprocessed_data_path, 'EEG/info.pkl'))
+        info = funciones.load_pickle(path=os.path.join(self.preprocessed_data_path, f'EEG/{self.band}/info.pkl'))
         samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.sesion}.pkl'))
         sujeto_1 = {'EEG': eeg_sujeto_1, 'info': info}
         sujeto_2 = {'EEG': eeg_sujeto_2, 'info': info}
