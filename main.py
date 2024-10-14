@@ -39,14 +39,12 @@ start_time = datetime.now()
 # stimuli+= ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw']
 # stimuli+= ['Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
 stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Deltas', 'Phonemes-Discrete', 'Pitch-Log-Raw'] 
-stimuli = ['Envelope']
-bands = ['Beta1'] #, 'Delta', 'Alpha', 'Beta1', 'Beta2', 'All', 'Delta_Theta', 'Alpha_Delta_Theta']
+stimuli = ['Phonemes-Envelope-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Discrete-Phonet']
+stimuli = ['Phonemes-Discrete-Phonet']
+bands = ['Theta'] #, 'Delta', 'Alpha', 'Beta1', 'Beta2', 'All', 'Delta_Theta', 'Alpha_Delta_Theta']
 # bands = ['Delta','Theta', 'Alpha', 'Beta1', 'Beta2']
 situation = 'External' #'Internal_BS' #'External' # 'Internal' # 'External_BS'
 
-stimuli = ['Envelope']
-bands = ['Beta2']
-situation = 'Internal' #'External' 'External_BS' 'Internal_BS' 
 # Run setup
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 
@@ -163,6 +161,8 @@ for band in bands:
                     phonemes = exp_info()
                     if stimulus.endswith('Manual'):
                         phonemes = phonemes.ph_labels_man
+                    elif stimulus.endswith('Phonet'):
+                        phonemes = [el if el!='<p:>' else '' for el in phonemes.ph_labels_phonet]
                     else:
                         phonemes = phonemes.ph_labels
                     phoenemes_ocurrences[sesion][stimulus] = {'phonemes':phonemes, 'count':np.sum(matrix, axis=0)}
@@ -357,8 +357,8 @@ for band in bands:
                         rewrite=True)
         
         # Plot phoneme ocurrences
-        if np.array([bool(d) for d in phoenemes_ocurrences.values()]).any():
-            plot.phonemes_ocurrences(ocurrences=phoenemes_ocurrences, save_path=path_figures, save=save_figures, no_figures=no_figures)
+        # if np.array([bool(d) for d in phoenemes_ocurrences.values()]).any():
+        #     plot.phonemes_ocurrences(ocurrences=phoenemes_ocurrences, save_path=path_figures, save=save_figures, no_figures=no_figures)
 
         # Plot average results only if all subjects are analyzed
         no_figures=True if (total_number_of_subjects!=18) else no_figures

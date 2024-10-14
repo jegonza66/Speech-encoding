@@ -69,7 +69,10 @@ def phonemes_ocurrences(ocurrences:dict,
     for stimulus in stimuli:
         
         # The list of phonemes labels
-        phn = ocurrences[sesions[0]][stimulus]['phonemes']
+        if stimulus.endswith('Phonet'):
+            phn = ocurrences[sesions[0]][stimulus]['phonemes'][:-1]
+        else:
+            phn = ocurrences[sesions[0]][stimulus]['phonemes']
 
         # Make a dict with the relevant data
         relevant_data = {}
@@ -98,6 +101,7 @@ def phonemes_ocurrences(ocurrences:dict,
             fig.savefig(f'{stimulus}_ocurrences.png')
             fig.savefig(f'{stimulus}_ocurrences.svg')
             os.chdir(current_working_directory)
+            
 
 # TODO HALF CHECK
 def null_correlation_vs_correlation_good_channels(good_channels_indexes:np.ndarray,
@@ -258,7 +262,6 @@ def lateralized_channels(info:mne.Info,
         fig.savefig(f'masked_left_vs_right_chs_{len(channels_right)}_channels.png')
         fig.savefig(f'masked_left_vs_right_chs_{len(channels_right)}_channels.svg')
         os.chdir(current_working_directory)
-
 
 #TODO CHECK DESCRIPTION
 def topomap(good_channels_indexes:np.ndarray,
@@ -981,6 +984,8 @@ def channel_weights(info:mne.Info,
 
             if feat.endswith('Manual'):
                 ax[0,i_feat].set(xlabel='', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels_man, title=f'{feat}')
+            elif feat.endswith('Phonet'):
+                ax[0,i_feat].set(xlabel='', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels_phonet[:-1], title=f'{feat}')
             else:
                 ax[0,i_feat].set(xlabel='', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels, title=f'{feat}')
 
@@ -1316,6 +1321,8 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
                 # Set figure configuration
                 if feat.endswith('Manual'):
                     ax1.set(ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels_man)
+                elif feat.endswith('Phonet'):
+                    ax1.set(ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels_phonet[:-1])
                 else:
                     ax1.set(ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels)
                 
@@ -1706,6 +1713,8 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
             elif feat.startswith('Phonemes'):
                 if feat.endswith('Manual'):
                     ax[0].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels_man)
+                elif feat.endswith('Phonet'):
+                    ax[0].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels_phonet[:-1])
                 else:
                     ax[0].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels)
                 

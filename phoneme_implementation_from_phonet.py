@@ -56,26 +56,24 @@ if __name__=="__main__":
     from scipy import signal as sgn
     import processing
     wav_file = r'C:\repos\Speech-encoding\repo_speech_encoding\Datos\wavs\S21\s21.objects.01.channel1.wav'
-    
     # Read file
     wav = wavfile.read(wav_file)[1]
     wav = wav.astype("float")
-
     # Calculate envelope
     envelope = np.abs(sgn.hilbert(wav))
-    
     # Apply lowpass butterworth filter
     envelope = processing.butter_filter(data=envelope, frecuencias=25, sampling_freq=16000,
                                             btype='lowpass', order=3, axis=0, ftype='Causal').reshape(-1,1)
-    
-    
     # Resample # TODO padear un cero en el envelope
     window_size, stride = int(16000/128), int(16000/128)
     envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)])
     envelope = envelope.reshape(-1, 1)
     # ================
-    
+    from setup import exp_info
+    phonet_labels = [el if el!='<p:>' else '' for el in exp_info().ph_labels_phonet]
+
     # Check if given kind is a permited input value
+    kind = 'Phonemes-Envelope-Phonet'
     allowed_kind = ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
     if kind not in allowed_kind:
         raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
@@ -99,15 +97,15 @@ if __name__=="__main__":
     updated_taggs = np.unique(sec_phonemes).tolist()
 
     # Make empty array of phonemes
-    phonemes = np.zeros(shape=(len(sec_phonemes), len(updated_taggs)))
+    phonemes = np.zeros(shape=(len(sec_phonemes), len(phonet_labels)))
     
     # Match phoneme with kind
     if kind.startswith('Phonemes-Envelope'):
         for i, tagg in enumerate(sec_phonemes):
-            phonemes[i, updated_taggs.index(tagg)] = envelope[i]
+            phonemes[i, phonet_labels.index(tagg)] = envelope[i]
     elif kind.startswith('Phonemes-Discrete'):
         for i, tagg in enumerate(sec_phonemes):
-            phonemes[i, updated_taggs.index(tagg)] = 1
+            phonemes[i, phonet_labels.index(tagg)] = 1
     elif kind.startswith('Phonemes-Onset'):
         # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
         phonemes_onset = [sec_phonemes[0]]
@@ -119,6 +117,6 @@ if __name__=="__main__":
         # Match phoneme with envelope
         for i, tagg in enumerate(phonemes_onset):
             if tagg!=0:
-                phonemes[i, updated_taggs.index(tagg)] = 1
-    return phonemes, updated_taggs
+                phonemes[i, phonet_labels.index(tagg)] = 1
+    # return phonemes
 

@@ -9,6 +9,7 @@ from scipy import signal as sgn
 
 # Modules
 import processing, funciones, setup
+from phoneme_implementation_from_phonet import Phoenemes
 
 # Review this If we want to update packages
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -309,6 +310,85 @@ class Trial_channel:
         shimmer = shimmer[:min(len(shimmer), len(envelope))].reshape(-1,1)
         return jitter, shimmer
     
+    def f_phonemes_phonet(self, envelope:np.ndarray, kind:str='Phonemes-Discrete-Phonet'):
+        """
+        It makes a time-match matrix between the phonemes and the envelope using Phonet implementation. The values and shape of given matrix depend on kind.
+
+        Parameters
+        ----------
+        envelope : np.ndarray
+            Envelope of the audio signal using Hilbert transform.
+        kind : str, optional
+           Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
+            'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet'
+
+        Returns
+        -------
+        np.ndarray
+            if kind.startswith('Phonemes-Envelope'):
+                Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhonemes_labels(in order)
+            elif kind.startswith('Phonemes-Discrete'):
+                Also a matrix but it has 1s and 0s instead of envelope amplitude.
+            elif kind.startswith('Phonemes-Onset'):
+                In this case the value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
+            
+        Raises
+        ------
+        SyntaxError
+            Whether the input value of 'kind' is passed correctly. It must be a string among ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet'].
+        """
+        # Get phonet labels
+        phonet_labels = [el if el!='<p:>' else '' for el in exp_info.ph_labels_phonet]
+
+        # Check if given kind is a permited input value
+        allowed_kind = ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
+        if kind not in allowed_kind:
+            raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
+
+        # Extract phonemes
+        phoneme_obj = Phoenemes(audio_file=self.wav_fname)
+        _,  sec_phonemes = phoneme_obj.compute_phonemes() 
+        
+        # Relabel silences
+        sec_phonemes = [phon if phon!='<p:>' else '' for phon in sec_phonemes]
+
+        # Match features length
+        difference = len(sec_phonemes) - len(envelope)
+
+        if difference > 0:
+            sec_phonemes = sec_phonemes[:-difference]
+        elif difference < 0:
+            # In this case, silences are append
+            for i in range(difference):
+                sec_phonemes.append('')
+        
+        # # Make a list with phoneme labels tha already are in the known set
+        # updated_taggs = np.unique(sec_phonemes).tolist()
+
+        # Make empty array of phonemes
+        phonemes = np.zeros(shape=(len(sec_phonemes), len(phonet_labels)))
+        
+        # Match phoneme with kind
+        if kind.startswith('Phonemes-Envelope'):
+            for i, tagg in enumerate(sec_phonemes):
+                phonemes[i, phonet_labels.index(tagg)] = envelope[i]
+        elif kind.startswith('Phonemes-Discrete'):
+            for i, tagg in enumerate(sec_phonemes):
+                phonemes[i, phonet_labels.index(tagg)] = 1
+        elif kind.startswith('Phonemes-Onset'):
+            # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
+            phonemes_onset = [sec_phonemes[0]]
+            for i in range(1, len(sec_phonemes)):
+                if sec_phonemes[i] == sec_phonemes[i-1]:
+                    phonemes_onset.append(0)
+                else:
+                    phonemes_onset.append(sec_phonemes[i])
+            # Match phoneme with envelope
+            for i, tagg in enumerate(phonemes_onset):
+                if tagg!=0:
+                    phonemes[i, phonet_labels.index(tagg)] = 1
+        return phonemes
+
     def f_phonemes(self, envelope:np.ndarray, kind:str='Phonemes-Envelope-Manual'):
         """It makes a time-match matrix between the phonemes and the envelope. The values and shape of given matrix depend on kind.
 
@@ -636,7 +716,8 @@ class Trial_channel:
             A list containing possible stimuli. Possible input values are: 
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonological']
+            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet',
+              'Phonological']
 
         Returns
         -------
@@ -657,8 +738,11 @@ class Trial_channel:
                 channel[stim] = self.f_phonological_features(envelope=channel['Envelope'])
             if stim=='Spectrogram':
                 channel['Spectrogram'] = self.f_spectrogram()
-            elif stim.startswith('Phonemes'):
-                channel[stim] = self.f_phonemes(envelope=channel['Envelope'], kind=stim)
+            if stim.startswith('Phonemes'):
+                if stim.endswith('Phonet'):
+                    channel[stim] = self.f_phonemes_phonet(envelope=channel['Envelope'], kind=stim)
+                else:
+                    channel[stim] = self.f_phonemes(envelope=channel['Envelope'], kind=stim)
         return channel
 
 class Sesion_class: 
@@ -678,7 +762,8 @@ class Sesion_class:
             Stimuli to use in the analysis, by default 'Envelope'. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonological']
+            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 
+            'Phonological']
         band : str, optional
             Neural frequency band, by default 'All'. It could be one of:
             ['Delta','Theta',Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
@@ -706,7 +791,8 @@ class Sesion_class:
             If 'stim' is not an allowed stimulus. Allowed stimuli are:
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonological']
+            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 
+            'Phonological']
             If more than one stimulus is wanted, the separator should be '_'.
         SyntaxError
             If 'band' is not an allowed band frecuency. Allowed bands are:
@@ -719,7 +805,7 @@ class Sesion_class:
         # Check if band, stim and situation parameters where passed with the right syntax
         allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', \
                         'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', \
-                        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonological']
+                        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological']
         allowed_band_frequencies = ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
         allowed_situationes = ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
         for st in stim.split('_'):
@@ -783,6 +869,9 @@ class Sesion_class:
         self.export_paths['Phonemes-Discrete-Manual'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Discrete-Manual/')
         self.export_paths['Phonemes-Onset'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Onset/')
         self.export_paths['Phonemes-Onset-Manual'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Onset-Manual/')
+        self.export_paths['Phonemes-Envelope-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Envelope-Phonet/')
+        self.export_paths['Phonemes-Discrete-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Discrete-Phonet/')
+        self.export_paths['Phonemes-Onset-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Onset-Phonet/')
         self.export_paths['Phonological'] = os.path.join(self.preprocessed_data_path, 'Phonological/')
         
     def load_from_raw(self):
@@ -864,8 +953,8 @@ class Sesion_class:
 
                 # Match length of speaker labels and trials with the info of its lengths
                 if loaded_samples_info:
-                    trial_sujeto_1, current_speaker_1 = Sesion_class.match_lengths(dic=trial_sujeto_1, speaker_labels=current_speaker_1, minimum_length=samples_info['trial_lengths1'][p+1])
-                    trial_sujeto_2, current_speaker_2 = Sesion_class.match_lengths(dic=trial_sujeto_2, speaker_labels=current_speaker_2, minimum_length=samples_info['trial_lengths2'][p+1])
+                    trial_sujeto_1, current_speaker_1, _ = Sesion_class.match_lengths(dic=trial_sujeto_1, speaker_labels=current_speaker_1)
+                    trial_sujeto_2, current_speaker_2, _ = Sesion_class.match_lengths(dic=trial_sujeto_2, speaker_labels=current_speaker_2)
 
                 else:
                     # If there isn't any data matches lengths of both variables comparing every key and speaker labels length (the Trial gets modify inside the function)
@@ -1065,7 +1154,6 @@ class Sesion_class:
         else:
             print(f'Trial {trial} of {trials[-1]}.')
 
-
     @staticmethod
     def match_lengths(dic:dict, speaker_labels:np.ndarray, minimum_length:int=None):
         """Match length of speaker labels and trial dictionary.
@@ -1121,7 +1209,8 @@ def load_data(sesion:int, stim:str, band:str, sr:float, preprocessed_data_path:s
         Stimuli to use in the analysis. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonological']
+            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 
+            'Phonological']
     band : str
         Neural frequency band. It could be one of:
             ['Delta','Theta', 'Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
@@ -1159,14 +1248,15 @@ def load_data(sesion:int, stim:str, band:str, sr:float, preprocessed_data_path:s
         If 'stimulus' is not an allowed stimulus. Allowed stimuli are:
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonological'].
+            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 
+            'Phonological'].
         If more than one stimulus is wanted, the separator should be '_'.
     """
 
     # Define allowed stimuli
     allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes',\
                     'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset',\
-                    'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonological']
+                    'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological']
     allowed_situations = ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
     allowed_bands = ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
 
