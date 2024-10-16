@@ -893,14 +893,16 @@ class Sesion_class:
 
         # Try to open preprocessed info of samples, if not crates raw. This dictionary contains data of trial lengths and indexes to keep up to given trial
         try:
-            samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.sesion}.pkl'))
+            self.samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.sesion}.pkl'))
             loaded_samples_info = True
         except:
             loaded_samples_info = False
-            samples_info = {'trial_lengths1': [0],
-                            'trial_lengths2': [0],
-                            'keep_indexes1':[],
-                            'keep_indexes2':[]}
+            self.samples_info = {
+                                'trial_lengths1': [0],
+                                'trial_lengths2': [0],
+                                'keep_indexes1':[],
+                                'keep_indexes2':[]
+                                }
 
         # Retrive and concatenate data of all trials
         for p, trial in enumerate(trials):
@@ -948,26 +950,22 @@ class Sesion_class:
                     trial_sujeto_1['EEG'], trial_sujeto_2['EEG'] = trial_channel_1['EEG'], trial_channel_2['EEG']
 
                 # Labeling of current speaker. {3:both_speaking,2:speaks_locutor,1:speaks_interlocutor,0:silence}. La diferencia entre _1 y _2 ese que se permutan los valores 1 y 2 (cambia la perspectiva de quién es locutor e interlocutor)
-                current_speaker_1 = self.labeling(trial=trial, channel=2)
+                current_speaker_1 = self.labeling(trial=trial, channel=2) # len matching eeg
                 current_speaker_2 = self.labeling(trial=trial, channel=1)
 
                 # Match length of speaker labels and trials with the info of its lengths
-                if loaded_samples_info:
-                    trial_sujeto_1, current_speaker_1, _ = Sesion_class.match_lengths(dic=trial_sujeto_1, speaker_labels=current_speaker_1)
-                    trial_sujeto_2, current_speaker_2, _ = Sesion_class.match_lengths(dic=trial_sujeto_2, speaker_labels=current_speaker_2)
+                trial_sujeto_1, current_speaker_1, minimum1 = self.match_lengths(dic=trial_sujeto_1, speaker_labels=current_speaker_1)
+                trial_sujeto_2, current_speaker_2, minimum2 = self.match_lengths(dic=trial_sujeto_2, speaker_labels=current_speaker_2)
 
-                else:
-                    # If there isn't any data matches lengths of both variables comparing every key and speaker labels length (the Trial gets modify inside the function)
-                    trial_sujeto_1, current_speaker_1, minimo_largo1 = Sesion_class.match_lengths(dic=trial_sujeto_1, speaker_labels=current_speaker_1)
-                    trial_sujeto_2, current_speaker_2, minimo_largo2 = Sesion_class.match_lengths(dic=trial_sujeto_2, speaker_labels=current_speaker_2)
-                    samples_info['trial_lengths1'].append(minimo_largo1)
-                    samples_info['trial_lengths2'].append(minimo_largo2)
+                # Define/Re-define samples_info trial length
+                if not loaded_samples_info:
+                    self.samples_info['trial_lengths1'].append(minimum1)
+                    self.samples_info['trial_lengths2'].append(minimum2)
 
                     # Preprocessing: calaculates the relevant indexes for the apropiate analysis. Add sum of all previous trials length. This is because at the end, all trials previous to the actual will be concatenated
-                    samples_info['keep_indexes1'] += (self.shifted_indexes_to_keep(speaker_labels=current_speaker_1) + np.sum(samples_info['trial_lengths1'][:-1])).tolist()
-                    samples_info['keep_indexes2'] += (self.shifted_indexes_to_keep(speaker_labels=current_speaker_2) + np.sum(samples_info['trial_lengths2'][:-1])).tolist()
-
-
+                    self.samples_info['keep_indexes1'] += (self.shifted_indexes_to_keep(speaker_labels=current_speaker_1) + np.sum(self.samples_info['trial_lengths1'][:-1])).tolist()
+                    self.samples_info['keep_indexes2'] += (self.shifted_indexes_to_keep(speaker_labels=current_speaker_2) + np.sum(self.samples_info['trial_lengths2'][:-1])).tolist()
+                
                 # Concatenates data of each subject 
                 for key in trial_sujeto_1:
                     if key != 'info':
@@ -985,16 +983,15 @@ class Sesion_class:
             # Empty trial
             except:
                 print(f"Trial {trial} of session {self.sesion} couldn't be loaded.")
-                samples_info['trial_lengths1'][p] = 0
-                samples_info['trial_lengths2'][p] = 0
+                self.samples_info['trial_lengths1'][p] = 0
+                self.samples_info['trial_lengths2'][p] = 0
 
         # Get info of the setup that was exluded in the previous iteration
         info = trial_channel_1['info']
 
-        # Saves relevant indexes 
-        if not loaded_samples_info:
-            os.makedirs(self.samples_info_path, exist_ok=True)
-            funciones.dump_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.sesion}.pkl'), obj=samples_info, rewrite=True)
+        # Saves modified relevant indexes 
+        os.makedirs(self.samples_info_path, exist_ok=True)
+        funciones.dump_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.sesion}.pkl'), obj=self.samples_info, rewrite=True)
 
         # Save results
         for key in sujeto_1:
@@ -1017,7 +1014,7 @@ class Sesion_class:
         sujeto_1_return['info'] = info
         sujeto_2_return['info'] = info
 
-        return {'Sujeto_1': sujeto_1_return, 'Sujeto_2': sujeto_2_return}, samples_info
+        return {'Sujeto_1': sujeto_1_return, 'Sujeto_2': sujeto_2_return}, self.samples_info
     
     def load_procesed(self):
         """Loads procesed data, this includes EEG, info and stimuli.
@@ -1154,18 +1151,15 @@ class Sesion_class:
         else:
             print(f'Trial {trial} of {trials[-1]}.')
 
-    @staticmethod
-    def match_lengths(dic:dict, speaker_labels:np.ndarray, minimum_length:int=None):
-        """Match length of speaker labels and trial dictionary.
+    def match_lengths(self, dic:dict, speaker_labels:np.ndarray):
+        """Match length of speaker labels and trial dictionary. It takes the minimum length between dic and speaker_labels (EEG)
 
         Parameters
         ----------
         dic : dict
             Trial dictionary containing data of stimuli and EEG
         speaker_labels : np.ndarray
-            Labels of current speaker.
-        minimum_length : int, optional
-            Length to match data length with. If not passed, takes the minimum length between dic and speaker_labels
+            Labels of current speaker. 
 
         Returns
         -------
@@ -1174,12 +1168,9 @@ class Sesion_class:
             Updated dictionary, speaker_labels and minimum_length are returned.
 
         """
-        # Get minimum array length (this includes features and EEG data)
-        if minimum_length:
-            minimum = minimum_length
-        else:
-            minimum = min([dic[key].shape[0] for key in dic if key!='info'] + [len(speaker_labels)])
-
+        # Get minimum between EEG and envelope to make cutoff
+        minimum = min([dic['Envelope'].shape[0]] + [dic['EEG'].shape[0]])
+        
         # Correct length 
         for key in dic:
             if key != 'info':
@@ -1189,11 +1180,7 @@ class Sesion_class:
 
         if len(speaker_labels) > minimum:
             speaker_labels = speaker_labels[:minimum]
-            
-        if minimum_length:
-            return dic, speaker_labels
-        else:
-            return dic, speaker_labels, minimum
+        return dic, speaker_labels, minimum
 
 def load_data(sesion:int, stim:str, band:str, sr:float, preprocessed_data_path:str, 
               praat_executable_path:str, situation:str='External', 
