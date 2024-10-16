@@ -359,7 +359,7 @@ class Trial_channel:
             sec_phonemes = sec_phonemes[:-difference]
         elif difference < 0:
             # In this case, silences are append
-            for i in range(difference):
+            for i in range(np.abs(difference)):
                 sec_phonemes.append('')
         
         # # Make a list with phoneme labels tha already are in the known set
@@ -530,10 +530,11 @@ class Trial_channel:
         """
         # Define phonological instance and phonological features
         phon_features = Phonet(["all"]).get_PLLR(audio_file=self.wav_fname, plot_flag=False)
-        Phonet(['all']).get_PLLR(audio_file=r'Datos/wavs/S21/s21.objects.01.channel1.wav', plot_flag=False)
+        # phon_features = Phonet(['all']).get_PLLR(audio_file=r'Datos/wavs/S21/s21.objects.01.channel1.wav', plot_flag=False)
         
         # Interpole data in desire times
         desire_time = np.linspace(0, envelope.shape[0]/self.sr + 1/self.sr , envelope.shape[0])
+        # desire_time = np.linspace(0, envelope.shape[0]/128 + 1/128 , envelope.shape[0])
 
         # Get feature names
         phon_features_names = [feat for feat in phon_features.columns if feat!='time']
