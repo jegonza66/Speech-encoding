@@ -38,13 +38,12 @@ start_time = datetime.now()
 # stimuli+= ['Phonological_Deltas_Spectrogram','Pitch-Log-Raw','Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
 # stimuli+= ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw']
 # stimuli+= ['Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
-stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Deltas', 'Phonemes-Discrete', 'Pitch-Log-Raw'] 
-stimuli = ['Phonemes-Envelope-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Discrete-Phonet']
-stimuli = ['Phonemes-Discrete-Phonet']
+stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Mfccs-Deltas', 'Pitch-Log-Raw'] 
+# stimuli = ['Phonemes-Envelope-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Discrete-Phonet']
 bands = ['Theta'] #, 'Delta', 'Alpha', 'Beta1', 'Beta2', 'All', 'Delta_Theta', 'Alpha_Delta_Theta']
-# bands = ['Delta','Theta', 'Alpha', 'Beta1', 'Beta2']
-situation = 'External' #'Internal_BS' #'External' # 'Internal' # 'External_BS'
-
+stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Mfccs-Deltas', 'Pitch-Log-Raw','Phonemes-Envelope-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Discrete-Phonet'] 
+bands = ['Delta','Theta', 'Alpha', 'Beta1', 'Beta2']
+situation = 'Internal' #'Internal_BS' #'External' # 'Internal' # 'External_BS'
 # Run setup
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 
@@ -101,13 +100,14 @@ for band in bands:
         
         # Relevant paths
         save_results_path = f'saves/{model}/{situation}/correlations/tmin{tmin}_tmax{tmax}/{band}/'
-        preprocessed_data_path = f'saves/preprocessed_data/{situation}/tmin{tmin}_tmax{tmax}/'
+        preprocessed_data_path = f'saves/preprocessed_data_bis/{situation}/tmin{tmin}_tmax{tmax}/'
         path_weights = f'saves/{model}/{situation}/weights/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
         path_null = f'saves/{model}/{situation}/null/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
         path_figures = f'figures/{model}/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
         prat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"
         alphas_directory = os.path.normpath(f'saves/alphas/{situation}/stims_{stims_preprocess}/EEG_{eeg_preprocess}//tmin{tmin}_tmax{tmax}/{band}/{stim}/') 
         alphas_path = os.path.join(alphas_directory, f'corr_limit_{correlation_limit_percentage}.pkl')
+        path_TFCE = f'saves/{model}/{situation}/TFCE/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/'
         
         # Make lists to store relevant data across sobjects
         average_weights_subjects = []
@@ -344,6 +344,7 @@ for band in bands:
         repeated_good_rmse_channels_subjects = np.stack(repeated_good_rmse_channels_subjects , axis=0)
 
         # Save results
+        print(f'Total number of subjects: {total_number_of_subjects}')
         if save_results and total_number_of_subjects==18:
             os.makedirs(save_results_path, exist_ok=True)
             os.makedirs(path_weights, exist_ok=True)
@@ -403,7 +404,7 @@ for band in bands:
             del average_weights, average_rmse, average_correlation, correlation_per_channel, rmse_per_channel, correlation_matrix, root_mean_square_error,\
                 eeg_test, eeg, stims, stims_sujeto_1, stims_sujeto_2, sujeto_1, sujeto_2, eeg_sujeto_1, eeg_sujeto_2, predicted
             
-            # Compute TFCE across
+            # Compute TFCE across to get p-value
             tvalue_tfce, pvalue_tfce = tfce(
                                             average_weights_subjects=average_weights_subjects, 
                                             n_jobs=number_of_jobs, 
@@ -411,6 +412,10 @@ for band in bands:
                                             stimulus=stim,
                                             verbose_tfce=True
                                             )
+            
+            # Save TFCE
+            os.makedirs(os.path.join(path_TFCE, band), exist_ok=True)
+            dump_pickle(path=os.path.join(path_TFCE, band, stimulus + f'_{n_permutations}.pkl'), obj=(tvalue_tfce, pvalue_tfce), rewrite=True)
 
             # # Plot t and p values
             # plot.plot_tvalue_pvalue_tfce(tvalue=tvalue_tfce, pvalue=pvalue_tfce, trf_subjects_shape=trf_subjects_shape, times=times, 

@@ -16,6 +16,46 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 mne.set_log_level(verbose='CRITICAL')
 exp_info = setup.exp_info()
 
+# Modules
+from funciones  import load_pickle, dump_pickle
+bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
+# bands = ['Theta']
+sesiones = [21,22,23,24,25,26,27,29,30]
+root = r'saves\preprocessed_data_bis\External\tmin-0.2_tmax0.6'
+
+for sesion in sesiones:
+    # sesion=24
+    stimuli = []
+    for folder in os.listdir(root):
+        if folder == 'EEG':
+            eeg1 = {}
+            eeg2 = {}
+            for band in bands:
+                eeg1[band], eeg2[band] = load_pickle(os.path.join(root, folder, band,  'Causal', f'Sesion{sesion}.pkl'))
+        elif folder == 'samples_info':
+            samples_inf = load_pickle(os.path.join(root, folder, f'samples_info_{sesion}.pkl'))
+            index_1, index_2 = samples_inf['keep_indexes1'], samples_inf['keep_indexes2']
+        else:
+            stimulus_1, stimulus_2 = load_pickle(os.path.join(root, folder, f'Sesion{sesion}.pkl'))
+            stimuli.append((folder, stimulus_1, stimulus_2))
+        
+    # Hacemos chequeo de shape
+    for band in bands:
+        # band='Theta'
+        for (folder, stimulus_1, stimulus_2) in stimuli:
+            # if folder=='Phonemes-Discrete-Phonet':
+            if (stimulus_1[:].shape[0]==eeg1[band][:].shape[0], stimulus_2[:].shape[0]==eeg2[band][:].shape[0]) != (True, True):
+            # if (stimulus_1[index_1].shape[0]==eeg1[band][index_1].shape[0], stimulus_2[index_2].shape[0]==eeg2[band][index_2].shape[0]) != (True, True):
+                print('\n\nFALLA', band, sesion, folder)
+                stimulus_1[:].shape[0], eeg1[band][:].shape[0]
+
+
+ind = load_pickle(r'C:\Users\User\repos\Speech-encoding\saves\preprocessed_data\External\tmin-0.2_tmax0.6\samples_info\samples_info_21.pkl')['keep_indexes2']
+atr = load_pickle(r'C:\Users\User\repos\Speech-encoding\saves\preprocessed_data\External\tmin-0.2_tmax0.6\Phonemes-Discrete-Phonet\Sesion21.pkl')[0]
+eeg = load_pickle(r'C:\Users\User\repos\Speech-encoding\saves\preprocessed_data\External\tmin-0.2_tmax0.6\EEG\Theta\Causal\Sesion21.pkl')[1]
+atr[ind].shape
+eeg[ind].shape
+
 # #=========
 # # ENVELOPE
 # wav = wavfile.read(r'Datos/wavs/S21/s21.objects.01.channel1.wav')[1]
