@@ -1415,9 +1415,9 @@ plt.close()
 # #     plt.grid()
 
 
-# ================================================================================================================
-# CORRELATION MATRIX TOPOMAP: make matrix with correlation topomap ordering across features, situations and bands.
-# ================================================================================================================
+# ==============================
+# WEIGHTS: plot specific weights
+# ==============================
 path_specific_weights = os.path.join(path_figures,'specific_weights')
 
 #===============
@@ -1482,8 +1482,18 @@ band = 'Theta'
 stimulus = 'Phonemes-Discrete-Phonet'
 
 # Get average weights across subjects
-weights = load_pickle(path=os.path.join(weights_path, band, stimulus, 'total_weights_per_subject.pkl'))['average_weights_subjects'].mean(axis=0).mean(axis=0)
+weights_unordered = load_pickle(path=os.path.join(weights_path, band, stimulus, 'total_weights_per_subject.pkl'))['average_weights_subjects'].mean(axis=0).mean(axis=0)
+phonemes_index_exclude = [exp_info.ph_labels_phonet[:-1].index(el) for el in ['Z', 'S', 'J', 'L', 'sil']]
+indexes_vocals = [exp_info.ph_labels_phonet[:-1].index(el) for el in ['a','o','e','i','u']]
 
+weights_unordered = weights_unordered[[el for el in np.arange(weights_unordered.shape[0]) if el not in phonemes_index_exclude]]
+weights = np.zeros(shape=weights_unordered.shape)
+weights[[0, 1, 2, 3, 4]] = weights_unordered[indexes_vocals]
+weights[np.arange(weights_unordered.shape[0])[5:]] = weights_unordered[[el for el in np.arange(weights_unordered.shape[0]) if el not in indexes_vocals]]
+
+phonemes_labels = ['a','o','e','i','u'] + [el for el in exp_info.ph_labels_phonet[:-1] if el not in ['a','o','e','i','u']+['Z', 'S', 'J', 'L', 'sil']]
+# phonemes_labels = exp_info.ph_labels_phonet[:-1]
+# weights = load_pickle(path=os.path.join(weights_path, band, stimulus, 'total_weights_per_subject.pkl'))['average_weights_subjects'].mean(axis=0).mean(axis=0)
 # Create figure and title
 fig, axes = plt.subplots(
                         # figsize=(3*n_stims,1.5*n_bands), 
@@ -1492,7 +1502,6 @@ fig, axes = plt.subplots(
                         layout="constrained"
                         )
 fig.suptitle('Envelope-Theta weights')
-
 
 # Create colormesh figure
 im = axes.pcolormesh(
@@ -1504,7 +1513,7 @@ im = axes.pcolormesh(
                     vmin=-weights.max(), 
                     vmax=weights.max()
                     )
-axes.set(ylabel='Phonemes', yticks=np.arange(weights.shape[0]), yticklabels=exp_info.ph_labels_phonet[:-1])
+axes.set(ylabel='Phonemes', yticks=np.arange(weights.shape[0]), yticklabels=phonemes_labels)
 axes.tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
 
 # Make color bar
