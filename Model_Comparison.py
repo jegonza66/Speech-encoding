@@ -355,15 +355,15 @@ for i, band in enumerate(bands):
 
         # Plot topomap        
         mne.viz.plot_topomap(
-            data=average_correlation, 
-            pos=info_mne, 
-            axes=axes[i, j], 
-            show=False, 
-            sphere=0.07, 
-            cmap='Reds', 
-            # vlim=(minimum_cor, maximum_cor),
-            cnorm=normalizer
-            )
+                            data=average_correlation, 
+                            pos=info_mne, 
+                            axes=axes[i, j], 
+                            show=False, 
+                            sphere=0.07, 
+                            cmap='Reds', 
+                            # vlim=(minimum_cor, maximum_cor),
+                            cnorm=normalizer
+                            )
 
 # Make colorbar
 cbar = fig.colorbar(im, ax=axes.ravel().tolist())
@@ -375,8 +375,8 @@ if save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
     temp_path = os.path.join(path_correlation_matrix_topo,'_'.join(sorted(short_stimuli)))
     os.makedirs(temp_path, exist_ok=True)
-    fig.savefig(os.path.join(temp_path, f'correlation_matrix_topo.png'), dpi=600)
-    fig.savefig(os.path.join(temp_path, f'correlation_matrix_topo.svg'))
+    fig.savefig(os.path.join(temp_path, f'correlation_matrix_topo.png'), dpi=600, transparent=True)
+    fig.savefig(os.path.join(temp_path, f'correlation_matrix_topo.svg'), transparent=True)
 plt.close()
 
 # ==============================================================================================================
@@ -456,15 +456,15 @@ for i, band in enumerate(bands):
 
         # Plot topomap        
         mne.viz.plot_topomap(
-            data=similarity, 
-            pos=info_mne, 
-            axes=axes[i, j], 
-            show=False, 
-            sphere=0.07, 
-            cmap='Greens', 
-            # vlim=(similarity.min(), similarity.max()),
-            cnorm=normalizer
-            )
+                            data=similarity, 
+                            pos=info_mne, 
+                            axes=axes[i, j], 
+                            show=False, 
+                            sphere=0.07, 
+                            cmap='Greens', 
+                            # vlim=(similarity.min(), similarity.max()),
+                            cnorm=normalizer
+                            )
 
 # Add colorbar
 cbar = fig.colorbar(im, ax=axes.ravel().tolist())
@@ -476,14 +476,14 @@ if save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
     temp_path = os.path.join(path_similarities_matrix_topo,'_'.join(sorted(short_stimuli)))
     os.makedirs(temp_path, exist_ok=True)
-    fig.savefig(os.path.join(temp_path, f'similarities_matrix_topo.png'), dpi=600)
-    fig.savefig(os.path.join(temp_path, f'similarities_matrix_topo.svg'))
+    fig.savefig(os.path.join(temp_path, f'similarities_matrix_topo.png'), dpi=600, transparent=True)
+    fig.savefig(os.path.join(temp_path, f'similarities_matrix_topo.svg'), transparent=True)
 plt.close()
 
 # ===================================================================================================================
 # TOPOGRAPHIC DISTRIBUTION HEATMAPS: make heatmaps with topographic information across features, situations and bands
 # ===================================================================================================================
-path_distribution = os.path.join(path_figures,'distribution__heatmaps')
+path_distribution = os.path.join(path_figures,'distribution_heatmaps')
 
 # Relevant parameters
 bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
@@ -545,8 +545,8 @@ for i, corr, c in zip(np.arange(n_groups_x-1), [correlations[('Phonological','Al
     axes[0].scatter(i, corr, color=c)
 axes[0].set_xticks(np.arange(n_groups_x-1))
 axes[0].set_xticklabels([f'G{i}'for i in np.arange(n_groups_x-1)])
-axes[0].set_xlabel('Channel group selection')
-axes[0].set_ylabel('Average correlation')
+axes[0].set_xlabel('Channel group selection', fontsize=15)
+axes[0].set_ylabel('Average correlation', fontsize=15)
 subax = axes[0].inset_axes([.05,.07,.6,.6])
 mne.viz.plot_sensors(
                     info=info_mne,
@@ -555,7 +555,8 @@ mne.viz.plot_sensors(
                     pointsize=35,
                     cmap='plasma',
                     axes=subax,
-                    ch_groups=groups_x
+                    ch_groups=groups_x,
+                    linewidth=0
                     )
 # # Create a legend
 # cmap = colormaps['plasma']
@@ -577,17 +578,18 @@ for i, band in enumerate(bands):
         z[i,j] = average_correlation[right_group].mean()-average_correlation[left_group].mean()
 axes[1].set_title('Lateralization: right(G[0-3])-left(G[7-10])')
 im = axes[1].imshow(
-                z, 
-                vmin=z.min(), 
-                vmax=z.max(),
-                cmap='plasma'
-                )
+                    z, 
+                    vmin=z.min(), 
+                    vmax=z.max(),
+                    cmap='plasma'
+                    )
 axes[1].set_xticks(np.arange(len(stimuli)))
 axes[1].set_xticklabels([stim.split('-')[0] if stim!='Pitch-Log-Raw' else 'Pitch-Log' for stim in stimuli], minor=False, fontsize=12, rotation=35)
 axes[1].set_yticks(np.arange(len(bands)))
 axes[1].set_yticklabels(bands, minor=False, fontsize=12)
 # axes[1].xaxis.tick_top()
-fig.colorbar(im, ax=axes[1], label='Correlation difference')
+cbar = fig.colorbar(im, ax=axes[1], label='Correlation difference')
+cbar.ax.tick_params(labelsize=15)
 fig.show()
 
 # Save figure
@@ -595,8 +597,8 @@ if save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
     temp_path = os.path.join(path_distribution,'_'.join(sorted(short_stimuli)))
     os.makedirs(temp_path, exist_ok=True)
-    fig.savefig(os.path.join(temp_path, f'lateralization.png'), dpi=600)
-    fig.savefig(os.path.join(temp_path, f'lateralization.svg'))
+    fig.savefig(os.path.join(temp_path, f'lateralization.png'), dpi=600, transparent=True)
+    fig.savefig(os.path.join(temp_path, f'lateralization.svg'), transparent=True)
 plt.close()
 
 # =======================
@@ -614,8 +616,8 @@ for i, corr, c in zip(np.arange(n_groups_x-1), [correlations[('Phonemes-Discrete
     axes[0].scatter(i, corr, color=c)
 axes[0].set_xticks(np.arange(n_groups_x-1))
 axes[0].set_xticklabels([f'G{i}'for i in np.arange(n_groups_x-1)])
-axes[0].set_xlabel('Channel group selection')
-axes[0].set_ylabel('Average correlation')
+axes[0].set_xlabel('Channel group selection', fontsize=15)
+axes[0].set_ylabel('Average correlation', fontsize=15)
 subax = axes[0].inset_axes([.02,.07,.45,.45])
 mne.viz.plot_sensors(
                     info=info_mne,
@@ -624,7 +626,8 @@ mne.viz.plot_sensors(
                     pointsize=20,
                     cmap='hsv',
                     axes=subax,
-                    ch_groups=groups_x
+                    ch_groups=groups_x, 
+                    linewidth=0
                     )
 # # Create a legend
 # cmap = colormaps['plasma']
@@ -656,7 +659,8 @@ axes[1].set_xticklabels([stim.split('-')[0] if stim!='Pitch-Log-Raw' else 'Pitch
 axes[1].set_yticks(np.arange(len(bands)))
 axes[1].set_yticklabels(bands, minor=False, fontsize=12)
 # axes[1].xaxis.tick_top()
-fig.colorbar(im, ax=axes[1], label='Correlation difference')
+cbar = fig.colorbar(im, ax=axes[1], label='Correlation difference')
+cbar.ax.tick_params(labelsize=12)
 fig.show()
 
 # Save figure
@@ -664,8 +668,8 @@ if save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
     temp_path = os.path.join(path_distribution,'_'.join(sorted(short_stimuli)))
     os.makedirs(temp_path, exist_ok=True)
-    fig.savefig(os.path.join(temp_path, f'centralization.png'), dpi=600)
-    fig.savefig(os.path.join(temp_path, f'centralization.svg'))
+    fig.savefig(os.path.join(temp_path, f'centralization.png'), dpi=600, transparent=True)
+    fig.savefig(os.path.join(temp_path, f'centralization.svg'), transparent=True)
 plt.close()
 
 # ==========================
@@ -683,8 +687,8 @@ for i, corr, c in zip(np.arange(n_groups_y-1), [correlations[('Phonological','Th
     axes[0].scatter(i, corr, color=c)
 axes[0].set_xticks(np.arange(n_groups_y-1))
 axes[0].set_xticklabels([f'G{i}'for i in np.arange(n_groups_y-1)])
-axes[0].set_xlabel('Channel group selection')
-axes[0].set_ylabel('Average correlation')
+axes[0].set_xlabel('Channel group selection', fontsize=15)
+axes[0].set_ylabel('Average correlation', fontsize=15)
 subax = axes[0].inset_axes([.35,.1,.7,.7])
 mne.viz.plot_sensors(
                     info=info_mne,
@@ -693,7 +697,8 @@ mne.viz.plot_sensors(
                     pointsize=35,
                     cmap='cividis',
                     axes=subax,
-                    ch_groups=groups_y
+                    ch_groups=groups_y, 
+                    linewidth=0
                     )
 # # Create a legend
 # cmap = colormaps['cividis']
@@ -706,19 +711,22 @@ for i, band in enumerate(bands):
         average_correlation = correlations[(stim,band)]
         z[i,j] = np.corrcoef([average_correlation[group].mean() for group in groups_y], np.arange(n_groups_y-1))[1,0]
 
-axes[1].set_title('Anterior-Posterior correlation')
+axes[1].set_title('Pearson correlation')
 im = axes[1].imshow(
-                z, 
-                vmin=z.min(), 
-                vmax=z.max(),
-                cmap='plasma'
-                )
+                    z, 
+                    vmin=-1, 
+                    vmax=1,
+                    cmap='plasma'
+                    )
 axes[1].set_xticks(np.arange(len(stimuli)))
 axes[1].set_xticklabels([stim.split('-')[0] if stim!='Pitch-Log-Raw' else 'Pitch-Log' for stim in stimuli], minor=False, fontsize=12, rotation=35)
 axes[1].set_yticks(np.arange(len(bands)))
 axes[1].set_yticklabels(bands, minor=False, fontsize=12)
 # axes[1].xaxis.tick_top()
-fig.colorbar(im, ax=axes[1], label=r'Linear correlation')
+
+plt.text(.5, .7, 'Anterior', ha='left', va='top', fontsize=15)
+cbar = fig.colorbar(im, ax=axes[1])
+cbar.ax.tick_params(labelsize=15)
 fig.show()
 
 # Save figure
@@ -726,8 +734,8 @@ if save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
     temp_path = os.path.join(path_distribution,'_'.join(sorted(short_stimuli)))
     os.makedirs(temp_path, exist_ok=True)
-    fig.savefig(os.path.join(temp_path, f'anterior_posterior.png'), dpi=600)
-    fig.savefig(os.path.join(temp_path, f'anterior_posterior.svg'))
+    fig.savefig(os.path.join(temp_path, f'anterior_posterior.png'), dpi=600, transparent=True)
+    fig.savefig(os.path.join(temp_path, f'anterior_posterior.svg'), transparent=True)
 plt.close()
 
 # =================================================================================================
@@ -752,6 +760,8 @@ for i, band in enumerate(bands):
 fig = plt.figure(constrained_layout=True)
 ax = fig.gca()
 # plt.title('External')
+rect = fig.patch
+# rect.set_facecolor('#f3f3f3ff')
 im = plt.imshow(
                 z, 
                 vmin=z.min(), 
@@ -759,11 +769,12 @@ im = plt.imshow(
                 cmap='plasma'
                 )
 ax.set_xticks(np.arange(len(stimuli)))
-ax.set_xticklabels([stim.split('-')[0] if stim!='Pitch-Log-Raw' else 'Pitch-Log' for stim in stimuli], minor=False, fontsize=12, rotation=35)
+ax.set_xticklabels([stim.split('-')[0] if stim!='Pitch-Log-Raw' else 'Pitch-Log' for stim in stimuli], minor=False, fontsize=15, rotation=35)
 ax.set_yticks(np.arange(len(bands)))
-ax.set_yticklabels(bands, minor=False, fontsize=12)
+ax.set_yticklabels(bands, minor=False, fontsize=15)
 ax.xaxis.tick_top()
-fig.colorbar(im, ax=ax, label=r'Average correlation')
+cbar = fig.colorbar(im, ax=ax, label=r'Average correlation')
+cbar.ax.tick_params(labelsize=15)
 fig.show()
 
 # Save figure
@@ -771,8 +782,13 @@ if save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
     temp_path = os.path.join(path_correlation_heatmaps,'_'.join(sorted(short_stimuli)))
     os.makedirs(temp_path, exist_ok=True)
-    fig.savefig(os.path.join(temp_path, f'heatmap_corr.png'), dpi=600)
-    fig.savefig(os.path.join(temp_path, f'heatmap_corr.svg'))
+    fig.savefig(os.path.join(temp_path, f'heatmap_corr.png'), dpi=600,
+                transparent=True,
+                  edgecolor='none')
+    fig.savefig(os.path.join(temp_path, f'heatmap_corr.svg'),
+                transparent=True,
+                  edgecolor='none')
+    
 plt.close()
 
 # # ===================
@@ -1472,23 +1488,26 @@ evoked.plot(
 axes.plot(
         times*1000, #ms
         evoked._data.mean(0), 
-        'k--', 
+        'k-', 
         label='Mean', 
         zorder=130, 
         linewidth=2
         )
 # Graph properties
-axes.legend()
+axes.legend(fontsize=15)
 axes.grid(visible=True)
 axes.set(xlabel='Time (ms)')
+for item in ([axes.title, axes.xaxis.label, axes.yaxis.label] +
+             axes.get_xticklabels() + axes.get_yticklabels()):
+    item.set_fontsize(15)
 fig.show()
 
 # Save figure
 if save_figures:
     temp_path = os.path.join(path_specific_weights, stimulus)
     os.makedirs(temp_path, exist_ok=True)
-    fig.savefig(os.path.join(temp_path, f'{stimulus}_{band}.png'), dpi=600)
-    fig.savefig(os.path.join(temp_path, f'{stimulus}_{band}.svg'))
+    fig.savefig(os.path.join(temp_path, f'{stimulus}_{band}.png'), dpi=600, transparent=True)
+    fig.savefig(os.path.join(temp_path, f'{stimulus}_{band}.svg'), transparent=True)
 plt.close()
 
 #========================
@@ -1534,23 +1553,28 @@ axes.set(ylabel='Phonemes', yticks=np.arange(weights.shape[0]), yticklabels=phon
 axes.tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
 
 # Make color bar
-fig.colorbar(
-            im,
-            ax=axes,
-            orientation='horizontal',
-            label='Amplitude (a.u.)',
-            shrink=1,
-            aspect=20
-            )
+cbar = fig.colorbar(
+                    im,
+                    ax=axes,
+                    orientation='vertical',
+                    label='Amplitude (a.u.)',
+                    shrink=1,
+                    aspect=20
+                    )
+cbar.ax.tick_params(labelsize=15)
+
 # Graph properties
 axes.set(xlabel='Time (ms)')
+for item in ([axes.title, axes.xaxis.label, axes.yaxis.label] +
+             axes.get_xticklabels()):
+    item.set_fontsize(15)
 fig.show()
 
 # Save figure
 if save_figures:
     temp_path = os.path.join(path_specific_weights, stimulus)
     os.makedirs(temp_path, exist_ok=True)
-    fig.savefig(os.path.join(temp_path, f'{stimulus}_{band}.png'), dpi=600)
-    fig.savefig(os.path.join(temp_path, f'{stimulus}_{band}.svg'))
+    fig.savefig(os.path.join(temp_path, f'{stimulus}_{band}.png'), dpi=600, transparent=True)
+    fig.savefig(os.path.join(temp_path, f'{stimulus}_{band}.svg'), transparent=True)
 plt.close()
 
