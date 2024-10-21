@@ -1027,7 +1027,7 @@ class Sesion_class:
         """
         # Load EEGs and procesed data
         eeg_sujeto_1, eeg_sujeto_2 = funciones.load_pickle(path=os.path.join(self.export_paths['EEG'], f'Sesion{self.sesion}.pkl'))
-        info = funciones.load_pickle(path=os.path.join(self.preprocessed_data_path, f'EEG/{self.band}/info.pkl'))
+        info = funciones.load_pickle(path=os.path.join(self.preprocessed_data_path, f'EEG/info.pkl'))
         samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.sesion}.pkl'))
         sujeto_1 = {'EEG': eeg_sujeto_1, 'info': info}
         sujeto_2 = {'EEG': eeg_sujeto_2, 'info': info}
@@ -1170,7 +1170,7 @@ class Sesion_class:
 
         """
         # Get minimum between EEG and envelope to make cutoff
-        minimum = min([dic['Envelope'].shape[0]] + [dic['EEG'].shape[0]])
+        minimum = min([dic['Envelope'].shape[0]] +[dic['EEG'].shape[0]]+ [len(speaker_labels)])
         
         # Correct length 
         for key in dic:
@@ -1182,7 +1182,7 @@ class Sesion_class:
         if len(speaker_labels) > minimum:
             speaker_labels = speaker_labels[:minimum]
         return dic, speaker_labels, minimum
-
+    
 def load_data(sesion:int, stim:str, band:str, sr:float, preprocessed_data_path:str, 
               praat_executable_path:str, situation:str='External', 
               causal_filter_eeg:bool=True, envelope_filter:bool=False, 
