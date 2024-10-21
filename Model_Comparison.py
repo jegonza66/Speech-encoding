@@ -329,11 +329,18 @@ elif n_bands==1:
 for ax, col in zip(axes[0], stimuli):
     if col=='Phonemes-Discrete-Phonet':
         col = 'Phonemes'
+        ax.set_title(col, fontsize=15, x=.4)
     elif col=='Pitch-Log-Raw':
         col = 'Pitch-Log'
-    ax.set_title(col, fontsize=12)
+        ax.set_title(col, fontsize=15)
+    elif col=='Envelope':
+        ax.set_title(col, fontsize=15, x=.4)
+    elif col=='Phonological':
+        ax.set_title(col, fontsize=15, x=.6)    
+    else:
+        ax.set_title(col, fontsize=15)
 for ax, row in zip(axes[:,0], bands):
-    ax.set_ylabel(row, rotation=90, fontsize=12)
+    ax.set_ylabel(row, rotation=90, fontsize=15)
 
 # Build scale
 # normalizer = LogNorm(vmin=np.round(minimum_cor,2), vmax=np.round(maximum_cor,2))
@@ -359,7 +366,8 @@ for i, band in enumerate(bands):
             )
 
 # Make colorbar
-fig.colorbar(im, ax=axes.ravel().tolist())
+cbar = fig.colorbar(im, ax=axes.ravel().tolist())
+cbar.ax.tick_params(labelsize=15)
 fig.show()
 
 # Save figure
@@ -419,14 +427,22 @@ elif n_bands==1:
     axes = axes.reshape(1, n_stims)
 
 # Set axis labels
+# Configure axis
 for ax, col in zip(axes[0], stimuli):
     if col=='Phonemes-Discrete-Phonet':
         col = 'Phonemes'
+        ax.set_title(col, fontsize=15, x=.4)
     elif col=='Pitch-Log-Raw':
         col = 'Pitch-Log'
-    ax.set_title(col, fontsize=12)
+        ax.set_title(col, fontsize=15)
+    elif col=='Envelope':
+        ax.set_title(col, fontsize=15, x=.4)
+    elif col=='Phonological':
+        ax.set_title(col, fontsize=15, x=.6)    
+    else:
+        ax.set_title(col, fontsize=15)
 for ax, row in zip(axes[:,0], bands):
-    ax.set_ylabel(row, rotation=90, fontsize=12)
+    ax.set_ylabel(row, rotation=90, fontsize=15)
 
 # Build scale
 normalizer = Normalize(vmin=np.round(minimum_sim,2), vmax=np.round(maximum_sim,2))
@@ -451,7 +467,8 @@ for i, band in enumerate(bands):
             )
 
 # Add colorbar
-fig.colorbar(im, ax=axes.ravel().tolist())
+cbar = fig.colorbar(im, ax=axes.ravel().tolist())
+cbar.ax.tick_params(labelsize=15)
 fig.show()
 
 # Save figure
