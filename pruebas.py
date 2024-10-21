@@ -16,38 +16,38 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 mne.set_log_level(verbose='CRITICAL')
 exp_info = setup.exp_info()
 
-# #=========
-# # ENVELOPE
-# wav = wavfile.read(r'Datos/wavs/S21/s21.objects.01.channel1.wav')[1]
-# wav = wav.astype("float")
+#=========
+# ENVELOPE
+wav = wavfile.read(r'Datos/wavs/S21/s21.objects.01.channel1.wav')[1]
+wav = wav.astype("float")
 
-# # Calculate envelope
-# envelope = np.abs(sgn.hilbert(wav))
+# Calculate envelope
+envelope = np.abs(sgn.hilbert(wav))
 
-# # Resample
-# window_size, stride = 125, 125
-# envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)]).reshape(-1,1)
+# Resample
+window_size, stride = 125, 125
+envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)]).reshape(-1,1)
 
-# # =====================
-# # PHONOlOGICAL FEATURES
-# phonologicalf = Phonological()
-# file_audio = r'Datos/wavs/S21/s21.objects.01.channel1.wav'
-# feats=phonologicalf.extract_features_file(file_audio, static=False, plots=False, fmt="dataframe")
-# print(feats)
-# phon_feats = [feat for feat in feats.columns if feat!='time']
-# sr = 128
-# desire_time = np.linspace(0, envelope.shape[0]/sr + 1/sr , envelope.shape[0])
-# phonological_features = []
-# for phon_feat in phon_feats:
-#     phonological_features.append(np.interp(desire_time, feats['time'].values, feats[f'{phon_feat}'].values))
-# phonological_features = np.stack(phonological_features, axis=0).T
+# =====================
+# PHONOlOGICAL FEATURES
+phonologicalf = Phonological()
+file_audio = r'Datos/wavs/S21/s21.objects.01.channel1.wav'
+feats=phonologicalf.extract_features_file(file_audio, static=False, plots=False, fmt="dataframe")
+print(feats)
+phon_feats = [feat for feat in feats.columns if feat!='time']
+sr = 128
+desire_time = np.linspace(0, envelope.shape[0]/sr + 1/sr , envelope.shape[0])
+phonological_features = []
+for phon_feat in phon_feats:
+    phonological_features.append(np.interp(desire_time, feats['time'].values, feats[f'{phon_feat}'].values))
+phonological_features = np.stack(phonological_features, axis=0).T
 
-# plt.figure()
-# plt.plot(feats['time'], feats['vocalic'], label = 'labial')
-# plt.plot(desire_time, phonological_features[0], label = 'labial')
-# plt.grid(True)
-# plt.xlabel('Time (s)')
-# plt.show()
+plt.figure()
+plt.plot(feats['time'], feats['vocalic'], label = 'labial')
+plt.plot(desire_time, phonological_features[0], label = 'labial')
+plt.grid(True)
+plt.xlabel('Time (s)')
+plt.show()
 
 
 # #==========

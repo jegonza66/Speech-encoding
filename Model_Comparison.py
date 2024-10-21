@@ -1,7 +1,9 @@
 # Standard libraries
 import matplotlib.pyplot as plt, numpy as np, os, mne, pandas as pd, seaborn as sn, copy
-from matplotlib.colors import Normalize, LogNorm
+import matplotlib.patches as mpatches
 import matplotlib.cm as cm
+from matplotlib.colors import Normalize, LogNorm
+from matplotlib import colormaps
 
 # Specific libraries
 # from statsmodels.stats.multitest import fdrcorrection
@@ -11,6 +13,8 @@ from scipy.stats import wilcoxon
 
 # Modules
 from funciones import load_pickle, cohen_d, all_possible_combinations, get_maximum_correlation_channels
+import setup
+exp_info = setup.exp_info()
 
 # Default size is 10 pts, the scalings (10pts*scale) are:
 #'xx-small':0.579,'x-small':0.694,'s
@@ -33,6 +37,8 @@ stims_preprocess = 'Normalize'
 eeg_preprocess = 'Standarize'
 tmin, tmax = -.2, .6
 sr = 128
+delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
+times = (delays/sr)
 montage = mne.channels.make_standard_montage('biosemi128')
 info_mne = mne.create_info(ch_names=montage.ch_names[:], sfreq=sr, ch_types='eeg').set_montage(montage)
 
@@ -299,25 +305,20 @@ path_correlation_matrix_topo = os.path.join(path_figures,'correlation_matrix_top
 
 # Relevant parameters
 bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
-# bands = ['Theta']
-stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Deltas', 'Phonemes-Discrete', 'Phonological'] # 'Envelope_Phonemes-Discrete-Manual'
-stimuli = ['Envelope', 'Phonological']
-
-# stimuli = ['Envelope', 'Spectrogram', 'Deltas', 'Phonological', 'Mfccs', 'Mfccs-Deltas', 'Phonological_Spectrogram','Phonological_Deltas']
-# stimuli+= ['Phonological_Deltas_Spectrogram','Pitch-Log-Raw','Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
-# stimuli+= ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw']
-# stimuli+= ['Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
-
-# stimuli = ['Envelope']
+stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Mfccs', 'Phonemes-Discrete-Phonet', 'Phonological'] # 'Envelope_Phonemes-Discrete-Manual'
 n_stims, n_bands = len(stimuli), len(bands)
-# stimuli = sorted(stimuli)
 
 # Get mean correlations across subjects and total max and min
 correlations = {(stim,band):load_pickle(path=os.path.join(final_corr_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
 minimum_cor, maximum_cor = min([correlation.min() for correlation in correlations.values()]), max([correlation.max() for correlation in correlations.values()])
 
 # Create figure and title
-fig, axes = plt.subplots(figsize=(3*n_stims,1.5*n_bands), nrows=n_bands, ncols=n_stims, layout="constrained")
+fig, axes = plt.subplots(
+                        # figsize=(3*n_stims,1.5*n_bands), 
+                        nrows=n_bands, 
+                        ncols=n_stims, 
+                        layout="constrained"
+                        )
 fig.suptitle('Correlation topomaps')
 if n_stims==1:
     axes = axes.reshape(n_bands, 1)
@@ -326,9 +327,13 @@ elif n_bands==1:
 
 # Configure axis
 for ax, col in zip(axes[0], stimuli):
-    ax.set_title(col)
+    if col=='Phonemes-Discrete-Phonet':
+        col = 'Phonemes'
+    elif col=='Pitch-Log-Raw':
+        col = 'Pitch-Log'
+    ax.set_title(col, fontsize=12)
 for ax, row in zip(axes[:,0], bands):
-    ax.set_ylabel(row, rotation=90)
+    ax.set_ylabel(row, rotation=90, fontsize=12)
 
 # Build scale
 # normalizer = LogNorm(vmin=np.round(minimum_cor,2), vmax=np.round(maximum_cor,2))
@@ -349,7 +354,7 @@ for i, band in enumerate(bands):
             show=False, 
             sphere=0.07, 
             cmap='Reds', 
-            vlim=(minimum_cor, maximum_cor),
+            # vlim=(minimum_cor, maximum_cor),
             cnorm=normalizer
             )
 
@@ -359,245 +364,399 @@ fig.show()
 
 # Save figure
 if save_figures:
-    temp_path = os.path.join(path_correlation_matrix_topo,'_'.join(sorted(stimuli)))
+    short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
+    temp_path = os.path.join(path_correlation_matrix_topo,'_'.join(sorted(short_stimuli)))
     os.makedirs(temp_path, exist_ok=True)
-    fig.savefig(os.path.join(temp_path, f'correlation_matrix_topo.png'))
+    fig.savefig(os.path.join(temp_path, f'correlation_matrix_topo.png'), dpi=600)
     fig.savefig(os.path.join(temp_path, f'correlation_matrix_topo.svg'))
 plt.close()
-# ================================================================================================================
-# CORRELATION MATRIX TOPOMAP: make matrix with correlation topomap ordering across features, situations and bands.
-# ================================================================================================================
-path_correlation_matrix_topo = os.path.join(path_figures,'lateralization_matrix_topo')
+
+# ==============================================================================================================
+# SIMILARITY MATRIX TOPOMAP: make matrix with similarity topomap ordering across features, situations and bands.
+# ==============================================================================================================
+path_similarities_matrix_topo = os.path.join(path_figures,'similarities_matrix_topo')
 
 # Relevant parameters
+# Relevant parameters
 bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
-# bands = ['Theta']
-stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Deltas', 'Phonemes-Discrete', 'Phonological'] # 'Envelope_Phonemes-Discrete-Manual'
-stimuli = ['Envelope', 'Phonological']
-
-# stimuli = ['Envelope', 'Spectrogram', 'Deltas', 'Phonological', 'Mfccs', 'Mfccs-Deltas', 'Phonological_Spectrogram','Phonological_Deltas']
-# stimuli+= ['Phonological_Deltas_Spectrogram','Pitch-Log-Raw','Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
-# stimuli+= ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw']
-# stimuli+= ['Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
-
-# stimuli = ['Envelope']
+stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Mfccs', 'Phonemes-Discrete-Phonet', 'Phonological'] # 'Envelope_Phonemes-Discrete-Manual'
 n_stims, n_bands = len(stimuli), len(bands)
-# stimuli = sorted(stimuli)
 
-# Get mean correlations across subjects and total max and min
-correlations = {(stim,band):load_pickle(path=os.path.join(final_corr_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
-minimum_cor, maximum_cor = min([correlation.min() for correlation in correlations.values()]), max([correlation.max() for correlation in correlations.values()])
+# Get similarities across subjects and total max and min
+similarities = {}
+for band in bands:
+    for stim in stimuli:
+        average_weights_subjects = load_pickle(path=os.path.join(weights_path, band, stim, 'total_weights_per_subject.pkl'))['average_weights_subjects']
+        n_subjects, n_chan, _, _ = average_weights_subjects.shape
+        average_weights = average_weights_subjects.mean(axis=2)
+        correlation_matrices = np.zeros(shape=(n_chan, n_subjects, n_subjects))
 
-# # Create figure and title
-# fig, axes = plt.subplots(figsize=(3*n_stims,1.5*n_bands), nrows=n_bands, ncols=n_stims, layout="constrained")
-# fig.suptitle('Lateralization visualization')
-# if n_stims==1:
-#     axes = axes.reshape(n_bands, 1)
-# elif n_bands==1:
-#     axes = axes.reshape(1, n_stims)
+        # Calculate correlation betweem subjects
+        for channel in range(n_chan):
+            matrix = average_weights[:,channel,:] # TODO HAVE ONE MORE DIMENSION
+            correlation_matrices[channel] = np.corrcoef(matrix)
 
-# # Configure axis
-# for ax, col in zip(axes[0], stimuli):
-#     ax.set_title(col)
-# for ax, row in zip(axes[:,0], bands):
-#     ax.set_ylabel(row, rotation=90)
+        # Correlacion por canal
+        absolute_correlation_per_channel = np.zeros(n_chan)
+        for channel in range(n_chan):
+            channel_corr_values = correlation_matrices[channel][np.tril_indices(n_subjects, k=-1)]
+            absolute_correlation_per_channel[channel] = np.mean(np.abs(channel_corr_values))
+        
+        # Append to similarities
+        similarities[(stim, band)] = absolute_correlation_per_channel
+minimum_sim, maximum_sim = min([similarity.min() for similarity in similarities.values()]), max([similarity.max() for similarity in similarities.values()])
+
+# Create figure and title
+fig, axes = plt.subplots(
+                        nrows=n_bands, 
+                        ncols=n_stims, 
+                        layout="constrained"
+                        )   
+fig.suptitle('Similarity topomaps')
+if n_stims==1:
+    axes = axes.reshape(n_bands, 1)
+elif n_bands==1:
+    axes = axes.reshape(1, n_stims)
+
+# Set axis labels
+for ax, col in zip(axes[0], stimuli):
+    if col=='Phonemes-Discrete-Phonet':
+        col = 'Phonemes'
+    elif col=='Pitch-Log-Raw':
+        col = 'Pitch-Log'
+    ax.set_title(col, fontsize=12)
+for ax, row in zip(axes[:,0], bands):
+    ax.set_ylabel(row, rotation=90, fontsize=12)
 
 # Build scale
-# normalizer = LogNorm(vmin=np.round(minimum_cor,2), vmax=np.round(maximum_cor,2))
-normalizer = Normalize(vmin=np.round(minimum_cor,2), vmax=np.round(maximum_cor,2))
-im = cm.ScalarMappable(norm=normalizer, cmap='Reds')
-
-# Get groups to make average correlations
-n_groups = 10
-posicion_x = np.array([montage._get_ch_pos()[ch][0] for ch in montage._get_ch_pos()])
-posicion_y = np.array([montage._get_ch_pos()[ch][1] for ch in montage._get_ch_pos()])
-bins_x = np.linspace(posicion_x.min(), posicion_x.max(), n_groups)
-bins_y = np.linspace(posicion_y.min(), posicion_y.max(), n_groups)
-
-groups_x = []
-groups_y = []
-
-for i in range(1, n_groups):
-    group_x, group_y = [], []
-    for ch in montage._get_ch_pos():
-        x_value = montage._get_ch_pos()[ch][0]
-        y_value = montage._get_ch_pos()[ch][1]
-        if bins_x[i-1]<=x_value<=bins_x[i]:
-            group_x.append(info_mne.ch_names.index(ch))
-        if bins_y[i-1]<=y_value<=bins_y[i]:
-            group_y.append(info_mne.ch_names.index(ch))
-    groups_x.append(group_x)
-    groups_y.append(group_y)
-
-mne.viz.plot_sensors(
-                    info=info_mne,
-                    show_names=True,
-                    block=False,
-                    pointsize=75,
-                    # cmap=matplotlib.colors.Colormap('pers', N=6),
-                    # kind='select',
-                    ch_groups=groups_x
-                    )
-mne.viz.plot_sensors(
-                    info=info_mne,
-                    show_names=True,
-                    block=False,
-                    pointsize=75,
-                    # cmap=matplotlib.colors.Colormap('pers', N=6),
-                    # kind='select',
-                    ch_groups=groups_y
-                    )
-# Para ver si está balanceado
-# plt.figure()
-# plt.hist(posicion_x, bins)
-# plt.grid(visible=True)
-# plt.yticks(ticks=np.arange(0,20))
-# plt.show(block=False)
+normalizer = Normalize(vmin=np.round(minimum_sim,2), vmax=np.round(maximum_sim,2))
+im = cm.ScalarMappable(norm=normalizer, cmap='Greens')
 
 # Iterate over bands
 for i, band in enumerate(bands):
     for j, stim in enumerate(stimuli):
         # Get average correlation of each stimulus across subjects
-        average_correlation = correlations[(stim,band)]
-        
-        fig, axes = plt.subplots(nrows=2, ncols=2)
-
-        # Get average correlation of each stimulus across subjects
-        fig.suptitle(t=f'{band}-{stim}')
+        similarity = similarities[(stim,band)]
 
         # Plot topomap        
         mne.viz.plot_topomap(
-                            data=average_correlation, 
-                            pos=info_mne, 
-                            # axes=axes[i, j], 
-                            show=False, 
-                            sphere=0.07, 
-                            cmap='Reds', 
-                            vlim=(minimum_cor, maximum_cor),
-                            axes=axes[0,0],
-                            cnorm=normalizer
-                            )
-        axes[1, 0].scatter(np.arange(n_groups-1),[average_correlation[group].mean() for group in groups_x])
-        axes[1, 0].plot(np.arange(n_groups-1),[average_correlation[group].mean() for group in groups_x])
+            data=similarity, 
+            pos=info_mne, 
+            axes=axes[i, j], 
+            show=False, 
+            sphere=0.07, 
+            cmap='Greens', 
+            # vlim=(similarity.min(), similarity.max()),
+            cnorm=normalizer
+            )
 
-        axes[1, 0].set_xlabel('Groups')
-        axes[1, 0].set_ylabel('Average correlation')
-        axes[1, 0].grid(visible=True)
-
-        # Grafico invertido los ejes
-        axes[0, 1].scatter([average_correlation[group].mean() for group in groups_y], np.arange(n_groups-1))
-        axes[0, 1].plot([average_correlation[group].mean() for group in groups_y], np.arange(n_groups-1))
-
-        axes[0, 1].set_xlabel('Average correlation')
-        axes[0, 1].set_ylabel('Groups')
-        axes[0, 1].grid(visible=True)
-
-        axes[1, 1].set_axis_off()
-        fig.show()
-
-
-
-# Make colorbar
+# Add colorbar
 fig.colorbar(im, ax=axes.ravel().tolist())
 fig.show()
 
 # Save figure
 if save_figures:
-    temp_path = os.path.join(path_correlation_matrix_topo,'_'.join(sorted(stimuli)))
+    short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
+    temp_path = os.path.join(path_similarities_matrix_topo,'_'.join(sorted(short_stimuli)))
     os.makedirs(temp_path, exist_ok=True)
-    fig.savefig(os.path.join(temp_path, f'correlation_matrix_topo.png'))
-    fig.savefig(os.path.join(temp_path, f'correlation_matrix_topo.svg'))
+    fig.savefig(os.path.join(temp_path, f'similarities_matrix_topo.png'), dpi=600)
+    fig.savefig(os.path.join(temp_path, f'similarities_matrix_topo.svg'))
 plt.close()
 
-# # ==============================================================================================================
-# # SIMILARITY MATRIX TOPOMAP: make matrix with similarity topomap ordering across features, situations and bands.
-# # ==============================================================================================================
-# path_similarities_matrix_topo = os.path.join(path_figures,'similarities_matrix_topo')
+# ===================================================================================================================
+# TOPOGRAPHIC DISTRIBUTION HEATMAPS: make heatmaps with topographic information across features, situations and bands
+# ===================================================================================================================
+path_distribution = os.path.join(path_figures,'distribution__heatmaps')
 
-# # Relevant parameters
-# situation = 'Internals'
-# bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
-# # bands = ['Theta']
-# stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Deltas', 'Phonemes-Discrete-Manual', 'Pitch-Log-Raw'] # 'Envelope_Phonemes-Discrete-Manual'
-# # stimuli = ['Envelope_Phonemes-Discrete-Manual']
+# Relevant parameters
+bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
+stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Mfccs', 'Phonemes-Discrete-Phonet', 'Phonological'] # 'Envelope_Phonemes-Discrete-Manual'
+n_stims, n_bands = len(stimuli), len(bands)
 
-# # stimuli = ['Envelope', 'Spectrogram', 'Deltas', 'Phonological', 'Mfccs', 'Mfccs-Deltas', 'Phonological_Spectrogram','Phonological_Deltas']
-# # stimuli+= ['Phonological_Deltas_Spectrogram','Pitch-Log-Raw','Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
-# # stimuli+= ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw']
-# # stimuli+= ['Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
-# n_stims, n_bands = len(stimuli), len(bands)
-# stimuli = sorted(stimuli)
+# Get mean correlations across subjects and total max and min
+correlations = {(stim,band):load_pickle(path=os.path.join(final_corr_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
+minimum_cor, maximum_cor = min([correlation.min() for correlation in correlations.values()]), max([correlation.max() for correlation in correlations.values()])
 
-# # Get similarities across subjects and total max and min
-# similarities = {}
-# for band in bands:
-#     for stim in stimuli:
-#         average_weights_subjects = load_pickle(path=os.path.join(weights_path, band, stim, 'total_weights_per_subject.pkl'))['average_weights_subjects']
-#         n_subjects, n_chan, _, _ = average_weights_subjects.shape
-#         average_weights = average_weights_subjects.mean(axis=2)
-#         correlation_matrices = np.zeros(shape=(n_chan, n_subjects, n_subjects))
+# Get groups to make average correlations
+n_groups_x, n_groups_y = 12, 12
+posicion_x = np.array([montage._get_ch_pos()[ch][0] for ch in montage._get_ch_pos()])
+posicion_y = np.array([montage._get_ch_pos()[ch][1] for ch in montage._get_ch_pos()])
+bins_x = np.linspace(posicion_x.min(), posicion_x.max(), n_groups_x)
+bins_y = np.linspace(posicion_y.min(), posicion_y.max(), n_groups_y)
+groups_x, groups_y = [], []
+for i in range(1, n_groups_y):
+    group_y = []
+    for ch in montage._get_ch_pos():
+        y_value = montage._get_ch_pos()[ch][1]
+        if bins_y[i-1]<=y_value<=bins_y[i]:
+            group_y.append(info_mne.ch_names.index(ch))
+    groups_y.append(group_y)
+for i in range(1, n_groups_x):
+    group_x = []
+    for ch in montage._get_ch_pos():
+        x_value = montage._get_ch_pos()[ch][0]
+        y_value = montage._get_ch_pos()[ch][1]
+        if (bins_x[i-1]<=x_value<=bins_x[i]) and (y_value>=0) :
+            group_x.append(info_mne.ch_names.index(ch))
+    groups_x.append(group_x)
+# Para ver si está balanceado
+plt.figure()
+plt.title('bins_x')
+plt.hist(posicion_x, bins_x)
+plt.grid(visible=True)
+plt.yticks(ticks=np.arange(0,20))
+plt.show(block=False)
+plt.figure()
+plt.title('bins_y')
+plt.hist(posicion_y, bins_y)
+plt.grid(visible=True)
+plt.yticks(ticks=np.arange(0,20))
+plt.show(block=False)
 
-#         # Calculate correlation betweem subjects
-#         for channel in range(n_chan):
-#             matrix = average_weights[:,channel,:] # TODO HAVE ONE MORE DIMENSION
-#             correlation_matrices[channel] = np.corrcoef(matrix)
+# =======================
+# HEATMAP LATERALIZATION
+fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10,4), constrained_layout='True')
+axes[0].set_title('Correlation: Phonological-Alpha',
+                   y=1.05, 
+                   verticalalignment="top")
+axes[0].grid(visible=True)
+axes[0].set_axisbelow(True)
+# axes[0].scatter(np.arange(n_groups_y-1), [correlations[('Phonological','Theta')][group].mean() for group in groups_y], color='black')
+cmap = colormaps['plasma']
+colors = cmap(np.linspace(0, 1, len(groups_x)))
+for i, corr, c in zip(np.arange(n_groups_x-1), [correlations[('Phonological','Alpha')][group].mean() for group in groups_x], colors):
+    axes[0].scatter(i, corr, color=c)
+axes[0].set_xticks(np.arange(n_groups_x-1))
+axes[0].set_xticklabels([f'G{i}'for i in np.arange(n_groups_x-1)])
+axes[0].set_xlabel('Channel group selection')
+axes[0].set_ylabel('Average correlation')
+subax = axes[0].inset_axes([.05,.07,.6,.6])
+mne.viz.plot_sensors(
+                    info=info_mne,
+                    show_names=False,
+                    block=False,
+                    pointsize=35,
+                    cmap='plasma',
+                    axes=subax,
+                    ch_groups=groups_x
+                    )
+# # Create a legend
+# cmap = colormaps['plasma']
+# colors = cmap(np.linspace(0, 1, len(groups_x)))
+# handles = [mpatches.Patch(color=colour, label=f'G{i}') for i, colour in enumerate(colors)]
+# axes[0].legend(handles=handles, loc='lower right', frameon=True, fontsize=10)
+z = np.zeros(shape=(len(bands),len(stimuli)))
+for i, band in enumerate(bands):
+    for j, stim in enumerate(stimuli):
+        average_correlation = correlations[(stim,band)]
+        left_group, right_group = [], []
+        for l in range(n_groups_x-1):
+            if l<4:
+                for ch in groups_x[l]:
+                    left_group.append(ch)
+            elif l>6:
+                for ch in groups_x[l]:
+                    right_group.append(ch)
+        z[i,j] = average_correlation[right_group].mean()-average_correlation[left_group].mean()
+axes[1].set_title('Lateralization: right(G[0-3])-left(G[7-10])')
+im = axes[1].imshow(
+                z, 
+                vmin=z.min(), 
+                vmax=z.max(),
+                cmap='plasma'
+                )
+axes[1].set_xticks(np.arange(len(stimuli)))
+axes[1].set_xticklabels([stim.split('-')[0] if stim!='Pitch-Log-Raw' else 'Pitch-Log' for stim in stimuli], minor=False, fontsize=12, rotation=35)
+axes[1].set_yticks(np.arange(len(bands)))
+axes[1].set_yticklabels(bands, minor=False, fontsize=12)
+# axes[1].xaxis.tick_top()
+fig.colorbar(im, ax=axes[1], label='Correlation difference')
+fig.show()
 
-#         # Correlacion por canal
-#         absolute_correlation_per_channel = np.zeros(n_chan)
-#         for channel in range(n_chan):
-#             channel_corr_values = correlation_matrices[channel][np.tril_indices(n_subjects, k=-1)]
-#             absolute_correlation_per_channel[channel] = np.mean(np.abs(channel_corr_values))
-        
-#         # Append to similarities
-#         similarities[(stim, band)] = absolute_correlation_per_channel
-# minimum_sim, maximum_sim = min([similarity.min() for similarity in similarities.values()]), max([similarity.max() for similarity in similarities.values()])
+# Save figure
+if save_figures:
+    short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
+    temp_path = os.path.join(path_distribution,'_'.join(sorted(short_stimuli)))
+    os.makedirs(temp_path, exist_ok=True)
+    fig.savefig(os.path.join(temp_path, f'lateralization.png'), dpi=600)
+    fig.savefig(os.path.join(temp_path, f'lateralization.svg'))
+plt.close()
 
-# # Create figure and title
-# fig, axes = plt.subplots(figsize=(3*n_stims,1.5*n_bands), nrows=n_bands, ncols=n_stims, layout="constrained")
-# fig.suptitle('Similarity topomaps')
-# if n_stims==1:
-#     axes = axes.reshape(n_bands, 1)
-# elif n_bands==1:
-#     axes = axes.reshape(1, n_stims)
+# =======================
+# HEATMAP LATERALIZATION
+fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10,4), constrained_layout='True')
+axes[0].set_title('Correlation: Phonemes-Theta',
+                   y=1.05, 
+                   verticalalignment="top")
+axes[0].grid(visible=True)
+axes[0].set_axisbelow(True)
+# axes[0].scatter(np.arange(n_groups_y-1), [correlations[('Phonemes-Discrete-Phonet','Theta')][group].mean() for group in groups_y], color='black')
+cmap = colormaps['hsv']
+colors = cmap(np.linspace(0, 1, len(groups_x)))
+for i, corr, c in zip(np.arange(n_groups_x-1), [correlations[('Phonemes-Discrete-Phonet','Theta')][group].mean() for group in groups_x], colors):
+    axes[0].scatter(i, corr, color=c)
+axes[0].set_xticks(np.arange(n_groups_x-1))
+axes[0].set_xticklabels([f'G{i}'for i in np.arange(n_groups_x-1)])
+axes[0].set_xlabel('Channel group selection')
+axes[0].set_ylabel('Average correlation')
+subax = axes[0].inset_axes([.02,.07,.45,.45])
+mne.viz.plot_sensors(
+                    info=info_mne,
+                    show_names=False,
+                    block=False,
+                    pointsize=20,
+                    cmap='hsv',
+                    axes=subax,
+                    ch_groups=groups_x
+                    )
+# # Create a legend
+# cmap = colormaps['plasma']
+# colors = cmap(np.linspace(0, 1, len(groups_x)))
+# handles = [mpatches.Patch(color=colour, label=f'G{i}') for i, colour in enumerate(colors)]
+# axes[0].legend(handles=handles, loc='lower right', frameon=True, fontsize=10)
+z = np.zeros(shape=(len(bands),len(stimuli)))
+for i, band in enumerate(bands):
+    for j, stim in enumerate(stimuli):
+        average_correlation = correlations[(stim,band)]
+        sides_group, center_group = [], []
+        for l in range(n_groups_x-1):
+            if 4<=l<=6:
+                for ch in groups_x[l]:
+                    center_group.append(ch)
+            else:
+                for ch in groups_x[l]:
+                    sides_group.append(ch)
+        z[i,j] = average_correlation[sides_group].mean()-average_correlation[center_group].mean()
+axes[1].set_title('Centralization: sides(G[0-3&7-10])-center(G[4-6])')
+im = axes[1].imshow(
+                z, 
+                vmin=z.min(), 
+                vmax=z.max(),
+                cmap='plasma'
+                )
+axes[1].set_xticks(np.arange(len(stimuli)))
+axes[1].set_xticklabels([stim.split('-')[0] if stim!='Pitch-Log-Raw' else 'Pitch-Log' for stim in stimuli], minor=False, fontsize=12, rotation=35)
+axes[1].set_yticks(np.arange(len(bands)))
+axes[1].set_yticklabels(bands, minor=False, fontsize=12)
+# axes[1].xaxis.tick_top()
+fig.colorbar(im, ax=axes[1], label='Correlation difference')
+fig.show()
 
-# # Set axis labels
-# for ax, col in zip(axes[0], stimuli):
-#     ax.set_title(col)
-# for ax, row in zip(axes[:,0], bands):
-#     ax.set_ylabel(row, rotation=90)
+# Save figure
+if save_figures:
+    short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
+    temp_path = os.path.join(path_distribution,'_'.join(sorted(short_stimuli)))
+    os.makedirs(temp_path, exist_ok=True)
+    fig.savefig(os.path.join(temp_path, f'centralization.png'), dpi=600)
+    fig.savefig(os.path.join(temp_path, f'centralization.svg'))
+plt.close()
 
-# # Build scale
-# normalizer = Normalize(vmin=np.round(minimum_sim,2), vmax=np.round(maximum_sim,2))
-# im = cm.ScalarMappable(norm=normalizer, cmap='Greens')
+# ==========================
+# HEATMAP ANTERIOR-POSTERIOR
+fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10,4), constrained_layout='True')
+axes[0].set_title('Correlation: Phonological-Theta',
+                   y=1.05, 
+                   verticalalignment="top")
+axes[0].grid(visible=True)
+axes[0].set_axisbelow(True)
+# axes[0].scatter(np.arange(n_groups_y-1), [correlations[('Phonological','Theta')][group].mean() for group in groups_y], color='black')
+cmap = colormaps['cividis']
+colors = cmap(np.linspace(0, 1, len(groups_y)))
+for i, corr, c in zip(np.arange(n_groups_y-1), [correlations[('Phonological','Theta')][group].mean() for group in groups_y], colors):
+    axes[0].scatter(i, corr, color=c)
+axes[0].set_xticks(np.arange(n_groups_y-1))
+axes[0].set_xticklabels([f'G{i}'for i in np.arange(n_groups_y-1)])
+axes[0].set_xlabel('Channel group selection')
+axes[0].set_ylabel('Average correlation')
+subax = axes[0].inset_axes([.35,.1,.7,.7])
+mne.viz.plot_sensors(
+                    info=info_mne,
+                    show_names=False,
+                    block=False,
+                    pointsize=35,
+                    cmap='cividis',
+                    axes=subax,
+                    ch_groups=groups_y
+                    )
+# # Create a legend
+# cmap = colormaps['cividis']
+# colors = cmap(np.linspace(0, 1, len(groups_y)))
+# handles = [mpatches.Patch(color=colour, label=f'G{i}') for i, colour in enumerate(colors)]
+# axes[0].legend(handles=handles, loc='lower right', frameon=True, fontsize=10)
+z = np.zeros(shape=(len(bands),len(stimuli)))
+for i, band in enumerate(bands):
+    for j, stim in enumerate(stimuli):
+        average_correlation = correlations[(stim,band)]
+        z[i,j] = np.corrcoef([average_correlation[group].mean() for group in groups_y], np.arange(n_groups_y-1))[1,0]
 
-# # Iterate over bands
-# for i, band in enumerate(bands):
-#     for j, stim in enumerate(stimuli):
-#         # Get average correlation of each stimulus across subjects
-#         similarity = similarities[(stim,band)]
+axes[1].set_title('Anterior-Posterior correlation')
+im = axes[1].imshow(
+                z, 
+                vmin=z.min(), 
+                vmax=z.max(),
+                cmap='plasma'
+                )
+axes[1].set_xticks(np.arange(len(stimuli)))
+axes[1].set_xticklabels([stim.split('-')[0] if stim!='Pitch-Log-Raw' else 'Pitch-Log' for stim in stimuli], minor=False, fontsize=12, rotation=35)
+axes[1].set_yticks(np.arange(len(bands)))
+axes[1].set_yticklabels(bands, minor=False, fontsize=12)
+# axes[1].xaxis.tick_top()
+fig.colorbar(im, ax=axes[1], label=r'Linear correlation')
+fig.show()
 
-#         # Plot topomap        
-#         mne.viz.plot_topomap(
-#             data=similarity, 
-#             pos=info_mne, 
-#             axes=axes[i, j], 
-#             show=False, 
-#             sphere=0.07, 
-#             cmap='Greens', 
-#             vlim=(similarity.min(), similarity.max()),
-#             # cnorm=normalizer
-#             )
+# Save figure
+if save_figures:
+    short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
+    temp_path = os.path.join(path_distribution,'_'.join(sorted(short_stimuli)))
+    os.makedirs(temp_path, exist_ok=True)
+    fig.savefig(os.path.join(temp_path, f'anterior_posterior.png'), dpi=600)
+    fig.savefig(os.path.join(temp_path, f'anterior_posterior.svg'))
+plt.close()
 
-# # Add colorbar
-# fig.colorbar(im, ax=axes.ravel().tolist())
+# =================================================================================================
+# CORRELATION HEATMAPS: make heatmaps with correlation values across features, situations and bands
+# =================================================================================================
+path_correlation_heatmaps = os.path.join(path_figures,'correlation_heatmaps')
 
-# # Save figure
-# if save_figures:
-#     temp_path = os.path.join(path_similarities_matrix_topo,'_'.join(stimuli))
-#     os.makedirs(temp_path, exist_ok=True)
-#     plt.savefig(os.path.join(temp_path, f'similarities_matrix_topo.png'))
-#     plt.savefig(os.path.join(temp_path, f'similarities_matrix_topo.svg'))
-# plt.close()
+# Relevant parameters
+bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
+stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Mfccs', 'Phonemes-Discrete-Phonet', 'Phonological'] # 'Envelope_Phonemes-Discrete-Manual'
+n_stims, n_bands = len(stimuli), len(bands)
+
+# Get mean correlations across subjects and total max and min
+correlations = {(stim,band):load_pickle(path=os.path.join(final_corr_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
+minimum_cor, maximum_cor = min([correlation.min() for correlation in correlations.values()]), max([correlation.max() for correlation in correlations.values()])
+
+z = np.zeros(shape=(len(bands),len(stimuli)))
+for i, band in enumerate(bands):
+    for j, stim in enumerate(stimuli):
+        z[i,j] = correlations[(stim,band)].mean()
+
+fig = plt.figure(constrained_layout=True)
+ax = fig.gca()
+# plt.title('External')
+im = plt.imshow(
+                z, 
+                vmin=z.min(), 
+                vmax=z.max(),
+                cmap='plasma'
+                )
+ax.set_xticks(np.arange(len(stimuli)))
+ax.set_xticklabels([stim.split('-')[0] if stim!='Pitch-Log-Raw' else 'Pitch-Log' for stim in stimuli], minor=False, fontsize=12, rotation=35)
+ax.set_yticks(np.arange(len(bands)))
+ax.set_yticklabels(bands, minor=False, fontsize=12)
+ax.xaxis.tick_top()
+fig.colorbar(im, ax=ax, label=r'Average correlation')
+fig.show()
+
+# Save figure
+if save_figures:
+    short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
+    temp_path = os.path.join(path_correlation_heatmaps,'_'.join(sorted(short_stimuli)))
+    os.makedirs(temp_path, exist_ok=True)
+    fig.savefig(os.path.join(temp_path, f'heatmap_corr.png'), dpi=600)
+    fig.savefig(os.path.join(temp_path, f'heatmap_corr.svg'))
+plt.close()
 
 # # ===================
 # # VIOLIN/TOPO (BANDS)
@@ -1254,3 +1413,118 @@ plt.close()
 # #         plt.plot(Corr_Envelope[i], Corr_Pitch[i], '.', label='Subject {}'.format(i + 1))
 # #     plt.legend()
 # #     plt.grid()
+
+
+# ================================================================================================================
+# CORRELATION MATRIX TOPOMAP: make matrix with correlation topomap ordering across features, situations and bands.
+# ================================================================================================================
+path_specific_weights = os.path.join(path_figures,'specific_weights')
+
+#===============
+# ENVELOPE THETA
+
+# Relevant parameters
+band = 'Theta'
+stimulus = 'Envelope'
+
+# Get average weights across subjects
+weights = load_pickle(path=os.path.join(weights_path, band, stimulus, 'total_weights_per_subject.pkl'))['average_weights_subjects'].mean(axis=0).mean(axis=1)
+# weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1) #-mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1).mean(axis=0)
+
+# Create figure and title
+fig, axes = plt.subplots(
+                        # figsize=(3*n_stims,1.5*n_bands), 
+                        nrows=1, 
+                        ncols=1, 
+                        layout="constrained"
+                        )
+fig.suptitle('Envelope-Theta weights')
+evoked = mne.EvokedArray(data=weights, info=info_mne)
+evoked.shift_time(times[0], relative=True)
+evoked.plot(
+            scalings={'eeg':1}, 
+            zorder='std', 
+            # gfp=True,
+            time_unit='ms',
+            show=False, 
+            spatial_colors=True, 
+            # unit=False, 
+            units='mTRF (a.u.)',
+            axes=axes
+            )
+axes.plot(
+        times*1000, #ms
+        evoked._data.mean(0), 
+        'k--', 
+        label='Mean', 
+        zorder=130, 
+        linewidth=2
+        )
+# Graph properties
+axes.legend()
+axes.grid(visible=True)
+axes.set(xlabel='Time (ms)')
+fig.show()
+
+# Save figure
+if save_figures:
+    temp_path = os.path.join(path_specific_weights, stimulus)
+    os.makedirs(temp_path, exist_ok=True)
+    fig.savefig(os.path.join(temp_path, f'{stimulus}_{band}.png'), dpi=600)
+    fig.savefig(os.path.join(temp_path, f'{stimulus}_{band}.svg'))
+plt.close()
+
+#========================
+# PHONEMES-DISCRETE THETA
+
+# Relevant parameters
+band = 'Theta'
+stimulus = 'Phonemes-Discrete-Phonet'
+
+# Get average weights across subjects
+weights = load_pickle(path=os.path.join(weights_path, band, stimulus, 'total_weights_per_subject.pkl'))['average_weights_subjects'].mean(axis=0).mean(axis=0)
+
+# Create figure and title
+fig, axes = plt.subplots(
+                        # figsize=(3*n_stims,1.5*n_bands), 
+                        nrows=1, 
+                        ncols=1, 
+                        layout="constrained"
+                        )
+fig.suptitle('Envelope-Theta weights')
+
+
+# Create colormesh figure
+im = axes.pcolormesh(
+                    times*1000,
+                    np.arange(weights.shape[0]), 
+                    weights, 
+                    cmap='RdBu', 
+                    shading='auto',
+                    vmin=-weights.max(), 
+                    vmax=weights.max()
+                    )
+axes.set(ylabel='Phonemes', yticks=np.arange(weights.shape[0]), yticklabels=exp_info.ph_labels_phonet[:-1])
+axes.tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
+
+# Make color bar
+fig.colorbar(
+            im,
+            ax=axes,
+            orientation='horizontal',
+            label='Amplitude (a.u.)',
+            shrink=1,
+            aspect=20
+            )
+# Graph properties
+axes.set(xlabel='Time (ms)')
+fig.show()
+
+# Save figure
+if save_figures:
+    temp_path = os.path.join(path_specific_weights, stimulus)
+    os.makedirs(temp_path, exist_ok=True)
+    fig.savefig(os.path.join(temp_path, f'{stimulus}_{band}.png'), dpi=600)
+    fig.savefig(os.path.join(temp_path, f'{stimulus}_{band}.svg'))
+plt.close()
+
