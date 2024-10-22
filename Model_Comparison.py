@@ -576,7 +576,8 @@ for i, band in enumerate(bands):
                 for ch in groups_x[l]:
                     right_group.append(ch)
         z[i,j] = average_correlation[right_group].mean()-average_correlation[left_group].mean()
-axes[1].set_title('Lateralization: right(G[0-3])-left(G[7-10])')
+# axes[1].set_title('Lateralization: right(G[0-3])-left(G[7-10])')
+axes[1].set_title('Lateralization: correlation difference')
 im = axes[1].imshow(
                     z, 
                     vmin=z.min(), 
@@ -588,7 +589,7 @@ axes[1].set_xticklabels([stim.split('-')[0] if stim!='Pitch-Log-Raw' else 'Pitch
 axes[1].set_yticks(np.arange(len(bands)))
 axes[1].set_yticklabels(bands, minor=False, fontsize=12)
 # axes[1].xaxis.tick_top()
-cbar = fig.colorbar(im, ax=axes[1], label='Correlation difference')
+cbar = fig.colorbar(im, ax=axes[1])
 cbar.ax.tick_params(labelsize=15)
 fig.show()
 
@@ -601,8 +602,8 @@ if save_figures:
     fig.savefig(os.path.join(temp_path, f'lateralization.svg'), transparent=True)
 plt.close()
 
-# =======================
-# HEATMAP LATERALIZATION
+# ======================
+# HEATMAP CENTRALIZATION
 fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10,4), constrained_layout='True')
 axes[0].set_title('Correlation: Phonemes-Theta',
                    y=1.05, 
@@ -610,7 +611,7 @@ axes[0].set_title('Correlation: Phonemes-Theta',
 axes[0].grid(visible=True)
 axes[0].set_axisbelow(True)
 # axes[0].scatter(np.arange(n_groups_y-1), [correlations[('Phonemes-Discrete-Phonet','Theta')][group].mean() for group in groups_y], color='black')
-cmap = colormaps['hsv']
+cmap = colormaps['turbo']
 colors = cmap(np.linspace(0, 1, len(groups_x)))
 for i, corr, c in zip(np.arange(n_groups_x-1), [correlations[('Phonemes-Discrete-Phonet','Theta')][group].mean() for group in groups_x], colors):
     axes[0].scatter(i, corr, color=c)
@@ -624,7 +625,7 @@ mne.viz.plot_sensors(
                     show_names=False,
                     block=False,
                     pointsize=20,
-                    cmap='hsv',
+                    cmap='turbo',
                     axes=subax,
                     ch_groups=groups_x, 
                     linewidth=0
@@ -647,7 +648,7 @@ for i, band in enumerate(bands):
                 for ch in groups_x[l]:
                     sides_group.append(ch)
         z[i,j] = average_correlation[sides_group].mean()-average_correlation[center_group].mean()
-axes[1].set_title('Centralization: sides(G[0-3&7-10])-center(G[4-6])')
+axes[1].set_title('Centralization: correlation difference')
 im = axes[1].imshow(
                 z, 
                 vmin=z.min(), 
@@ -659,7 +660,7 @@ axes[1].set_xticklabels([stim.split('-')[0] if stim!='Pitch-Log-Raw' else 'Pitch
 axes[1].set_yticks(np.arange(len(bands)))
 axes[1].set_yticklabels(bands, minor=False, fontsize=12)
 # axes[1].xaxis.tick_top()
-cbar = fig.colorbar(im, ax=axes[1], label='Correlation difference')
+cbar = fig.colorbar(im, ax=axes[1])
 cbar.ax.tick_params(labelsize=12)
 fig.show()
 
@@ -724,9 +725,9 @@ axes[1].set_yticks(np.arange(len(bands)))
 axes[1].set_yticklabels(bands, minor=False, fontsize=12)
 # axes[1].xaxis.tick_top()
 
-plt.text(.5, .7, 'Anterior', ha='left', va='top', fontsize=15)
 cbar = fig.colorbar(im, ax=axes[1])
 cbar.ax.tick_params(labelsize=15)
+
 fig.show()
 
 # Save figure
@@ -736,6 +737,12 @@ if save_figures:
     os.makedirs(temp_path, exist_ok=True)
     fig.savefig(os.path.join(temp_path, f'anterior_posterior.png'), dpi=600, transparent=True)
     fig.savefig(os.path.join(temp_path, f'anterior_posterior.svg'), transparent=True)
+plt.close()
+plt.figure()
+plt.text(.25, .5, 'Center', ha='left', va='top', fontsize=45)
+plt.axis('off')
+# plt.show()
+plt.savefig(os.path.join(temp_path, f'Center.png'), dpi=600, transparent=True)
 plt.close()
 
 # =================================================================================================
@@ -1493,6 +1500,10 @@ axes.plot(
         zorder=130, 
         linewidth=2
         )
+frame = axes.legend(loc="upper right", edgecolor="#d9ead3ff")
+frame.set_facecolor("#d9ead3ff")
+frame.set_edgecolor("#d9ead3ff")
+
 # Graph properties
 axes.legend(fontsize=15)
 axes.grid(visible=True)
