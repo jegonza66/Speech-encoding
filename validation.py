@@ -57,9 +57,10 @@ stimuli = ['Mfccs', \
            'Phonemes-Onset','Phonemes-Discrete_Pitch-Log-Raw_Envelope', \
            'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw', \
            'Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
-stimuli = ['Phonemes-Discrete-Phonet', 'Phonemes-Envelope-Phonet','Phonemes-Onset-Phonet'] 
-bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
-situation = 'Internal' #'External' 'External_BS' 'Internal_BS' 'Internal'
+stimuli = ['Phonemes-Discrete-Phonet_Phonological_Envelope', 'Phonological_Envelope','Phonemes-Discrete-Phonet_Envelope'] 
+stimuli = ['Phonemes-Discrete-Phonet_Phonological']
+bands = ['Theta']
+situation = 'External' #'External' 'External_BS' 'Internal_BS' 'Internal'
 
 #PARA INTERNAL NO CORRIO 'Phonemes-Discrete-Manual', 'Pitch-Log-Raw''Phonemes-Discrete', 'Phonemes-Onset'
 # Model, estimator and normalization of input

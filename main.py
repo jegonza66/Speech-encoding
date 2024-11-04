@@ -44,6 +44,10 @@ bands = ['Theta'] #, 'Delta', 'Alpha', 'Beta1', 'Beta2', 'All', 'Delta_Theta', '
 stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Mfccs-Deltas', 'Pitch-Log-Raw','Phonemes-Envelope-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Discrete-Phonet'] 
 bands = ['Delta','Theta', 'Alpha', 'Beta1', 'Beta2']
 situation = 'Internal' #'Internal_BS' #'External' # 'Internal' # 'External_BS'
+stimuli = ['Phonemes-Discrete-Phonet_Phonological']
+bands = ['Theta']
+situation = 'External' #'External' 'External_BS' 'Internal_BS' 'Internal'
+
 # Run setup
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 
