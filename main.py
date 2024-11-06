@@ -44,6 +44,10 @@ bands = ['Theta'] #, 'Delta', 'Alpha', 'Beta1', 'Beta2', 'All', 'Delta_Theta', '
 stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Mfccs-Deltas', 'Pitch-Log-Raw','Phonemes-Envelope-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Discrete-Phonet'] 
 bands = ['Delta','Theta', 'Alpha', 'Beta1', 'Beta2']
 situation = 'Internal' #'Internal_BS' #'External' # 'Internal' # 'External_BS'
+
+stimuli = ['Envelope']
+bands = ['Theta']
+situation = 'External'
 # Run setup
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 
@@ -67,9 +71,9 @@ statistical_test = False
 umbral = 0.05/128 # TODO que onda con features no unidimensionales
 
 # TFCE number of permutations
-perform_tfce = False
-n_permutations = 1024#4096
-number_of_jobs = 1 # Performance may vary across computers (DELL preferably 1, LIAA possibly -1 TODO check LIAA)
+perform_tfce = True
+n_permutations = 2500
+number_of_jobs = -1 # Performance may vary across computers
 
 # Model and normalization of input
 stims_preprocess = 'Normalize'
@@ -100,7 +104,7 @@ for band in bands:
         
         # Relevant paths
         save_results_path = f'saves/{model}/{situation}/correlations/tmin{tmin}_tmax{tmax}/{band}/'
-        preprocessed_data_path = f'saves/preprocessed_data_bis/{situation}/tmin{tmin}_tmax{tmax}/'
+        preprocessed_data_path = f'saves/preprocessed_data/{situation}/tmin{tmin}_tmax{tmax}/'
         path_weights = f'saves/{model}/{situation}/weights/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
         path_null = f'saves/{model}/{situation}/null/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
         path_figures = f'figures/{model}/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
@@ -218,18 +222,19 @@ for band in bands:
                     
                     # Implement mne model
                     mtrf = Receptive_field_adaptation(
-                        tmin=tmin, 
-                        tmax=tmax, 
-                        sample_rate=sr, 
-                        alpha=alpha, 
-                        relevant_indexes=np.array(relevant_indexes),
-                        train_indexes=train_indexes, 
-                        test_indexes=test_indexes, 
-                        stims_preprocess=stims_preprocess, 
-                        eeg_preprocess=eeg_preprocess,
-                        fit_intercept=False,
-                        n_jobs=n_jobs, 
-                        estimator=estimator)
+                                                    tmin=tmin, 
+                                                    tmax=tmax, 
+                                                    sample_rate=sr, 
+                                                    alpha=alpha, 
+                                                    relevant_indexes=np.array(relevant_indexes),
+                                                    train_indexes=train_indexes, 
+                                                    test_indexes=test_indexes, 
+                                                    stims_preprocess=stims_preprocess, 
+                                                    eeg_preprocess=eeg_preprocess,
+                                                    fit_intercept=False,
+                                                    n_jobs=n_jobs, 
+                                                    estimator=estimator
+                                                    )
                     
                     # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
                     mtrf.fit(stims, eeg)
@@ -403,29 +408,31 @@ for band in bands:
         if perform_tfce:
             del average_weights, average_rmse, average_correlation, correlation_per_channel, rmse_per_channel, correlation_matrix, root_mean_square_error,\
                 eeg_test, eeg, stims, stims_sujeto_1, stims_sujeto_2, sujeto_1, sujeto_2, eeg_sujeto_1, eeg_sujeto_2, predicted
-            
-            # Compute TFCE across to get p-value
-            tvalue_tfce, pvalue_tfce = tfce(
-                                            average_weights_subjects=average_weights_subjects, 
-                                            n_jobs=number_of_jobs, 
-                                            n_permutations=n_permutations, 
-                                            stimulus=stim,
-                                            verbose_tfce=True
-                                            )
-            
-            # Save TFCE
-            os.makedirs(os.path.join(path_TFCE, band), exist_ok=True)
-            dump_pickle(path=os.path.join(path_TFCE, band, stimulus + f'_{n_permutations}.pkl'), obj=(tvalue_tfce, pvalue_tfce), rewrite=True)
+            try:
+                print("\nLoading TFCE data")
+                tvalue_tfce, pvalue_tfce = load_pickle(path=os.path.join(path_TFCE, band, stim + f'_{n_permutations}.pkl'))
+                print('Succesfull load')
+            except:
+                print("\nLoad fail", f"\nComputing TFCE: {n_permutations} permutations.")
 
-            # # Plot t and p values
-            # plot.plot_tvalue_pvalue_tfce(tvalue=tvalue_tfce, pvalue=pvalue_tfce, trf_subjects_shape=trf_subjects_shape, times=times, 
-            #                              band=band, stim=stim, n_feats=n_feats, info=info, pval_tresh=.05, save_path=path_figures, 
-            #                              display_interactive_mode=display_interactive_mode, save=save_figures, no_figures=no_figures)
+                # Compute TFCE to get p-value
+                tvalue_tfce, pvalue_tfce = tfce(
+                                                average_weights_subjects=average_weights_subjects, # (n_subjects, n_chan, n_feats, n_delays) 
+                                                stimulus=stim, 
+                                                n_jobs=number_of_jobs, 
+                                                n_permutations=n_permutations,
+                                                verbose_tfce=True
+                                                )
+                
+                # Save TFCE
+                os.makedirs(os.path.join(path_TFCE, band), exist_ok=True)
+                dump_pickle(path=os.path.join(path_TFCE, band, stimulus + f'_{n_permutations}.pkl'), obj=(tvalue_tfce, pvalue_tfce), rewrite=True)
             
-            # plot.plot_pvalue_tfce(average_weights_subjects=average_weights_subjects, pvalue=pvalue_tfce, times=times, info=info,
-            #                       trf_subjects_shape=trf_subjects_shape, n_feats=n_feats, band=band, stim=stim, pval_tresh=.05, 
-            #                       save_path=path_figures, display_interactive_mode=display_interactive_mode, save=save_figures, 
-            #                       no_figures=no_figures)
+            # Plot t and p values
+            plot.plot_pvalue_tfce(average_weights_subjects=average_weights_subjects, pvalue=pvalue_tfce, times=times, stim=stim, 
+                                  n_feats=n_feats, info=info, significance=.05, save_path=path_figures, display_interactive_mode=display_interactive_mode, 
+                                  save=save_figures, no_figures=no_figures)
+            
             
 # Get run time            
 run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)

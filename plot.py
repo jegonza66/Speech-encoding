@@ -26,9 +26,69 @@ pylab.rcParams.update(params)
 matplotlib_colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan']
 
 # Modules
+from processing import clustering_by_correlation
 import funciones, setup
 exp_info = setup.exp_info()
 
+# ===================
+# Auxiliary functions
+
+def define_ticks(axes, number_of_ticks:int, ylabel:str, xlabel:str='Time (ms)', order:list=None, title:str=None):
+    """Define y ticks and labels for a pcolormesh depending on stimulus
+
+    Parameters
+    ----------
+    axes : matplotlib.axes._axes.Axes
+        Axes to modify scale
+    n_feat : int
+        Number of ticks on scale
+    stimulus : str
+        Label of the axes
+    """
+    # Load specific names of ticks
+    exp_info = setup.exp_info()
+
+    if ylabel.startswith('Phonological'):
+        tags = list(exp_info.phonological_labels) if order is None else [list(exp_info.phonological_labels)[i] for i in order]
+        axes.tick_params(axis='both', labelsize='medium') 
+        ticks = np.arange(number_of_ticks)
+    elif ylabel.startswith('Phonemes'):
+        axes.tick_params(axis='both', labelsize='medium')
+        ticks = np.arange(number_of_ticks)
+        if ylabel.endswith('Manual'):
+            tags = exp_info.ph_labels_man if order is None else [exp_info.ph_labels_man[i] for i in order]
+        elif ylabel.endswith('Phonet'):
+            tags = exp_info.ph_labels_phonet[:-1] if order is None else [exp_info.ph_labels_phonet[:-1][i] for i in order]
+        else:
+            tags = exp_info.ph_labels if order is None else [exp_info.ph_labels[i] for i in order]
+    elif ylabel.startswith('Spectrogram'):
+        ylabel = 'Frecuency (Hz)'
+        bands_center = librosa.mel_frequencies(n_mels=number_of_ticks+2, fmin=62, fmax=8000)[1:-1]
+        tags = [int(bands_center[i]) for i in np.arange(0, len(bands_center), 2)]
+        ticks = np.arange(0, number_of_ticks, 2)
+    elif ylabel.startswith('Mfccs') or ylabel.startswith('Deltas'):
+        if ylabel=='Mfccs':
+            tags = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, number_of_ticks)]
+        elif ylabel=='Mfccs-Deltas':
+            tags = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, number_of_ticks/2)] 
+            tags += [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, number_of_ticks/2)]
+        elif ylabel=='Mfccs-Deltas-Deltas':
+            tags = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, number_of_ticks/3)] 
+            tags += [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, number_of_ticks/3)]
+            tags += [r'$\delta-\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, number_of_ticks/3)]
+        elif ylabel=='Deltas':
+            tags = [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, number_of_ticks)]
+        elif ylabel=='Deltas-Deltas':
+            tags = [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, number_of_ticks/2)]
+            tags += [r'$\delta-\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, number_of_ticks/2)]
+        ticks = np.arange(0, number_of_ticks, 2)
+        ylabel= f"{ylabel}'s Index"
+        tags = tags[::2]
+    if title is None:
+        axes.set(xlabel=xlabel, ylabel=ylabel, yticks=ticks, yticklabels=tags)
+    else:
+        axes.set(xlabel=xlabel, ylabel=ylabel, yticks=ticks, yticklabels=tags, title=title)
+        
 # ===============
 # FIGURES OF MAIN
 
@@ -908,7 +968,8 @@ def channel_weights(info:mne.Info,
                     display_interactive_mode:bool=False,
                     session:int=21, 
                     subject:int=1,
-                    no_figures:bool=False):
+                    no_figures:bool=False,
+                    hierarchical_clustering:bool=True):
     """Plot weights of features as an evoked response. If multidimensional features are used, a colormesh is used.
 
     Parameters
@@ -939,6 +1000,8 @@ def channel_weights(info:mne.Info,
         Number of session, by default 21
     fontsize : int, optional
         Fontsize of labels, by default 13
+    hierarchical_clustering : bool, by default True
+        Whether to order attributes using hierarchical clustering based on correlation
     """
     # Exit function
     plt.close()
@@ -957,133 +1020,52 @@ def channel_weights(info:mne.Info,
     stimuli = stim.split('_')
     
     # Create figure and title
-    fig, ax = plt.subplots(nrows=1, ncols=len(stimuli), figsize=(int(8*(len(stimuli))), 8), layout='tight')
+    fig, ax = plt.subplots(
+                        nrows=1, 
+                        ncols=len(stimuli), 
+                        figsize=(int(8*(len(stimuli))), 8), 
+                        layout='tight'
+                        )
     ax = np.array([[ax]]) if len(stimuli)==1 else ax.reshape(1, len(stimuli))
-
     fig.suptitle(f'Session {session} - Subject {subject} - Mcorr: {best_correlation:.2f} - Mrmse: {best_rmse:.2f} - '+ r'$\alpha$'+f': {best_alpha:.2f}')
 
     # Iterate over all stimuli
     for i_feat, (feat, n_feat) in enumerate(zip(stimuli, n_feats)):
         # Make slicing of relevant features
         index_slice = sum(n_feats[:i_feat]),  sum(n_feats[:i_feat]) + n_feat
-
-        # Add color mesh plot for atributes with more than one feature
-        if feat.startswith('Phonemes'):
-            # Take mean across all phonemes
-            average_by_phoneme = average_weights[:, index_slice[0]:index_slice[1], :].mean(axis=0)
-
-            # Create colormesh figure
-            im = ax[0,i_feat].pcolormesh(times*1000,
-                            np.arange(n_feat), 
-                            average_by_phoneme, 
-                            cmap='jet', 
-                            shading='auto')
-
-            # Set figure configuration
-            ax[0,i_feat].tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
-
-            if feat.endswith('Manual'):
-                ax[0,i_feat].set(xlabel='', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels_man, title=f'{feat}')
-            elif feat.endswith('Phonet'):
-                ax[0,i_feat].set(xlabel='', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels_phonet[:-1], title=f'{feat}')
-            else:
-                ax[0,i_feat].set(xlabel='', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels, title=f'{feat}')
-
-            fig.colorbar(im, 
-                         ax=ax[0,i_feat], 
-                         orientation='horizontal', 
-                         shrink=1, 
-                         label='Amplitude (a.u)', 
-                         aspect=15)
-        elif feat.startswith('Phonological'):
-            # Take mean across all phonemes
-            average_by_phon = average_weights[:, index_slice[0]:index_slice[1], :].mean(axis=0)
-
-            # Create colormesh figure
-            im = ax[0,i_feat].pcolormesh(times*1000,
-                            np.arange(n_feat), 
-                            average_by_phon, 
-                            cmap='jet', 
-                            shading='auto')
-
-            # Set figure configuration
-            ax[0,i_feat].tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
-            ax[0,i_feat].set(xlabel='', ylabel='Phonological features', yticks=np.arange(n_feat), yticklabels=exp_info.phonological_labels, title=f'{feat}')
-
-            fig.colorbar(im, 
-                         ax=ax[0,i_feat], 
-                         orientation='horizontal', 
-                         shrink=1, 
-                         label='Amplitude (a.u)', 
-                         aspect=15)
-        elif feat.startswith('Spectro'):
-            # Take mean across all band frequencies
-            average_by_band = average_weights[:, index_slice[0]:index_slice[1], :].mean(axis=0)
-
-            # Create colormesh figure
-            im = ax[0,i_feat].pcolormesh(times * 1000, 
-                            np.arange(n_feat), 
-                            average_by_band, 
-                            cmap='jet', 
-                            shading='auto',
-                            vmin=-average_by_band.max(),
-                            vmax=average_by_band.max())
-
-            # Set figure configuration
-            bands_center = librosa.mel_frequencies(n_mels=n_feat+2, fmin=62, fmax=8000)[1:-1]
-            ax[0,i_feat].set(xlabel='', 
-                             yticklabels=[int(bands_center[i]) for i in np.arange(0, len(bands_center), 2)],
-                             ylabel='Frecuency (Hz)',
-                             yticks=np.arange(0, n_feat, 2), 
-                             title=f'{feat}')
-            # Configure colorbar
-            fig.colorbar(im,
-                         ax=ax[0,i_feat], 
-                         orientation='horizontal', 
-                         shrink=1, 
-                         label='Amplitude (a.u.)', 
-                         aspect=15)
-        elif feat.startswith('Mfccs') or feat.startswith('Deltas'):
-            # Take mean across all band frequencies
-            average_by_band = average_weights[:, index_slice[0]:index_slice[1], :].mean(axis=0)
-
-            # Create colormesh figure
-            im = ax[0,i_feat].pcolormesh(times * 1000, 
-                            np.arange(n_feat), 
-                            average_by_band, 
-                            cmap='jet', 
-                            shading='auto',
-                            vmin=-average_by_band.max(),
-                            vmax=average_by_band.max())
-
-            # Set figure configuration
-            if feat=='Mfccs':
-                ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat)]
-            elif feat=='Mfccs-Deltas':
-                ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)] 
-                ylabels += [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
-            elif feat=='Mfccs-Deltas-Deltas':
-                ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)] 
-                ylabels += [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)]
-                ylabels += [r'$\delta-\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)]
-            elif feat=='Deltas':
-                ylabels = [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat)]
-            elif feat=='Deltas-Deltas':
-                ylabels = [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
-                ylabels += [r'$\delta-\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
-            ax[0,i_feat].set(xlabel='', 
-                             yticklabels=ylabels[::2],
-                             ylabel=f"{feat}'s Index",
-                             yticks= np.arange(0, n_feat, 2), 
-                             title=f'{feat}')
+        if n_feat>1:
+            # Add color mesh plot for atributes with more than one feature
+            weights = average_weights[:, index_slice[0]:index_slice[1], :].mean(axis=0) # n_feats, n_delays
             
+            # Perform clustering
+            if hierarchical_clustering: 
+                order = clustering_by_correlation(weights=weights) 
+                weights = weights[order]
+            else:
+                order = None
+            
+            # Make color mesh
+            im = ax[0,i_feat].pcolormesh(
+                                        times * 1000, 
+                                        np.arange(n_feat), 
+                                        weights, 
+                                        cmap='RdBu', 
+                                        shading='auto',
+                                        vmin=-np.abs(weights).max(),
+                                        vmax=np.abs(weights).max()
+                                        )
+            # Configure axis
+            define_ticks(axes=ax[0, i_feat], number_of_ticks=n_feat, ylabel=feat, xlabel='Time (ms)', title=feat, order=order)
+                
             # Configure colorbar
-            fig.colorbar(im,
-                         ax=ax[0,i_feat], 
-                         orientation='horizontal', 
-                         shrink=1, 
-                         label='Amplitude (a.u.)', 
-                         aspect=15)
+            fig.colorbar(
+                        im,
+                        ax=ax[0, i_feat], 
+                        orientation='horizontal', 
+                        shrink=1, 
+                        label='Amplitude (a.u.)', 
+                        aspect=15
+                        )
         else:
             # Create evoked response as graph of weights averaged across all feats
             weights = average_weights[:, index_slice[0]:index_slice[1], :].mean(axis=1)
@@ -1094,31 +1076,31 @@ def channel_weights(info:mne.Info,
             
             # Plot
             evoked.plot(
-                scalings={'eeg':1}, 
-                zorder='std', 
-                time_unit='ms',
-                show=False, 
-                spatial_colors=True, 
-                # unit=False, 
-                units='mTRF (a.u.)',
-                axes=ax[0,i_feat], #axes=ax, 
-                gfp=False)
+                        scalings={'eeg':1}, 
+                        zorder='std', 
+                        time_unit='ms',
+                        show=False, 
+                        spatial_colors=True, 
+                        # unit=False, 
+                        units='mTRF (a.u.)',
+                        axes=ax[0, i_feat],
+                        gfp=False
+                        )
 
             # Add mean of all channels
             ax[0,i_feat].plot(
-                times * 1000, #ms
-                evoked._data.mean(0), 
-                'k--', 
-                label='Mean', 
-                zorder=130, 
-                linewidth=2)
+                            times * 1000, #ms
+                            evoked._data.mean(0), 
+                            'k', 
+                            label='Mean', 
+                            zorder=130, 
+                            linewidth=2
+                            )
             
             # Graph properties
             ax[0,i_feat].legend()
             ax[0,i_feat].grid(visible=True)
-            ax[0,i_feat].set(xlabel='', title=f'{feat}')
-        if feat==stimuli[-1]:
-            ax[0,i_feat].set_xlabel('Time (ms)')
+            ax[0,i_feat].set(xlabel='Time (ms)', title=f'{feat}')
     
     if save:
         save_path += 'individual_weights/'
@@ -1141,7 +1123,8 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
                                n_feats:list,
                                stim:str,
                                display_interactive_mode:bool=False,
-                               no_figures:bool=False):
+                               no_figures:bool=False,
+                               hierarchical_clustering:bool=True):
     """Plot average weights of features as an evoked response. If colormesh_form is passed, a colormesh graph is performed in case of multifeature attribute are used.
 
     Parameters
@@ -1183,186 +1166,121 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
     stimuli = stim.split('_')
 
     for i_feat, (feat, n_feat) in enumerate(zip(stimuli, n_feats)):
-        # Create figure and title
-        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs') or feat.startswith('Deltas') or feat.startswith('Phonol'):
-            fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(7, 12), layout='tight', sharex=True)
-            ax, ax1 = ax[0], ax[1]
-        else:
-            fig, ax = plt.subplots(nrows=1, ncols=1, layout='tight')
-        fig.suptitle(f'{feat}')
-        
+
         # Make slicing of relevant features
         index_slice = sum(n_feats[:i_feat]),  sum(n_feats[:i_feat]) + n_feat
 
-        # Create evoked response as graph of weights averaged across all feats and all 
-        weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1) #-mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1).mean(axis=0)
-        evoked = mne.EvokedArray(data=weights, info=info)
-    
-        # Relabel time 0
-        evoked.shift_time(times[0], relative=True)
+        if n_feat>1:
+            # Create figure and title
+            fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(7, 12), layout='tight', sharex=True)
+            fig.suptitle(f'{feat}')
+            
+            # Create evoked response as graph of weights averaged across all feats and subjects 
+            weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1)
+            evoked = mne.EvokedArray(data=weights, info=info)
         
-        # Plot
-        evoked.plot(
-            scalings={'eeg':1}, 
-            zorder='std', 
-            time_unit='ms',
-            show=False, 
-            spatial_colors=True, 
-            # unit=False, 
-            units='mTRF (a.u.)',
-            axes=ax,
-            gfp=False)
-        # # Plot
-        # evoked.plot_joint(times=[0.03,0.118,0.204], show=False)
-        # plt.show(block=False)
-        #     # scalings={'eeg':1}, 
-        #     zorder='std', 
-        #     time_unit='ms',
-        #     show=False, 
-        #     spatial_colors=True, 
-        #     # unit=False, 
-        #     units='mTRF (a.u.)',
-        #     axes=ax,
-        #     gfp=False)
+            # Relabel time 0
+            evoked.shift_time(times[0], relative=True)
+            
+            # Plot
+            evoked.plot(
+                        scalings={'eeg':1}, 
+                        zorder='std', 
+                        time_unit='ms',
+                        show=False, 
+                        spatial_colors=True, 
+                        # unit=False, 
+                        units='mTRF (a.u.)',
+                        axes=axes[0],
+                        gfp=False
+                        )
+            # Add mean of all channels
+            axes[0].plot(
+                    times*1e3, #ms
+                    evoked._data.mean(0), 
+                    'k', 
+                    label='Mean', 
+                    zorder=130, 
+                    linewidth=2
+                    )
+            
+            # Graph properties
+            axes[0].grid(visible=True)
+            axes[0].set(xlabel='')
+            axes[0].legend()
 
-        # Add mean of all channels
-        ax.plot(
-            times * 1000, #ms
-            evoked._data.mean(0), 
-            'k--', 
-            label='Mean', 
-            zorder=130, 
-            linewidth=2)
-        
-        # Graph properties
-        ax.legend()
-        ax.grid(visible=True)
-        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs') or feat.startswith('Deltas') or feat.startswith('Phonol'):
-            ax.set(xlabel='')
+            # Now average across channels to make mesh
+            feat_weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=0)
+
+            # Perform clustering
+            if hierarchical_clustering: 
+                order = clustering_by_correlation(weights=feat_weights) 
+                feat_weights = feat_weights[order]
+            else:
+                order = None
+
+            # Create colormesh figure
+            im = axes[1].pcolormesh(
+                                    times * 1000, 
+                                    np.arange(n_feat), 
+                                    feat_weights, 
+                                    cmap='RdBu', 
+                                    shading='auto',
+                                    vmin=-np.abs(feat_weights).max(),
+                                    vmax=np.abs(feat_weights).max()
+                                    )
+
+            # Set figure configuration
+            define_ticks(axes=axes[1], number_of_ticks=n_feat, ylabel=feat, xlabel='Time (ms)', title=None, order=order)
+            
+            # Configure colorbar
+            fig.colorbar(
+                        im, 
+                        ax=axes[1], 
+                        orientation='horizontal', 
+                        shrink=1, 
+                        label='Amplitude (a.u.)', 
+                        aspect=15
+                        )
         else:
+            fig, ax = plt.subplots(nrows=1, ncols=1, layout='tight')
+            fig.suptitle(f'{feat}')
+            
+            # Create evoked response as graph of weights averaged across all feats and subjects 
+            weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1)
+            evoked = mne.EvokedArray(data=weights, info=info)
+        
+            # Relabel time 0
+            evoked.shift_time(times[0], relative=True)
+            
+            # Plot
+            evoked.plot(
+                        scalings={'eeg':1}, 
+                        zorder='std', 
+                        time_unit='ms',
+                        show=False, 
+                        spatial_colors=True, 
+                        # unit=False, 
+                        units='mTRF (a.u.)',
+                        axes=ax,
+                        gfp=False
+                        )
+            # Add mean of all channels
+            ax.plot(
+                    times*1e3, #ms
+                    evoked._data.mean(0), 
+                    'k', 
+                    label='Mean', 
+                    zorder=130, 
+                    linewidth=2
+                    )
+            
+            # Graph properties
             ax.set(xlabel='Time (ms)')
-
-        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs') or feat.startswith('Deltas') or feat.startswith('Phonol'):
-            if feat.startswith('Spectro'):
-                # Take mean across all band frequencies
-                average_by_band = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=0)
-
-                # Create colormesh figure
-                im = ax1.pcolormesh(times * 1000, 
-                                np.arange(n_feat), 
-                                average_by_band, 
-                                cmap='jet', 
-                                shading='auto',
-                                vmin=-average_by_band.max(),
-                                vmax=average_by_band.max())
-
-                # Set figure configuration
-                bands_center = librosa.mel_frequencies(n_mels=n_feat+2, fmin=62, fmax=8000)[1:-1]
-                ax1.set(ylabel='Frecuency (Hz)', yticks=np.arange(0, n_feat, 2), yticklabels=[int(bands_center[i]) for i in np.arange(0, len(bands_center), 2)])
-
-                # Configure colorbar
-                fig.colorbar(im, 
-                            ax=ax1, 
-                            orientation='horizontal', 
-                            shrink=1, 
-                            label='Amplitude (a.u.)', 
-                            aspect=15)
-            elif feat.startswith('Mfccs') or feat.startswith('Deltas'):
-                # Take mean across all band frequencies
-                average_by_band = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=0)
-
-                # Create colormesh figure
-                im = ax1.pcolormesh(times * 1000, 
-                                np.arange(n_feat), 
-                                average_by_band, 
-                                cmap='jet', 
-                                shading='auto',
-                                vmin=-average_by_band.max(),
-                                vmax=average_by_band.max())
-
-                # Set figure configuration
-                if feat=='Mfccs':
-                    ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat)]
-                elif feat=='Mfccs-Deltas':
-                    ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)] 
-                    ylabels += [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
-                elif feat=='Mfccs-Deltas-Deltas':
-                    ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)] 
-                    ylabels += [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)]
-                    ylabels += [r'$\delta-\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)]
-                elif feat=='Deltas':
-                    ylabels = [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat)]
-                elif feat=='Deltas-Deltas':
-                    ylabels = [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
-                    ylabels += [r'$\delta-\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
-                ax1.set(yticklabels=ylabels[::2],
-                             ylabel=f"{feat}'s Index",
-                             yticks= np.arange(0, n_feat, 2), 
-                             title=f'{feat}')
-                
-                # Configure colorbar
-                fig.colorbar(im, 
-                            ax=ax1, 
-                            orientation='horizontal', 
-                            shrink=1, 
-                            label='Amplitude (a.u.)', 
-                            aspect=15)
-            elif feat.startswith('Phonemes'):
-                # Take mean across all phonemes
-                average_by_phoneme = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=0)
-
-                # Create colormesh figure
-                im = ax1.pcolormesh(times * 1000,
-                                np.arange(n_feat), 
-                                average_by_phoneme, 
-                                cmap='jet', 
-                                shading='auto')
-
-                # Set figure configuration
-                if feat.endswith('Manual'):
-                    ax1.set(ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels_man)
-                elif feat.endswith('Phonet'):
-                    ax1.set(ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels_phonet[:-1])
-                else:
-                    ax1.set(ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels)
-                
-                ax1.tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
-                
-                # Make color bar
-                fig.colorbar(im,
-                             ax=ax1,
-                             orientation='horizontal',
-                             label='Amplitude (a.u.)',
-                             shrink=1,
-                             aspect=20)
-            elif feat.startswith('Phonological'):
-                # Take mean across all phonemes
-                average_by_phon = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=0)
-
-                # Create colormesh figure
-                im = ax1.pcolormesh(times * 1000,
-                                np.arange(n_feat), 
-                                average_by_phon, 
-                                cmap='jet', 
-                                shading='auto')
-
-                # Set figure configuration
-                ax1.set(ylabel='Phonological', yticks=np.arange(n_feat), yticklabels=exp_info.phonological_labels)
-                
-                ax1.tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
-                
-                # Make color bar
-                fig.colorbar(im,
-                             ax=ax1,
-                             orientation='horizontal',
-                             label='Amplitude (a.u.)',
-                             shrink=1,
-                             aspect=20)
-            ax1.set(xlabel='Time (ms)')
-
+            ax.grid(visible=True)
+            ax.legend()
         if save:
             os.makedirs(save_path, exist_ok=True)
-        
             # This is done to avoid working with long paths
             temp_path = os.path.normpath(save_path)
             os.chdir(temp_path)
@@ -1475,23 +1393,45 @@ def correlation_matrix_subjects(average_weights_subjects:np.ndarray,
             fig.savefig(f'TRF_correlation_matrix_{feat}.png')
             fig.savefig(f'TRF_correlation_matrix_{feat}.svg')
             os.chdir(current_working_directory)
-            
 
-#TODO CHECK DESCRIPTION E Y LABEL
-def plot_tvalue_pvalue_tfce(tvalue:np.ndarray,
-                  pvalue:np.ndarray, 
-                  trf_subjects_shape:tuple,
-                  times:np.ndarray, 
-                  band:str, 
-                  stim:str,
-                  info:mne.Info,
-                  n_feats:list, 
-                  pval_tresh:float, 
-                  save_path:str, 
-                  display_interactive_mode:bool=False, 
-                  save:bool=True,
-                  no_figures:bool=False):
+#CHECK DESCRIPTION
+def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
+                    pvalue:np.ndarray, 
+                    info:mne.Info,
+                    save:bool, 
+                    save_path:str,
+                    times:np.ndarray,
+                    n_feats:list,
+                    stim:str,
+                    significance:float=0.05,
+                    display_interactive_mode:bool=False,
+                    no_figures:bool=False,
+                    hierarchical_clustering:bool=True):
+    """Plot average weights of features as an evoked response. If colormesh_form is passed, a colormesh graph is performed in case of multifeature attribute are used.
 
+    Parameters
+    ----------
+    average_weights_subjects : np.ndarray
+        _description_
+    info : mne.Info
+        mne Info object depicting biosemi configuration of eeg channels 
+    save : bool
+        Whether to store the figure
+    save_path : str
+        Path to store the figure
+    times : np.ndarray
+        Time matching with corresponding delays
+    n_feats : list
+        Number of features within each attribute
+    stim : str
+        Stimuli used in the model
+    display_interactive_mode : bool, optional
+        Whether to activate interactive mode, by default False
+    fontsize : int, optional
+        Fontsize of labels, by default 13
+    colormesh_form : bool, optional
+        Whether to add graph with colormesh (only for multifeature attributes), by default False
+    """
     # Exit function
     plt.close()
     if no_figures:
@@ -1503,274 +1443,77 @@ def plot_tvalue_pvalue_tfce(tvalue:np.ndarray,
     else:
         plt.ioff()
 
-    # Make grid and time labels
-    n_subj, n_chan_feat, n_delays = trf_subjects_shape 
-    x, y = np.mgrid[0:n_chan_feat, 0:n_delays]
-    time_labels = np.arange(np.round(times[0],1)*1e3, np.round(times[-1],2)*1e3+1e2, 1e2, dtype=int)
-
-    # Create figure and title
-    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(16, 6), layout='tight')
-    fig.suptitle(f'{stim}-{band}')
-    
-    axes[0].remove()
-    axes[0] = fig.add_subplot(1,2,1,projection='3d')
-
-    # T-value surface plot (have in mind that there is a t-value for each channel/feature and delay)
-    surf = axes[0].plot_surface(x,
-                                y,
-                                tvalue,
-                                rstride=1,
-                                cstride=1,
-                                linewidth=0,
-                                cmap="viridis")
-    
-    # Configure axis
-    if n_chan_feat==128:
-        axes[0].set(xticks=[0,127], 
-                    xticklabels=[info['ch_names'][0], info['ch_names'][-1]],
-                    yticks=np.linspace(0, n_delays, len(time_labels), dtype=int),
-                    yticklabels=time_labels, 
-                    zticks=[], 
-                    xlim=[0, n_chan_feat-1], 
-                    ylim=[0, n_delays-1],
-                    xlabel='Channels',
-                    ylabel='Time (ms)', 
-                    title='T-value after TFCE')
-        axes[1].set(xlabel='Time (ms)', 
-                    ylabel='Channels',
-                    yticks=[0,63,127], 
-                    yticklabels=[info['ch_names'][0], info['ch_names'][63], info['ch_names'][-1]],
-                    title='P-value')
-    else:
-        cumsum_feats = np.cumsum(n_feats)
-        ticks_per_feat = [[cumsum_feats[j-1] + i -1 if j!=0 else i-1 for i in range(1, cumsum_feats[j]+1)][::3] for j in range(len(cumsum_feats))]
-        ticks = np.concatenate(ticks_per_feat).tolist()
-        colors={}
-        for i in range(len(stim.split('_'))):
-            for j in ticks_per_feat[i]:
-                colors[j]=matplotlib_colors[i]
-        axes[0].set(xticks=ticks, 
-                    yticks=np.linspace(0, n_delays, len(time_labels), dtype=int),
-                    yticklabels=time_labels, 
-                    zticks=[], 
-                    xlim=[0, n_chan_feat-1], 
-                    ylim=[0, n_delays-1],
-                    xlabel='Features',
-                    ylabel='Time (ms)', 
-                    title='T-value after TFCE')
-        [axes[0].get_xticklabels()[i].set_color(colors[ticks[i]]) for i in range(len(ticks))]
-
-        axes[1].set(xlabel='Times (ms)', 
-                    ylabel='Features',
-                    yticks=ticks, 
-                    title='P-value')
-        [axes[1].get_yticklabels()[i].set_color(colors[ticks[i]]) for i in range(len(ticks))]
-        if len(n_feats)!=1:
-            for i, st in enumerate(stim.split('_')):
-                plt.figtext(x=.05, y=i*.025 +.025, s=f'{st}', color = matplotlib_colors[i], fontdict={'weight':'light'})
-            plt.figtext(x=.05, y=(i+1)*.025 +.025, s=f'Color code for features:', color = 'black', fontdict={'weight':'light'})
-
-    axes[0].view_init(30, 15)
-
-    # Make colorbar
-    plt.colorbar(ax=axes[0],
-                 shrink=0.5,
-                 orientation="vertical",
-                 label='T-value',
-                 mappable=surf)
-    
-    # Make log transformation to p-value
-    if pval_tresh:
-        # Mask p-values over threshold to be a highly different order than thos value that pass the test
-        pvalue[pvalue > pval_tresh] = 1
-
-    # Plot it
-    im = axes[1].pcolormesh(times*1000, 
-                        np.arange(n_chan_feat), 
-                        -np.log10(np.maximum(pvalue, 1e-5)),
-                        cmap="inferno", 
-                        shading='auto')
-
-    # Make colorbar
-    plt.colorbar(ax=axes[1],
-                 shrink=.5,
-                 orientation="vertical",
-                 label=r"$-\log_{10}(p)$",
-                 mappable=im)
-
-    if display_interactive_mode:
-        text = fig.suptitle('TFCE')
-        text.set_weight("bold")
-        plt.subplots_adjust(0, 0.05, 1, 0.9, wspace=0, hspace=0)
-        mne.viz.utils.plt_show()
-    
-    # Save figures
-    if save:
-        save_path += 'TFCE/'
-        os.makedirs(save_path, exist_ok=True)
-
-        # This is done to avoid working with long paths
-        temp_path = os.path.normpath(save_path)
-        os.chdir(temp_path)
-        fig.savefig(f'tvals_{band}_{stim}_{pval_tresh:.0e}.png')
-        fig.savefig(f'tvals_{band}_{stim}_{pval_tresh:.0e}.svg')
-        os.chdir(current_working_directory)
-        
-
-#TODO CHECK DESCRIPTION E Y LABEL
-def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
-                pvalue:np.ndarray,
-                times:np.ndarray, 
-                trf_subjects_shape:tuple, 
-                band:str, 
-                stim:str,
-                info:mne.Info,
-                n_feats:list, 
-                pval_tresh:float, 
-                save_path:str, 
-                display_interactive_mode:bool=False, 
-                save:bool=True,
-                no_figures:bool=False):
-
-    # Exit function
-    plt.close()
-    if no_figures:
-        return
-
-    # Turn on/off interactive mode
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
-
     # Take mean over all subjects
     mean_average_weights_subjects = average_weights_subjects.mean(axis=0)
     stimuli = stim.split('_')
-    save_path += 'TFCE/'
-        
+
     for i_feat, (feat, n_feat) in enumerate(zip(stimuli, n_feats)):
         # Make slicing of relevant features
         index_slice = sum(n_feats[:i_feat]),  sum(n_feats[:i_feat]) + n_feat
-        pvalue_feat = pvalue[index_slice[0]:index_slice[1]]
         
-        if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs') or feat.startswith('Deltas') or feat.startswith('Phonolo'):
-            # Create figure and title
-            fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(16, 8), layout='tight', sharey=True)
-            fig.suptitle(f'P-value for {feat} - {band}')
+        # If stimulus is not frequency correlated significant channels are calculated
+        if pvalue.ndim==3:
+            pvalue = pvalue[index_slice[0]:index_slice[1], :, :]
+            significant_channels = np.zeros(shape=(n_feat, len(times)))
 
-            # Create evoked response as graph of weights averaged across all feats and all 
-            weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=0)
+            # Iteate over columns to get number of channels per feature that passes the threshold
+            for feature in range(n_feat):
+                for delay in range(len(times)):
+                    # Count how many channels pass the threshold for a given feature and delay
+                    ppval = pvalue[feature][delay]
+                    significant_channels[feature, delay] = len(ppval[ppval<significance])
+        else:
+            pvalue = pvalue[:, index_slice[0]:index_slice[1]]
         
-            # Make colormesh
-            im = ax[0].pcolormesh(times*1000,
-                                   np.arange(n_feat), 
-                                   weights, 
-                                   cmap='jet',
-                                   shading='auto')
+        # Transform pvalues to logscale and to 1 pvals not passing the significance (this is for frequency correlated stimulus)
+        pvals_for_graph = pvalue.copy()
+        pvals_for_graph[pvals_for_graph>significance] = 1
+        pvals_for_graph = -np.log10(pvals_for_graph)
+       
+        # Create figure and title
+        fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(9, 7), layout='tight', sharex=True)
+        fig.suptitle(feat)
+            
+        if n_feat>1:
+            # Now average across channels to make mesh
+            feat_weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=0)
+
+            # Perform clustering
+            if hierarchical_clustering: 
+                order = clustering_by_correlation(weights=feat_weights) 
+                feat_weights = feat_weights[order]
+                if pvalue.ndim==3:
+                    significant_channels = significant_channels[order]
+                else:
+                    pvalue = pvalue[:, order]
+            else:
+                order = None
+
+            # Create colormesh figure for weights
+            im = axes[0].pcolormesh(
+                                    times*1e3, 
+                                    np.arange(n_feat), 
+                                    feat_weights, 
+                                    cmap='RdBu', 
+                                    shading='auto',
+                                    vmin=-np.abs(feat_weights).max(),
+                                    vmax=np.abs(feat_weights).max()
+                                    )
 
             # Set figure configuration
-            if feat.startswith('Spectro'):
-                bands_center = librosa.mel_frequencies(n_mels=n_feat+2, fmin=62, fmax=8000)[1:-1]
-                ax[0].set(xlabel='Time (ms)', ylabel='Frecuency (Hz)', yticks=np.arange(0, n_feat, 2), 
-                        yticklabels=[int(bands_center[i]) for i in np.arange(0, len(bands_center), 2)], title='Weights')
-
-                # Configure colorbar
-                fig.colorbar(im, 
-                            ax=ax[0], 
-                            orientation='horizontal', 
-                            shrink=1, 
-                            label='Amplitude (a.u.)', 
-                            aspect=15)
-            elif feat.startswith('Mfccs') or feat.startswith('Deltas'):
-                # Set figure configuration
-                if feat=='Mfccs':
-                    ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat)]
-                elif feat=='Mfccs-Deltas':
-                    ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)] 
-                    ylabels += [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
-                elif feat=='Mfccs-Deltas-Deltas':
-                    ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)] 
-                    ylabels += [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)]
-                    ylabels += [r'$\delta-\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)]
-                elif feat=='Deltas':
-                    ylabels = [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat)]
-                elif feat=='Deltas-Deltas':
-                    ylabels = [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
-                    ylabels += [r'$\delta-\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
-                ax[0].set(xlabel='Time (ms)',
-                          ylabel=f"{feat}'s Index",
-                          yticklabels=ylabels[::2],
-                          yticks= np.arange(0, n_feat, 2), 
-                          title=f'Weights')
-                
-                # Configure colorbar
-                fig.colorbar(im, 
-                            ax=ax[0], 
-                            orientation='horizontal', 
-                            shrink=1, 
-                            label='Amplitude (a.u.)', 
-                            aspect=15)
-            elif feat.startswith('Phonemes'):
-                if feat.endswith('Manual'):
-                    ax[0].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels_man)
-                elif feat.endswith('Phonet'):
-                    ax[0].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels_phonet[:-1])
-                else:
-                    ax[0].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels)
-                
-                ax[0].tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
-                
-                # Make color bar
-                fig.colorbar(im,
-                             ax=ax[0],
-                             orientation='horizontal',
-                             label='Amplitude (a.u.)',
-                             shrink=1,
-                             aspect=20)
-            elif feat.startswith('Phonological'):
-                ax[0].set(xlabel='Time (ms)', ylabel='Phonological Features', yticks=np.arange(n_feat), yticklabels=exp_info.phonological_labels)
-                ax[0].tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
-                
-                # Make color bar
-                fig.colorbar(im,
-                             ax=ax[0],
-                             orientation='horizontal',
-                             label='Amplitude (a.u.)',
-                             shrink=1,
-                             aspect=20)
-                
-            # Mask p-values over threshold
-            pvalue_feat[pvalue_feat > pval_tresh] = 1
-
-            # Make p-value plot
-            img = ax[1].pcolormesh(times*1000, 
-                            np.arange(n_feat), 
-                            -np.log10(np.maximum(pvalue_feat, 1e-5)),
-                            cmap="inferno", 
-                            shading='auto')
-
-            # Configure plot
-            ax[1].set(xlabel='Times (ms)', title='P-value')
+            define_ticks(axes=axes[0], number_of_ticks=n_feat, ylabel=feat, xlabel='', title=None, order=order)
             
-            # Make colorbar
-            cbar = fig.colorbar(ax=ax[1], 
-                                orientation="horizontal", 
-                                label=r"$-\log_{10}(p)$",
-                                shrink=1, 
-                                aspect=15,
-                                mappable=img)
-
-            if display_interactive_mode:
-                text = fig.suptitle('')
-                text.set_weight("bold")
-                plt.subplots_adjust(0, 0.05, 1, 0.9, wspace=0, hspace=0)
-                mne.viz.utils.plt_show()
-        elif n_feat==1 and n_feats!=[1]:
-            # Create figure and title
-            fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 6), layout='tight', sharey=False)
-            fig.suptitle(f'P-value for {feat} - {band}')
-
-            # Create evoked response as graph of weights averaged across all feats and all 
+            # Configure colorbar
+            fig.colorbar(
+                        im, 
+                        ax=axes[0], 
+                        orientation='vertical', 
+                        shrink=1, 
+                        label='Amplitude (a.u.)', 
+                        aspect=15
+                        )
+        else:
+            # Create evoked response as graph of weights averaged across all feats and subjects 
             weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1)
             evoked = mne.EvokedArray(data=weights, info=info)
         
@@ -1779,122 +1522,362 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
             
             # Plot
             evoked.plot(
-                scalings={'eeg':1}, 
-                zorder='std', 
-                time_unit='ms',
-                show=False, 
-                spatial_colors=True, 
-                units='mTRF (a.u.)',
-                axes=ax,
-                gfp=False)
-
+                        scalings={'eeg':1}, 
+                        zorder='std', 
+                        time_unit='ms',
+                        show=False, 
+                        spatial_colors=True, 
+                        # unit=False, 
+                        units='mTRF (a.u.)',
+                        axes=axes[0],
+                        gfp=False
+                        )
             # Add mean of all channels
-            ax.plot(
-                times * 1000, #ms
-                evoked._data.mean(axis=0), 
-                'k--', 
-                label='Mean', 
-                zorder=130, 
-                linewidth=2)
+            axes[0].plot(
+                    times*1e3, #ms
+                    evoked._data.mean(0), 
+                    'k', 
+                    label='Mean', 
+                    zorder=130, 
+                    linewidth=2
+                    )
             
-            # Mask p-values over threshold
-            ax_p_val = ax.twinx()
-            pvalue_feat[pvalue_feat > pval_tresh] = 1
-            logp = -np.log10(np.maximum(pvalue_feat.reshape(-1), pval_tresh))
-
-            # Make vertical span
-            ax_p_val.plot(times*1e3, # ms
-                          logp,
-                          color='orange')
-            
-            ax_p_val.fill_between(times*1e3,
-                                  logp.min(),
-                                  logp, 
-                                  color='orange',
-                                  alpha=.1,
-                                  label=f'Passed {pval_tresh} threshold')
-                       
             # Graph properties
-            ax.legend(loc=(.55,.7))
-            ax.grid(visible=True)
-            ax.set(yticks=[], xlabel='Times (ms)', title='P-value')
-            ax_p_val.set(ylabel=r"$-\log_{10}(p)$", yticks = np.linspace(logp.min(), logp.max(), 8))
-            ax_p_val.legend(loc=(.55,.8))
-
-        elif n_feat==1 and n_feats==[1]:
-            # Create figure and title
-            fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(16, 8), layout='tight', sharey=False)
-            fig.suptitle(f'P-value for {feat} - {band}')
-
-            # Create evoked response as graph of weights averaged across all feats and all 
-            weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1)
-            evoked = mne.EvokedArray(data=weights, info=info)
+            axes[0].set(xlabel='')
+            axes[0].grid(visible=True)
+            axes[0].legend()
+            
+        # Now the pvalue
+        if pvalue.ndim==3:
+            bar_label = "Number of significant channels"
+            # Define y and z according to the number of features (this is just to make a wark around 1 dimensional colormesh)
+            y, z = (np.arange(n_feat+1), np.concatenate((significant_channels,significant_channels))) if n_feat==1 else (np.arange(n_feat), significant_channels)
+            im2 = axes[1].pcolormesh(
+                                    times*1e3, # x
+                                    y, # y
+                                    z, #z
+                                    shading='auto',
+                                    cmap='inferno'
+                                    )
+        else:
+            bar_label = r"$-log_{10}(p_{values})$"
+            # Define y and z according to the number of features (this is just to make a wark around 1 dimensional colormesh)
+            y, z = (np.arange(n_feat+1), np.concatenate((pvals_for_graph,pvals_for_graph))) if n_feat==1 else (np.arange(n_feat), pvals_for_graph)
+            im2 = axes[1].pcolormesh(
+                                    times*1e3, # x
+                                    y, # y
+                                    z, # z
+                                    shading='auto',
+                                    cmap='inferno'
+                                    )
         
-            # Relabel time 0
-            evoked.shift_time(times[0], relative=True)
-            
-            # Plot
-            evoked.plot(
-                scalings={'eeg':1}, 
-                zorder='std', 
-                time_unit='ms',
-                show=False, 
-                spatial_colors=True, 
-                units='mTRF (a.u.)',
-                axes=ax[0],
-                gfp=False)
-
-            # Add mean of all channels
-            ax[0].plot(
-                times * 1000, #ms
-                evoked._data.mean(0), 
-                'k--', 
-                label='Mean', 
-                zorder=130, 
-                linewidth=2)
-            
-            # Graph properties
-            ax[0].legend()
-            ax[0].grid(visible=True)
-
-            # Mask p-values over threshold
-            pvalue_feat = pvalue
-            pvalue_feat[pvalue_feat > pval_tresh] = 1
-
-            # Probability plot
-            img = ax[1].pcolormesh(times*1000, 
-                                np.arange(trf_subjects_shape[1]), 
-                                -np.log10(np.maximum(pvalue, pval_tresh)),
-                                cmap="inferno", 
-                                shading='auto')
-            
-            # Configure plot
-            ax[1].set(yticks=[],
-                xlabel='Times (ms)',
-                ylabel='Channels',
-                title='P-value')
-            
-            # Make colorbar
-            cbar = plt.colorbar(ax=ax[1], 
-                                orientation="vertical", 
-                                label=r"$-\log_{10}(p)$",
-                                fraction=0.05, 
-                                pad=0.025, 
-                                mappable=img)
-            cbar.ax.get_xaxis().set_label_coords(0.5, -3)
-
-        # Save figures
+        if n_feat>1:
+            define_ticks(axes=axes[1], number_of_ticks=n_feat, ylabel=feat, xlabel='Time (ms)', title=None, order=order) 
+            fig.colorbar( 
+                        orientation='vertical', 
+                        label=bar_label,
+                        aspect=15, 
+                        shrink=1, 
+                        mappable=im2
+                        )
+        else:
+            axes[1].set(xlabel ='Time (ms)')
+            fig.colorbar( 
+                        orientation='horizontal', 
+                        label=bar_label,
+                        aspect=15, 
+                        shrink=1, 
+                        pad=.25,
+                        mappable=im2
+                        )
         if save:
             os.makedirs(save_path, exist_ok=True)
-            
-            # This is done to avoid working with long paths
-            temp_path = os.path.normpath(save_path)
-            os.chdir(temp_path)
-            fig.savefig(f'pvalue_{feat.lower()}_{pval_tresh:.0e}.png')
-            fig.savefig(f'pvalue_{feat.lower()}_{pval_tresh:.0e}.svg')
-            os.chdir(current_working_directory)
-        
 
+            # This is done to avoid working with long paths
+            temp_path = os.path.join(os.path.normpath(save_path), 'TFCE')
+            os.makedirs(temp_path, exist_ok=True)
+            os.chdir(temp_path)
+            fig.savefig(f'average_weights_{feat.lower()}.png')
+            fig.savefig(f'average_weights_{feat.lower()}.svg')
+            os.chdir(current_working_directory)
+
+# #TODO CHECK DESCRIPTION E Y LABEL
+# def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
+#                 pvalue:np.ndarray,
+#                 times:np.ndarray, 
+#                 trf_subjects_shape:tuple, 
+#                 band:str, 
+#                 stim:str,
+#                 info:mne.Info,
+#                 n_feats:list, 
+#                 pval_tresh:float, 
+#                 save_path:str, 
+#                 display_interactive_mode:bool=False, 
+#                 save:bool=True,
+#                 no_figures:bool=False):
+
+#     # Exit function
+#     plt.close()
+#     if no_figures:
+#         return
+
+#     # Turn on/off interactive mode
+#     if display_interactive_mode:
+#         plt.ion()
+#     else:
+#         plt.ioff()
+
+#     # Take mean over all subjects
+#     mean_average_weights_subjects = average_weights_subjects.mean(axis=0)
+#     stimuli = stim.split('_')
+#     save_path += 'TFCE/'
+        
+#     for i_feat, (feat, n_feat) in enumerate(zip(stimuli, n_feats)):
+#         # Make slicing of relevant features
+#         index_slice = sum(n_feats[:i_feat]),  sum(n_feats[:i_feat]) + n_feat
+#         pvalue_feat = pvalue[index_slice[0]:index_slice[1]]
+        
+#         if feat.startswith('Phoneme') or feat.startswith('Spectro') or feat.startswith('Mfccs') or feat.startswith('Deltas') or feat.startswith('Phonolo'):
+#             # Create figure and title
+#             fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(16, 8), layout='tight', sharey=True)
+#             fig.suptitle(f'P-value for {feat} - {band}')
+
+#             # Create evoked response as graph of weights averaged across all feats and all 
+#             weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=0)
+        
+#             # Make colormesh
+#             im = ax[0].pcolormesh(times*1000,
+#                                    np.arange(n_feat), 
+#                                    weights, 
+#                                    cmap='RdBu',
+#                                    shading='auto')
+
+#             # Set figure configuration
+#             if feat.startswith('Spectro'):
+#                 bands_center = librosa.mel_frequencies(n_mels=n_feat+2, fmin=62, fmax=8000)[1:-1]
+#                 ax[0].set(xlabel='Time (ms)', ylabel='Frecuency (Hz)', yticks=np.arange(0, n_feat, 2), 
+#                         yticklabels=[int(bands_center[i]) for i in np.arange(0, len(bands_center), 2)], title='Weights')
+
+#                 # Configure colorbar
+#                 fig.colorbar(im, 
+#                             ax=ax[0], 
+#                             orientation='horizontal', 
+#                             shrink=1, 
+#                             label='Amplitude (a.u.)', 
+#                             aspect=15)
+#             elif feat.startswith('Mfccs') or feat.startswith('Deltas'):
+#                 # Set figure configuration
+#                 if feat=='Mfccs':
+#                     ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat)]
+#                 elif feat=='Mfccs-Deltas':
+#                     ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)] 
+#                     ylabels += [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
+#                 elif feat=='Mfccs-Deltas-Deltas':
+#                     ylabels = [r'$m_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)] 
+#                     ylabels += [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)]
+#                     ylabels += [r'$\delta-\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/3)]
+#                 elif feat=='Deltas':
+#                     ylabels = [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat)]
+#                 elif feat=='Deltas-Deltas':
+#                     ylabels = [r'$\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
+#                     ylabels += [r'$\delta-\delta_{{{}}}$'.format(int(i)) for i in np.arange(0, n_feat/2)]
+#                 ax[0].set(xlabel='Time (ms)',
+#                           ylabel=f"{feat}'s Index",
+#                           yticklabels=ylabels[::2],
+#                           yticks= np.arange(0, n_feat, 2), 
+#                           title=f'Weights')
+                
+#                 # Configure colorbar
+#                 fig.colorbar(im, 
+#                             ax=ax[0], 
+#                             orientation='horizontal', 
+#                             shrink=1, 
+#                             label='Amplitude (a.u.)', 
+#                             aspect=15)
+#             elif feat.startswith('Phonemes'):
+#                 if feat.endswith('Manual'):
+#                     ax[0].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels_man)
+#                 elif feat.endswith('Phonet'):
+#                     ax[0].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels_phonet[:-1])
+#                 else:
+#                     ax[0].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels)
+                
+#                 ax[0].tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
+                
+#                 # Make color bar
+#                 fig.colorbar(im,
+#                              ax=ax[0],
+#                              orientation='horizontal',
+#                              label='Amplitude (a.u.)',
+#                              shrink=1,
+#                              aspect=20)
+#             elif feat.startswith('Phonological'):
+#                 ax[0].set(xlabel='Time (ms)', ylabel='Phonological Features', yticks=np.arange(n_feat), yticklabels=exp_info.phonological_labels)
+#                 ax[0].tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
+                
+#                 # Make color bar
+#                 fig.colorbar(im,
+#                              ax=ax[0],
+#                              orientation='horizontal',
+#                              label='Amplitude (a.u.)',
+#                              shrink=1,
+#                              aspect=20)
+                
+#             # Mask p-values over threshold
+#             pvalue_feat[pvalue_feat > pval_tresh] = 1
+
+#             # Make p-value plot
+#             img = ax[1].pcolormesh(times*1000, 
+#                             np.arange(n_feat), 
+#                             -np.log10(np.maximum(pvalue_feat, 1e-5)),
+#                             cmap="inferno", 
+#                             shading='auto')
+
+#             # Configure plot
+#             ax[1].set(xlabel='Times (ms)', title='P-value')
+            
+#             # Make colorbar
+#             cbar = fig.colorbar(ax=ax[1], 
+#                                 orientation="horizontal", 
+#                                 label=r"$-\log_{10}(p)$",
+#                                 shrink=1, 
+#                                 aspect=15,
+#                                 mappable=img)
+
+#             if display_interactive_mode:
+#                 text = fig.suptitle('')
+#                 text.set_weight("bold")
+#                 plt.subplots_adjust(0, 0.05, 1, 0.9, wspace=0, hspace=0)
+#                 mne.viz.utils.plt_show()
+#         elif n_feat==1 and n_feats!=[1]:
+#             # Create figure and title
+#             fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 6), layout='tight', sharey=False)
+#             fig.suptitle(f'P-value for {feat} - {band}')
+
+#             # Create evoked response as graph of weights averaged across all feats and all 
+#             weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1)
+#             evoked = mne.EvokedArray(data=weights, info=info)
+        
+#             # Relabel time 0
+#             evoked.shift_time(times[0], relative=True)
+            
+#             # Plot
+#             evoked.plot(
+#                 scalings={'eeg':1}, 
+#                 zorder='std', 
+#                 time_unit='ms',
+#                 show=False, 
+#                 spatial_colors=True, 
+#                 units='mTRF (a.u.)',
+#                 axes=ax,
+#                 gfp=False)
+
+#             # Add mean of all channels
+#             ax.plot(
+#                 times * 1000, #ms
+#                 evoked._data.mean(axis=0), 
+#                 'k--', 
+#                 label='Mean', 
+#                 zorder=130, 
+#                 linewidth=2)
+            
+#             # Mask p-values over threshold
+#             ax_p_val = ax.twinx()
+#             pvalue_feat[pvalue_feat > pval_tresh] = 1
+#             logp = -np.log10(np.maximum(pvalue_feat.reshape(-1), pval_tresh))
+
+#             # Make vertical span
+#             ax_p_val.plot(times*1e3, # ms
+#                           logp,
+#                           color='orange')
+            
+#             ax_p_val.fill_between(times*1e3,
+#                                   logp.min(),
+#                                   logp, 
+#                                   color='orange',
+#                                   alpha=.1,
+#                                   label=f'Passed {pval_tresh} threshold')
+                       
+#             # Graph properties
+#             ax.legend(loc=(.55,.7))
+#             ax.grid(visible=True)
+#             ax.set(yticks=[], xlabel='Times (ms)', title='P-value')
+#             ax_p_val.set(ylabel=r"$-\log_{10}(p)$", yticks = np.linspace(logp.min(), logp.max(), 8))
+#             ax_p_val.legend(loc=(.55,.8))
+
+#         elif n_feat==1 and n_feats==[1]:
+#             # Create figure and title
+#             fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(16, 8), layout='tight', sharey=False)
+#             fig.suptitle(f'P-value for {feat} - {band}')
+
+#             # Create evoked response as graph of weights averaged across all feats and all 
+#             weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1)
+#             evoked = mne.EvokedArray(data=weights, info=info)
+        
+#             # Relabel time 0
+#             evoked.shift_time(times[0], relative=True)
+            
+#             # Plot
+#             evoked.plot(
+#                 scalings={'eeg':1}, 
+#                 zorder='std', 
+#                 time_unit='ms',
+#                 show=False, 
+#                 spatial_colors=True, 
+#                 units='mTRF (a.u.)',
+#                 axes=ax[0],
+#                 gfp=False)
+
+#             # Add mean of all channels
+#             ax[0].plot(
+#                 times * 1000, #ms
+#                 evoked._data.mean(0), 
+#                 'k--', 
+#                 label='Mean', 
+#                 zorder=130, 
+#                 linewidth=2)
+            
+#             # Graph properties
+#             ax[0].legend()
+#             ax[0].grid(visible=True)
+
+#             # Mask p-values over threshold
+#             pvalue_feat = pvalue
+#             pvalue_feat[pvalue_feat > pval_tresh] = 1
+
+#             # Probability plot
+#             img = ax[1].pcolormesh(times*1000, 
+#                                 np.arange(trf_subjects_shape[1]), 
+#                                 -np.log10(np.maximum(pvalue, pval_tresh)),
+#                                 cmap="inferno", 
+#                                 shading='auto')
+            
+#             # Configure plot
+#             ax[1].set(yticks=[],
+#                 xlabel='Times (ms)',
+#                 ylabel='Channels',
+#                 title='P-value')
+            
+#             # Make colorbar
+#             cbar = plt.colorbar(ax=ax[1], 
+#                                 orientation="vertical", 
+#                                 label=r"$-\log_{10}(p)$",
+#                                 fraction=0.05, 
+#                                 pad=0.025, 
+#                                 mappable=img)
+#             cbar.ax.get_xaxis().set_label_coords(0.5, -3)
+
+#         # Save figures
+#         if save:
+#             os.makedirs(save_path, exist_ok=True)
+            
+#             # This is done to avoid working with long paths
+#             temp_path = os.path.normpath(save_path)
+#             os.chdir(temp_path)
+#             fig.savefig(f'pvalue_{feat.lower()}_{pval_tresh:.0e}.png')
+#             fig.savefig(f'pvalue_{feat.lower()}_{pval_tresh:.0e}.svg')
+#             os.chdir(current_working_directory)
+        
 # =====================
 # FIGURES OF VALIDATION
 
@@ -1984,814 +1967,956 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
         plt.close(fig)
     
 
-##############################################################
-#TODO CHECK DESCRIPTION E Y LABEL
-def plot_trf_tfce(average_weights_subjects:np.ndarray, 
-                  p:np.ndarray, 
-                  times:np.ndarray,
-                  trf_subjects_shape:tuple,
-                  save_path:str, 
-                  band:str, 
-                  stim:str, 
-                  n_permutations:int,  
-                  pval_trhesh:float, 
-                  display_interactive_mode:bool=False, 
-                  save:bool=True):
-    
-    # Turn on/off interactive mode
-    plt.close()
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
+# ##############################################################
 
-    # Define relevant parameters
-    spectrogram_weights_bands = average_weights_subjects.mean(axis=0).mean(axis=0)
-    
-    # Create figure and title
-    fig, axs = plt.subplots(nrows=1, ncols=2, sharey=True, figsize=(16, 6), layout='tight')
-    fig.suptitle(f'P-value for {stim} - {band}')
 
-    # Make colormesh
-    im = axs[0].pcolormesh(times * 1000, 
-                           np.arange(average_weights_subjects.shape[2]), 
-                           spectrogram_weights_bands, 
-                           cmap='jet',
-                           vmin=-spectrogram_weights_bands.max(), 
-                           vmax=spectrogram_weights_bands.max(),
-                           shading='auto')
+# #TODO CHECK DESCRIPTION E Y LABEL
+# def plot_tvalue_pvalue_tfce(tvalue:np.ndarray,
+#                   pvalue:np.ndarray, 
+#                   trf_subjects_shape:tuple,
+#                   times:np.ndarray, 
+#                   band:str, 
+#                   stim:str,
+#                   info:mne.Info,
+#                   n_feats:list, 
+#                   pval_tresh:float, 
+#                   save_path:str, 
+#                   display_interactive_mode:bool=False, 
+#                   save:bool=True,
+#                   no_figures:bool=False):
+
+#     # Exit function
+#     plt.close()
+#     if no_figures:
+#         return  
+
+#     # Turn on/off interactive mode
+#     if display_interactive_mode:
+#         plt.ion()
+#     else:
+#         plt.ioff()
+
+#     # Make grid and time labels
+#     n_subj, n_chan_feat, n_delays = trf_subjects_shape 
+#     x, y = np.mgrid[0:n_chan_feat, 0:n_delays]
+#     time_labels = np.arange(np.round(times[0],1)*1e3, np.round(times[-1],2)*1e3+1e2, 1e2, dtype=int)
+
+#     # Create figure and title
+#     fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(16, 6), layout='tight')
+#     fig.suptitle(f'{stim}-{band}')
+    
+#     axes[0].remove()
+#     axes[0] = fig.add_subplot(1,2,1,projection='3d')
+
+#     # T-value surface plot (have in mind that there is a t-value for each channel/feature and delay)
+#     surf = axes[0].plot_surface(x,
+#                                 y,
+#                                 tvalue,
+#                                 rstride=1,
+#                                 cstride=1,
+#                                 linewidth=0,
+#                                 cmap="viridis")
+    
+#     # Configure axis
+#     if n_chan_feat==128:
+#         axes[0].set(xticks=[0,127], 
+#                     xticklabels=[info['ch_names'][0], info['ch_names'][-1]],
+#                     yticks=np.linspace(0, n_delays, len(time_labels), dtype=int),
+#                     yticklabels=time_labels, 
+#                     zticks=[], 
+#                     xlim=[0, n_chan_feat-1], 
+#                     ylim=[0, n_delays-1],
+#                     xlabel='Channels',
+#                     ylabel='Time (ms)', 
+#                     title='T-value after TFCE')
+#         axes[1].set(xlabel='Time (ms)', 
+#                     ylabel='Channels',
+#                     yticks=[0,63,127], 
+#                     yticklabels=[info['ch_names'][0], info['ch_names'][63], info['ch_names'][-1]],
+#                     title='P-value')
+#     else:
+#         cumsum_feats = np.cumsum(n_feats)
+#         ticks_per_feat = [[cumsum_feats[j-1] + i -1 if j!=0 else i-1 for i in range(1, cumsum_feats[j]+1)][::3] for j in range(len(cumsum_feats))]
+#         ticks = np.concatenate(ticks_per_feat).tolist()
+#         colors={}
+#         for i in range(len(stim.split('_'))):
+#             for j in ticks_per_feat[i]:
+#                 colors[j]=matplotlib_colors[i]
+#         axes[0].set(xticks=ticks, 
+#                     yticks=np.linspace(0, n_delays, len(time_labels), dtype=int),
+#                     yticklabels=time_labels, 
+#                     zticks=[], 
+#                     xlim=[0, n_chan_feat-1], 
+#                     ylim=[0, n_delays-1],
+#                     xlabel='Features',
+#                     ylabel='Time (ms)', 
+#                     title='T-value after TFCE')
+#         [axes[0].get_xticklabels()[i].set_color(colors[ticks[i]]) for i in range(len(ticks))]
+
+#         axes[1].set(xlabel='Times (ms)', 
+#                     ylabel='Features',
+#                     yticks=ticks, 
+#                     title='P-value')
+#         [axes[1].get_yticklabels()[i].set_color(colors[ticks[i]]) for i in range(len(ticks))]
+#         if len(n_feats)!=1:
+#             for i, st in enumerate(stim.split('_')):
+#                 plt.figtext(x=.05, y=i*.025 +.025, s=f'{st}', color = matplotlib_colors[i], fontdict={'weight':'light'})
+#             plt.figtext(x=.05, y=(i+1)*.025 +.025, s=f'Color code for features:', color = 'black', fontdict={'weight':'light'})
+
+#     axes[0].view_init(30, 15)
+
+#     # Make colorbar
+#     plt.colorbar(ax=axes[0],
+#                  shrink=0.5,
+#                  orientation="vertical",
+#                  label='T-value',
+#                  mappable=surf)
+    
+#     # Make log transformation to p-value
+#     if pval_tresh:
+#         # Mask p-values over threshold to be a highly different order than thos value that pass the test
+#         pvalue[pvalue > pval_tresh] = 1
+
+#     # Plot it
+#     im = axes[1].pcolormesh(times*1000, 
+#                         np.arange(n_chan_feat), 
+#                         -np.log10(np.maximum(pvalue, 1e-5)),
+#                         cmap="inferno", 
+#                         shading='auto')
+
+#     # Make colorbar
+#     plt.colorbar(ax=axes[1],
+#                  shrink=.5,
+#                  orientation="vertical",
+#                  label=r"$-\log_{10}(p)$",
+#                  mappable=im)
+
+#     if display_interactive_mode:
+#         text = fig.suptitle('TFCE')
+#         text.set_weight("bold")
+#         plt.subplots_adjust(0, 0.05, 1, 0.9, wspace=0, hspace=0)
+#         mne.viz.utils.plt_show()
+    
+#     # Save figures
+#     if save:
+#         save_path += 'TFCE/'
+#         os.makedirs(save_path, exist_ok=True)
+
+#         # This is done to avoid working with long paths
+#         temp_path = os.path.normpath(save_path)
+#         os.chdir(temp_path)
+#         fig.savefig(f'tvals_{band}_{stim}_{pval_tresh:.0e}.png')
+#         fig.savefig(f'tvals_{band}_{stim}_{pval_tresh:.0e}.svg')
+#         os.chdir(current_working_directory)
         
-    # Configure axis
-    bands_center = librosa.mel_frequencies(n_mels=18, fmin=62, fmax=8000)[1:-1]
-    axs[0].set(xlabel='Time (ms)', 
-               ylabel='Frequency (Hz)',
-               xticks=np.arange(-100, 700, 100),
-               yticks=np.arange(0, 16, 2),
-               yticklabels=[int(bands_center[i]) for i in np.arange(0, 16, 2)])
 
-    # And colorbar
-    cbar = fig.colorbar(im, 
-                        ax=axs[0], 
-                        orientation='vertical', 
-                        label='mTRF Amplitude (a.u.)',
-                        shrink=0.7)
-
-    # Mask p-values over threshold
-    p[p>pval_trhesh] = 1
-
-    # Plot probabilities using a colormesh
-    use_p = -np.log10(np.reshape(np.maximum(p, 1e-5), (trf_subjects_shape[1], trf_subjects_shape[2])))
-    img = axs[1].pcolormesh(times * 1000, 
-                            np.arange(trf_subjects_shape[1]), 
-                            use_p, #np.flip(use_p, axis=0), 
-                            cmap="inferno", 
-                            shading='auto',
-                            vmin=use_p.min(), 
-                            vmax=use_p.max())
-
-    # Configure axis
-    axs[1].set(xlabel='Time (ms)')
-
-    # Plot color bar    
-    cbar = fig.colorbar(ax=axs[1], 
-                        orientation="horizontal", 
-                        label=r"$-\log_{10}(p)$",
-                        mappable=img, 
-                        shrink=0.7)
+# #TODO CHECK DESCRIPTION E Y LABEL
+# def plot_trf_tfce(average_weights_subjects:np.ndarray, 
+#                   p:np.ndarray, 
+#                   times:np.ndarray,
+#                   trf_subjects_shape:tuple,
+#                   save_path:str, 
+#                   band:str, 
+#                   stim:str, 
+#                   n_permutations:int,  
+#                   pval_trhesh:float, 
+#                   display_interactive_mode:bool=False, 
+#                   save:bool=True):
     
-    if display_interactive_mode:
-        text = fig.suptitle('')
-        text.set_weight("bold")
-        plt.subplots_adjust(0, 0.05, 1, 0.9, wspace=0, hspace=0)
-        mne.viz.utils.plt_show()
-
-    # Save figures
-    if save:
-        save_path += 'TFCE/'
-        os.makedirs(save_path, exist_ok=True)
-        plt.savefig(save_path + f'trf_tfce_{pval_trhesh}_{n_permutations}.png')
-        plt.savefig(save_path + f'trf_tfce_{pval_trhesh}_{n_permutations}.svg')
-
-def highlight_cell(x, y, ax=None, **kwargs):
-    rect = plt.Rectangle((x - .5, y - .5), 1, 1, **kwargs)
-    ax = ax or plt.gca()
-    ax.add_patch(rect)
-    return rect
-
-
-def corr_sujeto_decoding(sesion, sujeto, Valores_promedio, display_interactive_mode, name, Save, Run_graficos_path):
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
-
-    data = pd.DataFrame({name: Valores_promedio})
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
-
-    fig, ax = plt.subplots()
-    sns.violinplot(data=data, ax=ax)
-    plt.ylim([-0.2, 1])
-    plt.ylabel(name)
-    plt.title('{}:{:.3f} +/- {:.3f}'.format(name, np.mean(Valores_promedio), np.std(Valores_promedio), fontsize=19))
-
-    if Save:
-        save_path_cabezas = Run_graficos_path + 'Corr_sujetos/'
-        try:
-            os.makedirs(save_path_cabezas)
-        except:
-            pass
-        fig.savefig(save_path_cabezas + '{}_Sesion{}_Sujeto{}.png'.format(name, sesion, sujeto))
-        fig.savefig(save_path_cabezas + '{}_Sesion{}_Sujeto{}.svg'.format(name, sesion, sujeto))
-
-
-
-def Plot_PSD(sesion, sujeto, Band, situacion, display_interactive_mode, Save, save_path, info, data, fmin=0, fmax=40):
-    psds_welch_mean, freqs_mean = mne.time_frequency.psd_array_welch(data, info['sfreq'], fmin, fmax)
-
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
-
-    fig, ax = plt.subplots()
-    fig.suptitle('Sesion {} - Sujeto {} - Situacion {} - Band {}'.format(sesion, sujeto, situacion, Band))
-
-    evoked = mne.EvokedArray(psds_welch_mean, info)
-    evoked.times = freqs_mean
-    evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='s',
-                show=False, spatial_colors=True, unit=False, units='w', axes=ax)
-    ax.set_xlabel('Frequency [Hz]')
-    ax.grid()
-
-    if Save:
-        save_path_graficos = 'gráficos/PSD/Zoom/{}/{}/'.format(save_path, Band)
-        os.makedirs(save_path_graficos, exist_ok=True)
-        plt.savefig(save_path_graficos + 'Sesion{} - Sujeto{}.png'.format(sesion, sujeto, Band))
-        plt.savefig(save_path_graficos + 'Sesion{} - Sujeto{}.svg'.format(sesion, sujeto, Band))
-
-
-def violin_plot_decoding(Correlaciones_totales_sujetos, display_interactive_mode, Save, Run_graficos_path, title):
-
-    data = pd.DataFrame({title: Correlaciones_totales_sujetos.ravel()})
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
-
-    fig, ax = plt.subplots()
-    sns.violinplot(data=data, ax=ax)
-    plt.ylim([-0.2, 1])
-    plt.ylabel(title)
-    plt.title('{}:{:.3f} +/- {:.3f}'.format(title, np.mean(Correlaciones_totales_sujetos),
-                                                     np.std(Correlaciones_totales_sujetos), fontsize=19))
-
-    if Save:
-        save_path_graficos = Run_graficos_path
-        os.makedirs(save_path_graficos, exist_ok=True)
-        fig.savefig(save_path_graficos + '{}_promedio.svg'.format(title))
-        fig.savefig(save_path_graficos + '{}_promedio.png'.format(title))
-
-    return Correlaciones_totales_sujetos.mean(), Correlaciones_totales_sujetos.std()
-
-
-def Cabezas_3d(Correlaciones_totales_sujetos, info, display_interactive_mode, Save, Run_graficos_path, title):
-    Correlaciones_promedio = Correlaciones_totales_sujetos.mean(0)
-
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
-
-    sample_data_folder = mne.datasets.sample.data_path()
-    subjects_dir = os.path.join(sample_data_folder, 'subjects')
-    sample_data_trans_file = os.path.join(sample_data_folder, 'MEG', 'sample',
-                                          'sample_audvis_raw-trans.fif')
-
-    evoked = mne.EvokedArray(np.array([Correlaciones_promedio,]).transpose(), info)
-    field_map = mne.make_field_map(evoked, trans=sample_data_trans_file,
-                                   subject='sample', subjects_dir=subjects_dir, ch_type='eeg',
-                                   meg_surf='head')
-
-    fig = evoked.plot_field(field_map, time=0)
-    xy, im = mne.viz.snapshot_brain_montage(fig, info)
-    # mne.viz.set_3d_view(figure=fig, azimuth=135, elevation=80)
-    fig, ax = plt.subplots(figsize=(15, 10))
-    ax.set_title('Correlation', size='large')
-    ax.imshow(im)
-
-    if Save:
-        try:
-            os.makedirs(Run_graficos_path)
-        except:
-            pass
-        fig.savefig(Run_graficos_path + '{}.svg'.format(title))
-        fig.savefig(Run_graficos_path + '{}.png'.format(title))
-
-    return Correlaciones_promedio.mean(), Correlaciones_promedio.std()
-
-
-def PSD_boxplot(psd_pred_correlations, psd_rand_correlations, display_interactive_mode, Save, Run_graficos_path):
-    psd_rand_correlations = funciones.flatten_list(psd_rand_correlations)
-
-    data = pd.DataFrame({'Prediction': psd_pred_correlations, 'Random': psd_rand_correlations})
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
-
-    fig, ax = plt.subplots()
-    sns.violinplot(data=data, ax=ax)
-    plt.ylim([-0.2, 1])
-    plt.ylabel('Correlation')
-    plt.title('Prediction Correlation:{:.2f} +/- {:.2f}\n'
-              'Random Correlation:{:.2f} +/- {:.2f}'.format(np.mean(psd_pred_correlations), np.std(psd_pred_correlations),
-                                                            np.mean(psd_rand_correlations), np.std(psd_rand_correlations)))
-    add_stat_annotation(ax, data=data, box_pairs=[(('Prediction'), ('Random'))],
-                        test='t-test_ind', text_format='full', loc='inside', verbose=2)
-
-    if Save:
-        save_path_graficos = Run_graficos_path
-        os.makedirs(save_path_graficos, exist_ok=True)
-        fig.savefig(save_path_graficos + 'PSD Boxplot.png')
-        fig.savefig(save_path_graficos + 'PSD Boxplot.svg')
-
-
-def weights_ERP(Pesos_totales_sujetos_todos_canales, info, times, display_interactive_mode,
-                Save, Run_graficos_path, Len_Estimulos, stim, decorrelation_times=None):
-    # Armo pesos promedio por canal de todos los sujetos que por lo menos tuvieron un buen canal
-    Pesos_totales_sujetos_todos_canales_copy = Pesos_totales_sujetos_todos_canales.swapaxes(0, 2)
-    Pesos_totales_sujetos_todos_canales_copy = Pesos_totales_sujetos_todos_canales_copy.mean(0).transpose()
-
-    # Ploteo pesos y cabezas
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
-
-    Stims_Order = stim.split('_')
-
-    Cant_Estimulos = len(Len_Estimulos)
-    for j in range(Cant_Estimulos):
-        Pesos_totales_sujetos_todos_canales_copy[:, j * len(times):(j + 1) * len(times)].mean(0)
-
-        evoked = mne.EvokedArray(
-            np.flip(Pesos_totales_sujetos_todos_canales_copy[:, j * len(times):(j + 1) * len(times)], axis=1), info)
-        evoked.shift_time(-times[0], relative=True)
-
-        fig, ax = plt.subplots(figsize=(15, 5))
-        fig.suptitle('{}'.format(Stims_Order[j] if Cant_Estimulos > 1 else stim), fontsize=23)
-        evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='ms',
-                    show=False, spatial_colors=True, unit=True, units='W', axes=ax)
-
-        ax.plot(times * 1000, evoked._data.mean(0), 'k--', label='Mean', zorder=130, linewidth=2)
-        if times[0] < 0:
-            # ax.axvspan(ax.get_xlim()[0], 0, alpha=0.4, color='grey', label='Pre-stimulus')
-            ax.axvline(x=0, ymin=0, ymax=1, color='grey')
-        if decorrelation_times:
-            # ax.vlines(-np.mean(decorrelation_times), ax.get_ylim()[0], ax.get_ylim()[1], linestyle='dashed',
-            #           color='red', label='Decorrelation time')
-            ax.axvspan(-np.mean(decorrelation_times), 0, alpha=0.4, color='red', label=' Mean decorrelation time')
-            # ax.axvspan(-np.mean(decorrelation_times) - np.std(decorrelation_times) / 2,
-            #            -np.mean(decorrelation_times) + np.std(decorrelation_times) / 2,
-            #            alpha=0.4, color='red', label='Decorrelation time std.')
-
-        ax.xaxis.label.set_size(23)
-        ax.yaxis.label.set_size(23)
-        ax.tick_params(axis='both', labelsize=23)
-        ax.grid()
-        ax.legend(fontsize=15, loc='lower right')
-
-        fig.tight_layout()
-
-        if Save:
-            os.makedirs(Run_graficos_path, exist_ok=True)
-            fig.savefig(
-                Run_graficos_path + 'Regression_Weights_{}.svg'.format(Stims_Order[j] if Cant_Estimulos > 1 else stim))
-            fig.savefig(
-                Run_graficos_path + 'Regression_Weights_{}.png'.format(Stims_Order[j] if Cant_Estimulos > 1 else stim))
-
-
-def decoding_t_lags(Correlaciones_totales_sujetos, times, Band, display_interactive_mode, Save, Run_graficos_path):
-    Corr_time_sub = Correlaciones_totales_sujetos.mean(0)
-    mean_time_corr = np.flip(Corr_time_sub.mean(1))
-    std_time_corr = np.flip(Corr_time_sub.std(1))
-
-    plot_times = -np.flip(times)
-
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
-
-    # get max correlation t_lag
-    max_t_lag = np.argmax(mean_time_corr)
-
-    fig, ax = plt.subplots()
-    plt.plot(plot_times, mean_time_corr)
-    plt.title('{}'.format(Band))
-    plt.fill_between(plot_times, mean_time_corr - std_time_corr/2, mean_time_corr + std_time_corr/2, alpha=.5)
-    plt.vlines(plot_times[max_t_lag], ax.get_ylim()[0], ax.get_ylim()[1], linestyle='dashed', color='k',
-               label='Max. correlation delay: {:.2f}s'.format(plot_times[max_t_lag]))
-    plt.xlabel('Time lag [s]')
-    plt.ylabel('Correlation')
-    ax.xaxis.label.set_size(15)
-    ax.yaxis.label.set_size(15)
-    ax.tick_params(axis='both', labelsize=15)
-    plt.grid()
-    plt.legend()
-
-    if Save:
-        os.makedirs(Run_graficos_path, exist_ok=True)
-        fig.savefig(Run_graficos_path + 'Correlation_time_lags_{}.svg'.format(Band))
-        fig.savefig(Run_graficos_path + 'Correlation_time_lags_{}.png'.format(Band))
-
-
-def Brain_sync(data, Band, info, display_interactive_mode, Save, graficos_save_path, total_subjects=18, sesion=None, sujeto=None):
-
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
-
-    if data.shape == (total_subjects, info['nchan'], info['nchan']):
-        data_ch = data.mean(0)
-    elif data.shape == (info['nchan'], info['nchan']):
-        data_ch = data
-
-    plt.figure(figsize=(10, 8))
-    plt.title('Inter Brain Phase Synchornization - {}'.format(Band), fontsize=14)
-    plt.imshow(data_ch)
-    plt.xticks(np.arange(0, info['nchan'], 4), labels=info['ch_names'][0:-1:4], rotation=45)
-    plt.yticks(np.arange(0, info['nchan'], 4), labels=info['ch_names'][0:-1:4])
-    plt.ylabel('Speaker', fontsize=13)
-    plt.xlabel('Listener', fontsize=13)
-    cbar = plt.colorbar()
-    cbar.ax.tick_params(labelsize=12)
-
-    if Save:
-        os.makedirs(graficos_save_path, exist_ok=True)
-        if data.shape == (total_subjects, info['nchan'], info['nchan']):
-            plt.savefig(graficos_save_path + 'Inter Brain sync - {}.png'.format(Band))
-            plt.savefig(graficos_save_path + 'Inter Brain sync - {}.svg'.format(Band))
-        elif data.shape == (info['nchan'], info['nchan']):
-            plt.savefig(graficos_save_path + 'Inter Brain sync - Sesion{}_Sujeto{}.png'.format(sesion, sujeto))
-            plt.savefig(graficos_save_path + 'Inter Brain sync - Sesion{}_Sujeto{}.svg'.format(sesion, sujeto))
-
-
-
-def ch_heatmap_topo(total_data, info, delays, times, display_interactive_mode, Save, graficos_save_path, title, total_subjects=18,
-                    sesion=None, sujeto=None, fontsize=14):
-
-    if total_data.shape == (info['nchan'], len(delays)):
-        phase_sync_ch = total_data
-    elif total_data.shape == (total_subjects, info['nchan'], len(delays)):
-        phase_sync_ch = total_data.mean(0)
-
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
-
-    plt.rcParams.update({'font.size': fontsize})
-    fig, axs = plt.subplots(figsize=(9, 5), nrows=2, ncols=2, gridspec_kw={'width_ratios': [2, 1]})
-
-    # Remove axes of column 2
-    for ax_col in axs[:, 1]:
-        ax_col.remove()
-
-    # Add one axis in column
-    ax = fig.add_subplot(1, 3, (3, 3))
-
-    # Plot topo
-    phase_sync = phase_sync_ch.mean(0)
-    max_t_lag = np.argmax(phase_sync)
-    max_pahse_sync = phase_sync_ch[:, max_t_lag]
-
-    # ax.set_title('Mean = {:.3f} +/- {:.3f}'.format(max_pahse_sync.mean(), max_pahse_sync.std()))
-    im = mne.viz.plot_topomap(max_pahse_sync, info, cmap='Reds',
-                              vlim=(max_pahse_sync.min(),max_pahse_sync.max()),
-                              show=False, sphere=0.07, axes=ax)
-    cb = plt.colorbar(im[0], shrink=1, orientation='horizontal')
-    cb.set_label('r')
-
-
-    # Invert times for PLV plot
-    phase_sync_ch = np.flip(phase_sync_ch)
-    phase_sync_std = phase_sync_ch.std(0)
-    phase_sync = phase_sync_ch.mean(0)
-    max_t_lag = np.argmax(phase_sync)
-
-    times_plot = np.flip(-times)
-
-    im = axs[0, 0].pcolormesh(times_plot * 1000, np.arange(info['nchan']), phase_sync_ch, shading='auto')
-    axs[0, 0].set_ylabel('Channels')
-    axs[0, 0].set_xticks([])
-
-    cbar = plt.colorbar(im, orientation='vertical', ax=axs[0, 0])
-    cbar.set_label('PLV')
-
-    axs[1, 0].plot(times_plot * 1000, phase_sync)
-    axs[1, 0].fill_between(times_plot * 1000, phase_sync - phase_sync_std / 2, phase_sync + phase_sync_std / 2, alpha=.5)
-    # axs[1, 0].set_ylim([0, 0.2])
-    axs[1, 0].vlines(times_plot[max_t_lag] * 1000, axs[1, 0].get_ylim()[0], axs[1, 0].get_ylim()[1], linestyle='dashed', color='k',
-                label='Max: {}ms'.format(int(times_plot[max_t_lag] * 1000)))
-    axs[1, 0].set_xlabel('Time lag [ms]')
-    axs[1, 0].set_ylabel('Mean {}'.format(title))
-    # axs2.tick_params(axis='both', labelsize=12)
-    axs[1, 0].set_xlim([times_plot[0] * 1000, times_plot[-1] * 1000])
-    axs[1, 0].grid()
-    axs[1, 0].legend()
-
-    fig.tight_layout()
-
-    # Change axis 0 to match axis 1 width after adding colorbar
-    ax0_box = axs[0, 0].get_position().bounds
-    ax1_box = axs[1, 0].get_position().bounds
-    ax1_new_box = (ax1_box[0], ax1_box[1], ax0_box[2], ax1_box[3])
-    axs[1, 0].set_position(ax1_new_box)
-
-    if Save:
-        os.makedirs(graficos_save_path, exist_ok=True)
-        if total_data.shape == (info['nchan'], len(delays)):
-            plt.savefig(graficos_save_path + 't_lags_{}_Sesion{}_Sujeto{}.png'.format(title, sesion, sujeto))
-            plt.savefig(graficos_save_path + 't_lags_{}_Sesion{}_Sujeto{}.svg'.format(title, sesion, sujeto))
-        elif total_data.shape == (total_subjects, info['nchan'], len(delays)):
-            plt.savefig(graficos_save_path + 't_lags_{}.png'.format(title))
-            plt.savefig(graficos_save_path + 't_lags_{}.svg'.format(title))
-
-
-
-
-
-
-
-# ## VIEJAS NO SE USAN
-
-# def Plot_instantes_interes(Pesos_totales_sujetos_todos_canales, info, Band, times, sr, display_interactive_mode_figure_instantes,
-#                            Save_figure_instantes, Run_graficos_path, Cant_Estimulos, Stims_Order, stim,
-#                            Autocorrelation_value=0.1):
+#     # Turn on/off interactive mode
+#     plt.close()
+#     if display_interactive_mode:
+#         plt.ion()
+#     else:
+#         plt.ioff()
+
+#     # Define relevant parameters
+#     spectrogram_weights_bands = average_weights_subjects.mean(axis=0).mean(axis=0)
+    
+#     # Create figure and title
+#     fig, axs = plt.subplots(nrows=1, ncols=2, sharey=True, figsize=(16, 6), layout='tight')
+#     fig.suptitle(f'P-value for {stim} - {band}')
+
+#     # Make colormesh
+#     im = axs[0].pcolormesh(times * 1000, 
+#                            np.arange(average_weights_subjects.shape[2]), 
+#                            spectrogram_weights_bands, 
+#                            cmap='RdBu',
+#                            vmin=-spectrogram_weights_bands.max(), 
+#                            vmax=spectrogram_weights_bands.max(),
+#                            shading='auto')
+        
+#     # Configure axis
+#     bands_center = librosa.mel_frequencies(n_mels=18, fmin=62, fmax=8000)[1:-1]
+#     axs[0].set(xlabel='Time (ms)', 
+#                ylabel='Frequency (Hz)',
+#                xticks=np.arange(-100, 700, 100),
+#                yticks=np.arange(0, 16, 2),
+#                yticklabels=[int(bands_center[i]) for i in np.arange(0, 16, 2)])
+
+#     # And colorbar
+#     cbar = fig.colorbar(im, 
+#                         ax=axs[0], 
+#                         orientation='vertical', 
+#                         label='mTRF Amplitude (a.u.)',
+#                         shrink=0.7)
+
+#     # Mask p-values over threshold
+#     p[p>pval_trhesh] = 1
+
+#     # Plot probabilities using a colormesh
+#     use_p = -np.log10(np.reshape(np.maximum(p, 1e-5), (trf_subjects_shape[1], trf_subjects_shape[2])))
+#     img = axs[1].pcolormesh(times * 1000, 
+#                             np.arange(trf_subjects_shape[1]), 
+#                             use_p, #np.flip(use_p, axis=0), 
+#                             cmap="inferno", 
+#                             shading='auto',
+#                             vmin=use_p.min(), 
+#                             vmax=use_p.max())
+
+#     # Configure axis
+#     axs[1].set(xlabel='Time (ms)')
+
+#     # Plot color bar    
+#     cbar = fig.colorbar(ax=axs[1], 
+#                         orientation="horizontal", 
+#                         label=r"$-\log_{10}(p)$",
+#                         mappable=img, 
+#                         shrink=0.7)
+    
+#     if display_interactive_mode:
+#         text = fig.suptitle('')
+#         text.set_weight("bold")
+#         plt.subplots_adjust(0, 0.05, 1, 0.9, wspace=0, hspace=0)
+#         mne.viz.utils.plt_show()
+
+#     # Save figures
+#     if save:
+#         save_path += 'TFCE/'
+#         os.makedirs(save_path, exist_ok=True)
+#         plt.savefig(save_path + f'trf_tfce_{pval_trhesh}_{n_permutations}.png')
+#         plt.savefig(save_path + f'trf_tfce_{pval_trhesh}_{n_permutations}.svg')
+
+# def highlight_cell(x, y, ax=None, **kwargs):
+#     rect = plt.Rectangle((x - .5, y - .5), 1, 1, **kwargs)
+#     ax = ax or plt.gca()
+#     ax.add_patch(rect)
+#     return rect
+
+
+# def corr_sujeto_decoding(sesion, sujeto, Valores_promedio, display_interactive_mode, name, Save, Run_graficos_path):
+#     if display_interactive_mode:
+#         plt.ion()
+#     else:
+#         plt.ioff()
+
+#     data = pd.DataFrame({name: Valores_promedio})
+#     if display_interactive_mode:
+#         plt.ion()
+#     else:
+#         plt.ioff()
+
+#     fig, ax = plt.subplots()
+#     sns.violinplot(data=data, ax=ax)
+#     plt.ylim([-0.2, 1])
+#     plt.ylabel(name)
+#     plt.title('{}:{:.3f} +/- {:.3f}'.format(name, np.mean(Valores_promedio), np.std(Valores_promedio), fontsize=19))
+
+#     if Save:
+#         save_path_cabezas = Run_graficos_path + 'Corr_sujetos/'
+#         try:
+#             os.makedirs(save_path_cabezas)
+#         except:
+#             pass
+#         fig.savefig(save_path_cabezas + '{}_Sesion{}_Sujeto{}.png'.format(name, sesion, sujeto))
+#         fig.savefig(save_path_cabezas + '{}_Sesion{}_Sujeto{}.svg'.format(name, sesion, sujeto))
+
+
+
+# def Plot_PSD(sesion, sujeto, Band, situacion, display_interactive_mode, Save, save_path, info, data, fmin=0, fmax=40):
+#     psds_welch_mean, freqs_mean = mne.time_frequency.psd_array_welch(data, info['sfreq'], fmin, fmax)
+
+#     if display_interactive_mode:
+#         plt.ion()
+#     else:
+#         plt.ioff()
+
+#     fig, ax = plt.subplots()
+#     fig.suptitle('Sesion {} - Sujeto {} - Situacion {} - Band {}'.format(sesion, sujeto, situacion, Band))
+
+#     evoked = mne.EvokedArray(psds_welch_mean, info)
+#     evoked.times = freqs_mean
+#     evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='s',
+#                 show=False, spatial_colors=True, unit=False, units='w', axes=ax)
+#     ax.set_xlabel('Frequency [Hz]')
+#     ax.grid()
+
+#     if Save:
+#         save_path_graficos = 'gráficos/PSD/Zoom/{}/{}/'.format(save_path, Band)
+#         os.makedirs(save_path_graficos, exist_ok=True)
+#         plt.savefig(save_path_graficos + 'Sesion{} - Sujeto{}.png'.format(sesion, sujeto, Band))
+#         plt.savefig(save_path_graficos + 'Sesion{} - Sujeto{}.svg'.format(sesion, sujeto, Band))
+
+
+# def violin_plot_decoding(Correlaciones_totales_sujetos, display_interactive_mode, Save, Run_graficos_path, title):
+
+#     data = pd.DataFrame({title: Correlaciones_totales_sujetos.ravel()})
+#     if display_interactive_mode:
+#         plt.ion()
+#     else:
+#         plt.ioff()
+
+#     fig, ax = plt.subplots()
+#     sns.violinplot(data=data, ax=ax)
+#     plt.ylim([-0.2, 1])
+#     plt.ylabel(title)
+#     plt.title('{}:{:.3f} +/- {:.3f}'.format(title, np.mean(Correlaciones_totales_sujetos),
+#                                                      np.std(Correlaciones_totales_sujetos), fontsize=19))
+
+#     if Save:
+#         save_path_graficos = Run_graficos_path
+#         os.makedirs(save_path_graficos, exist_ok=True)
+#         fig.savefig(save_path_graficos + '{}_promedio.svg'.format(title))
+#         fig.savefig(save_path_graficos + '{}_promedio.png'.format(title))
+
+#     return Correlaciones_totales_sujetos.mean(), Correlaciones_totales_sujetos.std()
+
+
+# def Cabezas_3d(Correlaciones_totales_sujetos, info, display_interactive_mode, Save, Run_graficos_path, title):
+#     Correlaciones_promedio = Correlaciones_totales_sujetos.mean(0)
+
+#     if display_interactive_mode:
+#         plt.ion()
+#     else:
+#         plt.ioff()
+
+#     sample_data_folder = mne.datasets.sample.data_path()
+#     subjects_dir = os.path.join(sample_data_folder, 'subjects')
+#     sample_data_trans_file = os.path.join(sample_data_folder, 'MEG', 'sample',
+#                                           'sample_audvis_raw-trans.fif')
+
+#     evoked = mne.EvokedArray(np.array([Correlaciones_promedio,]).transpose(), info)
+#     field_map = mne.make_field_map(evoked, trans=sample_data_trans_file,
+#                                    subject='sample', subjects_dir=subjects_dir, ch_type='eeg',
+#                                    meg_surf='head')
+
+#     fig = evoked.plot_field(field_map, time=0)
+#     xy, im = mne.viz.snapshot_brain_montage(fig, info)
+#     # mne.viz.set_3d_view(figure=fig, azimuth=135, elevation=80)
+#     fig, ax = plt.subplots(figsize=(15, 10))
+#     ax.set_title('Correlation', size='large')
+#     ax.imshow(im)
+
+#     if Save:
+#         try:
+#             os.makedirs(Run_graficos_path)
+#         except:
+#             pass
+#         fig.savefig(Run_graficos_path + '{}.svg'.format(title))
+#         fig.savefig(Run_graficos_path + '{}.png'.format(title))
+
+#     return Correlaciones_promedio.mean(), Correlaciones_promedio.std()
+
+
+# def PSD_boxplot(psd_pred_correlations, psd_rand_correlations, display_interactive_mode, Save, Run_graficos_path):
+#     psd_rand_correlations = funciones.flatten_list(psd_rand_correlations)
+
+#     data = pd.DataFrame({'Prediction': psd_pred_correlations, 'Random': psd_rand_correlations})
+#     if display_interactive_mode:
+#         plt.ion()
+#     else:
+#         plt.ioff()
+
+#     fig, ax = plt.subplots()
+#     sns.violinplot(data=data, ax=ax)
+#     plt.ylim([-0.2, 1])
+#     plt.ylabel('Correlation')
+#     plt.title('Prediction Correlation:{:.2f} +/- {:.2f}\n'
+#               'Random Correlation:{:.2f} +/- {:.2f}'.format(np.mean(psd_pred_correlations), np.std(psd_pred_correlations),
+#                                                             np.mean(psd_rand_correlations), np.std(psd_rand_correlations)))
+#     add_stat_annotation(ax, data=data, box_pairs=[(('Prediction'), ('Random'))],
+#                         test='t-test_ind', text_format='full', loc='inside', verbose=2)
+
+#     if Save:
+#         save_path_graficos = Run_graficos_path
+#         os.makedirs(save_path_graficos, exist_ok=True)
+#         fig.savefig(save_path_graficos + 'PSD Boxplot.png')
+#         fig.savefig(save_path_graficos + 'PSD Boxplot.svg')
+
+
+# def weights_ERP(Pesos_totales_sujetos_todos_canales, info, times, display_interactive_mode,
+#                 Save, Run_graficos_path, Len_Estimulos, stim, decorrelation_times=None):
 #     # Armo pesos promedio por canal de todos los sujetos que por lo menos tuvieron un buen canal
 #     Pesos_totales_sujetos_todos_canales_copy = Pesos_totales_sujetos_todos_canales.swapaxes(0, 2)
 #     Pesos_totales_sujetos_todos_canales_copy = Pesos_totales_sujetos_todos_canales_copy.mean(0).transpose()
 
 #     # Ploteo pesos y cabezas
-#     if Display_figure_instantes:
+#     if display_interactive_mode:
 #         plt.ion()
 #     else:
 #         plt.ioff()
 
-#     returns = []
+#     Stims_Order = stim.split('_')
+
+#     Cant_Estimulos = len(Len_Estimulos)
 #     for j in range(Cant_Estimulos):
-#         curva_pesos_totales = Pesos_totales_sujetos_todos_canales_copy[:, j * len(times):(j + 1) * len(times)].mean(0)
-#         returns.append(curva_pesos_totales)
+#         Pesos_totales_sujetos_todos_canales_copy[:, j * len(times):(j + 1) * len(times)].mean(0)
 
-#         if Autocorrelation_value and times[-1] > 0:
-#             weights_autocorr = funciones.correlacion(curva_pesos_totales, curva_pesos_totales)
+#         evoked = mne.EvokedArray(
+#             np.flip(Pesos_totales_sujetos_todos_canales_copy[:, j * len(times):(j + 1) * len(times)], axis=1), info)
+#         evoked.shift_time(-times[0], relative=True)
 
-#             for i in range(len(weights_autocorr)):
-#                 if weights_autocorr[i] < Autocorrelation_value: break
+#         fig, ax = plt.subplots(figsize=(15, 5))
+#         fig.suptitle('{}'.format(Stims_Order[j] if Cant_Estimulos > 1 else stim), fontsize=23)
+#         evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='ms',
+#                     show=False, spatial_colors=True, unit=True, units='W', axes=ax)
 
-#                 dif_paso = weights_autocorr[i - 1] - weights_autocorr[i]
-#                 dif_01 = weights_autocorr[i - 1] - Autocorrelation_value
-#                 dif_time = dif_01 / sr / dif_paso
-#                 decorr_time = ((i - 1) / sr + dif_time) * 1000
+#         ax.plot(times * 1000, evoked._data.mean(0), 'k--', label='Mean', zorder=130, linewidth=2)
+#         if times[0] < 0:
+#             # ax.axvspan(ax.get_xlim()[0], 0, alpha=0.4, color='grey', label='Pre-stimulus')
+#             ax.axvline(x=0, ymin=0, ymax=1, color='grey')
+#         if decorrelation_times:
+#             # ax.vlines(-np.mean(decorrelation_times), ax.get_ylim()[0], ax.get_ylim()[1], linestyle='dashed',
+#             #           color='red', label='Decorrelation time')
+#             ax.axvspan(-np.mean(decorrelation_times), 0, alpha=0.4, color='red', label=' Mean decorrelation time')
+#             # ax.axvspan(-np.mean(decorrelation_times) - np.std(decorrelation_times) / 2,
+#             #            -np.mean(decorrelation_times) + np.std(decorrelation_times) / 2,
+#             #            alpha=0.4, color='red', label='Decorrelation time std.')
 
-#             fig, ax = plt.subplots()
-#             plt.plot(np.arange(len(weights_autocorr)) * 1000 / sr, weights_autocorr)
-#             plt.title('Decorrelation time: {:.2f} ms'.format(decorr_time))
-#             plt.hlines(Autocorrelation_value, ax.get_xlim()[0], decorr_time, linestyle='dashed', color='black')
-#             plt.vlines(decorr_time, ax.get_ylim()[0], Autocorrelation_value, linestyle='dashed', color='black')
-#             plt.grid()
-#             plt.ylabel('Autocorrelation')
-#             plt.xlabel('Time [ms]')
-#             if Save_figure_instantes:
-#                 save_path_graficos = Run_graficos_path
-#                 try:
-#                     os.makedirs(save_path_graficos)
-#                 except:
-#                     pass
-#                 fig.savefig(save_path_graficos + 'Weights Autocorrelation.png')
+#         ax.xaxis.label.set_size(23)
+#         ax.yaxis.label.set_size(23)
+#         ax.tick_params(axis='both', labelsize=23)
+#         ax.grid()
+#         ax.legend(fontsize=15, loc='lower right')
 
-#         evoked = mne.EvokedArray(Pesos_totales_sujetos_todos_canales_copy[:, j * len(times):(j + 1) * len(times)], info)
-#         evoked.shift_time(times[0], relative=True)
-
-#         instantes_index = sgn.find_peaks(np.abs(evoked._data.mean(0)), height=np.abs(evoked._data.mean(0)).max() * 0.4)[
-#             0]
-#         if not len(instantes_index): instantes_index = [np.abs(evoked._data.mean(0)).argmax()]
-#         instantes_de_interes = [i / sr + times[0] for i in instantes_index]  # if i/sr + times[0] < 0]
-
-#         fig = evoked.plot_joint(times=instantes_de_interes, show=False,
-#                                 ts_args=dict(unit='False', units=dict(eeg='$w$', grad='fT/cm', mag='fT'),
-#                                              scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='ms'),
-#                                 topomap_args=dict(vmin=evoked._data.min(),
-#                                                   vmax=evoked._data.max(),
-#                                                   time_unit='ms'))
-
-#         fig.suptitle('{}'.format(Stims_Order[j] if Cant_Estimulos > 1 else stim))
-#         fig.set_size_inches(12, 7)
-#         axs = fig.axes
-#         axs[0].plot(times * 1000, evoked._data.mean(0), 'k--', label='Mean', zorder=130, linewidth=2)
-#         axs[0].axvspan(0, axs[0].get_xlim()[1], alpha=0.4, color='grey', label='Unheard stimuli')
-#         if Autocorrelation_value and times[-1] > 0: axs[0].vlines(decorr_time, axs[0].get_ylim()[0],
-#                                                                   axs[0].get_ylim()[1], linestyle='dashed', color='red',
-#                                                                   label='Decorrelation time')
-#         axs[0].xaxis.label.set_size(13)
-#         axs[0].yaxis.label.set_size(13)
-#         axs[0].grid()
-#         axs[0].legend(fontsize=13, loc='lower left')
-
-#         Blues = plt.cm.get_cmap('Blues').reversed()
-#         cmaps = ['Reds' if evoked._data.mean(0)[i] > 0 else Blues for i in instantes_index]
-
-#         for i in range(len(instantes_de_interes)):
-#             axs[i + 1].clear()
-#             axs[i + 1].set_title('{} ms'.format(int(instantes_de_interes[i] * 1000)), fontsize=11)
-#             im = mne.viz.plot_topomap(evoked._data[:, instantes_index[i]], info, axes=axs[i + 1],
-#                                       show=False, sphere=0.07, cmap=cmaps[i],
-#                                       vmin=evoked._data[:, instantes_index[i]].min(),
-#                                       vmax=evoked._data[:, instantes_index[i]].max())
-#             plt.colorbar(im[0], ax=axs[i + 1], orientation='vertical', shrink=0.8,
-#                          boundaries=np.linspace(evoked._data[:, instantes_index[i]].min().round(decimals=2),
-#                                                 evoked._data[:, instantes_index[i]].max().round(decimals=2), 100),
-#                          ticks=np.linspace(evoked._data[:, instantes_index[i]].min(),
-#                                             evoked._data[:, instantes_index[i]].max(), 4).round(decimals=2))
-
-#         axs[i + 2].remove()
-#         axs[i + 4].remove()
 #         fig.tight_layout()
 
-#         if Save_figure_instantes:
-#             save_path_graficos = Run_graficos_path
-#             try:
-#                 os.makedirs(save_path_graficos)
-#             except:
-#                 pass
+#         if Save:
+#             os.makedirs(Run_graficos_path, exist_ok=True)
 #             fig.savefig(
-#                 save_path_graficos + 'Instantes_interes_{}.svg'.format(Stims_Order[j] if Cant_Estimulos > 1 else stim))
+#                 Run_graficos_path + 'Regression_Weights_{}.svg'.format(Stims_Order[j] if Cant_Estimulos > 1 else stim))
+#             fig.savefig(
+#                 Run_graficos_path + 'Regression_Weights_{}.png'.format(Stims_Order[j] if Cant_Estimulos > 1 else stim))
 
-#     return returns
 
+# def decoding_t_lags(Correlaciones_totales_sujetos, times, Band, display_interactive_mode, Save, Run_graficos_path):
+#     Corr_time_sub = Correlaciones_totales_sujetos.mean(0)
+#     mean_time_corr = np.flip(Corr_time_sub.mean(1))
+#     std_time_corr = np.flip(Corr_time_sub.std(1))
 
-# def Matriz_corr(Pesos_totales_sujetos_promedio, Pesos_totales_sujetos_todos_canales, sujeto_total, Display, Save,
-#                 Run_graficos_path):
-#     # Armo df para correlacionar
-#     Pesos_totales_sujetos_promedio = Pesos_totales_sujetos_promedio[:sujeto_total]
-#     Pesos_totales_sujetos_promedio.append(
-#         Pesos_totales_sujetos_todos_canales.transpose().mean(0).mean(1))  # agrego pesos promedio de todos los sujetos
-#     lista_nombres = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18",
-#                      "Promedio"]
-#     Pesos_totales_sujetos_df = pd.DataFrame(Pesos_totales_sujetos_promedio).transpose()
-#     Pesos_totales_sujetos_df.columns = lista_nombres[:len(Pesos_totales_sujetos_df.columns) - 1] + [lista_nombres[-1]]
+#     plot_times = -np.flip(times)
 
-#     pvals_matrix = Pesos_totales_sujetos_df.corr(method=pearsonr_pval)
-#     Correlation_matrix = np.array(Pesos_totales_sujetos_df.corr(method='pearson'))
-#     for i in range(len(Correlation_matrix)):
-#         Correlation_matrix[i, i] = Correlation_matrix[-1, i]
-
-#     Correlation_matrix = pd.DataFrame(Correlation_matrix[:-1, :-1])
-#     Correlation_matrix.columns = lista_nombres[:len(Correlation_matrix) - 1] + [lista_nombres[-1]]
-
-#     if Display:
+#     if display_interactive_mode:
 #         plt.ion()
 #     else:
 #         plt.ioff()
 
-#     mask = np.ones_like(Correlation_matrix)
-#     mask[np.tril_indices_from(mask)] = False
+#     # get max correlation t_lag
+#     max_t_lag = np.argmax(mean_time_corr)
 
-#     fig, (ax, cax) = plt.subplots(ncols=2, figsize=(15, 9), gridspec_kw={"width_ratios": [1, 0.05]})
-#     fig.suptitle('Absolute value of the correlation among subject\'s $w$', fontsize=26)
-#     sns.heatmap(abs(Correlation_matrix), mask=mask, cmap="coolwarm", fmt='.3', ax=ax,
-#                annot=True, center=0, xticklabels=True, annot_kws={"size": 19},
-#                cbar=False)
-
-#     ax.set_yticklabels(['Mean of subjects'] + lista_nombres[1:len(Correlation_matrix)], rotation='horizontal',
-#                        fontsize=19)
-#     ax.set_xticklabels(lista_nombres[:len(Correlation_matrix) - 1] + ['Mean of subjects'], rotation='horizontal',
-#                        ha='left', fontsize=19)
-
-#     sns.despine(right=True, left=True, bottom=True, top=True)
-#     fig.colorbar(ax.get_children()[0], cax=cax, orientation="horizontal")
-#     cax.yaxis.set_tick_params(labelsize=20)
-
-#     fig.tight_layout()
+#     fig, ax = plt.subplots()
+#     plt.plot(plot_times, mean_time_corr)
+#     plt.title('{}'.format(Band))
+#     plt.fill_between(plot_times, mean_time_corr - std_time_corr/2, mean_time_corr + std_time_corr/2, alpha=.5)
+#     plt.vlines(plot_times[max_t_lag], ax.get_ylim()[0], ax.get_ylim()[1], linestyle='dashed', color='k',
+#                label='Max. correlation delay: {:.2f}s'.format(plot_times[max_t_lag]))
+#     plt.xlabel('Time lag [s]')
+#     plt.ylabel('Correlation')
+#     ax.xaxis.label.set_size(15)
+#     ax.yaxis.label.set_size(15)
+#     ax.tick_params(axis='both', labelsize=15)
+#     plt.grid()
+#     plt.legend()
 
 #     if Save:
-#         save_path_graficos = Run_graficos_path
-#         try:
-#             os.makedirs(save_path_graficos)
-#         except:
-#             pass
-#         fig.savefig(save_path_graficos + 'Correlation_matrix.png')
+#         os.makedirs(Run_graficos_path, exist_ok=True)
+#         fig.savefig(Run_graficos_path + 'Correlation_time_lags_{}.svg'.format(Band))
+#         fig.savefig(Run_graficos_path + 'Correlation_time_lags_{}.png'.format(Band))
 
 
-# def Matriz_std_channel_wise(Pesos_totales_sujetos_todos_canales, Display, Save, Run_graficos_path):
-#     Pesos_totales_sujetos_todos_canales_average = np.dstack(
-#         (Pesos_totales_sujetos_todos_canales, Pesos_totales_sujetos_todos_canales.mean(2)))
-#     Correlation_matrices = np.zeros((Pesos_totales_sujetos_todos_canales_average.shape[0],
-#                                      Pesos_totales_sujetos_todos_canales_average.shape[2],
-#                                      Pesos_totales_sujetos_todos_canales_average.shape[2]))
-#     for channel in range(len(Pesos_totales_sujetos_todos_canales_average)):
-#         Correlation_matrices[channel] = np.array(
-#             pd.DataFrame(Pesos_totales_sujetos_todos_canales_average[channel]).corr(method='pearson'))
+# def Brain_sync(data, Band, info, display_interactive_mode, Save, graficos_save_path, total_subjects=18, sesion=None, sujeto=None):
 
-#     # std por sujeto
-#     std_matrix = Correlation_matrices.std(0)
-
-#     for i in range(len(std_matrix)):
-#         std_matrix[i, i] = std_matrix[-1, i]
-
-#     lista_nombres = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "Promedio"]
-#     std_matrix = pd.DataFrame(std_matrix[:-1, :-1])
-#     std_matrix.columns = lista_nombres[:len(std_matrix) - 1] + [lista_nombres[-1]]
-
-#     if Display:
+#     if display_interactive_mode:
 #         plt.ion()
 #     else:
 #         plt.ioff()
 
-#     mask = np.ones_like(std_matrix)
-#     mask[np.tril_indices_from(mask)] = False
+#     if data.shape == (total_subjects, info['nchan'], info['nchan']):
+#         data_ch = data.mean(0)
+#     elif data.shape == (info['nchan'], info['nchan']):
+#         data_ch = data
 
-#     fig, (ax, cax) = plt.subplots(ncols=2, figsize=(15, 9), gridspec_kw={"width_ratios": [1, 0.05]})
-#     fig.suptitle('Absolute value of the correlation among subject\'s $w$', fontsize=26)
-#     sns.heatmap(abs(std_matrix), mask=mask, cmap="coolwarm", fmt='.3', ax=ax,
-#                annot=True, center=0, xticklabels=True, annot_kws={"size": 19},
-#                cbar=False)
-
-#     ax.set_yticklabels(['Mean of subjects'] + lista_nombres[1:len(std_matrix)], rotation='horizontal', fontsize=19)
-#     ax.set_xticklabels(lista_nombres[:len(std_matrix) - 1] + ['Mean of subjects'], rotation='horizontal', ha='left',
-#                        fontsize=19)
-
-#     sns.despine(right=True, left=True, bottom=True, top=True)
-#     fig.colorbar(ax.get_children()[0], cax=cax, orientation="vertical")
-#     cax.yaxis.set_tick_params(labelsize=20)
-
-#     fig.tight_layout()
+#     plt.figure(figsize=(10, 8))
+#     plt.title('Inter Brain Phase Synchornization - {}'.format(Band), fontsize=14)
+#     plt.imshow(data_ch)
+#     plt.xticks(np.arange(0, info['nchan'], 4), labels=info['ch_names'][0:-1:4], rotation=45)
+#     plt.yticks(np.arange(0, info['nchan'], 4), labels=info['ch_names'][0:-1:4])
+#     plt.ylabel('Speaker', fontsize=13)
+#     plt.xlabel('Listener', fontsize=13)
+#     cbar = plt.colorbar()
+#     cbar.ax.tick_params(labelsize=12)
 
 #     if Save:
-#         save_path_graficos = Run_graficos_path
-#         try:
-#             os.makedirs(save_path_graficos)
-#         except:
-#             pass
-#         fig.savefig(save_path_graficos + 'Channelwise_std_matrix.png')
+#         os.makedirs(graficos_save_path, exist_ok=True)
+#         if data.shape == (total_subjects, info['nchan'], info['nchan']):
+#             plt.savefig(graficos_save_path + 'Inter Brain sync - {}.png'.format(Band))
+#             plt.savefig(graficos_save_path + 'Inter Brain sync - {}.svg'.format(Band))
+#         elif data.shape == (info['nchan'], info['nchan']):
+#             plt.savefig(graficos_save_path + 'Inter Brain sync - Sesion{}_Sujeto{}.png'.format(sesion, sujeto))
+#             plt.savefig(graficos_save_path + 'Inter Brain sync - Sesion{}_Sujeto{}.svg'.format(sesion, sujeto))
 
 
-# def Cabezas_corr_promedio_scaled(Correlaciones_totales_sujetos, info, Display, Save, Run_graficos_path, title):
-#     Correlaciones_promedio = Correlaciones_totales_sujetos.mean(0)
 
-#     if Display:
+# def ch_heatmap_topo(total_data, info, delays, times, display_interactive_mode, Save, graficos_save_path, title, total_subjects=18,
+#                     sesion=None, sujeto=None, fontsize=14):
+
+#     if total_data.shape == (info['nchan'], len(delays)):
+#         phase_sync_ch = total_data
+#     elif total_data.shape == (total_subjects, info['nchan'], len(delays)):
+#         phase_sync_ch = total_data.mean(0)
+
+#     if display_interactive_mode:
 #         plt.ion()
 #     else:
 #         plt.ioff()
 
-#     fig = plt.figure()
-#     plt.suptitle("Mean {} per channel among subjects".format(title), fontsize=19)
-#     plt.title('{} = {:.3f} +/- {:.3f}'.format(title, Correlaciones_promedio.mean(), Correlaciones_promedio.std()),
-#               fontsize=19)
-#     ax = plt.subplot()
-#     im = mne.viz.plot_topomap(Correlaciones_promedio, info, cmap='Greys', vmin=0, vmax=0.41, show=Display, sphere=0.07, axes=ax)
-#     cb = plt.colorbar(im[0], shrink=0.85, orientation='vertical')
-#     cb.ax.tick_params(labelsize=23)
+#     plt.rcParams.update({'font.size': fontsize})
+#     fig, axs = plt.subplots(figsize=(9, 5), nrows=2, ncols=2, gridspec_kw={'width_ratios': [2, 1]})
+
+#     # Remove axes of column 2
+#     for ax_col in axs[:, 1]:
+#         ax_col.remove()
+
+#     # Add one axis in column
+#     ax = fig.add_subplot(1, 3, (3, 3))
+
+#     # Plot topo
+#     phase_sync = phase_sync_ch.mean(0)
+#     max_t_lag = np.argmax(phase_sync)
+#     max_pahse_sync = phase_sync_ch[:, max_t_lag]
+
+#     # ax.set_title('Mean = {:.3f} +/- {:.3f}'.format(max_pahse_sync.mean(), max_pahse_sync.std()))
+#     im = mne.viz.plot_topomap(max_pahse_sync, info, cmap='Reds',
+#                               vlim=(max_pahse_sync.min(),max_pahse_sync.max()),
+#                               show=False, sphere=0.07, axes=ax)
+#     cb = plt.colorbar(im[0], shrink=1, orientation='horizontal')
+#     cb.set_label('r')
+
+
+#     # Invert times for PLV plot
+#     phase_sync_ch = np.flip(phase_sync_ch)
+#     phase_sync_std = phase_sync_ch.std(0)
+#     phase_sync = phase_sync_ch.mean(0)
+#     max_t_lag = np.argmax(phase_sync)
+
+#     times_plot = np.flip(-times)
+
+#     im = axs[0, 0].pcolormesh(times_plot * 1000, np.arange(info['nchan']), phase_sync_ch, shading='auto')
+#     axs[0, 0].set_ylabel('Channels')
+#     axs[0, 0].set_xticks([])
+
+#     cbar = plt.colorbar(im, orientation='vertical', ax=axs[0, 0])
+#     cbar.set_label('PLV')
+
+#     axs[1, 0].plot(times_plot * 1000, phase_sync)
+#     axs[1, 0].fill_between(times_plot * 1000, phase_sync - phase_sync_std / 2, phase_sync + phase_sync_std / 2, alpha=.5)
+#     # axs[1, 0].set_ylim([0, 0.2])
+#     axs[1, 0].vlines(times_plot[max_t_lag] * 1000, axs[1, 0].get_ylim()[0], axs[1, 0].get_ylim()[1], linestyle='dashed', color='k',
+#                 label='Max: {}ms'.format(int(times_plot[max_t_lag] * 1000)))
+#     axs[1, 0].set_xlabel('Time lag [ms]')
+#     axs[1, 0].set_ylabel('Mean {}'.format(title))
+#     # axs2.tick_params(axis='both', labelsize=12)
+#     axs[1, 0].set_xlim([times_plot[0] * 1000, times_plot[-1] * 1000])
+#     axs[1, 0].grid()
+#     axs[1, 0].legend()
+
 #     fig.tight_layout()
+
+#     # Change axis 0 to match axis 1 width after adding colorbar
+#     ax0_box = axs[0, 0].get_position().bounds
+#     ax1_box = axs[1, 0].get_position().bounds
+#     ax1_new_box = (ax1_box[0], ax1_box[1], ax0_box[2], ax1_box[3])
+#     axs[1, 0].set_position(ax1_new_box)
 
 #     if Save:
-#         save_path_graficos = Run_graficos_path
-#         os.makedirs(save_path_graficos, exist_ok=True)
-#         fig.savefig(save_path_graficos + '{}_promedio_scaled.svg'.format(title))
-#         fig.savefig(save_path_graficos + '{}_promedio_sacled.png'.format(title))
-
-
-# def Plot_instantes_casera(Pesos_totales_sujetos_todos_canales, info, Band, times, sr, Display_figure_instantes,
-#                           Save_figure_instantes, Run_graficos_path):
-#     # Armo pesos promedio por canal de todos los sujetos que por lo menos tuvieron un buen canal
-#     Pesos_totales_sujetos_todos_canales_copy = Pesos_totales_sujetos_todos_canales.swapaxes(0, 2)
-#     Pesos_totales_sujetos_todos_canales_copy = Pesos_totales_sujetos_todos_canales_copy.mean(0)
-
-#     instantes_index = sgn.find_peaks(np.abs(Pesos_totales_sujetos_todos_canales_copy.mean(1)[50:]),
-#                                 height=np.abs(Pesos_totales_sujetos_todos_canales_copy.mean(1)).max() * 0.3)[0] + 50
-
-#     instantes_de_interes = [i/ sr + times[0] for i in instantes_index if i / sr + times[0] <= 0]
-
-#     # Ploteo pesos y cabezas
-#     if Display_figure_instantes:
-#         plt.ion()
-#     else:
-#         plt.ioff()
-
-#     Blues = plt.cm.get_cmap('Blues').reversed()
-#     cmaps = ['Reds' if Pesos_totales_sujetos_todos_canales_copy.mean(1)[i] > 0 else Blues for i in instantes_index if
-#              i / sr + times[0] <= 0]
-
-#     fig, axs = plt.subplots(figsize=(10, 5), ncols=len(cmaps))
-#     fig.suptitle('Mean of $w$ among subjects - {} Band'.format(Band))
-#     for i in range(len(instantes_de_interes)):
-#         ax = axs[0, i]
-#         ax.set_title('{} ms'.format(int(instantes_de_interes[i] * 1000)))
-#         fig.tight_layout()
-#         im = mne.viz.plot_topomap(Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].ravel(), info, axes=ax,
-#                                   show=False,
-#                                   sphere=0.07, cmap=cmaps[i],
-#                                   vmin=Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].min(),
-#                                   vmax=Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].max())
-#         plt.colorbar(im[0], ax=ax, orientation='vertical', shrink=0.9,
-#                      boundaries=np.linspace(
-#                          Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].min().round(decimals=2),
-#                          Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].max().round(decimals=2), 100),
-#                      ticks=np.linspace(Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].min(),
-#                                         Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].max(), 4).round(
-#                          decimals=2))
-
-#     axs[0, -1].remove()
-#     for ax_row in axs[1:]:
-#         for ax in ax_row:
-#             ax.remove()
-
-#     ax = fig.add_subplot(3, 1, (2, 3))
-#     evoked = mne.EvokedArray(Pesos_totales_sujetos_todos_canales_copy.transpose(), info)
-#     evoked.shift_time(times[0], relative=True)
-
-
-#     evoked.plot(show=False, spatial_colors=True, scalings=dict(eeg=1, grad=1, mag=1),
-#                 unit=True, units=dict(eeg='$w$'), axes=ax, zorder='unsorted', selectable=False,
-#                 time_unit='ms')
-#     ax.plot(times * 1000, Pesos_totales_sujetos_todos_canales_copy.mean(1),
-#             'k--', label='Mean', zorder=130, linewidth=2)
-
-#     ax.axvspan(0, ax.get_xlim()[1], alpha=0.5, color='grey')
-#     ax.set_title("")
-#     ax.xaxis.label.set_size(13)
-#     ax.yaxis.label.set_size(13)
-#     ax.grid()
-#     ax.legend(fontsize=13, loc='upper right')
-
-#     fig.tight_layout()
-
-#     if Save_figure_instantes:
-#         save_path_graficos = Run_graficos_path
-#         try:
-#             os.makedirs(save_path_graficos)
-#         except:
-#             pass
-#         fig.savefig(save_path_graficos + 'Instantes_interes.png')
-
-#     return Pesos_totales_sujetos_todos_canales_copy.mean(1)
+#         os.makedirs(graficos_save_path, exist_ok=True)
+#         if total_data.shape == (info['nchan'], len(delays)):
+#             plt.savefig(graficos_save_path + 't_lags_{}_Sesion{}_Sujeto{}.png'.format(title, sesion, sujeto))
+#             plt.savefig(graficos_save_path + 't_lags_{}_Sesion{}_Sujeto{}.svg'.format(title, sesion, sujeto))
+#         elif total_data.shape == (total_subjects, info['nchan'], len(delays)):
+#             plt.savefig(graficos_save_path + 't_lags_{}.png'.format(title))
+#             plt.savefig(graficos_save_path + 't_lags_{}.svg'.format(title))
 
 
 
 
-# def plot_alphas(alphas, correlaciones, best_alpha_overall, lista_Rmse, linea, fino):
-#     # Plot correlations vs. alpha regularization value
-#     # cada linea es un canal
-#     fig = plt.figure(figsize=(10, 5))
-#     fig.clf()
-#     plt.subplot(1, 3, 1)
-#     plt.subplots_adjust(wspace=1)
-#     plt.plot(alphas, correlaciones, 'k')
-#     plt.gca().set_xscale('log')
-#     # en rojo: el maximo de las correlaciones
-#     # la linea azul marca el mejor alfa
 
-#     plt.plot([best_alpha_overall, best_alpha_overall], [plt.ylim()[0], plt.ylim()[1]])
-#     plt.plot([best_alpha_overall, best_alpha_overall], [plt.ylim()[0], plt.ylim()[1]])
 
-#     plt.plot(alphas, correlaciones.mean(1), '.r', linewidth=5)
-#     plt.xlabel('Alfa', fontsize=16)
-#     plt.ylabel('Correlación - Ridge set', fontsize=16)
-#     plt.tick_params(axis='both', which='major', labelsize=13)
-#     plt.tick_params(axis='both', which='minor', labelsize=13)
 
-#     # Como se ve sola la correlacion maxima para los distintos alfas
-#     plt.subplot(1, 3, 2)
-#     plt.plot(alphas, np.array(correlaciones).mean(1), '.r', linewidth=5)
-#     plt.plot(alphas, np.array(correlaciones).mean(1), '-r', linewidth=linea)
+# # ## VIEJAS NO SE USAN
 
-#     if fino:
-#         plt.plot([best_alpha_overall, best_alpha_overall], [plt.ylim()[0], plt.ylim()[1]])
-#         plt.plot([best_alpha_overall, best_alpha_overall], [plt.ylim()[0], plt.ylim()[1]])
+# # def Plot_instantes_interes(Pesos_totales_sujetos_todos_canales, info, Band, times, sr, display_interactive_mode_figure_instantes,
+# #                            Save_figure_instantes, Run_graficos_path, Cant_Estimulos, Stims_Order, stim,
+# #                            Autocorrelation_value=0.1):
+# #     # Armo pesos promedio por canal de todos los sujetos que por lo menos tuvieron un buen canal
+# #     Pesos_totales_sujetos_todos_canales_copy = Pesos_totales_sujetos_todos_canales.swapaxes(0, 2)
+# #     Pesos_totales_sujetos_todos_canales_copy = Pesos_totales_sujetos_todos_canales_copy.mean(0).transpose()
 
-#     plt.xlabel('Alfa', fontsize=16)
-#     plt.gca().set_xscale('log')
-#     plt.tick_params(axis='both', which='major', labelsize=13)
-#     plt.tick_params(axis='both', which='minor', labelsize=13)
-#     # el RMSE
-#     plt.subplot(1, 3, 3)
-#     plt.plot(alphas, np.array(lista_Rmse).min(1), '.r', linewidth=5)
-#     plt.plot(alphas, np.array(lista_Rmse).min(1), '-r', linewidth=2)
+# #     # Ploteo pesos y cabezas
+# #     if Display_figure_instantes:
+# #         plt.ion()
+# #     else:
+# #         plt.ioff()
 
-#     if fino:
-#         plt.plot([best_alpha_overall, best_alpha_overall], [plt.ylim()[0], plt.ylim()[1]])
-#         plt.plot([best_alpha_overall, best_alpha_overall], [plt.ylim()[0], plt.ylim()[1]])
+# #     returns = []
+# #     for j in range(Cant_Estimulos):
+# #         curva_pesos_totales = Pesos_totales_sujetos_todos_canales_copy[:, j * len(times):(j + 1) * len(times)].mean(0)
+# #         returns.append(curva_pesos_totales)
 
-#     plt.xlabel('Alfa', fontsize=16)
-#     plt.ylabel('RMSE - Ridge set', fontsize=16)
-#     plt.gca().set_xscale('log')
-#     plt.tick_params(axis='both', which='major', labelsize=13)
-#     plt.tick_params(axis='both', which='minor', labelsize=13)
+# #         if Autocorrelation_value and times[-1] > 0:
+# #             weights_autocorr = funciones.correlacion(curva_pesos_totales, curva_pesos_totales)
 
-#     titulo = "El mejor alfa es de: " + str(best_alpha_overall)
-#     plt.suptitle(titulo, fontsize=18)
+# #             for i in range(len(weights_autocorr)):
+# #                 if weights_autocorr[i] < Autocorrelation_value: break
+
+# #                 dif_paso = weights_autocorr[i - 1] - weights_autocorr[i]
+# #                 dif_01 = weights_autocorr[i - 1] - Autocorrelation_value
+# #                 dif_time = dif_01 / sr / dif_paso
+# #                 decorr_time = ((i - 1) / sr + dif_time) * 1000
+
+# #             fig, ax = plt.subplots()
+# #             plt.plot(np.arange(len(weights_autocorr)) * 1000 / sr, weights_autocorr)
+# #             plt.title('Decorrelation time: {:.2f} ms'.format(decorr_time))
+# #             plt.hlines(Autocorrelation_value, ax.get_xlim()[0], decorr_time, linestyle='dashed', color='black')
+# #             plt.vlines(decorr_time, ax.get_ylim()[0], Autocorrelation_value, linestyle='dashed', color='black')
+# #             plt.grid()
+# #             plt.ylabel('Autocorrelation')
+# #             plt.xlabel('Time [ms]')
+# #             if Save_figure_instantes:
+# #                 save_path_graficos = Run_graficos_path
+# #                 try:
+# #                     os.makedirs(save_path_graficos)
+# #                 except:
+# #                     pass
+# #                 fig.savefig(save_path_graficos + 'Weights Autocorrelation.png')
+
+# #         evoked = mne.EvokedArray(Pesos_totales_sujetos_todos_canales_copy[:, j * len(times):(j + 1) * len(times)], info)
+# #         evoked.shift_time(times[0], relative=True)
+
+# #         instantes_index = sgn.find_peaks(np.abs(evoked._data.mean(0)), height=np.abs(evoked._data.mean(0)).max() * 0.4)[
+# #             0]
+# #         if not len(instantes_index): instantes_index = [np.abs(evoked._data.mean(0)).argmax()]
+# #         instantes_de_interes = [i / sr + times[0] for i in instantes_index]  # if i/sr + times[0] < 0]
+
+# #         fig = evoked.plot_joint(times=instantes_de_interes, show=False,
+# #                                 ts_args=dict(unit='False', units=dict(eeg='$w$', grad='fT/cm', mag='fT'),
+# #                                              scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='ms'),
+# #                                 topomap_args=dict(vmin=evoked._data.min(),
+# #                                                   vmax=evoked._data.max(),
+# #                                                   time_unit='ms'))
+
+# #         fig.suptitle('{}'.format(Stims_Order[j] if Cant_Estimulos > 1 else stim))
+# #         fig.set_size_inches(12, 7)
+# #         axs = fig.axes
+# #         axs[0].plot(times * 1000, evoked._data.mean(0), 'k--', label='Mean', zorder=130, linewidth=2)
+# #         axs[0].axvspan(0, axs[0].get_xlim()[1], alpha=0.4, color='grey', label='Unheard stimuli')
+# #         if Autocorrelation_value and times[-1] > 0: axs[0].vlines(decorr_time, axs[0].get_ylim()[0],
+# #                                                                   axs[0].get_ylim()[1], linestyle='dashed', color='red',
+# #                                                                   label='Decorrelation time')
+# #         axs[0].xaxis.label.set_size(13)
+# #         axs[0].yaxis.label.set_size(13)
+# #         axs[0].grid()
+# #         axs[0].legend(fontsize=13, loc='lower left')
+
+# #         Blues = plt.cm.get_cmap('Blues').reversed()
+# #         cmaps = ['Reds' if evoked._data.mean(0)[i] > 0 else Blues for i in instantes_index]
+
+# #         for i in range(len(instantes_de_interes)):
+# #             axs[i + 1].clear()
+# #             axs[i + 1].set_title('{} ms'.format(int(instantes_de_interes[i] * 1000)), fontsize=11)
+# #             im = mne.viz.plot_topomap(evoked._data[:, instantes_index[i]], info, axes=axs[i + 1],
+# #                                       show=False, sphere=0.07, cmap=cmaps[i],
+# #                                       vmin=evoked._data[:, instantes_index[i]].min(),
+# #                                       vmax=evoked._data[:, instantes_index[i]].max())
+# #             plt.colorbar(im[0], ax=axs[i + 1], orientation='vertical', shrink=0.8,
+# #                          boundaries=np.linspace(evoked._data[:, instantes_index[i]].min().round(decimals=2),
+# #                                                 evoked._data[:, instantes_index[i]].max().round(decimals=2), 100),
+# #                          ticks=np.linspace(evoked._data[:, instantes_index[i]].min(),
+# #                                             evoked._data[:, instantes_index[i]].max(), 4).round(decimals=2))
+
+# #         axs[i + 2].remove()
+# #         axs[i + 4].remove()
+# #         fig.tight_layout()
+
+# #         if Save_figure_instantes:
+# #             save_path_graficos = Run_graficos_path
+# #             try:
+# #                 os.makedirs(save_path_graficos)
+# #             except:
+# #                 pass
+# #             fig.savefig(
+# #                 save_path_graficos + 'Instantes_interes_{}.svg'.format(Stims_Order[j] if Cant_Estimulos > 1 else stim))
+
+# #     return returns
+
+
+# # def Matriz_corr(Pesos_totales_sujetos_promedio, Pesos_totales_sujetos_todos_canales, sujeto_total, Display, Save,
+# #                 Run_graficos_path):
+# #     # Armo df para correlacionar
+# #     Pesos_totales_sujetos_promedio = Pesos_totales_sujetos_promedio[:sujeto_total]
+# #     Pesos_totales_sujetos_promedio.append(
+# #         Pesos_totales_sujetos_todos_canales.transpose().mean(0).mean(1))  # agrego pesos promedio de todos los sujetos
+# #     lista_nombres = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18",
+# #                      "Promedio"]
+# #     Pesos_totales_sujetos_df = pd.DataFrame(Pesos_totales_sujetos_promedio).transpose()
+# #     Pesos_totales_sujetos_df.columns = lista_nombres[:len(Pesos_totales_sujetos_df.columns) - 1] + [lista_nombres[-1]]
+
+# #     pvals_matrix = Pesos_totales_sujetos_df.corr(method=pearsonr_pval)
+# #     Correlation_matrix = np.array(Pesos_totales_sujetos_df.corr(method='pearson'))
+# #     for i in range(len(Correlation_matrix)):
+# #         Correlation_matrix[i, i] = Correlation_matrix[-1, i]
+
+# #     Correlation_matrix = pd.DataFrame(Correlation_matrix[:-1, :-1])
+# #     Correlation_matrix.columns = lista_nombres[:len(Correlation_matrix) - 1] + [lista_nombres[-1]]
+
+# #     if Display:
+# #         plt.ion()
+# #     else:
+# #         plt.ioff()
+
+# #     mask = np.ones_like(Correlation_matrix)
+# #     mask[np.tril_indices_from(mask)] = False
+
+# #     fig, (ax, cax) = plt.subplots(ncols=2, figsize=(15, 9), gridspec_kw={"width_ratios": [1, 0.05]})
+# #     fig.suptitle('Absolute value of the correlation among subject\'s $w$', fontsize=26)
+# #     sns.heatmap(abs(Correlation_matrix), mask=mask, cmap="coolwarm", fmt='.3', ax=ax,
+# #                annot=True, center=0, xticklabels=True, annot_kws={"size": 19},
+# #                cbar=False)
+
+# #     ax.set_yticklabels(['Mean of subjects'] + lista_nombres[1:len(Correlation_matrix)], rotation='horizontal',
+# #                        fontsize=19)
+# #     ax.set_xticklabels(lista_nombres[:len(Correlation_matrix) - 1] + ['Mean of subjects'], rotation='horizontal',
+# #                        ha='left', fontsize=19)
+
+# #     sns.despine(right=True, left=True, bottom=True, top=True)
+# #     fig.colorbar(ax.get_children()[0], cax=cax, orientation="horizontal")
+# #     cax.yaxis.set_tick_params(labelsize=20)
+
+# #     fig.tight_layout()
+
+# #     if Save:
+# #         save_path_graficos = Run_graficos_path
+# #         try:
+# #             os.makedirs(save_path_graficos)
+# #         except:
+# #             pass
+# #         fig.savefig(save_path_graficos + 'Correlation_matrix.png')
+
+
+# # def Matriz_std_channel_wise(Pesos_totales_sujetos_todos_canales, Display, Save, Run_graficos_path):
+# #     Pesos_totales_sujetos_todos_canales_average = np.dstack(
+# #         (Pesos_totales_sujetos_todos_canales, Pesos_totales_sujetos_todos_canales.mean(2)))
+# #     Correlation_matrices = np.zeros((Pesos_totales_sujetos_todos_canales_average.shape[0],
+# #                                      Pesos_totales_sujetos_todos_canales_average.shape[2],
+# #                                      Pesos_totales_sujetos_todos_canales_average.shape[2]))
+# #     for channel in range(len(Pesos_totales_sujetos_todos_canales_average)):
+# #         Correlation_matrices[channel] = np.array(
+# #             pd.DataFrame(Pesos_totales_sujetos_todos_canales_average[channel]).corr(method='pearson'))
+
+# #     # std por sujeto
+# #     std_matrix = Correlation_matrices.std(0)
+
+# #     for i in range(len(std_matrix)):
+# #         std_matrix[i, i] = std_matrix[-1, i]
+
+# #     lista_nombres = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "Promedio"]
+# #     std_matrix = pd.DataFrame(std_matrix[:-1, :-1])
+# #     std_matrix.columns = lista_nombres[:len(std_matrix) - 1] + [lista_nombres[-1]]
+
+# #     if Display:
+# #         plt.ion()
+# #     else:
+# #         plt.ioff()
+
+# #     mask = np.ones_like(std_matrix)
+# #     mask[np.tril_indices_from(mask)] = False
+
+# #     fig, (ax, cax) = plt.subplots(ncols=2, figsize=(15, 9), gridspec_kw={"width_ratios": [1, 0.05]})
+# #     fig.suptitle('Absolute value of the correlation among subject\'s $w$', fontsize=26)
+# #     sns.heatmap(abs(std_matrix), mask=mask, cmap="coolwarm", fmt='.3', ax=ax,
+# #                annot=True, center=0, xticklabels=True, annot_kws={"size": 19},
+# #                cbar=False)
+
+# #     ax.set_yticklabels(['Mean of subjects'] + lista_nombres[1:len(std_matrix)], rotation='horizontal', fontsize=19)
+# #     ax.set_xticklabels(lista_nombres[:len(std_matrix) - 1] + ['Mean of subjects'], rotation='horizontal', ha='left',
+# #                        fontsize=19)
+
+# #     sns.despine(right=True, left=True, bottom=True, top=True)
+# #     fig.colorbar(ax.get_children()[0], cax=cax, orientation="vertical")
+# #     cax.yaxis.set_tick_params(labelsize=20)
+
+# #     fig.tight_layout()
+
+# #     if Save:
+# #         save_path_graficos = Run_graficos_path
+# #         try:
+# #             os.makedirs(save_path_graficos)
+# #         except:
+# #             pass
+# #         fig.savefig(save_path_graficos + 'Channelwise_std_matrix.png')
+
+
+# # def Cabezas_corr_promedio_scaled(Correlaciones_totales_sujetos, info, Display, Save, Run_graficos_path, title):
+# #     Correlaciones_promedio = Correlaciones_totales_sujetos.mean(0)
+
+# #     if Display:
+# #         plt.ion()
+# #     else:
+# #         plt.ioff()
+
+# #     fig = plt.figure()
+# #     plt.suptitle("Mean {} per channel among subjects".format(title), fontsize=19)
+# #     plt.title('{} = {:.3f} +/- {:.3f}'.format(title, Correlaciones_promedio.mean(), Correlaciones_promedio.std()),
+# #               fontsize=19)
+# #     ax = plt.subplot()
+# #     im = mne.viz.plot_topomap(Correlaciones_promedio, info, cmap='Greys', vmin=0, vmax=0.41, show=Display, sphere=0.07, axes=ax)
+# #     cb = plt.colorbar(im[0], shrink=0.85, orientation='vertical')
+# #     cb.ax.tick_params(labelsize=23)
+# #     fig.tight_layout()
+
+# #     if Save:
+# #         save_path_graficos = Run_graficos_path
+# #         os.makedirs(save_path_graficos, exist_ok=True)
+# #         fig.savefig(save_path_graficos + '{}_promedio_scaled.svg'.format(title))
+# #         fig.savefig(save_path_graficos + '{}_promedio_sacled.png'.format(title))
+
+
+# # def Plot_instantes_casera(Pesos_totales_sujetos_todos_canales, info, Band, times, sr, Display_figure_instantes,
+# #                           Save_figure_instantes, Run_graficos_path):
+# #     # Armo pesos promedio por canal de todos los sujetos que por lo menos tuvieron un buen canal
+# #     Pesos_totales_sujetos_todos_canales_copy = Pesos_totales_sujetos_todos_canales.swapaxes(0, 2)
+# #     Pesos_totales_sujetos_todos_canales_copy = Pesos_totales_sujetos_todos_canales_copy.mean(0)
+
+# #     instantes_index = sgn.find_peaks(np.abs(Pesos_totales_sujetos_todos_canales_copy.mean(1)[50:]),
+# #                                 height=np.abs(Pesos_totales_sujetos_todos_canales_copy.mean(1)).max() * 0.3)[0] + 50
+
+# #     instantes_de_interes = [i/ sr + times[0] for i in instantes_index if i / sr + times[0] <= 0]
+
+# #     # Ploteo pesos y cabezas
+# #     if Display_figure_instantes:
+# #         plt.ion()
+# #     else:
+# #         plt.ioff()
+
+# #     Blues = plt.cm.get_cmap('Blues').reversed()
+# #     cmaps = ['Reds' if Pesos_totales_sujetos_todos_canales_copy.mean(1)[i] > 0 else Blues for i in instantes_index if
+# #              i / sr + times[0] <= 0]
+
+# #     fig, axs = plt.subplots(figsize=(10, 5), ncols=len(cmaps))
+# #     fig.suptitle('Mean of $w$ among subjects - {} Band'.format(Band))
+# #     for i in range(len(instantes_de_interes)):
+# #         ax = axs[0, i]
+# #         ax.set_title('{} ms'.format(int(instantes_de_interes[i] * 1000)))
+# #         fig.tight_layout()
+# #         im = mne.viz.plot_topomap(Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].ravel(), info, axes=ax,
+# #                                   show=False,
+# #                                   sphere=0.07, cmap=cmaps[i],
+# #                                   vmin=Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].min(),
+# #                                   vmax=Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].max())
+# #         plt.colorbar(im[0], ax=ax, orientation='vertical', shrink=0.9,
+# #                      boundaries=np.linspace(
+# #                          Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].min().round(decimals=2),
+# #                          Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].max().round(decimals=2), 100),
+# #                      ticks=np.linspace(Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].min(),
+# #                                         Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].max(), 4).round(
+# #                          decimals=2))
+
+# #     axs[0, -1].remove()
+# #     for ax_row in axs[1:]:
+# #         for ax in ax_row:
+# #             ax.remove()
+
+# #     ax = fig.add_subplot(3, 1, (2, 3))
+# #     evoked = mne.EvokedArray(Pesos_totales_sujetos_todos_canales_copy.transpose(), info)
+# #     evoked.shift_time(times[0], relative=True)
+
+
+# #     evoked.plot(show=False, spatial_colors=True, scalings=dict(eeg=1, grad=1, mag=1),
+# #                 unit=True, units=dict(eeg='$w$'), axes=ax, zorder='unsorted', selectable=False,
+# #                 time_unit='ms')
+# #     ax.plot(times * 1000, Pesos_totales_sujetos_todos_canales_copy.mean(1),
+# #             'k--', label='Mean', zorder=130, linewidth=2)
+
+# #     ax.axvspan(0, ax.get_xlim()[1], alpha=0.5, color='grey')
+# #     ax.set_title("")
+# #     ax.xaxis.label.set_size(13)
+# #     ax.yaxis.label.set_size(13)
+# #     ax.grid()
+# #     ax.legend(fontsize=13, loc='upper right')
+
+# #     fig.tight_layout()
+
+# #     if Save_figure_instantes:
+# #         save_path_graficos = Run_graficos_path
+# #         try:
+# #             os.makedirs(save_path_graficos)
+# #         except:
+# #             pass
+# #         fig.savefig(save_path_graficos + 'Instantes_interes.png')
+
+# #     return Pesos_totales_sujetos_todos_canales_copy.mean(1)
+
+
+
+
+# # def plot_alphas(alphas, correlaciones, best_alpha_overall, lista_Rmse, linea, fino):
+# #     # Plot correlations vs. alpha regularization value
+# #     # cada linea es un canal
+# #     fig = plt.figure(figsize=(10, 5))
+# #     fig.clf()
+# #     plt.subplot(1, 3, 1)
+# #     plt.subplots_adjust(wspace=1)
+# #     plt.plot(alphas, correlaciones, 'k')
+# #     plt.gca().set_xscale('log')
+# #     # en rojo: el maximo de las correlaciones
+# #     # la linea azul marca el mejor alfa
+
+# #     plt.plot([best_alpha_overall, best_alpha_overall], [plt.ylim()[0], plt.ylim()[1]])
+# #     plt.plot([best_alpha_overall, best_alpha_overall], [plt.ylim()[0], plt.ylim()[1]])
+
+# #     plt.plot(alphas, correlaciones.mean(1), '.r', linewidth=5)
+# #     plt.xlabel('Alfa', fontsize=16)
+# #     plt.ylabel('Correlación - Ridge set', fontsize=16)
+# #     plt.tick_params(axis='both', which='major', labelsize=13)
+# #     plt.tick_params(axis='both', which='minor', labelsize=13)
+
+# #     # Como se ve sola la correlacion maxima para los distintos alfas
+# #     plt.subplot(1, 3, 2)
+# #     plt.plot(alphas, np.array(correlaciones).mean(1), '.r', linewidth=5)
+# #     plt.plot(alphas, np.array(correlaciones).mean(1), '-r', linewidth=linea)
+
+# #     if fino:
+# #         plt.plot([best_alpha_overall, best_alpha_overall], [plt.ylim()[0], plt.ylim()[1]])
+# #         plt.plot([best_alpha_overall, best_alpha_overall], [plt.ylim()[0], plt.ylim()[1]])
+
+# #     plt.xlabel('Alfa', fontsize=16)
+# #     plt.gca().set_xscale('log')
+# #     plt.tick_params(axis='both', which='major', labelsize=13)
+# #     plt.tick_params(axis='both', which='minor', labelsize=13)
+# #     # el RMSE
+# #     plt.subplot(1, 3, 3)
+# #     plt.plot(alphas, np.array(lista_Rmse).min(1), '.r', linewidth=5)
+# #     plt.plot(alphas, np.array(lista_Rmse).min(1), '-r', linewidth=2)
+
+# #     if fino:
+# #         plt.plot([best_alpha_overall, best_alpha_overall], [plt.ylim()[0], plt.ylim()[1]])
+# #         plt.plot([best_alpha_overall, best_alpha_overall], [plt.ylim()[0], plt.ylim()[1]])
+
+# #     plt.xlabel('Alfa', fontsize=16)
+# #     plt.ylabel('RMSE - Ridge set', fontsize=16)
+# #     plt.gca().set_xscale('log')
+# #     plt.tick_params(axis='both', which='major', labelsize=13)
+# #     plt.tick_params(axis='both', which='minor', labelsize=13)
+
+# #     titulo = "El mejor alfa es de: " + str(best_alpha_overall)
+# #     plt.suptitle(titulo, fontsize=18)

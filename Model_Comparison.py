@@ -32,7 +32,7 @@ pylab.rcParams.update(params)
 
 # Model parametrs
 model ='mtrf'
-situation = 'External'
+situation = 'Internal'
 stims_preprocess = 'Normalize'
 eeg_preprocess = 'Standarize'
 tmin, tmax = -.2, .6
@@ -395,20 +395,20 @@ similarities = {}
 for band in bands:
     for stim in stimuli:
         average_weights_subjects = load_pickle(path=os.path.join(weights_path, band, stim, 'total_weights_per_subject.pkl'))['average_weights_subjects']
-        n_subjects, n_chan, _, _ = average_weights_subjects.shape
+        n_subjects, n_chan, _, _ = average_weights_subjects.shape #nfeat ndelays
         average_weights = average_weights_subjects.mean(axis=2)
         correlation_matrices = np.zeros(shape=(n_chan, n_subjects, n_subjects))
 
         # Calculate correlation betweem subjects
         for channel in range(n_chan):
-            matrix = average_weights[:,channel,:] # TODO HAVE ONE MORE DIMENSION
-            correlation_matrices[channel] = np.corrcoef(matrix)
+            matrix = average_weights[:,channel,:] # nsubj x ndelays la correlación se hace en el tiempo
+            correlation_matrices[channel] = np.corrcoef(matrix) # cada canal tiene una matriz de nsubjxnsubj en la cual cada valor tiene la correlación entre las TRF de ese canal para ese par de sujetos
 
         # Correlacion por canal
         absolute_correlation_per_channel = np.zeros(n_chan)
         for channel in range(n_chan):
-            channel_corr_values = correlation_matrices[channel][np.tril_indices(n_subjects, k=-1)]
-            absolute_correlation_per_channel[channel] = np.mean(np.abs(channel_corr_values))
+            channel_corr_values = correlation_matrices[channel][np.tril_indices(n_subjects, k=-1)] # elementos fuera de la diagonal triangular superior o inf
+            absolute_correlation_per_channel[channel] = np.mean(np.abs(channel_corr_values)) # la media de esos valores  
         
         # Append to similarities
         similarities[(stim, band)] = absolute_correlation_per_channel
@@ -757,7 +757,7 @@ n_stims, n_bands = len(stimuli), len(bands)
 
 # Get mean correlations across subjects and total max and min
 correlations = {(stim,band):load_pickle(path=os.path.join(final_corr_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
-minimum_cor, maximum_cor = min([correlation.min() for correlation in correlations.values()]), max([correlation.max() for correlation in correlations.values()])
+minimum_cor, maximum_cor = min([correlation.mean() for correlation in correlations.values()]), max([correlation.mean() for correlation in correlations.values()])
 
 z = np.zeros(shape=(len(bands),len(stimuli)))
 for i, band in enumerate(bands):
@@ -1548,7 +1548,7 @@ fig, axes = plt.subplots(
                         ncols=1, 
                         layout="constrained"
                         )
-fig.suptitle('Envelope-Theta weights')
+fig.suptitle('Phonemes-Theta weights')
 
 # Create colormesh figure
 im = axes.pcolormesh(
