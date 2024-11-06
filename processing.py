@@ -1,6 +1,10 @@
 # Standard libraries
 import numpy as np, copy, mne
 from datetime import datetime
+
+# Specific libraries
+from scipy.cluster.hierarchy import linkage, leaves_list
+from scipy.spatial.distance import squareform
 from scipy import signal
 
 class Standarize():
@@ -305,11 +309,11 @@ def tfce(average_weights_subjects:np.ndarray,
     # Get relevant parameters
     n_subjects, n_chan, total_number_features, n_delays  = average_weights_subjects.shape
     stimuli_correlated_by_frequency = ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Spectrogram']
-
+    
     # Perform it across features, averaging first across channels
     if stimulus in stimuli_correlated_by_frequency:
         weights_subjects_mean_across_channels = average_weights_subjects.copy().mean(axis=1)
-        weights = weights_subjects_mean_across_channels.reshape(n_subjects, n_delays, total_number_features)
+        weights = weights_subjects_mean_across_channels.swapaxes(1, 2) #---> n_sub, n_delays, n_feats for specific feat
         t_tfce, clusters, p_tfce, H0 = mne.stats.permutation_cluster_1samp_test(
                                                                                 X=weights,
                                                                                 adjacency=None,
@@ -339,7 +343,7 @@ def tfce(average_weights_subjects:np.ndarray,
         t_tfce, p_tfce = [], []
         for feat in range(total_number_features):
             # It performs tfce on https://mne.tools/1.6/generated/mne.stats.permutation_cluster_test.html
-            weights = average_weights_subjects.copy()[:, :, feat, :].swapaxes(1, 2)
+            weights = average_weights_subjects.copy()[:, :, feat, :].swapaxes(1, 2) #---> n_sub, n_delay, n_chans for specific feat
             t_tfce_feat, clusters, p_tfce_feat, H0 = mne.stats.permutation_cluster_1samp_test(
                                                                                             X=weights,
                                                                                             adjacency=adj_matrix,
@@ -349,6 +353,7 @@ def tfce(average_weights_subjects:np.ndarray,
                                                                                             out_type="mask",
                                                                                             verbose=verbose_tfce
                                                                                             )
+            
             t_tfce.append(t_tfce_feat)
             p_tfce.append(p_tfce_feat.reshape(t_tfce_feat.shape))
             print(f'Feature {feat+1} out of {total_number_features}')
@@ -360,6 +365,43 @@ def tfce(average_weights_subjects:np.ndarray,
 
         # Return average across channels
         return t_tfce, p_tfce
+
+def clustering_by_correlation(weights:np.ndarray):
+    """Cluster by correlation the weights
+
+    Parameters
+    ----------
+    weights : np.ndarray
+        Must be n_features X n_delays
+
+    Returns
+    -------
+    list
+        indexes in ordered of clustering
+    """
+
+    # Compute the correlation matrix 
+    correlation_matrix = np.corrcoef(weights, rowvar=True)
+
+    # Convert the correlation matrix to a distance matrix
+    distance_matrix = 1 - correlation_matrix
+
+    # Ensure the diagonal of the distance matrix is zero and that the matrix is symmetric
+    np.fill_diagonal(distance_matrix, 0)
+    distance_matrix = (distance_matrix + distance_matrix.T) / 2
+
+    # Use squareform to convert the distance matrix to a condensed form
+    condensed_distance_matrix = squareform(distance_matrix)
+
+    # Perform hierarchical clustering
+    linkage_matrix = linkage(condensed_distance_matrix, method='single')
+
+    # Get the order of the variables
+    ordered_indices = leaves_list(linkage_matrix)
+
+    return ordered_indices
+
+
 
 # ###############
 
