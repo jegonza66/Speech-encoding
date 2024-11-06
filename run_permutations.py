@@ -33,8 +33,11 @@ delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
 times = (delays/sr)
 
 # Stimuli, EEG frecuency band and dialogue situation
-stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Deltas', 'Phonemes-Discrete', 'Pitch-Log-Raw', 'Phonemes-Onset'] 
-bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
+stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Deltas', 'Phonemes-Discrete-Phonet', 'Pitch-Log-Raw'] 
+stimuli += ['Envelope_Phonological', 'Envelope_Phonological_Phonemes-Discrete-Phonet', 'Envelope_Phonemes-Discrete-Phonet', 'Phonological_Phonemes-Discrete-Phonet'] 
+
+# bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
+bands = ['Theta']
 situation = 'External'
 
 # Model and normalization of input
@@ -73,7 +76,7 @@ for band in bands:
         print('\n===========================\n','\tPARAMETERS\n\n','Model: ' + model+'\n','Band: ' + str(band)+'\n','Stimulus: ' + stim+'\n','Status: ' + situation+'\n',f'Time interval: ({tmin},{tmax})s\n','\n===========================\n')
         
         # Relevant paths
-        preprocessed_data_path = f'saves/preprocessed_data/{situation}/tmin{tmin}_tmax{tmax}/'
+        preprocessed_data_path = f'saves/preprocessed_data_bis/{situation}/tmin{tmin}_tmax{tmax}/'
         path_null = f'saves/{model}/{situation}/null/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
         praat_executable_path=r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"
         alphas_directory = os.path.normpath(f'saves/alphas/{situation}/stims_{stims_preprocess}/EEG_{eeg_preprocess}//tmin{tmin}_tmax{tmax}/{band}/{stim}/') 

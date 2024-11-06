@@ -48,6 +48,10 @@ situation = 'Internal' #'Internal_BS' #'External' # 'Internal' # 'External_BS'
 stimuli = ['Envelope']
 bands = ['Theta']
 situation = 'External'
+stimuli = ['Phonemes-Discrete-Phonet_Phonological']
+bands = ['Theta']
+situation = 'External' #'External' 'External_BS' 'Internal_BS' 'Internal'
+
 # Run setup
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 

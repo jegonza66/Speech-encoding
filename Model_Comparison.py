@@ -136,144 +136,144 @@ save_figures = True
 #             plt.savefig(os.path.join(temp_path, f'{stims}.svg'))
 #     plt.close()
 
-# # =========================================================================================================
-# # VENN DIAGRAMS: it makes diagrams explaining correlation of each part of a shared model (upto 3 features).
-# # =========================================================================================================
-# path_venn_diagrams = os.path.join(path_figures,'venn_diagrams')
+# =========================================================================================================
+# VENN DIAGRAMS: it makes diagrams explaining correlation of each part of a shared model (upto 3 features).
+# =========================================================================================================
+path_venn_diagrams = os.path.join(path_figures,'venn_diagrams')
 
-# # Relevant parameters
-# bands = ['Theta']
-# stimuli = ['Phonological', 'Spectrogram', 'Deltas']
+# Relevant parameters
+bands = ['Theta']
+stimuli = ['Phonological', 'Phonemes-Discrete-Phonet', 'Envelope']
 
-# # Arrange shared stimuli
-# stimuli = sorted(stimuli)
-# double_combinations = ['_'.join(sorted(combination)) for combination in all_possible_combinations(stimuli) if len(combination)==2]
-# triple_combinations = ['_'.join(sorted(combination)) for combination in all_possible_combinations(stimuli) if len(combination)==3]
-# all_stimuli = stimuli + double_combinations + triple_combinations
-# mean_correlations = {}
+# Arrange shared stimuli
+stimuli = sorted(stimuli)
+double_combinations = ['_'.join(sorted(combination)) for combination in all_possible_combinations(stimuli) if len(combination)==2]
+triple_combinations = ['_'.join(sorted(combination)) for combination in all_possible_combinations(stimuli) if len(combination)==3]
+all_stimuli = stimuli + double_combinations + triple_combinations
+mean_correlations = {}
 
-# # Iterate over bands
-# for band in bands:
-#     for stim in all_stimuli:
-#         # Get average correlation of each stimulus
-#         data = load_pickle(path=os.path.join(final_corr_path, band, stim +'.pkl'))['average_correlation_subjects']
-#         if relevant_channels:
-#             filter_relevant_channels_filter = get_maximum_correlation_channels(data.mean(axis=0), number_of_lat_channels=relevant_channels)
-#             mean_correlations[stim] = data[:,filter_relevant_channels_filter].mean()
-#         else:
-#             mean_correlations[stim] = data.mean()
+# Iterate over bands
+for band in bands:
+    for stim in all_stimuli:
+        # Get average correlation of each stimulus
+        data = load_pickle(path=os.path.join(final_corr_path, band, stim +'.pkl'))['average_correlation_subjects']
+        if relevant_channels:
+            filter_relevant_channels_filter = get_maximum_correlation_channels(data.mean(axis=0), number_of_lat_channels=relevant_channels)
+            mean_correlations[stim] = data[:,filter_relevant_channels_filter].mean()
+        else:
+            mean_correlations[stim] = data.mean()
 
-#     for stim12 in double_combinations:
-#         stim1, stim2 = stim12.split('_')
+    for stim12 in double_combinations:
+        stim1, stim2 = stim12.split('_')
 
-#         # Get squared correlation of stimuli
-#         variance_1 = mean_correlations[stim1] ** 2
-#         variance_2 = mean_correlations[stim2] ** 2
-#         variance_12 = mean_correlations[stim12] ** 2 # this represent the union of the two
+        # Get squared correlation of stimuli
+        variance_1 = mean_correlations[stim1] ** 2
+        variance_2 = mean_correlations[stim2] ** 2
+        variance_12 = mean_correlations[stim12] ** 2 # this represent the union of the two
 
-#         # This represent the shared variances explained by the intersections of sets 1 and 2 (intersection between 1 and 2)
-#         variance_intersection_12 = variance_1 + variance_2 - variance_12 #11
+        # This represent the shared variances explained by the intersections of sets 1 and 2 (intersection between 1 and 2)
+        variance_intersection_12 = variance_1 + variance_2 - variance_12 #11
 
-#         # This is the realtive complemente of 1 and 2: portion of the variance solely explained by 1 and 2, respectively
-#         variance_explained_by_1 = variance_12 - variance_2 #10
-#         variance_explained_by_2 = variance_12 - variance_1 #01
+        # This is the realtive complemente of 1 and 2: portion of the variance solely explained by 1 and 2, respectively
+        variance_explained_by_1 = variance_12 - variance_2 #10
+        variance_explained_by_2 = variance_12 - variance_1 #01
         
-#         # Get list with areas
-#         areas = [variance_explained_by_1, variance_explained_by_2, variance_intersection_12] # note that the sum gives shared model
-#         areas = [0 if area<0 else area.round(3) for area in areas]
+        # Get list with areas
+        areas = [variance_explained_by_1, variance_explained_by_2, variance_intersection_12] # note that the sum gives shared model
+        areas = [0 if area<0 else area.round(3) for area in areas]
         
-#         # Create figure and title
-#         title = stim12.replace('_', ' and ')
-#         plt.ioff()
-#         plt.figure(layout='tight')
-#         plt.title(f'Diagram {band} band - {title}')
+        # Create figure and title
+        title = stim12.replace('_', ' and ')
+        plt.ioff()
+        plt.figure(layout='tight')
+        plt.title(f'Diagram {band} band - {title}')
 
-#         # Make plot
-#         venn2(subsets=areas, # left area diagran, right area diagram, shared area <--> (10, 01, 11)
-#               set_labels=(stim1, stim2),
-#               set_colors=('C0', 'C1'), 
-#               alpha=0.45)
+        # Make plot
+        venn2(subsets=areas, # left area diagran, right area diagram, shared area <--> (10, 01, 11)
+              set_labels=(stim1, stim2),
+              set_colors=('C0', 'C1'), 
+              alpha=0.45)
 
-#         # Save figure
-#         if save_figures:
-#             temp_path = os.path.join(path_venn_diagrams, f'{band}')
-#             os.makedirs(temp_path, exist_ok=True)
-#             if relevant_channels:
-#                 plt.savefig(os.path.join(temp_path, f'relevant_channels_{relevant_channels}_{stim12}.png'))
-#                 plt.savefig(os.path.join(temp_path, f'relevant_channels_{relevant_channels}_{stim12}.svg'))
-#             else:
-#                 plt.savefig(os.path.join(temp_path, f'{stim12}.png'))
-#                 plt.savefig(os.path.join(temp_path, f'{stim12}.svg'))
-#         plt.close()
+        # Save figure
+        if save_figures:
+            temp_path = os.path.join(path_venn_diagrams, f'{band}')
+            os.makedirs(temp_path, exist_ok=True)
+            if relevant_channels:
+                plt.savefig(os.path.join(temp_path, f'relevant_channels_{relevant_channels}_{stim12}.png'))
+                plt.savefig(os.path.join(temp_path, f'relevant_channels_{relevant_channels}_{stim12}.svg'))
+            else:
+                plt.savefig(os.path.join(temp_path, f'{stim12}.png'))
+                plt.savefig(os.path.join(temp_path, f'{stim12}.svg'))
+        plt.close()
         
-#         # Make a print with information
-#         stim1_percent = (variance_explained_by_1 * 100 /np.sum(areas)).round(2)
-#         stim2_percent = (variance_explained_by_2 * 100 /np.sum(areas)).round(2)
-#         shared_percent = (variance_intersection_12 * 100 /np.sum(areas)).round(2)
-#         print(f'\nPercentage explained by {stim1} is {stim1_percent} %',
-#               f'\nPercentage explained by {stim2} is {stim2_percent} %',
-#               f'\nShared percentage explained is {shared_percent} %')
-#         #TODO Y la variancia no explicada?
+        # Make a print with information
+        stim1_percent = (variance_explained_by_1 * 100 /np.sum(areas)).round(2)
+        stim2_percent = (variance_explained_by_2 * 100 /np.sum(areas)).round(2)
+        shared_percent = (variance_intersection_12 * 100 /np.sum(areas)).round(2)
+        print(f'\nPercentage explained by {stim1} is {stim1_percent} %',
+              f'\nPercentage explained by {stim2} is {stim2_percent} %',
+              f'\nShared percentage explained is {shared_percent} %')
+        #TODO Y la variancia no explicada?
 
-#     if triple_combinations:
-#         # Get squared correlation of stimuli
-#         variance_1 = mean_correlations[all_stimuli[0]]**2
-#         variance_2 = mean_correlations[all_stimuli[1]]**2
-#         variance_3 = mean_correlations[all_stimuli[2]]**2
-#         variance_12 = mean_correlations[all_stimuli[3]]**2
-#         variance_13 = mean_correlations[all_stimuli[4]]**2
-#         variance_23 = mean_correlations[all_stimuli[5]]**2
-#         variance_123 = mean_correlations[all_stimuli[6]]**2
+    if triple_combinations:
+        # Get squared correlation of stimuli
+        variance_1 = mean_correlations[all_stimuli[0]]**2
+        variance_2 = mean_correlations[all_stimuli[1]]**2
+        variance_3 = mean_correlations[all_stimuli[2]]**2
+        variance_12 = mean_correlations[all_stimuli[3]]**2
+        variance_13 = mean_correlations[all_stimuli[4]]**2
+        variance_23 = mean_correlations[all_stimuli[5]]**2
+        variance_123 = mean_correlations[all_stimuli[6]]**2
 
-#         # Shared without each stimulus
-#         variance_shared_with_1 = variance_123 - variance_23 #100
-#         variance_shared_with_2 = variance_123 - variance_13 #010
-#         variance_shared_with_3 = variance_123 - variance_12 #001
+        # Shared without each stimulus
+        variance_shared_with_1 = variance_123 - variance_23 #100
+        variance_shared_with_2 = variance_123 - variance_13 #010
+        variance_shared_with_3 = variance_123 - variance_12 #001
         
-#         # Explained by subshared, but not by all shared model
-#         variance_shared_with_12 = variance_13 + variance_23 - variance_3 - variance_123 #110
-#         variance_shared_with_13 = variance_12 + variance_23 - variance_2 - variance_123 #101
-#         variance_shared_with_23 = variance_12 + variance_13 - variance_1 - variance_123 #011
+        # Explained by subshared, but not by all shared model
+        variance_shared_with_12 = variance_13 + variance_23 - variance_3 - variance_123 #110
+        variance_shared_with_13 = variance_12 + variance_23 - variance_2 - variance_123 #101
+        variance_shared_with_23 = variance_12 + variance_13 - variance_1 - variance_123 #011
 
-#         # Explained by one, two, three and full shared model but not by subshared models
-#         variance_int_complement_submodels = variance_123 + variance_1 + variance_2 + variance_3 - variance_12 - variance_13 - variance_23 #111
+        # Explained by one, two, three and full shared model but not by subshared models
+        variance_int_complement_submodels = variance_123 + variance_1 + variance_2 + variance_3 - variance_12 - variance_13 - variance_23 #111
 
-#         areas = [variance_shared_with_1, variance_shared_with_2, variance_shared_with_3, \
-#                  variance_shared_with_12, variance_shared_with_13, variance_shared_with_23,\
-#                  variance_int_complement_submodels] 
-#         areas = [0 if area<0 else area.round(3) for area in areas] # note that the sum gives shared model variance_123
+        areas = [variance_shared_with_1, variance_shared_with_2, variance_shared_with_3, \
+                 variance_shared_with_12, variance_shared_with_13, variance_shared_with_23,\
+                 variance_int_complement_submodels] 
+        areas = [0 if area<0 else area.round(3) for area in areas] # note that the sum gives shared model variance_123
 
-#         # Create figure and title
-#         title = all_stimuli[-1].replace('_', ', ')
-#         plt.ioff()
-#         plt.figure(layout='tight')
-#         plt.title(f'Diagram {band} band - {title}')
+        # Create figure and title
+        title = all_stimuli[-1].replace('_', ', ')
+        plt.ioff()
+        plt.figure(layout='tight')
+        plt.title(f'Diagram {band} band - {title}')
 
-#         # Make plot
-#         venn3(subsets=areas, # left area diagran, right area diagram, shared area <--> (100, 010, 110, 001, 101, 011, 111).
-#               set_labels=(all_stimuli[0], all_stimuli[1], all_stimuli[2]), 
-#               set_colors=('C0', 'C1', 'purple'), 
-#               alpha=0.45)
+        # Make plot
+        venn3(subsets=areas, # left area diagran, right area diagram, shared area <--> (100, 010, 110, 001, 101, 011, 111).
+              set_labels=(all_stimuli[0], all_stimuli[1], all_stimuli[2]), 
+              set_colors=('C0', 'C1', 'purple'), 
+              alpha=0.45)
 
-#         if save_figures:
-#             temp_path = os.path.join(path_venn_diagrams, f'{band}')
-#             os.makedirs(temp_path, exist_ok=True)
-#             if relevant_channels:
-#                 plt.savefig(os.path.join(temp_path, f'relevant_channels_{relevant_channels}_{all_stimuli[-1]}.png'))
-#                 plt.savefig(os.path.join(temp_path, f'relevant_channels_{relevant_channels}_{all_stimuli[-1]}.svg'))
-#             else:
-#                 plt.savefig(os.path.join(temp_path, f'{all_stimuli[-1]}.png'))
-#                 plt.savefig(os.path.join(temp_path, f'{all_stimuli[-1]}.svg'))
-#         plt.close()
+        if save_figures:
+            temp_path = os.path.join(path_venn_diagrams, f'{band}')
+            os.makedirs(temp_path, exist_ok=True)
+            if relevant_channels:
+                plt.savefig(os.path.join(temp_path, f'relevant_channels_{relevant_channels}_{all_stimuli[-1]}.png'))
+                plt.savefig(os.path.join(temp_path, f'relevant_channels_{relevant_channels}_{all_stimuli[-1]}.svg'))
+            else:
+                plt.savefig(os.path.join(temp_path, f'{all_stimuli[-1]}.png'))
+                plt.savefig(os.path.join(temp_path, f'{all_stimuli[-1]}.svg'))
+        plt.close()
 
-#         # # Make a print with information
-#         # stim1_percent = (variance_shared_with_1 * 100 /np.sum(areas)).round(2)
-#         # stim2_percent = (variance_shared_with_2 * 100 /np.sum(areas)).round(2)
-#         # stim3_percent = (variance_shared_with_2 * 100 /np.sum(areas)).round(2)
-#         # shared_percent = (variance_complement_12 * 100 /np.sum(areas)).round(2)
-#         # print(f'\nExclusive Percentage explained by {stim1} is {stim1_percent} %',
-#         #       f'\nExclusive Percentage explained by {stim2} is {stim2_percent} %',
-#         #       f'\nshared percentage explained is {shared_percent} %')
+        # # Make a print with information
+        # stim1_percent = (variance_shared_with_1 * 100 /np.sum(areas)).round(2)
+        # stim2_percent = (variance_shared_with_2 * 100 /np.sum(areas)).round(2)
+        # stim3_percent = (variance_shared_with_2 * 100 /np.sum(areas)).round(2)
+        # shared_percent = (variance_complement_12 * 100 /np.sum(areas)).round(2)
+        # print(f'\nExclusive Percentage explained by {stim1} is {stim1_percent} %',
+        #       f'\nExclusive Percentage explained by {stim2} is {stim2_percent} %',
+        #       f'\nshared percentage explained is {shared_percent} %')
 
 
 # # Relevant parameters
