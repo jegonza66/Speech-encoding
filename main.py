@@ -18,7 +18,8 @@ from labos.notificacion_bot import mensaje_tel
 api_token, chat_id = '5448153732:AAGhKraJQquEqMfpD3cb4rnTcrKB6U1ViMA', 1034347542
      
 start_time = datetime.now()
-
+data = load_pickle(r'C:\repos\Speech-encoding\repo_speech_encoding\saves\preprocessed_data\External\tmin-0.2_tmax0.6\Mistakes\Sesion21.pkl')
+data.shape
 # ==========
 # PARAMETERS
 # ==========
@@ -45,10 +46,7 @@ stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Mfccs-Deltas', 'Pitch-Log
 bands = ['Delta','Theta', 'Alpha', 'Beta1', 'Beta2']
 situation = 'Internal' #'Internal_BS' #'External' # 'Internal' # 'External_BS'
 
-stimuli = ['Envelope']
-bands = ['Theta']
-situation = 'External'
-stimuli = ['Phonemes-Discrete-Phonet_Phonological']
+stimuli = ['Mistakes']
 bands = ['Theta']
 situation = 'External' #'External' 'External_BS' 'Internal_BS' 'Internal'
 

@@ -52,6 +52,9 @@ def define_ticks(axes, number_of_ticks:int, ylabel:str, xlabel:str='Time (ms)', 
         tags = list(exp_info.phonological_labels) if order is None else [list(exp_info.phonological_labels)[i] for i in order]
         axes.tick_params(axis='both', labelsize='medium') 
         ticks = np.arange(number_of_ticks)
+    elif ylabel.startswith('Mistakes'):
+        tags = list(exp_info.mistakes) if order is None else [list(exp_info.mistakes)[i] for i in order]
+        ticks = np.arange(number_of_ticks)
     elif ylabel.startswith('Phonemes'):
         axes.tick_params(axis='both', labelsize='medium')
         ticks = np.arange(number_of_ticks)
