@@ -1,12 +1,66 @@
-import pandas as pd, os, textgrids
+import pandas as pd, os, textgrids, numpy as np
+import scipy.io.wavfile as wavfile
+from scipy import signal as sgn
 
 # Mistakes folder
 mistake_folder = os.path.normpath(path='Datos/mistakes/')
 
 # La sesion con más errores es la 25 --> 48 errores, 27 en canal 1 y 21 en canal 2. La señal del que habla, pero podemos implementarlo con las 4 variantes
+session, trial, channel = 25, 6, 2
+
+# Read envelope
+wav = wavfile.read(f'Datos/wavs/S{session}/s{session}.objects.{str(trial).zfill(2)}.channel{channel}.wav')[1]
+wav = wav.astype("float")
+envelope = np.abs(sgn.hilbert(wav))
+window_size, stride = int(16e3/128), int(16e3/128)
+envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)])
+envelope =  envelope.reshape(-1, 1)
+
+# Read phrases to identify time of error inside phrases time
+phrases = pd.read_table(f'Datos/phrases/S{session}/s{session}.objects.{str(trial).zfill(2)}.channel{channel}.phrases', header=None, sep="\t")
+start_time, end_time = phrases[0].iloc[0], phrases[1].iloc[-1]
+phrases_time = np.arange(start_time, end_time, 1/128)
+
+# Identify start and end of error within mistake
+mistake_code = {
+                'A':0, # articulatorio
+                'L':1, # léxico
+                'D':2 # discursivo
+                }
+mistake_signal = np.zeros(shape=(len(phrases_time), 3))
+
+textgrids_path = os.path.join(mistake_folder, f'filtered_session{session}_trial{trial}_channel{channel}.TextGrid')
+grid = textgrids.TextGrid(textgrids_path)[f'canal {channel}']
+mistakes, mistake_count = np.unique([el.text.split('Palabra del error: ')[1] for el in grid], return_counts=True)
+lista_de_items = [[] for i in range(len(mistakes))]
+mistakes = np.repeat(mistakes, mistake_count)
+
+for item in grid:
+    if item.text
 
 
+[[item] if for item in zip(grid, mistakes)]
+for item in grid:
+    # Identify time_intervals and mistake type
+    mistake_type = mistake_code[item.text.split('Etiqueta: ')[1][0]]
+    if int(item.text[0])==1:
+        mistake_start = item.xpos
+    elif int(item.text[0])==2:
+        mistake_end = item.xpos
+    else:
+        nextword_start = item.xpos
+    
+    
+    onset_filter = mistake_start<=phrases_time
+    offset_filter = phrases_time<=mistake_end
+    
+    mistake_signal[mistake_type, onset_filter&offset_filter] = np.ones(shape=np.sum(onset_filter&offset_filter))
+    
 
+onset_filter = mistake_start<=phrases_time
+offset_filter = phrases_time<=mistake_end
+mistake_signal = np.zeros(shape=phrases_time.shape)
+mistake_signal[onset_filter&offset_filter] = np.ones(shape=np.sum(onset_filter&offset_filter))
 
 
 
