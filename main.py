@@ -18,8 +18,7 @@ from labos.notificacion_bot import mensaje_tel
 api_token, chat_id = '5448153732:AAGhKraJQquEqMfpD3cb4rnTcrKB6U1ViMA', 1034347542
      
 start_time = datetime.now()
-data = load_pickle(r'C:\repos\Speech-encoding\repo_speech_encoding\saves\preprocessed_data\External\tmin-0.2_tmax0.6\Mistakes\Sesion21.pkl')
-data.shape
+
 # ==========
 # PARAMETERS
 # ==========
@@ -46,10 +45,10 @@ stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Mfccs-Deltas', 'Pitch-Log
 bands = ['Delta','Theta', 'Alpha', 'Beta1', 'Beta2']
 situation = 'Internal' #'Internal_BS' #'External' # 'Internal' # 'External_BS'
 
-stimuli = ['Mistakes']
+stimuli = ['Mistakes_Envelope']
 bands = ['Theta']
 situation = 'External' #'External' 'External_BS' 'Internal_BS' 'Internal'
-
+hierarchical_clustering=False
 # Run setup
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 
@@ -317,7 +316,7 @@ for band in bands:
                 # Plot weights
                 plot.channel_weights(info=info, save=save_figures, save_path=path_figures, average_correlation=average_correlation,
                                      average_rmse=average_rmse, best_alpha=alpha, average_weights=average_weights, times=times, 
-                                     n_feats=n_feats, stim=stim, session=sesion, subject=sujeto,
+                                     n_feats=n_feats, stim=stim, session=sesion, subject=sujeto, hierarchical_clustering=hierarchical_clustering,
                                      display_interactive_mode=display_interactive_mode, no_figures=no_figures)
                 
                 # Saves average correlation, RMSE and weights between folds of each channel of each subject to take average above subjects channels
@@ -386,7 +385,7 @@ for band in bands:
                                               save_path=path_figures, display_interactive_mode=display_interactive_mode, no_figures=no_figures)      
 
         # Plot weights
-        plot.average_regression_weights(average_weights_subjects=average_weights_subjects, info=info, save=save_figures, save_path=path_figures, 
+        plot.average_regression_weights(average_weights_subjects=average_weights_subjects, info=info, save=save_figures, save_path=path_figures, hierarchical_clustering=hierarchical_clustering,
                                         times=times, n_feats=n_feats, stim=stim, display_interactive_mode=display_interactive_mode, no_figures=no_figures)
         
         # Plot correlation matrix between subjects 

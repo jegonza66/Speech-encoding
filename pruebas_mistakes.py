@@ -142,3 +142,6 @@ def f_mistakes(self, envelope:np.ndarray):
 #             data = f.read()
 #         with open(new_name_file, 'w', encoding='utf-8') as f:
 #             f.write(data)
+
+# data = load_pickle(r'C:\repos\Speech-encoding\repo_speech_encoding\saves\preprocessed_data\External\tmin-0.2_tmax0.6\Mistakes\Sesion21.pkl')
+# data.shape
