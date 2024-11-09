@@ -21,7 +21,7 @@ from funciones  import load_pickle, dump_pickle
 bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
 # bands = ['Theta']
 sesiones = [21,22,23,24,25,26,27,29,30]
-root = r'saves\preprocessed_data_bis\External\tmin-0.2_tmax0.6'
+root = r'saves\preprocessed_data\External\tmin-0.2_tmax0.6'
 
 for sesion in sesiones:
     # sesion=24

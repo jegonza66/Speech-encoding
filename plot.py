@@ -1169,7 +1169,6 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
     stimuli = stim.split('_')
 
     for i_feat, (feat, n_feat) in enumerate(zip(stimuli, n_feats)):
-
         # Make slicing of relevant features
         index_slice = sum(n_feats[:i_feat]),  sum(n_feats[:i_feat]) + n_feat
 
