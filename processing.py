@@ -379,6 +379,10 @@ def clustering_by_correlation(weights:np.ndarray):
     list
         indexes in ordered of clustering
     """
+    # Identify zero rows
+    null_indexes = np.where(~weights.any(axis=1))[0]
+    
+    weights = weights[[i for i in np.arange(weights.shape[0]) if i not in null_indexes]]
 
     # Compute the correlation matrix 
     correlation_matrix = np.corrcoef(weights, rowvar=True)
@@ -398,8 +402,10 @@ def clustering_by_correlation(weights:np.ndarray):
 
     # Get the order of the variables
     ordered_indices = leaves_list(linkage_matrix)
-
-    return ordered_indices
+    
+    if null_indexes.shape[0]==0:
+        null_indexes = None
+    return ordered_indices, null_indexes
 
 
 

@@ -33,7 +33,7 @@ exp_info = setup.exp_info()
 # ===================
 # Auxiliary functions
 
-def define_ticks(axes, number_of_ticks:int, ylabel:str, xlabel:str='Time (ms)', order:list=None, title:str=None):
+def define_ticks(axes, number_of_ticks:int, ylabel:str, xlabel:str='Time (ms)', order:list=None, zeros_index:list=None, title:str=None):
     """Define y ticks and labels for a pcolormesh depending on stimulus
 
     Parameters
@@ -49,22 +49,28 @@ def define_ticks(axes, number_of_ticks:int, ylabel:str, xlabel:str='Time (ms)', 
     exp_info = setup.exp_info()
 
     if ylabel.startswith('Phonological'):
-        tags = list(exp_info.phonological_labels) if order is None else [list(exp_info.phonological_labels)[i] for i in order]
         axes.tick_params(axis='both', labelsize='medium') 
+        tags = list(exp_info.phonological_labels) 
         ticks = np.arange(number_of_ticks)
     elif ylabel.startswith('Mistakes'):
-        tags = list(exp_info.mistakes) if order is None else [list(exp_info.mistakes)[i] for i in order]
+        tags = list(exp_info.mistakes)
         ticks = np.arange(number_of_ticks)
     elif ylabel.startswith('Phonemes'):
         axes.tick_params(axis='both', labelsize='medium')
-        ticks = np.arange(number_of_ticks)
         if ylabel.endswith('Manual'):
-            tags = exp_info.ph_labels_man if order is None else [exp_info.ph_labels_man[i] for i in order]
+            tags = exp_info.ph_labels_man
         elif ylabel.endswith('Phonet'):
-            tags = exp_info.ph_labels_phonet[:-1] if order is None else [exp_info.ph_labels_phonet[:-1][i] for i in order]
+            tags = exp_info.ph_labels_phonet[:-1]
         else:
-            tags = exp_info.ph_labels if order is None else [exp_info.ph_labels[i] for i in order]
-    elif ylabel.startswith('Spectrogram'):
+            tags = exp_info.ph_labels
+        ticks = np.arange(number_of_ticks)
+    
+    # Filter zeros and reorder tags
+    tags = tags if zeros_index is None else [tags[i] for i in range(len(tags)) if i not in zeros_index]
+    tags = tags if order is None else [tags[i] for i in order]
+    
+    # Frecuency correlated features are treated differently
+    if ylabel.startswith('Spectrogram'):
         ylabel = 'Frecuency (Hz)'
         bands_center = librosa.mel_frequencies(n_mels=number_of_ticks+2, fmin=62, fmax=8000)[1:-1]
         tags = [int(bands_center[i]) for i in np.arange(0, len(bands_center), 2)]
@@ -1042,15 +1048,18 @@ def channel_weights(info:mne.Info,
             
             # Perform clustering
             if hierarchical_clustering: 
-                order = clustering_by_correlation(weights=weights) 
+                order, null_indexes = clustering_by_correlation(weights=weights) 
+                if null_indexes is not None:
+                    weights = weights[[i for i in np.arange(weights.shape[0]) if i not in null_indexes]] 
                 weights = weights[order]
             else:
                 order = None
             
             # Make color mesh
+            number_of_ticks = weights.shape[0]
             im = ax[0,i_feat].pcolormesh(
                                         times * 1000, 
-                                        np.arange(n_feat), 
+                                        np.arange(number_of_ticks), 
                                         weights, 
                                         cmap='RdBu', 
                                         shading='auto',
@@ -1058,7 +1067,7 @@ def channel_weights(info:mne.Info,
                                         vmax=np.abs(weights).max()
                                         )
             # Configure axis
-            define_ticks(axes=ax[0, i_feat], number_of_ticks=n_feat, ylabel=feat, xlabel='Time (ms)', title=feat, order=order)
+            define_ticks(axes=ax[0, i_feat], number_of_ticks=number_of_ticks, ylabel=feat, xlabel='Time (ms)', title=feat, order=order, zeros_index=null_indexes)
                 
             # Configure colorbar
             fig.colorbar(
@@ -1216,15 +1225,18 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
 
             # Perform clustering
             if hierarchical_clustering: 
-                order = clustering_by_correlation(weights=feat_weights) 
+                order, null_indexes = clustering_by_correlation(weights=feat_weights) 
+                if null_indexes is not None:
+                    feat_weights = feat_weights[[i for i in np.arange(feat_weights.shape[0]) if i not in null_indexes]] 
                 feat_weights = feat_weights[order]
             else:
                 order = None
 
             # Create colormesh figure
+            number_of_ticks = feat_weights.shape[0]
             im = axes[1].pcolormesh(
                                     times * 1000, 
-                                    np.arange(n_feat), 
+                                    np.arange(number_of_ticks), 
                                     feat_weights, 
                                     cmap='RdBu', 
                                     shading='auto',
@@ -1233,7 +1245,7 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
                                     )
 
             # Set figure configuration
-            define_ticks(axes=axes[1], number_of_ticks=n_feat, ylabel=feat, xlabel='Time (ms)', title=None, order=order)
+            define_ticks(axes=axes[1], number_of_ticks=number_of_ticks, ylabel=feat, xlabel='Time (ms)', title=None, order=order, zeros_index=null_indexes)
             
             # Configure colorbar
             fig.colorbar(
@@ -1482,19 +1494,26 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
 
             # Perform clustering
             if hierarchical_clustering: 
-                order = clustering_by_correlation(weights=feat_weights) 
+                order, null_indexes = clustering_by_correlation(weights=feat_weights) 
+                if null_indexes is not None:
+                    feat_weights = feat_weights[[i for i in np.arange(feat_weights.shape[0]) if i not in null_indexes]] 
                 feat_weights = feat_weights[order]
                 if pvalue.ndim==3:
+                    if null_indexes is not None:
+                        significant_channels = significant_channels[[i for i in np.arange(significant_channels.shape[0]) if i not in null_indexes]] 
                     significant_channels = significant_channels[order]
                 else:
-                    pvalue = pvalue[:, order]
+                    if null_indexes is not None:
+                        pvals_for_graphss = pvals_for_graph[[i for i in np.arange(pvals_for_graph.shape[1]) if i not in null_indexes]] 
+                    pvals_for_graph = pvals_for_graph[:, order]
             else:
                 order = None
 
             # Create colormesh figure for weights
+            number_of_ticks = feat_weights.shape[0]
             im = axes[0].pcolormesh(
                                     times*1e3, 
-                                    np.arange(n_feat), 
+                                    np.arange(number_of_ticks), 
                                     feat_weights, 
                                     cmap='RdBu', 
                                     shading='auto',
@@ -1503,7 +1522,7 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
                                     )
 
             # Set figure configuration
-            define_ticks(axes=axes[0], number_of_ticks=n_feat, ylabel=feat, xlabel='', title=None, order=order)
+            define_ticks(axes=axes[0], number_of_ticks=number_of_ticks, ylabel=feat, xlabel='', title=None, order=order, zeros_index=null_indexes)
             
             # Configure colorbar
             fig.colorbar(
@@ -1553,7 +1572,8 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
         if pvalue.ndim==3:
             bar_label = "Number of significant channels"
             # Define y and z according to the number of features (this is just to make a wark around 1 dimensional colormesh)
-            y, z = (np.arange(n_feat+1), np.concatenate((significant_channels,significant_channels))) if n_feat==1 else (np.arange(n_feat), significant_channels)
+            number_of_ticks = significant_channels.shape[0]
+            y, z = (np.arange(n_feat+1), np.concatenate((significant_channels,significant_channels))) if n_feat==1 else (np.arange(number_of_ticks), significant_channels)
             im2 = axes[1].pcolormesh(
                                     times*1e3, # x
                                     y, # y
@@ -1564,7 +1584,8 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
         else:
             bar_label = r"$-log_{10}(p_{values})$"
             # Define y and z according to the number of features (this is just to make a wark around 1 dimensional colormesh)
-            y, z = (np.arange(n_feat+1), np.concatenate((pvals_for_graph,pvals_for_graph))) if n_feat==1 else (np.arange(n_feat), pvals_for_graph)
+            number_of_ticks = pvals_for_graph.shape[1]
+            y, z = (np.arange(n_feat+1), np.concatenate((pvals_for_graph,pvals_for_graph))) if n_feat==1 else (np.arange(number_of_ticks), pvals_for_graph)
             im2 = axes[1].pcolormesh(
                                     times*1e3, # x
                                     y, # y
@@ -1574,7 +1595,7 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
                                     )
         
         if n_feat>1:
-            define_ticks(axes=axes[1], number_of_ticks=n_feat, ylabel=feat, xlabel='Time (ms)', title=None, order=order) 
+            define_ticks(axes=axes[1], number_of_ticks=number_of_ticks, ylabel=feat, xlabel='Time (ms)', title=None, order=order, zeros_index=null_indexes) 
             fig.colorbar( 
                         orientation='vertical', 
                         label=bar_label,
