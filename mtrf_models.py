@@ -272,18 +272,18 @@ class RidgeRegression(Ridge):
         _type_
             _description_
         """
-        # Check whether the passed variables are null
-        arguments = {arg:val for arg, val in locals().items() if arg!='self'}
-        for arg in arguments:
-            elements, number_of_counts = np.unique(arguments[arg], return_counts=True)
-            if len(number_of_counts)==1 and elements[0]==0:
-                message = '\n######################################################\n\nWARNING: some values used by the model are null, this may be a problem related to the stimulus (e.g. pitch): if it\'s too sparse, then the set of indexes selected to perform test (for ex.) picks up the zeros of the given stimulus\n'
-                message += '\nTry to exclude this session or stimulus\n\n######################################################\n'
-                try:
-                    raise ValueError(message)
-                except ValueError as err:
-                    print(err.args[0])
-                    raise err
+        # # Check whether the passed variables are null
+        # arguments = {arg:val for arg, val in locals().items() if arg!='self'}
+        # for arg in arguments:
+        #     elements, number_of_counts = np.unique(arguments[arg], return_counts=True)
+        #     if len(number_of_counts)==1 and elements[0]==0:
+        #         message = '\n######################################################\n\nWARNING: some values used by the model are null, this may be a problem related to the stimulus (e.g. pitch): if it\'s too sparse, then the set of indexes selected to perform test (for ex.) picks up the zeros of the given stimulus\n'
+        #         message += '\nTry to exclude this session or stimulus\n\n######################################################\n'
+        #         try:
+        #             raise ValueError(message)
+        #         except ValueError as err:
+        #             print(err.args[0])
+        #             raise err
         
         # Instances of normalize and standarize
         norm = Normalize(axis=0, porcent=5)

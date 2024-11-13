@@ -1,6 +1,6 @@
 # Standard libraries
 from datetime import datetime
-import os, numpy as np
+import os, numpy as np, warnings
 
 # Specific libraries
 from sklearn.model_selection import KFold
@@ -45,15 +45,13 @@ stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Mfccs-Deltas', 'Pitch-Log
 bands = ['Delta','Theta', 'Alpha', 'Beta1', 'Beta2']
 situation = 'Internal' #'Internal_BS' #'External' # 'Internal' # 'External_BS'
 
-stimuli = ['Mistakes']
+stimuli = ['Mistakes-Together']
 bands = ['Theta']
 situation = 'External' #'External' 'External_BS' 'Internal_BS' 'Internal'
 hierarchical_clustering = False
 
 # Run setup
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
-# sesiones = [22]
-
 
 # EEG sample rate
 sr = 128
@@ -75,7 +73,7 @@ statistical_test = False
 umbral = 0.05/128 # TODO que onda con features no unidimensionales
 
 # TFCE number of permutations
-perform_tfce = True
+perform_tfce = False
 n_permutations = 2500
 number_of_jobs = -1 # Performance may vary across computers
 
@@ -112,7 +110,7 @@ for band in bands:
         path_weights = f'saves/{model}/{situation}/weights/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
         path_null = f'saves/{model}/{situation}/null/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
         path_figures = f'figures/{model}/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
-        prat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"
+        prat_executable_path = r"C:\Program Files\Praat\Praat.exe"#r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" 
         alphas_directory = os.path.normpath(f'saves/alphas/{situation}/stims_{stims_preprocess}/EEG_{eeg_preprocess}//tmin{tmin}_tmax{tmax}/{band}/{stim}/')
         alphas_path = os.path.join(alphas_directory, f'corr_limit_{correlation_limit_percentage}.pkl')
         path_TFCE = f'saves/{model}/{situation}/TFCE/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/'
@@ -248,11 +246,14 @@ for band in bands:
 
                     # Predict and save
                     predicted, eeg_test = mtrf.predict(stims)
-
+                    if (predicted==0).all():
+                        print(f'\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\t\tFold {fold+1}/{n_folds} prediction is null, this may be due to the sparsity of weights. If there are\n\t\ttoo many zeros when making product with selected stimuli, the product may be null.\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
+                    
                     # Calculates and saves correlation of each channel
+                    warnings.filterwarnings("ignore", category=RuntimeWarning) # avoid runtime error dividing per zero, this is caught later
                     correlation_matrix = np.array([np.corrcoef(eeg_test[:, j], predicted[:, j])[0,1] for j in range(eeg_test.shape[1])])
-
                     correlation_per_channel[fold] = correlation_matrix
+                    
 
                     # Calculates and saves root mean square error of each channel
                     root_mean_square_error = np.array(np.sqrt(np.power((predicted - eeg_test), 2).mean(0)))
@@ -281,8 +282,16 @@ for band in bands:
 
                 print(f'\n\t······  Run model\n')
 
-                # Take average weights, correlation and RMSE between folds of all channels
-                average_weights = weights_per_fold.mean(axis=0) # info['nchan'], np.sum(n_feats), len(delays)
+                # Take average weights, avoiding folds fill entirely with zeros
+                for k, weight in enumerate(weights_per_fold):
+                    if (weight==0).all():
+                        print(f'\n\t\t<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n\t\t\tFold {k+1}/{n_folds} weights are empty\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
+                        weights_per_fold[k] = np.full(shape=weight.shape, fill_value=np.nan)
+                        
+                average_weights = np.nanmean(weights_per_fold, axis=0) # info['nchan'], np.sum(n_feats), len(delays)
+                average_weights = np.nan_to_num(average_weights)
+                                
+                # Take average correlation and RMSE between folds of all channels
                 average_correlation = np.nanmean(correlation_per_channel, axis=0)
                 average_correlation = np.nan_to_num(average_correlation)
                 average_rmse = rmse_per_channel.mean(axis=0)
