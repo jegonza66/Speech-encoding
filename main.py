@@ -45,7 +45,7 @@ stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Mfccs-Deltas', 'Pitch-Log
 bands = ['Delta','Theta', 'Alpha', 'Beta1', 'Beta2']
 situation = 'Internal' #'Internal_BS' #'External' # 'Internal' # 'External_BS'
 
-stimuli = ['Mistakes-Together']
+stimuli = ['Mistakes-Separated']
 bands = ['Theta']
 situation = 'External' #'External' 'External_BS' 'Internal_BS' 'Internal'
 hierarchical_clustering = False
@@ -285,7 +285,7 @@ for band in bands:
                 # Take average weights, avoiding folds fill entirely with zeros
                 for k, weight in enumerate(weights_per_fold):
                     if (weight==0).all():
-                        print(f'\n\t\t<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n\t\t\tFold {k+1}/{n_folds} weights are empty\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
+                        print(f'\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>\n\t\tFold {k+1}/{n_folds} weights are empty\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>')
                         weights_per_fold[k] = np.full(shape=weight.shape, fill_value=np.nan)
                         
                 average_weights = np.nanmean(weights_per_fold, axis=0) # info['nchan'], np.sum(n_feats), len(delays)

@@ -1054,6 +1054,7 @@ def channel_weights(info:mne.Info,
                 weights = weights[order]
             else:
                 order = None
+                null_indexes = None
             
             # Make color mesh
             number_of_ticks = weights.shape[0]
@@ -1231,6 +1232,7 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
                 feat_weights = feat_weights[order]
             else:
                 order = None
+                null_indexes = None
 
             # Create colormesh figure
             number_of_ticks = feat_weights.shape[0]
@@ -1508,6 +1510,7 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
                     pvals_for_graph = pvals_for_graph[:, order]
             else:
                 order = None
+                null_indexes = None
 
             # Create colormesh figure for weights
             number_of_ticks = feat_weights.shape[0]
