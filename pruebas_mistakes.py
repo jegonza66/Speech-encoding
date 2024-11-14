@@ -113,47 +113,55 @@ def f_mistakes(self, envelope:np.ndarray):
 #         with open(new_name_file, 'w', encoding='utf-8') as f:
 #             f.write(data)
 
-control_words = pd.read_csv(os.path.join(mistake_folder, 'score_con_palabras.csv'), header=0, delimiter=';')
-
-# Filter unprecised data #TODO filtramos datos que no tienen el timestamp exacto
-control_words = control_words[control_words['Datos Palabra Candidato']!='No esta exacto']
-control_words = control_words[control_words['Datos Palabra Candidato']!='Falta dato']
-
-arr = control_words['error seleccionado'].values
-arr = filtered_df['error seleccionado'].values
-change_indices = np.where(arr[:-1] != arr[1:])[0] + 1
-segments = np.split(arr, change_indices)
-np.unique([len(segment) for segment in segments], return_counts=True)
-
-
-##HACERLO POR LOS INDICES DEL DF CON ENUMERATE Y PONER DE SCORE 1-normalizado(score actuak)
-
 def filter_repetitions(df, column, min_repetitions=4):
     # Extract the column as a numpy array
+    indexes = df.index.values
     arr = df[column].values
-    
+
     # Find change points where the value in the column changes
-    change_indices = np.where(arr[:-1] != arr[1:])[0] + 1
-    
-    df[column].iloc[change_indices]
+    change_indixes = np.where(arr[:-1] != arr[1:])[0] + 1
     
     # Split the array into segments of contiguous values
-    segments = np.split(arr, change_indices)
+    segments = np.split(indexes, change_indixes)
     
     # Filter segments that have min_repetitions or more repetitions
     filtered_segments = [segment[-min_repetitions:] for segment in segments if len(segment) >= min_repetitions]
     filtered_array = np.concatenate(filtered_segments)
     
-    filtered_df = df[np.isin(arr, filtered_array)]
+    filtered_df = df.iloc[filtered_array]
     return filtered_df
+
+control_words = pd.read_csv(os.path.join(mistake_folder, 'score_con_palabras.csv'), header=0, delimiter=';')
+
+# #TODOnumero de controles y cantidad de elementos con esa cantidad
+# # control_words = control_words[control_words['Datos Palabra Candidato']!='No esta exacto']
+# # control_words = control_words[control_words['Datos Palabra Candidato']!='Falta dato']
+# # arr = control_words['error seleccionado'].values
+# # arr = filtered_df['error seleccionado'].values
+# # change_indices = np.where(arr[:-1] != arr[1:])[0] + 1
+# # segments = np.split(arr, change_indices)
+# # np.unique([len(segment) for segment in segments], return_counts=True) 
+
 # Example usage
-filtered_df = filter_repetitions(control_words, 'error seleccionado')
-print(filtered_df)
+control_words = filter_repetitions(control_words, 'error seleccionado')
+control_words['error seleccionado'].head(16)
 
-# # Create a list of tuples with the element and its contiguous count
-# [(segment[0], len(segment)) for segment in segments]
+# Filter unprecised data #TODO filtramos datos que no tienen el timestamp exacto
+control_words = control_words[control_words['Datos Palabra Candidato']!='No esta exacto']
+control_words = control_words[control_words['Datos Palabra Candidato']!='Falta dato']
 
+# Re initialize index
+control_words = control_words.reset_index(drop=True)
+
+# Redefine score normalizing it
+max_score = control_words['score total (más bajo mejor)'].max()
+
+control_words['score normalizado'] = 1-control_words['score total (más bajo mejor)']/max_score
+
+for i in control_words.index:
+    control = control_words.iloc[i]
+    info_control = control['info control seleccionado'].replace('(','').replace(')','').split(', ')
+    comienzo, final = float(info_control[0]), float(info_control[1])
+    score = -float(control['score normalizado'])
     
-
-elements_of_tuple = [el.replace('(', '').replace(')', '').replace("'","") for el in control_words['Datos Palabra Candidato'][0].split(', ')]
-mistake_tuple = tuple([float(el) if i<2 else el for i, el in enumerate(elements_of_tuple)])
+    ses =  int(control['File Control'].split('s')[1][:2])
