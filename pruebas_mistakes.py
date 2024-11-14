@@ -3,7 +3,7 @@ import scipy.io.wavfile as wavfile
 from scipy import signal as sgn
 
 # Mistakes folder
-mistake_folder = os.path.normpath(path='Datos/mistakes/')
+mistake_folder = os.path.normpath(path='Datos/errores/')
 
 # La sesion con más errores es la 25 --> 48 errores, 27 en canal 1 y 21 en canal 2. La señal del que habla, pero podemos implementarlo con las 4 variantes
 session, trial, channel = 25, 6, 2
@@ -69,36 +69,6 @@ def f_mistakes(self, envelope:np.ndarray):
     return mistake_signal
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # filtered_mistake_folder = os.path.join(mistake_folder,'Filtrados')
 
 # for j, file in enumerate([f for f in os.listdir(filtered_mistake_folder) if f.endswith('.TextGrid')]):
@@ -143,5 +113,47 @@ def f_mistakes(self, envelope:np.ndarray):
 #         with open(new_name_file, 'w', encoding='utf-8') as f:
 #             f.write(data)
 
-# data = load_pickle(r'C:\repos\Speech-encoding\repo_speech_encoding\saves\preprocessed_data\External\tmin-0.2_tmax0.6\Mistakes\Sesion21.pkl')
-# data.shape
+control_words = pd.read_csv(os.path.join(mistake_folder, 'score_con_palabras.csv'), header=0, delimiter=';')
+
+# Filter unprecised data #TODO filtramos datos que no tienen el timestamp exacto
+control_words = control_words[control_words['Datos Palabra Candidato']!='No esta exacto']
+control_words = control_words[control_words['Datos Palabra Candidato']!='Falta dato']
+
+arr = control_words['error seleccionado'].values
+arr = filtered_df['error seleccionado'].values
+change_indices = np.where(arr[:-1] != arr[1:])[0] + 1
+segments = np.split(arr, change_indices)
+np.unique([len(segment) for segment in segments], return_counts=True)
+
+
+##HACERLO POR LOS INDICES DEL DF CON ENUMERATE Y PONER DE SCORE 1-normalizado(score actuak)
+
+def filter_repetitions(df, column, min_repetitions=4):
+    # Extract the column as a numpy array
+    arr = df[column].values
+    
+    # Find change points where the value in the column changes
+    change_indices = np.where(arr[:-1] != arr[1:])[0] + 1
+    
+    df[column].iloc[change_indices]
+    
+    # Split the array into segments of contiguous values
+    segments = np.split(arr, change_indices)
+    
+    # Filter segments that have min_repetitions or more repetitions
+    filtered_segments = [segment[-min_repetitions:] for segment in segments if len(segment) >= min_repetitions]
+    filtered_array = np.concatenate(filtered_segments)
+    
+    filtered_df = df[np.isin(arr, filtered_array)]
+    return filtered_df
+# Example usage
+filtered_df = filter_repetitions(control_words, 'error seleccionado')
+print(filtered_df)
+
+# # Create a list of tuples with the element and its contiguous count
+# [(segment[0], len(segment)) for segment in segments]
+
+    
+
+elements_of_tuple = [el.replace('(', '').replace(')', '').replace("'","") for el in control_words['Datos Palabra Candidato'][0].split(', ')]
+mistake_tuple = tuple([float(el) if i<2 else el for i, el in enumerate(elements_of_tuple)])
