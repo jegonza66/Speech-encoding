@@ -45,7 +45,7 @@ stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Mfccs-Deltas', 'Pitch-Log
 bands = ['Delta','Theta', 'Alpha', 'Beta1', 'Beta2']
 situation = 'Internal' #'Internal_BS' #'External' # 'Internal' # 'External_BS'
 
-stimuli = ['Mistakes-Separated']
+stimuli = ['Mistakes-Separated_Envelope']
 bands = ['Theta']
 situation = 'External' #'External' 'External_BS' 'Internal_BS' 'Internal'
 hierarchical_clustering = False
@@ -110,7 +110,7 @@ for band in bands:
         path_weights = f'saves/{model}/{situation}/weights/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
         path_null = f'saves/{model}/{situation}/null/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
         path_figures = f'figures/{model}/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
-        prat_executable_path = r"C:\Program Files\Praat\Praat.exe"#r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" 
+        prat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
         alphas_directory = os.path.normpath(f'saves/alphas/{situation}/stims_{stims_preprocess}/EEG_{eeg_preprocess}//tmin{tmin}_tmax{tmax}/{band}/{stim}/')
         alphas_path = os.path.join(alphas_directory, f'corr_limit_{correlation_limit_percentage}.pkl')
         path_TFCE = f'saves/{model}/{situation}/TFCE/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/'
