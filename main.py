@@ -6,95 +6,22 @@ import os, numpy as np, warnings
 from sklearn.model_selection import KFold
 
 # Modules
-from funciones  import load_pickle, dump_pickle, dict_to_csv, iteration_percentage
+from funciones  import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
 from mtrf_models import Receptive_field_adaptation
 from load import load_data
 from processing import tfce
 from setup import exp_info
+from config import *
 import plot
 
 # Notofication bot
 from labos.notificacion_bot import mensaje_tel
 api_token, chat_id = '5448153732:AAGhKraJQquEqMfpD3cb4rnTcrKB6U1ViMA', 1034347542
 
-start_time = datetime.now()
-
-# ==========
-# PARAMETERS
-# ==========
-
-# Stimuli, EEG frecuency band and dialogue situation
-# stimuli = ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Envelope']
-# stimuli = ['Phonological', 'Deltas', 'Spectrogram']
-# stimuli = ['Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Manual']
-# stimuli = ['Pitch-Raw', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Pitch-Log-Quad']
-
-# stimuli = ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw']
-# stimuli = ['Envelope_Phonemes-Discrete-Manual', 'Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
-# stimuli = ['Deltas_Phonological', 'Deltas_Spectrogram', 'Phonological_Spectrogram', 'Deltas_Phonological_Spectrogram',]
-# stimuli = ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw', 'Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
-
-# stimuli = ['Envelope', 'Spectrogram', 'Deltas', 'Phonological', 'Mfccs', 'Mfccs-Deltas', 'Phonological_Spectrogram','Phonological_Deltas']
-# stimuli+= ['Phonological_Deltas_Spectrogram','Pitch-Log-Raw','Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual']
-# stimuli+= ['Phonemes-Discrete-Manual_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete-Manual_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw']
-# stimuli+= ['Envelope_Phonemes-Onset-Manual', 'Envelope_Phonemes-Discrete-Manual']
-stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Mfccs-Deltas', 'Pitch-Log-Raw']
-# stimuli = ['Phonemes-Envelope-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Discrete-Phonet']
-bands = ['Theta'] #, 'Delta', 'Alpha', 'Beta1', 'Beta2', 'All', 'Delta_Theta', 'Alpha_Delta_Theta']
-stimuli = ['Envelope', 'Phonological', 'Spectrogram', 'Mfccs-Deltas', 'Pitch-Log-Raw','Phonemes-Envelope-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Discrete-Phonet']
-bands = ['Delta','Theta', 'Alpha', 'Beta1', 'Beta2']
-situation = 'Internal' #'Internal_BS' #'External' # 'Internal' # 'External_BS'
-
-stimuli = ['Mistakes-Separated_Envelope']
-bands = ['Theta']
-situation = 'External' #'External' 'External_BS' 'Internal_BS' 'Internal'
-hierarchical_clustering = False
-
-# Run setup
-sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
-
-# EEG sample rate
-sr = 128
-
-# Run times
-tmin, tmax = -.2, .6
-delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
-times = (delays/sr)
-
-# Save / display Figures
-display_interactive_mode = False
-save_figures = True
-save_results = True
-
-no_figures = False
-
-# Include random permutations analaysis
-statistical_test = False
-umbral = 0.05/128 # TODO que onda con features no unidimensionales
-
-# TFCE number of permutations
-perform_tfce = False
-n_permutations = 2500
-number_of_jobs = -1 # Performance may vary across computers
-
-# Model and normalization of input
-stims_preprocess = 'Normalize'
-eeg_preprocess = 'Standarize'
-model = 'mtrf'
-estimator = 'time_delaying_ridge' # ridge or time_delaying_ridge
-
-# Make k-fold test with 5 folds (remain 20% as validation set, then interchange to cross validate)
-n_folds = 2
-
-# Preset alpha (penalization parameter)
-set_alpha = None
-default_alpha = 400
-correlation_limit_percentage = 0.01
-
 # ============
 # RUN ANALYSIS
 # ============
-just_load_data = False
+start_time = datetime.now()
 
 for band in bands:
     for stim in stimuli:
@@ -364,7 +291,6 @@ for band in bands:
         repeated_good_rmse_channels_subjects = np.stack(repeated_good_rmse_channels_subjects , axis=0)
 
         # Save results
-        print(f'Total number of subjects: {total_number_of_subjects}')
         if save_results and total_number_of_subjects==18:
             os.makedirs(save_results_path, exist_ok=True)
             os.makedirs(path_weights, exist_ok=True)
@@ -445,34 +371,59 @@ for band in bands:
 
             # Plot t and p values
             plot.plot_pvalue_tfce(average_weights_subjects=average_weights_subjects, pvalue=pvalue_tfce, times=times, stim=stim,
-                                  n_feats=n_feats, info=info, significance=.05, save_path=path_figures, display_interactive_mode=display_interactive_mode,
+                                  n_feats=n_feats, info=info, significance=significance, save_path=path_figures, display_interactive_mode=display_interactive_mode,
                                   save=save_figures, no_figures=no_figures)
 
 
 # Get run time
 run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
-text = f'PARAMETERS  \nModel: ' + model +f'\nBands: {bands}'+'\nStimuli: ' + f'{stimuli}'+'\nStatus: ' +situation+f'\nTime interval: ({tmin},{tmax})s'+f'\nNumber of subjects analyzed: {total_number_of_subjects}. Sessions {sesiones}'
+text = f'\n\n\t\t\tPARAMETERS  \n\n\tModel: ' + model +f'\n\tBands: {bands}'+'\n\tStimuli: ' + f'{stimuli}'+'\n\tStatus: ' +situation+f'\n\tTime interval: ({tmin},{tmax})s'+f'\n\tNumber of subjects analyzed: {total_number_of_subjects}. \n\tSessions: {sesiones}'
 if just_load_data:
-    text += '\n\n\tJUST LOADING DATA'
-text += f'\n\n\t\t RUN TIME \n\n\t\t{run_time} hours'
+    text += '\n\n\t\t\tJUST LOADING DATA'
+text += f'\n\n\t\t\tRUN TIME:{run_time}'
 print(text)
 
 # Dump metadata
 metadata_path = f'saves/log/{datetime.now().strftime("%Y-%m-%d--%H-%M-%S")}/'
 os.makedirs(metadata_path, exist_ok=True)
-metadata = {'stimuli':stimuli, 'bands':bands, 'situation':situation,
-            'sesiones':sesiones, 'sr':sr, 'tmin':tmin, 'tmax':tmax, 'total_number_of_subjects':total_number_of_subjects,
-            'save_figures':save_figures, 'save_results':save_results, 'tfce_permutations':n_permutations,
-            'umbral':umbral, 'no_figures':no_figures, 'statistical_test':statistical_test,
-            'stims_preprocess':stims_preprocess, 'eeg_preprocess':eeg_preprocess, 'model':model,
-            'estimator':estimator, 'n_folds':n_folds, 'default_alpha':default_alpha,
-            'save_results_path':save_results_path, 'preprocessed_data_path':preprocessed_data_path,
-            'path_original':path_weights, 'path_null':path_null, 'path_figures':path_figures,
-            'prat_executable_path':prat_executable_path, 'metadata_path': metadata_path,
-            'date': str(datetime.now()), 'run_time':str(run_time), 'just_loading_data':just_load_data}
-dict_to_csv(path=metadata_path+'metadata.csv',
+metadata = {
+            'stimuli':stimuli, 
+            'bands':bands, 
+            'situation':situation,
+            'sesiones':sesiones, 
+            'sr':sr, 
+            'tmin':tmin, 
+            'tmax':tmax, 
+            'total_number_of_subjects':total_number_of_subjects,
+            'save_figures':save_figures, 
+            'save_results':save_results, 
+            'tfce_permutations':n_permutations,
+            'umbral':umbral, 
+            'no_figures':no_figures, 
+            'statistical_test':statistical_test,
+            'stims_preprocess':stims_preprocess, 
+            'eeg_preprocess':eeg_preprocess, 
+            'model':model,
+            'estimator':estimator, 
+            'n_folds':n_folds, 
+            'default_alpha':default_alpha,
+            'save_results_path':save_results_path, 
+            'preprocessed_data_path':preprocessed_data_path,
+            'path_original':path_weights, 
+            'path_null':path_null, 
+            'path_figures':path_figures,
+            'prat_executable_path':prat_executable_path, 
+            'metadata_path': metadata_path,
+            'date': str(datetime.now()), 
+            'run_time':str(run_time), 
+            'just_loading_data':just_load_data
+            }
+dict_to_csv(
+            path=metadata_path+'metadata.csv',
             obj=metadata,
-            rewrite=True)
+            rewrite=True
+            )
 
 # Send text to telegram bot
-mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=text)
+with Suppress_print():
+    mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=text)
