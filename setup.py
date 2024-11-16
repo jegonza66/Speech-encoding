@@ -13,6 +13,7 @@ class exp_info:
         self.ph_labels_phonet_ordered = ['B', 'D', 'F', 'G', 'N', 'T', 'a', 'b', 'd', 'e', 'f', 'i', 'j', 'jj', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 'rr', 's', 't', 'tS', 'u', 'w', 'x', 'z', 'Z', 'g', 'S', 'J', 'L', 'sil', '<p:>']
         
         self.mistakes = ['Articulatory', 'Lexical', 'Discursive']
+        self.control = ['Articulatory', 'Lexical', 'Discursive']
         self.phonological_labels={
             "vocalic" : ["a","e","i","o","u", "w", "j"],
             "consonantal" : ["b", "B","d", "D","f", "F","k","l","m","n", "N","p","r","rr","s", "Z", "T","t","g", "G","tS","S","x", "jj", "J", "L", "z"],

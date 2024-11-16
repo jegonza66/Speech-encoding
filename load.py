@@ -81,8 +81,9 @@ class Trial_channel:
         self.phn_fname = os.path.normpath(f"Datos/phonemes/S{s}/s{s}.objects.{trial:02d}.channel{channel}.aligned_fa.TextGrid")
         self.phn_fname_manual = os.path.normpath(f"Datos/phonemes/S{s}/manual/s{s}_objects_{trial:02d}_channel{channel}_aligned_faTAMARA.TextGrid")
         self.phrases_fname = os.path.normpath(f"Datos/phrases/S{s}/s{s}.objects.{trial:02d}.channel{channel}.phrases")
-        self.mistakes_path = os.path.normpath(f"Datos/mistakes/filtered_session{s}_trial{trial}_channel{channel}.TextGrid")
-
+        self.mistakes_path = os.path.normpath(f"Datos/mistakes/filtered_session{s}_trial{trial:02d}_channel{channel}.TextGrid")
+        self.mistakes_control_path = os.path.normpath(f"Datos/mistakes_control/filtered_session{s}_trial{trial:02d}_channel{channel}.TextGrid")
+        
     def f_eeg(self):
         """Extract eeg file downsample it to get the same rate as self.sr and stores its data inside the class instance.
 
@@ -195,6 +196,66 @@ class Trial_channel:
             mistake_signal = np.concatenate((mistake_signal, np.zeros(shape=(np.abs(difference), 3)))) if separated else np.concatenate((mistake_signal, np.zeros(shape=(np.abs(difference), 1))))
 
         return mistake_signal
+    
+    def f_mistakes_control(self, envelope:np.ndarray, kind:str='Control-Separated'):
+        """Calculates mistakes control (lexical, articulatory, discursive) signal from annotated data
+
+        Parameters
+        ----------
+        envelope : np.ndarray
+            _description_
+
+        Returns
+        -------
+        _type_
+            len(envelope)X3 binary array if separated else len(envelope)X1
+        """
+        # Define kind
+        separated=True if kind.endswith('Separated') else False
+
+        # Read phrases to identify time of error inside phrases time
+        phrases = pd.read_table(self.phrases_fname, header=None, sep="\t")
+        start_time, end_time = phrases[0].iloc[0], phrases[1].iloc[-1]
+        phrases_time = np.arange(start_time, end_time, 1/self.sr)
+        
+        # Identify start and end of error within mistake
+        control_code = {
+                        'A':0, # articulatorio
+                        'L':1, # léxico
+                        'D':2 # discursivo
+                        } if separated else {'A':0, 'L':0, 'D':0}
+        control_signal = np.zeros(shape=(len(phrases_time), 3)) if separated else np.zeros(shape=(len(phrases_time), 1))
+        
+        if os.path.isfile(self.mistakes_control_path):
+            # Read textgrid        
+            grid = textgrids.TextGrid(self.mistakes_control_path)[f"canal {int(self.mistakes_control_path.split('channel')[1][0])}"]
+            
+            # Identify onset, offset and type of mistake
+            control_taggs, control_count = np.unique([el.text.split('Palabra del error: ')[1] for el in grid], return_counts=True)
+            controls = {control:{'start':None, 'end':None, 'type':None} for control in control_taggs}
+            control_taggs = np.repeat(control_taggs, control_count)
+
+            for item, control in zip(grid, control_taggs):
+                # Identify time_intervals and control type
+                controls[control]['type'] = control_code[item.text.split('Etiqueta: ')[1][0]]
+                if int(item.text[0])==1:
+                    controls[control]['start'] = item.xpos
+                elif int(item.text[0])==2:
+                    controls[control]['end'] = item.xpos
+
+            # Fill control_signal
+            for control in controls:
+                onset_filter = controls[control]['start']<=phrases_time
+                offset_filter = phrases_time<=controls[control]['end']
+                control_signal[onset_filter&offset_filter, controls[control]['type']] = np.ones(shape=np.sum(onset_filter&offset_filter))
+        
+        # Match length of mistake signal with envelope
+        difference = len(control_signal)-len(envelope)                
+        if difference>0:
+            control_signal = control_signal[:-difference]
+        elif difference<0:
+            control_signal = np.concatenate((control_signal, np.zeros(shape=(np.abs(difference), 3)))) if separated else np.concatenate((control_signal, np.zeros(shape=(np.abs(difference), 1))))
+        return control_signal
 
     def f_envelope(self): 
         """Takes the low pass filtered -butterworth-, downsample and smoothened envelope of .wav file. Then matches its length to the EEG.
@@ -783,7 +844,7 @@ class Trial_channel:
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
             'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet',
-            'Phonological', 'Mistakes-Separated', 'Mistakes-Together']
+            'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated']
 
         Returns
         -------
@@ -804,6 +865,8 @@ class Trial_channel:
                 channel[stim] = self.f_phonological_features(envelope=channel['Envelope'])
             if stim.startswith('Mistakes'):
                 channel[stim] = self.f_mistakes(envelope=channel['Envelope'], kind=stim)
+            if stim.startswith('Control'):
+                channel[stim] = self.f_mistakes_control(envelope=channel['Envelope'], kind=stim)
             if stim=='Spectrogram':
                 channel['Spectrogram'] = self.f_spectrogram()
             if stim.startswith('Phonemes'):
@@ -832,7 +895,7 @@ class Sesion_class:
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
             'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 
-            'Phonological', 'Mistakes-Separated', 'Mistakes-Together']
+            'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated']
         band : str, optional
             Neural frequency band, by default 'All'. It could be one of:
             ['Delta','Theta',Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
@@ -861,7 +924,7 @@ class Sesion_class:
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
             'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 
-            'Phonological', 'Mistakes-Separated', 'Mistakes-Together']
+            'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated']
             If more than one stimulus is wanted, the separator should be '_'.
         SyntaxError
             If 'band' is not an allowed band frecuency. Allowed bands are:
@@ -874,7 +937,7 @@ class Sesion_class:
         # Check if band, stim and situation parameters where passed with the right syntax
         allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', \
                         'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', \
-                        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together']
+                        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated']
         allowed_band_frequencies = ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
         allowed_situationes = ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
         for st in stim.split('_'):
@@ -944,6 +1007,9 @@ class Sesion_class:
         self.export_paths['Phonological'] = os.path.join(self.preprocessed_data_path, 'Phonological/')
         self.export_paths['Mistakes-Separated'] = os.path.join(self.preprocessed_data_path, 'Mistakes-Separated/')
         self.export_paths['Mistakes-Together'] = os.path.join(self.preprocessed_data_path, 'Mistakes-Together/')
+        self.export_paths['Control-Separated'] = os.path.join(self.preprocessed_data_path, 'Control-Separated/')
+        self.export_paths['Control-Together'] = os.path.join(self.preprocessed_data_path, 'Control-Together/')
+        
         
     def load_from_raw(self):
         """Loads raw data, this includes EEG, info and stimuli.
@@ -1268,7 +1334,7 @@ def load_data(sesion:int, stim:str, band:str, sr:float, preprocessed_data_path:s
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
             'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 
-            'Phonological', 'Mistakes-Separated', 'Mistakes-Together']
+            'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated']
     band : str
         Neural frequency band. It could be one of:
             ['Delta','Theta', 'Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
@@ -1307,14 +1373,14 @@ def load_data(sesion:int, stim:str, band:str, sr:float, preprocessed_data_path:s
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
             'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 
-            'Phonological', 'Mistakes-Separated', 'Mistakes-Together'].
+            'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated'].
         If more than one stimulus is wanted, the separator should be '_'.
     """
 
     # Define allowed stimuli
     allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes',\
                     'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset',\
-                    'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together']
+                    'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated']
     allowed_situations = ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
     allowed_bands = ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
 

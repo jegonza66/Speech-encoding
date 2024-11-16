@@ -30,17 +30,34 @@ elif diff < 0:
     subject_1 = np.concatenate([subject_1, np.repeat(0, np.abs(diff))])
     
 # Filter to where each subject starts talking
-filter_1 = np.concatenate((np.array([0]), np.diff(subject_1)))!=0
-filter_2 = np.concatenate((np.array([0]), np.diff(subject_2)))!=0
+filter_turn_1 = np.concatenate((np.array([0]), np.diff(subject_1)))!=0
+filter_turn_2 = np.concatenate((np.array([0]), np.diff(subject_2)))!=0
 
-# Number of turns
-np.sum()
+# Number of turns per subject
+n_turns_1 = filter_turn_1.sum()
+n_turns_2 = filter_turn_2.sum()
 
-diferen = []
-for i in range(prueba.shape[0]-1):
-    diferen.append(prueba[i+1] - prueba[i])
+# Calculate overlap signal (ones both speaking, 0 otherwise) and gaps (both in silence)
+sum_signal = subject_1 + subject_2
+overlap_signal = ((sum_signal)==2).astype(int)
+silence_signal = ((sum_signal)==0).astype(int)
 
-np.roll(prueba, shift=1)-prueba
+filter_turn_overlap = np.concatenate((np.array([0]), np.diff(overlap_signal)))!=0
+filter_turn_silence = np.concatenate((np.array([0]), np.diff(silence_signal)))!=0
 
-# change_indices = np.where(arr[:-1] != arr[1:])[0] + 1
-# segments = np.split(arr, change_indices)
+
+prueba = np.array([0,0,0,0,1,1,1,1,0,0,1,1,1,0,0,0,0,0,1])
+(np.concatenate((np.array([0]), np.diff(prueba)))!=0).astype(int)
+
+prueba2 = np.array([1,1,1,1,0,0,0,0,1,1,1,1,0,0,1,1,1,0,0,0,0,0,1])
+(np.concatenate((np.array([0]), np.diff(prueba2)))!=0).astype(int)
+
+
+
+
+
+
+
+
+# subject_1.astype(bool)&subject_2.astype(bool)
+np.concatenate((np.array([0]), np.diff(subject_1)))!=0
