@@ -54,6 +54,7 @@ def define_ticks(axes, number_of_ticks:int, ylabel:str, xlabel:str='Time (ms)', 
         ticks = np.arange(number_of_ticks)
     elif ylabel.startswith('Mistakes'):
         tags = list(exp_info.mistakes)
+        ticks = np.arange(number_of_ticks)
     elif ylabel.startswith('Control'):
         tags = list(exp_info.control)
         ticks = np.arange(number_of_ticks)

@@ -10,3 +10,5 @@ __pycache__/
 .vscode/
 .venv/
 pysptk
+no_hup_commands.txt
+run_main.sh

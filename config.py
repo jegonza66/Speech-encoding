@@ -3,7 +3,7 @@ import numpy as np
 # ==========================================
 # SESSIONS, STIMULI, SITUATION AND EEG BANDS
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
-stimuli = ['Mistakes-Separated_Control-Separated'] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
+stimuli = ['Mistakes-Separated_Control-Separated', 'Mistakes-Together_Control-Together'] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situation = 'External' # 'External' #'External' # 'Internal' # 'External_BS' #'Internal_BS'
 bands = ['Theta'] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
 
@@ -11,7 +11,7 @@ bands = ['Theta'] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
 # TFCE, T-TEST PARAMETERS, HIERARCHICAL_CLUSTERING and NUMBER OF FOLDS
 perform_tfce, n_permutations, significance, number_of_jobs = False, 2500, .05, -1
 hierarchical_clustering = False
-n_folds = 5 # with 5 folds (remain 20% as validation set, then interchange to cross validate)
+n_folds = 2 # with 5 folds (remain 20% as validation set, then interchange to cross validate)
 
 # ==========================================
 # LOADING/SAVING DATA, FIGURE CONFIGURATIONS
