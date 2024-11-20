@@ -81,7 +81,8 @@ class Trial_channel:
         self.phn_fname = os.path.normpath(f"Datos/phonemes/S{s}/s{s}.objects.{trial:02d}.channel{channel}.aligned_fa.TextGrid")
         self.phn_fname_manual = os.path.normpath(f"Datos/phonemes/S{s}/manual/s{s}_objects_{trial:02d}_channel{channel}_aligned_faTAMARA.TextGrid")
         self.phrases_fname = os.path.normpath(f"Datos/phrases/S{s}/s{s}.objects.{trial:02d}.channel{channel}.phrases")
-        self.mistakes_path = os.path.normpath(f"Datos/mistakes/filtered_session{s}_trial{trial:02d}_channel{channel}.TextGrid")
+        # self.mistakes_path = os.path.normpath(f"Datos/mistakes/filtered_session{s}_trial{trial:02d}_channel{channel}.TextGrid")
+        self.mistakes_path = os.path.normpath(f"Datos/mistakes_corrected/filtered_session{s}_trial{trial:02d}_channel{channel}.TextGrid")
         self.mistakes_control_path = os.path.normpath(f"Datos/mistakes_control/filtered_session{s}_trial{trial:02d}_channel{channel}.TextGrid")
         
     def f_eeg(self):
@@ -186,7 +187,7 @@ class Trial_channel:
                 onset_filter = mistakes[mistake]['start']<=phrases_time
                 offset_filter = phrases_time<=mistakes[mistake]['end']
                 
-                mistake_signal[onset_filter&offset_filter, mistakes[mistake]['type']] = np.ones(shape=np.sum(onset_filter&offset_filter))
+                mistake_signal[onset_filter&offset_filter, mistakes[mistake]['type']] = -np.ones(shape=np.sum(onset_filter&offset_filter))
                 
         # Match length of mistake signal with envelope
         difference = len(mistake_signal)-len(envelope)

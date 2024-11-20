@@ -1,4 +1,4 @@
-import pandas as pd, os, textgrids, numpy as np
+import pandas as pd, os, textgrids, numpy as np, shutil
 import scipy.io.wavfile as wavfile
 from scipy import signal as sgn
 from collections import OrderedDict, namedtuple
@@ -75,14 +75,12 @@ def filter_repetitions(df, column, min_repetitions=3):
     segments = np.split(indexes, change_indixes)
     
     # Filter segments that have min_repetitions or more repetitions
-    # filtered_segments = [segment[-min_repetitions:] for segment in segments if len(segment) >= min_repetitions]
-    filtered_segments = [segment for segment in segments if len(segment) >= min_repetitions]
+    filtered_segments = [segment[-min_repetitions:] for segment in segments if len(segment) >= min_repetitions]
+    # filtered_segments = [segment for segment in segments if len(segment) >= min_repetitions]
     filtered_array = np.concatenate(filtered_segments)
     
     filtered_df = df.iloc[filtered_array]
-    # filtered_df = filtered_df[filtered_df['Datos Palabra Candidato']!='No esta exacto']
-    # filtered_df = filtered_df[filtered_df['Datos Palabra Candidato']!='Falta dato']
-    # arr = filtered_df['error seleccionado'].values
+    
     return filtered_df
 
 # Read csv
@@ -144,7 +142,7 @@ segments = np.split(arr, change_indices)
 np.unique([len(segment) for segment in segments], return_counts=True) #after filtering occur it may be segments with multiples of 
 
 # Filter repetitions to get exactly the length wanted for all controls
-control_words = filter_repetitions(control_words, 'error seleccionado', min_repetitions=4)
+control_words, filtered_errors = filter_repetitions(control_words, 'error seleccionado', min_repetitions=4)
 control_words['error seleccionado'].head(16)
 
 # Re initialize index
@@ -192,6 +190,15 @@ for i in control_words.index:
         data = f.read()
     with open(new_filename, 'w', encoding='utf-8') as f:
         f.write(data)
+        
+    # Now store just errors that match same controls
+    session_e = int(control['file error'].split('s')[1][:2])
+    trial_e = int(control['file error'].split('objects_')[1][:2])
+    channel_e = int(control['file error'].split(", '")[1][:1])
+    error_filename = f'filtered_session{session_e}_trial{str(trial_e).zfill(2)}_channel{channel_e}.TextGrid'
+    if error_filename in os.listdir('Datos/mistakes_control/'):
+        shutil.copy2(os.path.join('Datos/mistakes_control/', error_filename), os.path.join('Datos/mistakes_corrected/', error_filename))
+        
 
 # # Check wether all errors have controls
 # mistake_files = [(int(file.split('session')[1][:2]),int(file.split('trial')[1][:2]),int(file.split('channel')[1][:1])) for file in os.listdir('Datos\\mistakes')]
