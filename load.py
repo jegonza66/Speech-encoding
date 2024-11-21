@@ -275,7 +275,7 @@ class Trial_channel:
         
         # Apply lowpass butterworth filter
         if self.envelope_filter == 'Causal':# TODO can it be replaced for a mne filter?
-            envelope = processing.butter_filter(data=envelope, frecuencias=25, sampling_freq=self.audio_sr,
+            envelope = processing.butter_filter(data=envelope, frecuencias=25, sampling_freq=self.audio_sr,  #frecuencias 25 creo que es el cutoff
                                                 btype='lowpass', order=3, axis=0, ftype='Causal').reshape(-1,1)
         elif self.envelope_filter == 'NonCausal':
             envelope = processing.butter_filter(data=envelope, frecuencias=25, sampling_freq=self.audio_sr,
