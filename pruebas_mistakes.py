@@ -135,14 +135,14 @@ control_words['trial'] = trial_control
 control_words['error type'] = error_type
 control_words = control_words.reset_index(drop=True)
 
-#TODOnumero de controles y cantidad de elementos con esa cantidad
+# Numero de controles y cantidad de elementos con esa cantidad
 arr = control_words['error seleccionado'].values
 change_indices = np.where(arr[:-1] != arr[1:])[0] + 1
 segments = np.split(arr, change_indices)
 np.unique([len(segment) for segment in segments], return_counts=True) #after filtering occur it may be segments with multiples of 
 
 # Filter repetitions to get exactly the length wanted for all controls
-control_words, filtered_errors = filter_repetitions(control_words, 'error seleccionado', min_repetitions=4)
+control_words = filter_repetitions(control_words, 'error seleccionado', min_repetitions=4)
 control_words['error seleccionado'].head(16)
 
 # Re initialize index
@@ -172,13 +172,13 @@ for i in control_words.index:
         _ = grid[f"canal {control['channel']}"].pop(j)
     
     # Modify start 
-    text = f"1 Etiqueta: {control['error type']}, Posicion en IPU: no está anotado del todo claro, Longitud IPU: no está anotado del todo claro, Score normalizado: 0.7476095333238191, Sesión + trial: s{control['session']}_objects_{trial}.TextGrid, Canal: {control['channel']}, Palabra del error: {control['control seleccionado']}"
+    text = f"1 Etiqueta: {control['error type']}, Posicion en IPU: no está anotado del todo claro, Longitud IPU: no está anotado del todo claro, Score normalizado: {control['score normalizado']}, Sesión + trial: s{control['session']}_objects_{trial}.TextGrid, Canal: {control['channel']}, Palabra del error: {control['control seleccionado']}"
     xpos = float(control['info control seleccionado'].replace('(', '').split(', ')[0])
     Point = namedtuple('Point', ['text', 'xpos'])
     grid[f"canal {control['channel']}"][0] = Point(text, xpos)
     
     # Modify end
-    text = f"2 Etiqueta: {control['error type']}, Posicion en IPU: no está anotado del todo claro, Longitud IPU: no está anotado del todo claro, Score normalizado: 0.7476095333238191, Sesión + trial: s{control['session']}_objects_{trial}.TextGrid, Canal: {control['channel']}, Palabra del error: {control['control seleccionado']}"
+    text = f"2 Etiqueta: {control['error type']}, Posicion en IPU: no está anotado del todo claro, Longitud IPU: no está anotado del todo claro, Score normalizado: {control['score normalizado']}, Sesión + trial: s{control['session']}_objects_{trial}.TextGrid, Canal: {control['channel']}, Palabra del error: {control['control seleccionado']}"
     xpos = float(control['info control seleccionado'].replace('(', '').split(', ')[1])
     Point = namedtuple('Point', ['text', 'xpos'])
     grid[f"canal {control['channel']}"][1] = Point(text, xpos)
