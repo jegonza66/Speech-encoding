@@ -11,7 +11,7 @@ bands = ['Theta'] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
 # TFCE, T-TEST PARAMETERS, HIERARCHICAL_CLUSTERING and NUMBER OF FOLDS
 perform_tfce, n_permutations, significance, number_of_jobs = False, 2500, .05, -1
 hierarchical_clustering = False
-n_folds = 2 # with 5 folds (remain 20% as validation set, then interchange to cross validate)
+n_folds = 5 # with 5 folds (remain 20% as validation set, then interchange to cross validate)
 
 # ==========================================
 # LOADING/SAVING DATA, FIGURE CONFIGURATIONS

@@ -239,7 +239,7 @@ class Trial_channel:
             for item, control in zip(grid, control_taggs):
                 # Identify time_intervals and control type
                 controls[control]['type'] = control_code[item.text.split('Etiqueta: ')[1][0]]
-                controls[control]['score'] = control_code[item.text.split('Etiqueta: ')[1][0]]
+                controls[control]['score'] = float(item.text.split('normalizado: ')[1].split(',')[0])
                 
                 if int(item.text[0])==1:
                     controls[control]['start'] = item.xpos
@@ -250,7 +250,7 @@ class Trial_channel:
             for control in controls:
                 onset_filter = controls[control]['start']<=phrases_time
                 offset_filter = phrases_time<=controls[control]['end']
-                control_signal[onset_filter&offset_filter, controls[control]['type']] = np.ones(shape=np.sum(onset_filter&offset_filter))#*controls[control]['end']
+                control_signal[onset_filter&offset_filter, controls[control]['type']] = np.ones(shape=np.sum(onset_filter&offset_filter))#*controls[control]['score']
         
         # Match length of mistake signal with envelope
         difference = len(control_signal)-len(envelope)                

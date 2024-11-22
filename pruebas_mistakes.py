@@ -77,6 +77,7 @@ def filter_repetitions(df, column, min_repetitions=3):
     # Filter segments that have min_repetitions or more repetitions
     filtered_segments = [segment[-min_repetitions:] for segment in segments if len(segment) >= min_repetitions]
     # filtered_segments = [segment for segment in segments if len(segment) >= min_repetitions]
+    # filtered_segments = [segment for segment in segments]
     filtered_array = np.concatenate(filtered_segments)
     
     filtered_df = df.iloc[filtered_array]

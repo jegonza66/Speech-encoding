@@ -142,7 +142,6 @@ for band in bands:
 
                 # Keep relevant indexes for eeg
                 relevant_eeg = eeg[relevant_indexes]
-
                 for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
                     print(f'\n\t······  [{fold+1}/{n_folds}]')
 
@@ -206,7 +205,7 @@ for band in bands:
                         # p-value topographic distribution
                         topo_pvalues_corr[fold] = p_corr
                         topo_pvalues_rmse[fold] = p_rmse
-
+                
                 print(f'\n\t······  Run model\n')
 
                 # Take average weights, avoiding folds fill entirely with zeros
