@@ -3,9 +3,9 @@ import numpy as np
 # ==========================================
 # SESSIONS, STIMULI, SITUATION AND EEG BANDS
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
-stimuli = ['Mistakes-Separated_Control-Separated', 'Mistakes-Together_Control-Together'] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
+stimuli = ['Envelope'] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situation = 'External' # 'External' #'External' # 'Internal' # 'External_BS' #'Internal_BS'
-bands = ['Theta'] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
+bands = ['Alpha_Delta_Theta'] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
 
 # ====================================================================
 # TFCE, T-TEST PARAMETERS, HIERARCHICAL_CLUSTERING and NUMBER OF FOLDS
