@@ -49,7 +49,7 @@ relevant_channels = 12 # None
 path_figures = os.path.normpath(f'figures/{model}/model_comparison/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/')
 final_corr_path = os.path.normpath(f'saves/{model}/{situation}/correlations/tmin{tmin}_tmax{tmax}/')
 weights_path = os.path.normpath(f'saves/{model}/{situation}/weights//stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/')
-preprocesed_data_path = os.path.normpath(f'saves/preprocessed_data/{situation}/tmin-0.2_tmax0.6/') 
+preprocesed_data_path = os.path.normpath(f'saves/preprocessed_data/{situation}/tmin{tmin}_tmax{tmax}/') 
 
 # Code parameters
 save_figures = True
