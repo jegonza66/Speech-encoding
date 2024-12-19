@@ -13,8 +13,7 @@ from mtrf_models import Receptive_field_adaptation
 from load import load_data
 from processing import tfce
 from setup import exp_info
-# Configuration
-from config import config
+import config, plot
 
 # Notification bot
 
@@ -178,13 +177,8 @@ for band in config.bands:
                     # Predict and save
                     predicted, eeg_test = mtrf.predict(stims)
                     if (predicted==0).all():
-                        print(
-                            f'\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n'
-                            f'\t\tFold {fold+1}/{config.n_folds} prediction is null, this may be due to the sparsity of weights. If there are\n'
-                            f'\t\ttoo many zeros when making product with selected stimuli, the product may be null.\n'
-                            f'\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
-                        )
-
+                        print(f'\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\t\tFold {fold+1}/{config.n_folds} prediction is null, this may be due to the sparsity of weights. If there are\n\t\ttoo many zeros when making product with selected stimuli, the product may be null.\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
+                    
                     # Predict and save
                     predicted, eeg_test = mtrf.predict(stims)
                     if (predicted==0).all():
@@ -195,6 +189,12 @@ for band in config.bands:
                     correlation_matrix = np.array([np.corrcoef(eeg_test[:, j], predicted[:, j])[0,1] for j in range(eeg_test.shape[1])])
                     correlation_per_channel[fold] = correlation_matrix
                     
+                    # Calculates and saves correlation of each channel
+                    try:
+                        correlation_matrix = np.array([np.corrcoef(eeg_test[:, j], predicted[:, j])[0,1] for j in range(eeg_test.shape[1])])
+                    except RuntimeWarning:
+                        correlation_matrix = np.zeros(eeg_test.shape[1])
+                    correlation_per_channel[fold] = correlation_matrix
 
                     # Calculates and saves root mean square error of each channel
                     root_mean_square_error = np.array(np.sqrt(np.power((predicted - eeg_test), 2).mean(0)))
@@ -226,8 +226,12 @@ for band in config.bands:
                 # Take average weights, avoiding folds fill entirely with zeros
                 for k, weight in enumerate(weights_per_fold):
                     if (weight==0).all():
-                        print(f'\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>\n\t\tFold {k+1}/{config.n_folds} weights are empty\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>')
                         weights_per_fold[k] = np.full(shape=weight.shape, fill_value=np.nan)
+                        print(
+                            f'\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>\n'
+                            f'\t\tFold {k+1}/{config.n_folds} weights are empty\n'
+                            f'\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>'
+                        )
                         
                 average_weights = np.nanmean(weights_per_fold, axis=0) # info['nchan'], np.sum(n_feats), len(delays)
                 average_weights = np.nan_to_num(average_weights)
