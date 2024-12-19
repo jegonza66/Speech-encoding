@@ -5,12 +5,12 @@ import numpy as np
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 stimuli = ['Envelope'] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situation = 'External' # 'External' #'External' # 'Internal' # 'External_BS' #'Internal_BS'
-bands = ['Alpha_Delta_Theta'] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
+bands = ['Theta'] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
 
 # ====================================================================
 # TFCE, T-TEST PARAMETERS, HIERARCHICAL_CLUSTERING and NUMBER OF FOLDS
 perform_tfce, n_permutations, significance, number_of_jobs = False, 2500, .05, -1
-hierarchical_clustering = False
+hierarchical_clustering = True
 n_folds = 5 # with 5 folds (remain 20% as validation set, then interchange to cross validate)
 
 # ==========================================
@@ -19,18 +19,27 @@ display_interactive_mode, save_results, save_figures = False, True, True
 just_load_data = False
 no_figures = False
 
+# =====================
+# VALIDATION PARAMETERS
+min_order, max_order, steps = -1, 6, 32 
+val_correlation_limit_percentage = 0.01
+alphas_swept = np.logspace(min_order, max_order, steps)
+alpha_step = np.diff(np.log(alphas_swept))[0]
+save_alphas = True
+
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
 model, estimator = 'mtrf', 'time_delaying_ridge' # ridge or time_delaying_ridge
 stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 
-# ==============================================================
-# DEFAULT PENALIZATION PARAMETER AND RANDOM PERMUTATION ANALYSIS
+# ==============================
+# DEFAULT PENALIZATION PARAMETER 
 correlation_limit_percentage, default_alpha, set_alpha = 0.01, 400, None
 
+# =============================================
+# STATISTICAL TEST, RANDOM PERMUTATION ANALYSIS
 umbral = 0.05/128 # TODO que onda con features no unidimensionales
 statistical_test = False
-
 
 # =========================
 # EEG SAMPLE RATE AND TIMES
