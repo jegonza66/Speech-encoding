@@ -101,6 +101,18 @@ class Trial_channel:
         if self.band:
             if self.causal_filter_eeg:
                 eeg = eeg.filter(l_freq=self.l_freq_eeg, h_freq=self.h_freq_eeg, phase='minimum')
+                # iir_params = {
+                # "ftype": "cheby2",       # Filter type: Chebyshev Type II
+                # "order": 4,              # Filter order
+                # "rs": 20,                # Stopband attenuation (dB)
+                # }
+                
+                # eeg = eeg.filter(
+                #                 l_freq=self.l_freq_eeg,
+                #                 h_freq=self.h_freq_eeg,
+                #                 method="iir",
+                #                 iir_params=iir_params
+                #                 )
             else:
                 eeg = eeg.filter(l_freq=self.l_freq_eeg, h_freq=self.h_freq_eeg)
         
