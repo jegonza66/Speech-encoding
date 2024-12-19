@@ -72,6 +72,7 @@ for band in config.bands:
             relevant_indexes_1 = samples_info['keep_indexes1'].copy()
             relevant_indexes_2 = samples_info['keep_indexes2'].copy()
 
+            # Run model for each subject
             for subject, eeg, stims, relevant_indexes in zip((1, 2), (eeg_sujeto_1, eeg_sujeto_2), (stims_sujeto_1, stims_sujeto_2), (relevant_indexes_1, relevant_indexes_2)):
                 print(f'\n\n\t······  Running model for Subject {subject}\n')
 
@@ -123,17 +124,22 @@ for band in config.bands:
                         
                         # Predict and save
                         predicted, eeg_val = mtrf.predict(stims)
+                        if (predicted==0).all():
+                            print(f'\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\t\tFold {fold+1}/{config.n_folds} prediction is null, this may be due to the sparsity of weights. If there are\n\t\ttoo many zeros when making product with selected stimuli, the product may be null.\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
 
                         # Calculates and saves correlation of each channel
-                        correlation_matrix = np.array([np.corrcoef(eeg_val[:, j], predicted[:, j])[0,1] for j in range(eeg_val.shape[1])])
+                        try:
+                            correlation_matrix = np.array([np.corrcoef(eeg_val[:, j], predicted[:, j])[0,1] for j in range(eeg_val.shape[1])])
+                        except RuntimeWarning:
+                            correlation_matrix = np.zeros(eeg_val.shape[1])
                         correlation_per_channel[fold] = correlation_matrix
 
                         # Calculates and saves root mean square error of each channel
                         root_mean_square_error = np.array(np.sqrt(np.power((predicted - eeg_val), 2).mean(0)))
                         rmse_per_channel[fold] = root_mean_square_error
 
-                    correlations[i_alpha] = correlation_per_channel.mean()
-                    correlations_std[i_alpha] = correlation_per_channel.std()
+                    correlations[i_alpha] = np.nan_to_num(np.nanmean(correlation_per_channel))
+                    correlations_std[i_alpha] = np.nan_to_num(np.nanstd(correlation_per_channel))
                     print(f'\r·················· Sweeping progress  {int((i_alpha + 1) * 100 / config.steps)}% ··················', end='')
                 print('\n')
                 
@@ -171,7 +177,7 @@ text += f'\n\n\t\t RUN TIME \n\n\t\t{run_time} hours'
 print(text)
 
 # Dump metadata
-metadata_path = f'log/{datetime.now().strftime("%Y-%m-%d--%H-%M-%S")}/'
+metadata_path = f'saves/log/{datetime.now().strftime("%Y-%m-%d--%H-%M-%S")}/'
 os.makedirs(metadata_path, exist_ok=True)
 metadata = {
             name: getattr(config, name) for name in dir(config) 
