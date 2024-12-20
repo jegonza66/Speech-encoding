@@ -94,8 +94,8 @@ class Trial_channel:
             Matrix representation of EEG per channel
         """
         # Read the .set file. warning of annotations and 'boundry' events -data discontinuities-.
-        eeg = mne.io.read_raw_eeglab(input_fname=self.eeg_fname) 
-        eeg.load_data()
+        eeg = mne.io.read_raw_eeglab(input_fname=self.eeg_fname, preload=True) 
+        # eeg = mne.io.read_raw_eeglab(input_fname=r'Datos\EEG\S21\s21-1-Trial1-Deci-Filter-Trim-ICA-Pruned.set', preload=True) 
         
         # Apply a lowpass filter
         if self.band:
