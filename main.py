@@ -315,7 +315,7 @@ for band in config.bands:
         #     plot.phonemes_occurrences(occurrences=phonemes_occurrences, save_path=path_figures, save=save_figures, no_figures=config.no_figures)
 
         # Plot average results only if all subjects are analyzed
-        no_figures=True if (total_number_of_subjects!=18) else no_figures
+        config.no_figures=True if (total_number_of_subjects!=18) else config.no_figures
 
         # Plot average topomap across each subject
         plot.average_topomap(average_coefficient_subjects=average_rmse_subjects, stim=stim, info=info, display_interactive_mode=config.display_interactive_mode,
