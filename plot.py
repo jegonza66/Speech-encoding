@@ -27,8 +27,7 @@ matplotlib_colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purp
 
 # Modules
 from processing import clustering_by_correlation
-import funciones, setup, config
-exp_info = setup.exp_info()
+import funciones, config
 
 # ===================
 # Auxiliary functions
@@ -46,7 +45,7 @@ def define_ticks(axes, number_of_ticks:int, ylabel:str, xlabel:str='Time (ms)', 
         Label of the axes
     """
     # Load specific names of ticks
-    exp_info = setup.exp_info()
+    exp_info = config.Exp_info()
 
     if ylabel.startswith('Phonological'):
         axes.tick_params(axis='both', labelsize='medium') 

@@ -69,8 +69,8 @@ if __name__=="__main__":
     envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)])
     envelope = envelope.reshape(-1, 1)
     # ================
-    from setup import exp_info
-    phonet_labels = [el if el!='<p:>' else '' for el in exp_info().ph_labels_phonet]
+    from config import Exp_info
+    phonet_labels = [el if el!='<p:>' else '' for el in Exp_info().ph_labels_phonet]
 
     # Check if given kind is a permited input value
     kind = 'Phonemes-Envelope-Phonet'

@@ -8,13 +8,13 @@ from praatio import pitch_and_intensity
 from scipy import signal as sgn
 
 # Modules
-import processing, funciones, setup
+import processing, funciones, config
 from phoneme_implementation_from_phonet import Phoenemes
 
 # Review this If we want to update packages
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 mne.set_log_level(verbose='CRITICAL')
-exp_info = setup.exp_info()
+exp_info = config.Exp_info()
 
 class Trial_channel:
     def __init__(self, s:int=21, trial:int=1, channel:int=1, band:str='All', sr:float=128, 

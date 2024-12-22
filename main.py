@@ -12,7 +12,6 @@ from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentag
 from mtrf_models import Receptive_field_adaptation
 from load import load_data
 from processing import tfce, block_bootstrap
-from setup import exp_info
 import config, plot
 
 # Notification bot
@@ -94,7 +93,7 @@ for band in config.bands:
                     matrix = matrix_1 + matrix_2
 
                     # Identify the phonemes
-                    phonemes = exp_info()
+                    phonemes = config.Exp_info()
                     if stimulus.endswith('Manual'):
                         phonemes = phonemes.ph_labels_man
                     elif stimulus.endswith('Phonet'):

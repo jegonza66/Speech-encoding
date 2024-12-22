@@ -13,8 +13,8 @@ from scipy.stats import wilcoxon
 
 # Modules
 from funciones import load_pickle, cohen_d, all_possible_combinations, get_maximum_correlation_channels
-import setup
-exp_info = setup.exp_info()
+import config
+exp_info = config.Exp_info()
 
 # Default size is 10 pts, the scalings (10pts*scale) are:
 #'xx-small':0.579,'x-small':0.694,'s
