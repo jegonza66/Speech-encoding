@@ -160,7 +160,7 @@ for band in config.bands:
                 alphas[sesion][subject] = alpha_subject
 
                 # Save results
-                os.makedirs(name=alphas_directory, exist_ok=True)
+                os.makedirs(name=path_validation, exist_ok=True)
                 if config.save_alphas:
                     dump_pickle(path=alphas_path, obj=alphas, rewrite=True)
                 
@@ -178,7 +178,7 @@ text += f'\n\n\t\t RUN TIME \n\n\t\t{run_time} hours'
 print(text)
 
 # Dump metadata
-metadata_path = f'saves/log/{datetime.now().strftime("%Y-%m-%d--%H-%M-%S")}/'
+metadata_path = f'saves/log/validation_{datetime.now().strftime("%Y-%m-%d--%H-%M-%S")}/'
 os.makedirs(metadata_path, exist_ok=True)
 metadata = {
             name: getattr(config, name) for name in dir(config) 
