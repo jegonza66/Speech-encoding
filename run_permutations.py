@@ -92,8 +92,8 @@ for band in config.bands:
                     print(f'\n\t······  [{fold+1}/{config.n_folds}]')
 
                     # Determine wether to run the model in parallel or not
-                    n_jobs=-1 if sum(n_feats)>1 else 1
-
+                    # n_jobs=-1 if sum(n_feats)>1 else 1
+                    
                     # Run permutations # TODO parallelize it
                     null_weights_per_fold, null_correlation_per_channel_per_fold, null_errors_per_fold = simulation_mtrf(
                                                                                                                         iterations=config.random_permutations,
@@ -112,7 +112,8 @@ for band in config.bands:
                                                                                                                         null_correlation=null_correlation_per_channel_per_fold,
                                                                                                                         null_weights=null_weights_per_fold,
                                                                                                                         null_errors=null_errors_per_fold, 
-                                                                                                                        n_jobs=n_jobs
+                                                                                                                        # n_jobs=n_jobs,
+                                                                                                                        n_jobs=-1
                                                                                                                         )
                 # Save permutations
                 os.makedirs(path_null, exist_ok=True)

@@ -151,7 +151,7 @@ for band in config.bands:
                     print(f'\n\t······  [{fold+1}/{config.n_folds}]')
 
                     # Determine wether to run the model in parallel or not
-                    n_jobs=-1 if sum(n_feats)>1 else 1
+                    # n_jobs=-1 if sum(n_feats)>1 else 1
 
                     # Implement mne model
                     mtrf = Receptive_field_adaptation(
@@ -165,7 +165,8 @@ for band in config.bands:
                                                     stims_preprocess=config.stims_preprocess,
                                                     eeg_preprocess=config.eeg_preprocess,
                                                     fit_intercept=False,
-                                                    n_jobs=n_jobs,
+                                                    # n_jobs=n_jobs,
+                                                    n_jobs=-1,
                                                     estimator=config.estimator
                                                     )
 

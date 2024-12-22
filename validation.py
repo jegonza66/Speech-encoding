@@ -99,23 +99,25 @@ for band in config.bands:
                         # print(f'\n\t\t······  [{fold+1}/{n_folds}]')
 
                         # Determine wether to run the model in parallel or not
-                        n_jobs=-1 if sum(n_feats)>1 else 1
+                        # n_jobs=-1 if sum(n_feats)>1 else 1
                         
                         # Implement mne model
                         mtrf = Receptive_field_adaptation(
-                            tmin=config.tmin, 
-                            tmax=config.tmax, 
-                            sample_rate=config.sr, 
-                            alpha=alpha, 
-                            relevant_indexes=np.array(relevant_indexes),
-                            train_indexes=train_indexes, 
-                            test_indexes=test_indexes, 
-                            stims_preprocess=config.stims_preprocess, 
-                            eeg_preprocess=config.eeg_preprocess,
-                            fit_intercept=False,
-                            n_jobs=n_jobs, 
-                            estimator=config.estimator,
-                            validation=True)
+                                                        tmin=config.tmin, 
+                                                        tmax=config.tmax, 
+                                                        sample_rate=config.sr, 
+                                                        alpha=alpha, 
+                                                        relevant_indexes=np.array(relevant_indexes),
+                                                        train_indexes=train_indexes, 
+                                                        test_indexes=test_indexes, 
+                                                        stims_preprocess=config.stims_preprocess, 
+                                                        eeg_preprocess=config.eeg_preprocess,
+                                                        fit_intercept=False,
+                                                        # n_jobs=n_jobs, 
+                                                        n_jobs=-1,
+                                                        estimator=config.estimator,
+                                                        validation=True
+                                                        )
                         
                         # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
                         mtrf.fit(stims, eeg)
