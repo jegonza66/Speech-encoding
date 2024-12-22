@@ -7,34 +7,54 @@ import numpy as np, copy
 
 # Modules
 from mtrf_models import Receptive_field_adaptation
+import config
 
-def permutations(iteration:int, eeg:np.ndarray, stims:np.ndarray, tmin:float, tmax:float, sr:int, alpha:float, relevant_indexes:list, 
-                     train_indexes:np.ndarray, test_indexes:np.ndarray, stims_preprocess:float, eeg_preprocess:float, n_jobs:int=-1):
+def permutations(iteration:int,
+                 eeg:np.ndarray, 
+                 stims:np.ndarray, 
+                 tmin:float, 
+                 tmax:float, 
+                 sr:int,
+                 alpha:float, 
+                 relevant_indexes:list, 
+                 train_indexes:np.ndarray, 
+                 test_indexes:np.ndarray,
+                 stims_preprocess:float,
+                 eeg_preprocess:float, 
+                 n_jobs:int=-1, 
+                 fold:int=0):
         
         # Define null model
         null_model = Receptive_field_adaptation(
-                        tmin=tmin, 
-                        tmax=tmax, 
-                        sample_rate=sr, 
-                        alpha=alpha, 
-                        relevant_indexes=np.array(relevant_indexes),
-                        train_indexes=train_indexes, 
-                        test_indexes=test_indexes, 
-                        stims_preprocess=stims_preprocess, 
-                        eeg_preprocess=eeg_preprocess,
-                        fit_intercept=False,
-                        n_jobs=n_jobs,
-                        shuffle=True, 
-                        estimator='time_delaying_ridge')
+                                                tmin=tmin, 
+                                                tmax=tmax, 
+                                                sample_rate=sr, 
+                                                alpha=alpha, 
+                                                relevant_indexes=np.array(relevant_indexes),
+                                                train_indexes=train_indexes, 
+                                                test_indexes=test_indexes, 
+                                                stims_preprocess=stims_preprocess, 
+                                                eeg_preprocess=eeg_preprocess,
+                                                fit_intercept=False,
+                                                n_jobs=n_jobs,
+                                                shuffle=True, 
+                                                estimator='time_delaying_ridge'
+                                                )
 
         # The fit already already consider relevant indexes of train and test data and applies shuffle and standarization|normalization
         null_model.fit(stims, eeg)
 
         # Predict and save
         predicted, eeg_test = null_model.predict(stims)
-
+        if (predicted==0).all():
+            print(f'\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\t\tFold {fold+1}/{config.n_folds} prediction is null, this may be due to the sparsity of weights. If there are\n\t\ttoo many zeros when making product with selected stimuli, the product may be null.\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
+        
         # Calculates and saves correlation of each channel
-        correlation_matrix = np.array([np.corrcoef(eeg_test[:, j], predicted[:, j])[0,1] for j in range(eeg_test.shape[1])])
+        # warnings.filterwarnings("ignore", category=RuntimeWarning) # avoid runtime error dividing per zero, this is caught later
+        try:
+            correlation_matrix = np.array([np.corrcoef(eeg_test[:, j], predicted[:, j])[0,1] for j in range(eeg_test.shape[1])])
+        except RuntimeWarning:
+            correlation_matrix = np.zeros(eeg_test.shape[1])
 
         # Calculates and saves root mean square error of each channel
         root_mean_square_error = np.array(np.sqrt(np.power((predicted - eeg_test), 2).mean(0)))        
@@ -69,19 +89,22 @@ def simulation_mtrf(iterations:int,
     #         null_weights[fold, i], null_correlation[fold, i], null_errors[fold, i], itera = results[i]
     # else:
     for i in iterations:
-        null_weights[fold, i], null_correlation[fold, i], null_errors[fold, i] = permutations(iteration=i, 
-                                                                                              eeg=eeg, 
-                                                                                              stims=stims, 
-                                                                                              tmin=tmin, 
-                                                                                              tmax=tmax, 
-                                                                                              sr=sr, 
-                                                                                              alpha=alpha, 
-                                                                                              relevant_indexes=relevant_indexes, 
-                                                                                              train_indexes=train_indexes, 
-                                                                                              test_indexes=test_indexes, 
-                                                                                              stims_preprocess=stims_preprocess, 
-                                                                                              eeg_preprocess=eeg_preprocess,
-                                                                                              n_jobs=n_jobs)
+        null_weights[fold, i], null_correlation[fold, i], null_errors[fold, i] = permutations(
+                                                                                            iteration=i, 
+                                                                                            eeg=eeg, 
+                                                                                            stims=stims, 
+                                                                                            tmin=tmin, 
+                                                                                            tmax=tmax, 
+                                                                                            sr=sr, 
+                                                                                            alpha=alpha, 
+                                                                                            relevant_indexes=relevant_indexes, 
+                                                                                            train_indexes=train_indexes, 
+                                                                                            test_indexes=test_indexes, 
+                                                                                            stims_preprocess=stims_preprocess, 
+                                                                                            eeg_preprocess=eeg_preprocess,
+                                                                                            n_jobs=n_jobs,
+                                                                                            fold=fold
+                                                                                            )
         if len(iterations)>=10:
             if i in iterations[::int(len(iterations)/10)]:
                 print("\t\t\rProgress {}%".format(int((i + 1) * 100 / len(iterations))), end='')

@@ -365,6 +365,27 @@ def tfce(average_weights_subjects:np.ndarray,
 
         # Return average across channels
         return t_tfce, p_tfce
+    
+def block_bootstrap(data:np.ndarray, block_size:int=104):
+    """Bootstrap data with blocks of size block_size
+    Parameters
+    ----------
+    data : np.ndarray
+        Data to be bootstraped
+    block_size : int
+        Correlation length to have into account when making bootstrap
+
+    Returns
+    -------
+    np.ndarray
+        Resampled data
+    """
+    n_samples = len(data)
+    n_blocks = n_samples // block_size
+    indices = np.arange(n_samples)
+    block_indices = np.random.choice(n_blocks, n_blocks, replace=True)
+    resampled_indices = np.hstack([indices[i*block_size:(i+1)*block_size] for i in block_indices])
+    return data[resampled_indices]
 
 def clustering_by_correlation(weights:np.ndarray):
     """Cluster by correlation the weights

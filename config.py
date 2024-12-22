@@ -36,6 +36,17 @@ alphas_swept = np.logspace(min_order, max_order, steps)
 alpha_step = np.diff(np.log(alphas_swept))[0]
 save_alphas = True
 
+# =======================
+# RANDOM PERMUTATION TEST
+random_permutations = 200
+correlation_length_samples = 104
+power_n_bootstrap_samples = 1000
+
+# ================
+# STATISTICAL TEST
+significance_threshold = 0.05/128 # Bonferroni correction (the test is in # channels)
+statistical_test = False
+
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
 model, estimator = 'mtrf', 'time_delaying_ridge' # ridge or time_delaying_ridge
@@ -44,11 +55,6 @@ stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 # ==============================
 # DEFAULT PENALIZATION PARAMETER 
 correlation_limit_percentage, default_alpha, set_alpha = 0.01, 400, None
-
-# =============================================
-# STATISTICAL TEST, RANDOM PERMUTATION ANALYSIS
-umbral = 0.05/128 # TODO que onda con features no unidimensionales
-statistical_test = False
 
 # =========================
 # EEG SAMPLE RATE AND TIMES

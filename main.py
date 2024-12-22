@@ -11,7 +11,7 @@ from sklearn.model_selection import KFold
 from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
 from mtrf_models import Receptive_field_adaptation
 from load import load_data
-from processing import tfce
+from processing import tfce, block_bootstrap
 from setup import exp_info
 import config, plot
 
@@ -115,12 +115,14 @@ for band in config.bands:
             rmse_per_channel = np.zeros((config.n_folds, info['nchan']))
 
             # Variable to store all channel's p-value
-            topo_pvalues_corr = np.zeros((config.n_folds, info['nchan']))
-            topo_pvalues_rmse = np.zeros((config.n_folds, info['nchan']))
+            topo_pvalues_corr_per_fold = np.zeros((config.n_folds, info['nchan']))
+            topo_pvalues_rmse_per_fold = np.zeros((config.n_folds, info['nchan']))
 
             # Variable to store p-value of significant channels
             proba_correlation_per_channel = np.ones((config.n_folds, info['nchan']))
             proba_rmse_per_channel = np.ones((config.n_folds, info['nchan']))
+            power_correlation_per_channel = np.zeros((config.n_folds, info['nchan']))
+            power_rmse_per_channel = np.zeros((config.n_folds, info['nchan']))
 
             # Variable to store significant channels
             repeated_good_correlation_channels = np.zeros(info['nchan'])
@@ -191,25 +193,55 @@ for band in config.bands:
                     rmse_per_channel[fold] = root_mean_square_error
 
                     # Perform statistical test
+                    # Null Hypothesis (H0): There is no significant relationship between the predicted and actual EEG data. The test statistic (e.g., correlation or RMSE) follows the null distribution.
+                    # Alternative Hypothesis (H1): There is a significant relationship between the predicted and actual EEG data. The test statistic follows the alternative distribution.
                     if config.statistical_test:
-                        null_correlation_per_channel, null_errors = load_pickle(path=path_null + f'Corr_Rmse_fake_Sesion{sesion}_Sujeto{sujeto}.pkl')
+                        null_data = load_pickle(path=path_null + f'null_metrics_ses_{sesion}_sub_{sujeto}.pkl')
+                        null_correlation_per_channel, null_errors = null_data['null_correlation_per_channel_per_fold'], null_data['null_errors_per_fold']
                         iterations =  null_correlation_per_channel.shape[1]
 
-                        # Correlation and RMSE
+                        # Correlation and RMSE (n_iterations_, n_channels)
                         null_correlation_matrix = null_correlation_per_channel[fold]
                         null_root_mean_square_error = null_errors[fold]
 
-                        # p-values for both tests
-                        p_corr = ((null_correlation_matrix > correlation_matrix).sum(0) + 1) / (iterations + 1)
-                        p_rmse = ((null_root_mean_square_error < root_mean_square_error).sum(0) + 1) / (iterations + 1)
+                        # p-values for both tests: probability of getting a value equal or greater than the measured value, given the null hypothesis distribution (P(X>=X_obs|H0))
+                        # (null_correlation_matrix > correlation_matrix) is the number of iterations that surpasses the measured values for each channel (n_channels)
+                        p_corr = ((null_correlation_matrix > correlation_matrix).sum(axis=0) + 1) / (iterations + 1) # +1 to avoid division by zero, right tail test
+                        p_rmse = ((null_root_mean_square_error < root_mean_square_error).sum(axis=0) + 1) / (iterations + 1) # left tail test
 
-                        # Threshold
-                        proba_correlation_per_channel[fold][p_corr < config.umbral] = p_corr[p_corr < config.umbral]
-                        proba_rmse_per_channel[fold][p_rmse < config.umbral] = p_rmse[p_rmse < config.umbral]
+                        # p-values for significant channels (the rest are ones, i.e: not significant)
+                        proba_correlation_per_channel[fold][p_corr < config.significance_threshold] = p_corr[p_corr < config.significance_threshold]
+                        proba_rmse_per_channel[fold][p_rmse < config.significance_threshold] = p_rmse[p_rmse < config.significance_threshold]
+                        
+                        # Calculate power of the test: probability of measuring H1 when H1 is true. It's usefull to know if the test is sensitive enough
+                        significant_corr_count = 0
+                        significant_rmse_count = 0
 
-                        # p-value topographic distribution
-                        topo_pvalues_corr[fold] = p_corr
-                        topo_pvalues_rmse[fold] = p_rmse
+                        # We make a bootstrap distribution of the H1, using blocks of correlation length
+                        for _ in range(config.power_n_bootstrap_samples):
+                            # Generate blocks of bootstraped samples
+                            bootstrap_eeg_test = block_bootstrap(eeg_test, block_size=config.correlation_length_samples)
+                            bootstrap_predicted = block_bootstrap(predicted, block_size=config.correlation_length_samples)
+
+                            # Calculate correlation and RMSE for bootstrap samples
+                            bootstrap_correlation_matrix = np.array([np.corrcoef(bootstrap_eeg_test[:, j], bootstrap_predicted[:, j])[0,1] for j in range(bootstrap_eeg_test.shape[1])])
+                            bootstrap_rmse = np.array(np.sqrt(np.power((bootstrap_predicted - bootstrap_eeg_test), 2).mean(0)))
+
+                            # Calculate p-values for bootstrap samples
+                            bootstrap_p_corr = ((null_correlation_matrix > bootstrap_correlation_matrix).sum(axis=0) + 1) / (iterations + 1)
+                            bootstrap_p_rmse = ((null_root_mean_square_error < bootstrap_rmse).sum(axis=0) + 1) / (iterations + 1)
+
+                            # Count significant results
+                            significant_corr_count += (bootstrap_p_corr < config.significance_threshold).sum()
+                            significant_rmse_count += (bootstrap_p_rmse < config.significance_threshold).sum()
+
+                        # Estimate power
+                        power_correlation_per_channel[fold] = significant_corr_count / (config.power_n_bootstrap_samples * eeg_test.shape[1])
+                        power_rmse_per_channel[fold] = significant_rmse_count / (config.power_n_bootstrap_samples * eeg_test.shape[1])
+
+                        # all p-values for topographic distribution across channels
+                        topo_pvalues_corr_per_fold[fold] = p_corr
+                        topo_pvalues_rmse_per_fold[fold] = p_rmse
                 
                 print(f'\n\t······  Run model\n')
 
@@ -236,23 +268,35 @@ for band in config.bands:
                 rmse_good_channel_indexes = []
 
                 if config.statistical_test:
-                    # Correlation and RMSE of channels that pass the test
-                    corr_good_channel_indexes, = np.where(np.all((proba_correlation_per_channel < 1), axis=0))
-                    rmse_good_channel_indexes, = np.where(np.all((proba_rmse_per_channel < 1), axis=0))
+                    # Find good indexes by checking where all folds (at the same time) are significant
+                    corr_good_channel_indexes, _ = np.where(
+                                                            np.all((proba_correlation_per_channel < 1), axis=0)
+                                                            )
+                    rmse_good_channel_indexes, _ = np.where(
+                                                            np.all((proba_rmse_per_channel < 1), axis=0)
+                                                            )   
 
                     # Saves passing channels by subject
-                    repeated_good_correlation_channels[corr_good_channel_indexes] += 1
+                    repeated_good_correlation_channels[corr_good_channel_indexes] += 1 # binary array with ones where significant
                     repeated_good_rmse_channels[rmse_good_channel_indexes] += 1
 
-                    # Plot shadows
-                    plot.null_correlation_vs_correlation_good_channels(display_interactive_mode=config.display_interactive_mode, session=sesion, subject=sujeto,
-                                              save_path=path_figures, good_channels_indexes=corr_good_channel_indexes, average_correlation=average_correlation,
-                                              save=config.save_figures, correlation_per_channel=correlation_per_channel,
-                                              null_correlation_per_channel=null_correlation_per_channel, no_figures=config.no_figures)
+                    # Plot shadows for each subject
+                    plot.null_correlation_vs_correlation_good_channels(
+                                                                    display_interactive_mode=config.display_interactive_mode, session=sesion, subject=sujeto,
+                                                                    save_path=path_figures, 
+                                                                    good_channels_indexes=corr_good_channel_indexes, 
+                                                                    correlation_per_channel=correlation_per_channel,
+                                                                    null_correlation_per_channel=null_correlation_per_channel, 
+                                                                    average_correlation=average_correlation,
+                                                                    power_correlation=power_correlation_per_channel.mean(axis=0),
+                                                                    power_rmse=power_rmse_per_channel.mean(axis=0),
+                                                                    save=config.save_figures, 
+                                                                    no_figures=config.no_figures
+                                                                    )
 
-                # Adapt to yield average p-values
-                topo_pval_corr_sujeto = topo_pvalues_corr.mean(axis=0)
-                topo_pval_rmse_sujeto = topo_pvalues_rmse.mean(axis=0)
+                # Avergae p-values across all folds
+                topo_pval_corr_sujeto = topo_pvalues_corr_per_fold.mean(axis=0)
+                topo_pval_rmse_sujeto = topo_pvalues_rmse_per_fold.mean(axis=0)
 
                 # Plot head topomap across al channel for correlation and rmse
                 plot.topomap(good_channels_indexes=corr_good_channel_indexes, average_coefficient=average_correlation, info=info,
@@ -290,13 +334,13 @@ for band in config.bands:
             continue
 
         # Get desire shape n_subject, shape of array. For ex.: shape(average_weights_subjects) = n_subj, n_chans, n_feats, n_delays
-        average_weights_subjects = np.stack(average_weights_subjects, axis=0)
-        average_correlation_subjects = np.stack(average_correlation_subjects , axis=0)
-        average_rmse_subjects = np.stack(average_rmse_subjects , axis=0)
-        pvalues_corr_subjects = np.stack(pvalues_corr_subjects , axis=0)
-        pvalues_rmse_subjects = np.stack(pvalues_rmse_subjects , axis=0)
-        repeated_good_correlation_channels_subjects = np.stack(repeated_good_correlation_channels_subjects , axis=0)
-        repeated_good_rmse_channels_subjects = np.stack(repeated_good_rmse_channels_subjects , axis=0)
+        average_weights_subjects = np.stack(average_weights_subjects, axis=0) # n_subj, n_chans, n_feats, n_delays
+        average_correlation_subjects = np.stack(average_correlation_subjects , axis=0) # n_subj, n_chans
+        average_rmse_subjects = np.stack(average_rmse_subjects , axis=0) # n_subj, n_chans
+        pvalues_corr_subjects = np.stack(pvalues_corr_subjects , axis=0) # n_subj, n_chans
+        pvalues_rmse_subjects = np.stack(pvalues_rmse_subjects , axis=0) # n_subj, n_chans
+        repeated_good_correlation_channels_subjects = np.stack(repeated_good_correlation_channels_subjects , axis=0) # n_subj, n_chans
+        repeated_good_rmse_channels_subjects = np.stack(repeated_good_rmse_channels_subjects , axis=0) # n_subj, n_chans
 
         # Save results
         if config.save_results and total_number_of_subjects==18:
@@ -342,18 +386,30 @@ for band in config.bands:
 
         if config.statistical_test:
             # Plot topomap of average p-values across all subject
-            plot.topo_average_pval(pvalues_coefficient_subjects=pvalues_corr_subjects, info=info, display_interactive_mode=config.display_interactive_mode,
-                                   save=config.save_figures, save_path=path_figures, coefficient_name='correlation', no_figures=config.no_figures)
-            plot.topo_average_pval(pvalues_coefficient_subjects=pvalues_rmse_subjects, info=info, display_interactive_mode=config.display_interactive_mode,
-                                   save=config.save_figures, save_path=path_figures, coefficient_name='RMSE', no_figures=config.no_figures)
+            plot.topo_average_pval(
+                                pvalues_coefficient_subjects=pvalues_corr_subjects, 
+                                info=info, display_interactive_mode=config.display_interactive_mode,
+                                save=config.save_figures, save_path=path_figures, coefficient_name='correlation', 
+                                no_figures=config.no_figures
+                                )
+            plot.topo_average_pval(
+                                pvalues_coefficient_subjects=pvalues_rmse_subjects, 
+                                info=info, display_interactive_mode=config.display_interactive_mode,
+                                save=config.save_figures, save_path=path_figures, coefficient_name='RMSE', 
+                                no_figures=config.no_figures
+                                )
 
             # Plot topomap of sum of repeated channels across all subject
-            plot.topo_repeated_channels(repeated_good_coefficients_channels_subjects=repeated_good_correlation_channels_subjects,
-                                        info=info, display_interactive_mode=config.display_interactive_mode, save=config.save_figures,
-                                        save_path=path_figures, coefficient_name='correlation', no_figures=config.no_figures)
-            plot.topo_repeated_channels(repeated_good_coefficients_channels_subjects=repeated_good_rmse_channels_subjects,
-                                        info=info, display_interactive_mode=config.display_interactive_mode, save=config.save_figures,
-                                        save_path=path_figures, coefficient_name='RMSE', no_figures=config.no_figures)
+            plot.topo_repeated_channels(
+                                    repeated_good_coefficients_channels_subjects=repeated_good_correlation_channels_subjects,
+                                    info=info, display_interactive_mode=config.display_interactive_mode, save=config.save_figures,
+                                    save_path=path_figures, coefficient_name='correlation', no_figures=config.no_figures
+                                    )
+            plot.topo_repeated_channels(
+                                    repeated_good_coefficients_channels_subjects=repeated_good_rmse_channels_subjects,
+                                    info=info, display_interactive_mode=config.display_interactive_mode, save=config.save_figures,
+                                    save_path=path_figures, coefficient_name='RMSE', no_figures=config.no_figures
+                                    )
         if config.perform_tfce:
             del average_weights, average_rmse, average_correlation, correlation_per_channel, rmse_per_channel, correlation_matrix, root_mean_square_error,\
                 eeg_test, eeg, stims, stims_sujeto_1, stims_sujeto_2, sujeto_1, sujeto_2, eeg_sujeto_1, eeg_sujeto_2, predicted
