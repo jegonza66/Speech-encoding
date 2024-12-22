@@ -68,10 +68,6 @@ def define_ticks(axes, number_of_ticks:int, ylabel:str, xlabel:str='Time (ms)', 
             tags = exp_info.ph_labels
         ticks = np.arange(number_of_ticks)
     
-    # Filter zeros and reorder tags
-    tags = tags if zeros_index is None else [tags[i] for i in range(len(tags)) if i not in zeros_index]
-    tags = tags if order is None else [tags[i] for i in order]
-    
     # Frecuency correlated features are treated differently
     if ylabel.startswith('Spectrogram'):
         ylabel = 'Frecuency (Hz)'
@@ -96,6 +92,11 @@ def define_ticks(axes, number_of_ticks:int, ylabel:str, xlabel:str='Time (ms)', 
         ticks = np.arange(0, number_of_ticks, 2)
         ylabel= f"{ylabel}'s Index"
         tags = tags[::2]
+    else:
+        # Filter zeros and reorder tags
+        tags = tags if zeros_index is None else [tags[i] for i in range(len(tags)) if i not in zeros_index]
+        tags = tags if order is None else [tags[i] for i in order]
+    
     if title is None:
         axes.set(xlabel=xlabel, ylabel=ylabel, yticks=ticks, yticklabels=tags)
     else:
@@ -177,10 +178,11 @@ def phonemes_ocurrences(ocurrences:dict,
 
 # TODO HALF CHECK
 def null_correlation_vs_correlation_good_channels(good_channels_indexes:np.ndarray,
-                         average_correlation:np.ndarray, 
                          save_path:str,
                          correlation_per_channel:np.ndarray, 
                          null_correlation_per_channel:np.ndarray,
+                         power_correlation:float,
+                         power_rmse:float,
                          save:bool=False, 
                          display_interactive_mode:bool=False, 
                          session:int=21, 
