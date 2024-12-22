@@ -38,9 +38,10 @@ for band in config.bands:
         path_weights = f'saves/{config.model}/{config.situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
         path_null = f'saves/{config.model}/{config.situation}/null/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
         path_figures = f'figures/{config.model}/{config.situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-        prat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
-        alphas_directory = os.path.normpath(f'saves/alphas/{config.situation}/stims_{config.stims_preprocess}/EEG_{config.eeg_preprocess}//tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/')
-        alphas_path = os.path.join(alphas_directory, f'corr_limit_{config.correlation_limit_percentage}.pkl')
+        
+        path_validation = f'saves/{config.model}/{config.situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+        alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
+        
         path_TFCE = f'saves/{config.model}/{config.situation}/TFCE/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/'
 
         # Make lists to store relevant data across sobjects
@@ -61,16 +62,16 @@ for band in config.bands:
             print(f'\n------->\tStart of session {sesion}\n')
 
             # Load data by subject, EEG and info
-            sujeto_1, sujeto_2, samples_info = load_data(sesion=sesion,
-                                                         stim=stim,
-                                                         band=band,
-                                                         sr=config.sr,
-                                                         delays=config.delays,
-                                                         preprocessed_data_path=preprocessed_data_path,
-                                                         praat_executable_path=prat_executable_path,
-                                                         situation=config.situation,
-                                                         silence_threshold=0.03
-                                                         )
+            sujeto_1, sujeto_2, samples_info = load_data(
+                                                        sesion=sesion,
+                                                        stim=stim,
+                                                        band=band,
+                                                        sr=config.sr,
+                                                        delays=config.delays,
+                                                        preprocessed_data_path=preprocessed_data_path,
+                                                        praat_executable_path=config.praat_executable_path,
+                                                        situation=config.situation
+                                                        )
             eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
 
             if config.just_load_data:
@@ -390,7 +391,7 @@ if config.just_load_data:
 text += f'\n\n\t\t\tRUN TIME:{run_time}'
 
 # Dump metadata
-metadata_path = f'saves/log/{datetime.now().strftime("%Y-%m-%d--%H-%M-%S")}/'
+metadata_path = f'saves/log/main_{datetime.now().strftime("%Y-%m-%d--%H-%M-%S")}/'
 os.makedirs(metadata_path, exist_ok=True)
 metadata = {
             name: getattr(config, name) for name in dir(config) 

@@ -27,7 +27,7 @@ matplotlib_colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purp
 
 # Modules
 from processing import clustering_by_correlation
-import funciones, setup
+import funciones, setup, config
 exp_info = setup.exp_info()
 
 # ===================

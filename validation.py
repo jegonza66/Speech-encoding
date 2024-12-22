@@ -29,11 +29,12 @@ for band in config.bands:
         # Update
         print('\n===========================\n','\tPARAMETERS\n\n','Model: ' + config.model+'\n','Band: ' + str(band)+'\n','Stimulus: ' + stim+'\n','Status: ' + config.situation+'\n',f'Time interval: ({config.tmin},{config.tmax})s\n','\n===========================\n')
         
-        # Create relevant paths
+        # Relevant paths
         preprocessed_data_path = os.path.normpath(f'saves/preprocessed_data/{config.situation}/tmin{config.tmin}_tmax{config.tmax}/')
         figures_path = os.path.normpath(f'figures/{config.model}_trace/{config.situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}')
-        alphas_directory = os.path.normpath(f'saves/alphas/{config.situation}/stims_{config.stims_preprocess}/EEG_{config.eeg_preprocess}//tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/') 
-        alphas_path = os.path.join(alphas_directory, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
+        
+        path_validation = f'saves/{config.model}/{config.situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+        alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
         
         # Try to access alphas
         try:

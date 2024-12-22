@@ -23,6 +23,7 @@ n_folds = 5 # with 5 folds (remain 20% as validation set, then interchange to cr
 
 # ==========================================
 # LOADING/SAVING DATA, FIGURE CONFIGURATIONS
+praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
 display_interactive_mode, save_results, save_figures = False, True, True
 just_load_data = False
 no_figures = False
