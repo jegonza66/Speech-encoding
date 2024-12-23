@@ -12,3 +12,4 @@ __pycache__/
 pysptk
 no_hup_commands.txt
 run_main.sh
+script_output.log
