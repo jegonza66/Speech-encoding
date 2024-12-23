@@ -66,12 +66,32 @@ times = (delays/sr)
 # ============
 # PLOTS LABELS
 class Exp_info:
-    """
-    Class containing the experiment information.
-    """
-
     def __init__(self):
-    # Define ctf data path and files path
+        """A class used to represent experimental information for speech encoding.
+        
+        Attributes
+        ----------
+                ph_labels : list
+                        A list of phoneme labels.
+                ph_labels_man : list
+                        A list of manually labeled phonemes.
+                ph_labels_phonet : list
+                        A list of phonemes labeled using phonetic transcription.
+                ph_labels_phonet_ordered : list
+                        An ordered list of phonemes labeled using phonetic transcription.
+                mistakes : list
+                        A list of types of mistakes.
+                control : list
+                        A list of control categories.
+                phonological_labels : dict
+                        A dictionary categorizing phonemes into various phonological features.
+                        
+        Methods
+        -------
+                __init__():
+                        Initializes the Exp_info class with predefined phoneme labels, mistake types, control categories, and phonological features.
+        """
+         # Define ctf data path and files path
         self.ph_labels = ['CH', 'NY', 'R', 'a', 'b', 'd', 'e', 'f', 'g', 'i', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 's', 't', 'u', 'x', 'y']
 
         self.ph_labels_man = ['(d)o', 'A', 'AH', 'CH', 'F', 'NY', 'R', 'Y', 'a', 'ap', 'b', 'br', 'c', 'chas', 'd','de', 'e', 'es', 'f', 'g', 'h', 'i', 'k', 'l', 'lg', 'm', 'n', 'ns', 'o', 'p', 'r', 's','si', 't', 'u', 'v', 'x', 'y']

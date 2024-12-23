@@ -23,7 +23,46 @@ def permutations(iteration:int,
                  eeg_preprocess:float, 
                  n_jobs:int=-1, 
                  fold:int=0):
-        
+        """Perform permutations to fit a null model and evaluate its performance.
+        Parameters:
+        -----------
+            iteration : int
+                The current iteration number.
+            eeg : np.ndarray
+                The EEG data array.
+            stims : np.ndarray
+                The stimuli data array.
+            tmin : float
+                The minimum time value for the receptive field.
+            tmax : float
+                The maximum time value for the receptive field.
+            sr : int
+                The sample rate of the data.
+            alpha : float
+                The regularization parameter for the model.
+            relevant_indexes : list
+                List of relevant indexes for the data.
+            train_indexes : np.ndarray
+                Array of indexes for the training data.
+            test_indexes : np.ndarray
+                Array of indexes for the test data.
+            stims_preprocess : float
+                Preprocessing parameter for the stimuli.
+            eeg_preprocess : float
+                Preprocessing parameter for the EEG data.
+            n_jobs : int, optional
+                The number of jobs to run in parallel (default is -1).
+            fold : int, optional
+                The current fold number (default is 0).
+        Returns:
+        --------
+            coefs : np.ndarray
+                The coefficients of the fitted model.
+            correlation_matrix : np.ndarray
+                The correlation matrix of the predicted and actual EEG data.
+            root_mean_square_error : np.ndarray
+                The root mean square error of the predicted and actual EEG data.
+        """
         # Define null model
         null_model = Receptive_field_adaptation(
                                                 tmin=tmin, 
@@ -60,7 +99,6 @@ def permutations(iteration:int,
         root_mean_square_error = np.array(np.sqrt(np.power((predicted - eeg_test), 2).mean(0)))        
         return null_model.coefs, correlation_matrix, root_mean_square_error
 
-# TODO CHECK DESCRIPTION
 def simulation_mtrf(iterations:int,
                     fold:int,
                     stims:np.ndarray, 
@@ -78,6 +116,30 @@ def simulation_mtrf(iterations:int,
                     null_weights:np.ndarray, 
                     null_errors:np.ndarray,
                     n_jobs:int=-1):
+    """Perform mTRF simulation by running multiple iterations of the permutation test.
+
+    Parameters:
+        iterations (int): Number of iterations to run.
+        fold (int): Current fold number.
+        stims (np.ndarray): Stimuli data.
+        eeg (np.ndarray): EEG data.
+        sr (int): Sample rate.
+        tmin (float): Minimum time.
+        tmax (float): Maximum time.
+        relevant_indexes (list): List of relevant indexes.
+        alpha (float): Regularization parameter.
+        train_indexes (np.ndarray): Training indexes.
+        test_indexes (np.ndarray): Testing indexes.
+        stims_preprocess (str): Preprocessing method for stimuli.
+        eeg_preprocess (str): Preprocessing method for EEG.
+        null_correlation (np.ndarray): Array to store null correlations.
+        null_weights (np.ndarray): Array to store null weights.
+        null_errors (np.ndarray): Array to store null errors.
+        n_jobs (int): Number of jobs to run in parallel. Default is -1.
+
+    Returns:
+        tuple: Updated null_weights, null_correlation, and null_errors.
+    """
     # Define iterations
     iterations = np.arange(iterations)
 
@@ -105,9 +167,8 @@ def simulation_mtrf(iterations:int,
                                                                                             n_jobs=n_jobs,
                                                                                             fold=fold
                                                                                             )
-        if len(iterations)>=10:
-            if i in iterations[::int(len(iterations)/10)]:
-                print("\t\t\rProgress {}%".format(int((i + 1) * 100 / len(iterations))), end='')
-        else:
+        if (len(iterations)>=10) and (i in iterations[::int(len(iterations)/10)]):
+            print("\t\t\rProgress {}%".format(int((i + 1) * 100 / len(iterations))), end='')
+        elif len(iterations)<10:
             print("\t\t\rProgress {}%".format(int((i + 1) * 100 / len(iterations))), end='')
     return null_weights, null_correlation, null_errors
