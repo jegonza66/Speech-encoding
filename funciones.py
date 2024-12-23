@@ -181,56 +181,6 @@ def iteration_percentage(txt:str, i:int, length_of_iterator:int):
         percentage_bar =  f"[{'·'*(l):50s}] {(l*2)/100:.0%}\n"
     sys.stdout.write(txt+'\n'+percentage_bar)
 
-def match_lengths(dic, speaker_labels, minimum_length):
-    """
-    Match the lengths of the data arrays in the dictionary and the speaker labels.
-    
-    Parameters
-    ----------
-    dic : dict
-        Dictionary containing data arrays (stimuli and EEG).
-    speaker_labels : list
-        Label of current speaker.
-    minimum_length : int, optional
-        Minimum length to match the data arrays to. If not provided, the minimum length of the data arrays and speaker labels is used.
-    
-    Returns
-    -------
-    tuple
-        If minimum_length is provided, returns the updated dictionary and speaker labels.
-        If minimum_length is not provided, returns the updated dictionary, speaker labels, and the minimum length.
-    
-    Raises
-    ------
-    Exception
-        If there is an error during the length matching process.
-    """
-    # Get minimum array length (this includes features and EEG data)
-    if minimum_length:
-        minimum = minimum_length
-    else:
-        minimum = min([dic[key].get_data().T.shape[0] for key in dic] + [len(speaker_labels)])
-
-    # Correct length and update mne array
-    for key in dic:
-        if key!= 'info' and key!='EEG':
-            data = dic[key].get_data().T
-            if data.shape[0] > minimum:
-                dic[key] = mne.io.RawArray(data=data[:minimum].T, info=dic[key].info, verbose=True)
-        elif key=='EEG':
-            if dic[key].get_data().shape[1]>minimum:
-                eeg_times = dic[key].times.tolist()
-                dic[key].crop(tmin=eeg_times[0], tmax=eeg_times[minimum], verbose=False)
-
-    if len(speaker_labels) > minimum:
-        speaker_labels = speaker_labels[:minimum]
-    if minimum_length:
-        print(dic, speaker_labels)
-        return dic, speaker_labels
-    else:
-        print(dic, speaker_labels, minimum)
-        return dic, speaker_labels, minimum
-       
 def get_maximum_correlation_channels(average_correlation_across_subject:np.ndarray,
                                      number_of_lat_channels:int=12,
                                      lateralization:bool=False):

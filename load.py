@@ -20,39 +20,42 @@ class Trial_channel:
     def __init__(self, s:int=21, trial:int=1, channel:int=1, band:str='All', sr:float=128, 
                  causal_filter_eeg:bool=True, envelope_filter:bool=False, silence_threshold:float=0.03,
                  praat_executable_path:str=r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe"): #r"C:\Program Files\Praat\Praat.exe" r"C:\Program Files\Praat\Praat.exe"):
-        """Extract transcriptions, audio signal and EEG signal of given session and channel to calculate specific features.
+        """
+        Initializes the Trial_channel class with the given parameters.
 
         Parameters
         ----------
         s : int, optional
             Session number, by default 21
         trial : int, optional
-            Number of trial, by default 1
+            Trial number, by default 1
         channel : int, optional
-            Channel used to record the audio (it can be from subject 1 and 2), by default 1
+            Channel number used to record the audio (it can be from subject 1 or subject 2), by default 1
         band : str, optional
-            Neural frequency band, by default 'All'. It could be one of:
+            EEG frequency band, by default 'All'. It could be one of:
             ['Delta','Theta',Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
         sr : float, optional
-            Sample rate in Hz of the EEG, by default 128
-        delays : np.ndarray, optional
-            Delay array to construct shifted matrix, by default np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
+            Sampling rate, by default 128
         causal_filter_eeg : bool, optional
-            Whether to use or not a cusal filter, by default True
+            Whether to use a causal filter for EEG, by default True
         envelope_filter : bool, optional
-            Whether to use or not an envelope filter, by default False
+            Whether to use an envelope filter, by default False
         silence_threshold : float, optional
             Silence threshold of the dialogue, by default 0.03
-        praat_executable_path : str
-            Path directing to Praat executable
-            
+        praat_executable_path : str, optional
+            Path to Praat executable, by default r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe"
+
+        Returns
+        -------
+        None
 
         Raises
         ------
         SyntaxError
-            If 'band' is not an allowed band frecuency. Allowed bands are:
+            If the band is not in the allowed_band_frequencies list. It must be one of:
             ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
         """
+        
         # Participants sex, ordered by session
         sex_list = ['M', 'M', 'M', 'F', 'F', 'F', 'F', 'M', 'M', 'M', 'F', 'F', 'F', 'F', 'M', 'M', 'M', 'F', 'F', 'M']
         allowed_band_frequencies = ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
@@ -86,12 +89,17 @@ class Trial_channel:
         self.mistakes_control_path = os.path.normpath(f"Datos/mistakes_control/filtered_session{s}_trial{trial:02d}_channel{channel}.TextGrid")
         
     def f_eeg(self):
-        """Extract eeg file downsample it to get the same rate as self.sr and stores its data inside the class instance.
+        """
+        Reads the EEG data from a .set file, applies a filter based on the specified band, and downsamples the data.
+
+        Parameters
+        ----------
+        None
 
         Returns
         -------
         np.ndarray
-            Matrix representation of EEG per channel
+            The EEG data as a numpy array with dimensions (samples, channels).
         """
         # Read the .set file. warning of annotations and 'boundry' events -data discontinuities-.
         eeg = mne.io.read_raw_eeglab(input_fname=self.eeg_fname, preload=True) 
@@ -132,7 +140,8 @@ class Trial_channel:
         return eeg
 
     def f_info(self):
-        """A montage is define as a descriptor for the set up: EEG channel names and relative positions of sensors on the scalp. 
+        """
+        A montage is define as a descriptor for the set up: EEG channel names and relative positions of sensors on the scalp. 
         A montage can also contain locations for HPI points, fiducial points, or extra head shape points.In this case, 'BioSemi
         cap with 128 electrodes (128+3 locations)'.
 
@@ -147,16 +156,18 @@ class Trial_channel:
         return mne.create_info(ch_names=channel_names[:], sfreq=self.sr, ch_types='eeg').set_montage(montage)
 
     def f_mistakes(self, envelope:np.ndarray, kind:str='Mistakes-Separated'):
-        """Calculates mistakes (lexical, articulatory, discursive) signal from annotated data
+        """
+        Calculates mistakes (lexical, articulatory, discursive) signal from annotated data
 
         Parameters
         ----------
         envelope : np.ndarray
-            _description_
+            Envelope of the audio signal using Hilbert transform
 
         Returns
         -------
-        _type_
+        np.ndarray
+            len(envelope)X3 binary array if separated else len(envelope)X1 binary array
             len(envelope)X3 binary array if separated else len(envelope)X1
         """
         # Define kind
@@ -211,16 +222,17 @@ class Trial_channel:
         return mistake_signal
     
     def f_mistakes_control(self, envelope:np.ndarray, kind:str='Control-Separated'):
-        """Calculates mistakes control (lexical, articulatory, discursive) signal from annotated data
+        """
+        Calculates mistakes control (lexical, articulatory, discursive) signal from annotated data
 
         Parameters
         ----------
         envelope : np.ndarray
-            _description_
+            Envelope of the audio signal using Hilbert transform
 
         Returns
         -------
-        _type_
+        np.ndarray
             len(envelope)X3 binary array if separated else len(envelope)X1
         """
         # Define kind
@@ -273,12 +285,13 @@ class Trial_channel:
         return control_signal
 
     def f_envelope(self): 
-        """Takes the low pass filtered -butterworth-, downsample and smoothened envelope of .wav file. Then matches its length to the EEG.
+        """
+        Takes the low pass filtered -butterworth-, downsample and smoothened envelope of .wav file. Then matches in length to the EEG
 
         Returns
         -------
         np.ndarray
-            Envelope of wav signal with desire dimensions
+            Envelope of wav signal with desire dimensions, using Hilbert transform
         """
         # Read file
         wav = wavfile.read(self.wav_fname)[1]
@@ -311,12 +324,13 @@ class Trial_channel:
         # return envelope_mne_array.get_data().T
 
     def f_spectrogram(self):
-        """Calculates spectrogram of .wav file between 16 Mel frequencies.
+        """
+        Calculates spectrogram of .wav file between 16 Mel frequencies
 
         Parameters
         ----------
         envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform.
+            Envelope of the audio signal using Hilbert transform
 
         Returns
         -------
@@ -340,13 +354,14 @@ class Trial_channel:
         return S_DB.T
     
     def f_mfccs(self, kind:str='Log-Raw'):
-        """Calculates mel frequency clepstral coefficients from .wav.
+        """
+        Calculates mel frequency clepstral coefficients from .wav.
 
         Parameters
         ----------
         kind : str, optional
            Kind of pitch use, by default 'Log-Raw'. Available kinds are:
-            'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas'
+            ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas']
 
         Returns
         -------
@@ -405,7 +420,8 @@ class Trial_channel:
         # plt.colorbar(format="%+2.f")
    
     def f_jitter_shimmer(self, envelope:np.ndarray): # NEVER USED
-        """Gives the jitter and shimmer matching the size of the envelope
+        """
+        Gives the jitter and shimmer matching the size of the envelope
 
         Parameters
         ----------
@@ -458,10 +474,10 @@ class Trial_channel:
         Parameters
         ----------
         envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform.
+            Envelope of the audio signal using Hilbert transform
         kind : str, optional
            Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
-            'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet'
+            []'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
 
         Returns
         -------
@@ -476,7 +492,8 @@ class Trial_channel:
         Raises
         ------
         SyntaxError
-            Whether the input value of 'kind' is passed correctly. It must be a string among ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet'].
+            Whether the input value of 'kind' is passed correctly. It must be a one of:
+            ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet'].
         """
         # Get phonet labels
         phonet_labels = [el if el!='<p:>' else '' for el in exp_info.ph_labels_phonet]
@@ -531,15 +548,16 @@ class Trial_channel:
         return phonemes
 
     def f_phonemes(self, envelope:np.ndarray, kind:str='Phonemes-Envelope-Manual'):
-        """It makes a time-match matrix between the phonemes and the envelope. The values and shape of given matrix depend on kind.
+        """
+        It makes a time-match matrix between the phonemes and the envelope. The values and shape of given matrix depend on kind.
 
         Parameters
         ----------
         envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform.
+            Envelope of the audio signal using Hilbert transform
         kind : str, optional
            Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
-            'Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete', 'Phonemes-Discrete-Manual', 'Phonemes-Onset', 'Phonemes-Onset-Manual'
+            ['Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete', 'Phonemes-Discrete-Manual', 'Phonemes-Onset', 'Phonemes-Onset-Manual']
 
         Returns
         -------
@@ -554,7 +572,8 @@ class Trial_channel:
         Raises
         ------
         SyntaxError
-            Whether the input value of 'kind' is passed correctly. It must be a string among ['Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete', 'Phonemes-Discrete-Manual', 'Phonemes-Onset', 'Phonemes-Onset-Manual'].
+            Whether the input value of 'kind' is passed correctly. It must be one of:
+            ['Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete', 'Phonemes-Discrete-Manual', 'Phonemes-Onset', 'Phonemes-Onset-Manual'].
         """
         if kind.endswith('anual'):
             exp_info_labels = exp_info.ph_labels_man
@@ -657,7 +676,8 @@ class Trial_channel:
         return phonemes
 
     def f_phonological_features(self, envelope:np.ndarray):
-        """Retrive phonological features as matrix
+        """
+        Retrive phonological features as a matrix matching envelope length, using Phonet implementation.
 
         Parameters
         ----------
@@ -693,7 +713,8 @@ class Trial_channel:
         return np.stack(phonological_features, axis=0).T
 
     def f_pitch(self, envelope:np.ndarray, kind:str): 
-        """Loads the pitch of the speaker, after calculating it from .wav file and stores it.
+        """
+        Loads the pitch of the speaker, after calculating it from .wav file, using Praat.
 
         Parameters
         ----------
@@ -710,7 +731,8 @@ class Trial_channel:
         Raises
         ------
         SyntaxError
-            Whether the input value of 'kind' is passed correctly. It must be a string among ['Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes']
+            Whether the input value of 'kind' is passed correctly. It must be one of:
+            ['Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes']
         """
 
         # Check if given kind is a permited input value
@@ -891,47 +913,52 @@ class Trial_channel:
                     channel[stim] = self.f_phonemes(envelope=channel['Envelope'], kind=stim)
         return channel
 
-
 class Sesion_class: 
     def __init__(self, sesion:int=21, stim:str='Envelope', band:str='All', sr:float=128, 
                  causal_filter_eeg:bool=True, envelope_filter:bool=False, situation:str='External', 
                  silence_threshold:float=0.03, delays:np.ndarray=None,
                  preprocessed_data_path:str=os.path.normpath(f'saves/preprocessed_data/tmin{-0.6}_tmax{-.002}/'),
-                 praat_executable_path:str=r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"r"C:\Program Files\Praat\Praat.exe"
+                 praat_executable_path:str=r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe"
                  ):
-        """Construct an object for the given session containing all concerning data.
-
+        """
+        This class handles the loading (concatenating trials) and processing of EEG and stimuli data for a given session. 
+        It supports both raw and preprocessed data, and can extract various features such as envelope, MFCCs, pitch, phonemes, and more.
+        
         Parameters
         ----------
-        sesion : int, optional
+        sesion : int
             Session number, by default 21
-        stim : str, optional
+        stim : str
             Stimuli to use in the analysis, by default 'Envelope'. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
             'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 
             'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated']
-        band : str, optional
-            Neural frequency band, by default 'All'. It could be one of:
-            ['Delta','Theta',Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
-        sr : float, optional
-            Sample rate in Hz of the EEG, by default 128
+        band : str
+            Neural frequency band. It could be one of:
+            ['Delta','Theta', 'Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
+        sr : float
+            Sample rate in Hz of the EEG
         causal_filter_eeg : bool, optional
-            Whether to use or not a cusal filter, by default True
+            Whether to use or not a causal filter for the EEG, by default True
         envelope_filter : bool, optional
             Whether to use or not an envelope filter, by default False
         situation : str, optional
-            Situation considerer when performing the analysis, by default 'External'. Allowed sitations are:
-            ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
+            Situation considered when performing the analysis, by default 'External'. Allowed situations are:
+            ['Internal','Internal_BS','External', 'External_BS']
         silence_threshold : float, optional
             Silence threshold of the dialogue, by default 0.03
         delays : np.ndarray, optional
-            Delay array to construct shifted matrix, by default np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
-        preprocessed_data_path : str, optional
-            Path directing to procesed data, by default f'saves/preprocessed_data/tmin{-0.6}_tmax{-0.002}/'
+            Delay array to construct shifted matrix, by default None
+        preprocessed_data_path : str
+            Path directing to processed data
         praat_executable_path : str
             Path directing to Praat executable
-
+        
+        Returns
+        -------
+        None
+        
         Raises
         ------
         SyntaxError
@@ -940,15 +967,11 @@ class Sesion_class:
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
             'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 
             'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated']
-            If more than one stimulus is wanted, the separator should be '_'.
-        SyntaxError
-            If 'band' is not an allowed band frecuency. Allowed bands are:
-            ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
-        SyntaxError
-            If situation is not an allowed situation. Allowed situations are: 
-            ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
+            If 'band' is not an allowed band frequency. Allowed frequencies are:
+            ['Delta','Theta', 'Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
+            If 'situation' is not an allowed situation. Allowed situations are:
+            ['Internal','Internal_BS','External', 'External_BS']
         """
-       
         # Check if band, stim and situation parameters where passed with the right syntax
         allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', \
                         'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', \
@@ -1027,7 +1050,8 @@ class Sesion_class:
         
         
     def load_from_raw(self):
-        """Loads raw data, this includes EEG, info and stimuli.
+        """
+        Loads raw data, this includes EEG, info and stimuli.
 
         Returns
         -------
@@ -1169,7 +1193,8 @@ class Sesion_class:
         return {'Sujeto_1': sujeto_1_return, 'Sujeto_2': sujeto_2_return}, self.samples_info
     
     def load_procesed(self):
-        """Loads procesed data, this includes EEG, info and stimuli.
+        """
+        Loads procesed data, this includes EEG, info and stimuli.
 
         Returns
         -------
@@ -1189,8 +1214,8 @@ class Sesion_class:
         return {'Sujeto_1': sujeto_1, 'Sujeto_2': sujeto_2}, samples_info
     
     def labeling(self, trial:int, channel:int):
-        """Gives an array with speaking channel: 
-            3 (both speak), 2 (interlocutor), 1 (channel), 0 (silence)
+        """
+        Gives an array with speaking channel: 3 (both speak), 2 (interlocutor), 1 (channel), 0 (silence)
 
         Parameters
         ----------
@@ -1238,7 +1263,8 @@ class Sesion_class:
         return speaker + listener * 2
     
     def shifted_indexes_to_keep(self, speaker_labels:np.ndarray):
-        """Obtain shifted matrix indexes that match situation
+        """
+        Obtain shifted matrix indexes that match situation
 
         Parameters
         ----------
@@ -1276,7 +1302,8 @@ class Sesion_class:
     
     @staticmethod
     def print_trials(p:int, trial:int, trials:list):
-        """Make print for trial update
+        """
+        Make print for trial update
 
         Parameters
         ----------
@@ -1304,14 +1331,15 @@ class Sesion_class:
             print(f'Trial {trial} of {trials[-1]}.')
 
     def match_lengths(self, dic:dict, speaker_labels:np.ndarray):
-        """Match length of speaker labels and trial dictionary. It takes the minimum length between dic and speaker_labels (EEG)
+        """
+        Match length of speaker labels and trial dictionary. It takes the minimum length between dic and speaker_labels (EEG)
 
         Parameters
         ----------
         dic : dict
             Trial dictionary containing data of stimuli and EEG
         speaker_labels : np.ndarray
-            Labels of current speaker. 
+            Labels of current speaker: 3 (both speak), 2 (interlocutor), 1 (channel), 0 (silence)
 
         Returns
         -------
@@ -1338,60 +1366,63 @@ def load_data(sesion:int, stim:str, band:str, sr:float, preprocessed_data_path:s
               praat_executable_path:str, situation:str='External', 
               causal_filter_eeg:bool=True, envelope_filter:bool=False, 
               silence_threshold:float=0.03, delays:np.ndarray=None):
-    """Loads sessions of both subjects
+    """
+    Loads and processes EEG and stimuli data for a given session.
 
     Parameters
     ----------
     sesion : int
-        Session number
+        Session number.
     stim : str
-        Stimuli to use in the analysis. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
-            ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
-            'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 
-            'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated']
+        Stimuli to use in the analysis. If more than one stimulus is wanted, the separator should be '_'.
+        Allowed stimuli are: ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 
+        'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 
+        'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
+        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 
+        'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 
+        'Control-Together', 'Control-Separated'].
     band : str
-        Neural frequency band. It could be one of:
-            ['Delta','Theta', 'Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
+        Neural frequency band. It could be one of: ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta'].
     sr : float
-        Sample rate in Hz of the EEG
-    tmin : float
-        Minimimum window time
-    tmax : float
-        Maximum window time
-    praat_executable_path : str
-        Path directing to Praat executable
+        Sample rate in Hz of the EEG.
     preprocessed_data_path : str
-        Path directing to procesed data
+        Path directing to processed data.
+    praat_executable_path : str
+        Path directing to Praat executable.
     situation : str, optional
-        Situation considerer when performing the analysis, by default 'External'. Allowed sitations are:
-            ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
+        Situation considered when performing the analysis, by default 'External'. Allowed situations are: 
+        ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times'].
     causal_filter_eeg : bool, optional
-        Whether to use or not a cusal filter, by default True
+        Whether to use or not a causal filter for the EEG, by default True.
     envelope_filter : bool, optional
-        Whether to use or not an envelope filter, by default False
+        Whether to use or not an envelope filter, by default False.
     silence_threshold : float, optional
-        Silence threshold of the dialogue, by default 0.03
+        Silence threshold of the dialogue, by default 0.03.
     delays : np.ndarray, optional
-            Delay array to construct shifted matrix, by default np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
-    
+        Delay array to construct shifted matrix, by default None.
 
     Returns
     -------
     tuple
-        Dictionaries containing data from both subjects
+        A tuple containing:
+        - dict: Sessions of both subjects.
+        - dict: Information about the samples.
 
     Raises
     ------
     SyntaxError
-        If 'stimulus' is not an allowed stimulus. Allowed stimuli are:
-            ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
-            'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 
-            'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated'].
-        If more than one stimulus is wanted, the separator should be '_'.
+        If 'stim' is not an allowed stimulus. Allowed ones are:
+        ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 
+        'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 
+        'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
+        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 
+        'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 
+        'Control-Together', 'Control-Separated']
+        If 'band' is not an allowed band frequency. Allowed ones are:
+        ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
+        If 'situation' is not an allowed situation. Allowed ones are:
+        ['Internal','Internal_BS','External', 'External_BS']
     """
-
     # Define allowed stimuli
     allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes',\
                     'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset',\
