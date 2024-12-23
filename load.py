@@ -19,7 +19,7 @@ exp_info = config.Exp_info()
 class Trial_channel:
     def __init__(self, s:int=21, trial:int=1, channel:int=1, band:str='All', sr:float=128, 
                  causal_filter_eeg:bool=True, envelope_filter:bool=False, silence_threshold:float=0.03,
-                 praat_executable_path:str=r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe"): #r"C:\Program Files\Praat\Praat.exe" r"C:\Program Files\Praat\Praat.exe"):
+                 praat_executable_path:str=r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe"): 
         """
         Initializes the Trial_channel class with the given parameters.
 
@@ -43,7 +43,7 @@ class Trial_channel:
         silence_threshold : float, optional
             Silence threshold of the dialogue, by default 0.03
         praat_executable_path : str, optional
-            Path to Praat executable, by default r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe"
+            Path to Praat executable, by default r'C:\\Users\\User\\Downloads\\programas_descargados_por_octavio\\Praat.exe'
 
         Returns
         -------
