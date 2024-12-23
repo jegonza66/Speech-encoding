@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as np, mne
 
 # ==========================================
 # SESSIONS, STIMULI, SITUATION AND EEG BANDS
@@ -61,6 +61,12 @@ correlation_limit_percentage, default_alpha, set_alpha = 0.01, 400, None
 tmin, tmax, sr = -.2, .6, 128
 delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
 times = (delays/sr)
+
+# =================
+# MODEL COMPARISON
+montage = mne.channels.make_standard_montage('biosemi128')
+info_mne = mne.create_info(ch_names=montage.ch_names[:], sfreq=sr, ch_types='eeg').set_montage(montage)
+relevant_channels = 12 #None
 
 # ============
 # PLOTS LABELS

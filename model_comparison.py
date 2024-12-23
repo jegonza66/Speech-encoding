@@ -30,111 +30,92 @@ params = {'legend.fontsize': 'x-large',
           'ytick.labelsize':'large'}
 pylab.rcParams.update(params)
 
-# Model parametrs
-model ='mtrf'
-situation = 'Internal'
-stims_preprocess = 'Normalize'
-eeg_preprocess = 'Standarize'
-tmin, tmax = -.2, .6
-sr = 128
-delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
-times = (delays/sr)
-montage = mne.channels.make_standard_montage('biosemi128')
-info_mne = mne.create_info(ch_names=montage.ch_names[:], sfreq=sr, ch_types='eeg').set_montage(montage)
-
-# Whether to use or not just relevant channels
-relevant_channels = 12 # None
-
 # Relevant paths
-path_figures = os.path.normpath(f'figures/{model}/model_comparison/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/')
-final_corr_path = os.path.normpath(f'saves/{model}/{situation}/correlations/tmin{tmin}_tmax{tmax}/')
-weights_path = os.path.normpath(f'saves/{model}/{situation}/weights//stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/')
-preprocesed_data_path = os.path.normpath(f'saves/preprocessed_data/{situation}/tmin{tmin}_tmax{tmax}/') 
+path_figures = os.path.normpath(f'figures/{config.model}/model_comparison/{config.situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
+correlations_path = os.path.normpath(f'saves/{config.model}/{config.situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+mtrf_path = os.path.normpath(f'saves/{config.model}/{config.situation}/weights//stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
+preprocesed_data_path = os.path.normpath(f'saves/preprocessed_data/{config.situation}/tmin{config.tmin}_tmax{config.tmax}/') 
 
-# Code parameters
-save_figures = True
 # ================================================================================
 # CONVEX HULL:  it contrasts the correlation of each part against the joint model.
 # ================================================================================
-# path_convex_hull = os.path.join(path_figures,'convex_hull')
+path_convex_hull = os.path.join(path_figures,'convex_hull')
 
-# # Relevant parameters
-# bands = ['Theta']
-# stims = 'Deltas_Spectrogram_Phonological'
-# stims = '_'.join(sorted(stims.split('_'))) 
-# substims = stims.split('_')
-# avg_corr, good_ch = {}, {}
+# Relevant parameters
+bands = ['Theta']
+stims = 'Deltas_Spectrogram_Phonological'
+stims = '_'.join(sorted(stims.split('_'))) 
+substims = stims.split('_')
+avg_corr, good_ch = {}, {}
 
-# # Iterate over bands
-# for band in bands:
-#     # Fill dictionaries with data
-#     for stim in substims + [stims]:
-#         data = load_pickle(path=os.path.join(final_corr_path, band, stim +'.pkl'))
-#         if relevant_channels:
-#             filter_relevant_channels_filter = get_maximum_correlation_channels(data['average_correlation_subjects'].mean(axis=0), number_of_lat_channels=relevant_channels)
-#             good_ch[stim] = data['repeated_good_correlation_channels_subjects'][:,filter_relevant_channels_filter].ravel()
-#             avg_corr[stim] = data['average_correlation_subjects'][:,filter_relevant_channels_filter].ravel()
-#         else:
-#             good_ch[stim] = data['repeated_good_correlation_channels_subjects'].ravel()
-#             avg_corr[stim] = data['average_correlation_subjects'].ravel()
+# Iterate over bands
+for band in bands:
+    # Fill dictionaries with data
+    for stim in substims + [stims]:
+        data = load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))
+        if config.relevant_channels:
+            filter_relevant_channels_filter = get_maximum_correlation_channels(data['average_correlation_subjects'].mean(axis=0), number_of_lat_channels=config.relevant_channels)
+            good_ch[stim] = data['repeated_good_correlation_channels_subjects'][:,filter_relevant_channels_filter].ravel()
+            avg_corr[stim] = data['average_correlation_subjects'][:,filter_relevant_channels_filter].ravel()
+        else:
+            good_ch[stim] = data['repeated_good_correlation_channels_subjects'].ravel()
+            avg_corr[stim] = data['average_correlation_subjects'].ravel()
 
-#     # Make plot
-#     plt.ioff()
-#     plt.figure(layout='tight')
-#     plt.title(band)
+    # Make plot
+    plt.ioff()
+    plt.figure(layout='tight')
+    plt.title(band)
 
-#     for i, stim in enumerate(substims):
-#         # Identify Hull (la cáscara de los datos, i.e, el borde)
-#         stim_points = np.array([avg_corr[stims], avg_corr[stim]]).transpose()
-#         stim_hull = ConvexHull(stim_points)
+    for i, stim in enumerate(substims):
+        # Identify Hull (la cáscara de los datos, i.e, el borde)
+        stim_points = np.array([avg_corr[stims], avg_corr[stim]]).transpose()
+        stim_hull = ConvexHull(stim_points)
 
-#         # Plot good channels for each stim
-#         plt.plot(avg_corr[stims][good_ch[stim] != 0], 
-#                  avg_corr[stim][good_ch[stim] != 0], 
-#                  '.', 
-#                  color=f'C{i}',
-#                  label=stim, 
-#                  ms=2.5)
+        # Plot good channels for each stim
+        plt.plot(avg_corr[stims][good_ch[stim] != 0], 
+                 avg_corr[stim][good_ch[stim] != 0], 
+                 '.', 
+                 color=f'C{i}',
+                 label=stim, 
+                 ms=2.5)
 
-#         # Plot bad channels for each stim
-#         plt.plot(avg_corr[stims][good_ch[stim] == 0], 
-#                  avg_corr[stim][good_ch[stim] == 0], 
-#                  '.', 
-#                  color='grey',
-#                 alpha=0.5, 
-#                 label='Failed permutation test', 
-#                 markersize=2)
-#         plt.fill(stim_points[stim_hull.vertices, 0], 
-#                  stim_points[stim_hull.vertices, 1], 
-#                  color=f'C{i}',
-#                  alpha=0.3, 
-#                  linewidth=0)
+        # Plot bad channels for each stim
+        plt.plot(avg_corr[stims][good_ch[stim] == 0], 
+                 avg_corr[stim][good_ch[stim] == 0], 
+                 '.', 
+                 color='grey',
+                alpha=0.5, 
+                label='Failed permutation test', 
+                markersize=2)
+        plt.fill(stim_points[stim_hull.vertices, 0], 
+                 stim_points[stim_hull.vertices, 1], 
+                 color=f'C{i}',
+                 alpha=0.3, 
+                 linewidth=0)
 
-#     # Get limits
-#     xlimit, ylimit = plt.xlim(), plt.ylim()
-#     plt.plot([xlimit[0], 0.7], [xlimit[0], 0.7], 'k--', zorder=0)
-#     plt.hlines(0, xlimit[0], xlimit[1], color='grey', linestyle='dashed')
-#     plt.vlines(0, ylimit[0], ylimit[1], color='grey', linestyle='dashed')
+    # Get limits
+    xlimit, ylimit = plt.xlim(), plt.ylim()
+    plt.plot([xlimit[0], 0.7], [xlimit[0], 0.7], 'k--', zorder=0)
+    plt.hlines(0, xlimit[0], xlimit[1], color='grey', linestyle='dashed')
+    plt.vlines(0, ylimit[0], ylimit[1], color='grey', linestyle='dashed')
     
-#     plt.ylabel('Individual model (r)')
-#     plt.xlabel('Full model (r)')
+    plt.ylabel('Individual model (r)')
+    plt.xlabel('Full model (r)')
 
-#     # Legend
-#     handles, labels = plt.gca().get_legend_handles_labels()
-#     by_label = dict(zip(labels, handles))
-#     plt.legend(by_label.values(), by_label.keys(), markerscale=3)
+    # Legend
+    handles, labels = plt.gca().get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    plt.legend(by_label.values(), by_label.keys(), markerscale=3)
 
-#     # Save
-#     if save_figures:
-#         temp_path = os.path.join(path_convex_hull, f'{band}')
-#         os.makedirs(temp_path, exist_ok=True)
-#         if relevant_channels:
-#             plt.savefig(os.path.join(temp_path, f'relevant_channels_{relevant_channels}_{stims}.png'))
-#             plt.savefig(os.path.join(temp_path, f'relevant_channels_{relevant_channels}_{stims}.svg'))
-#         else:
-#             plt.savefig(os.path.join(temp_path, f'{stims}.png'))
-#             plt.savefig(os.path.join(temp_path, f'{stims}.svg'))
-#     plt.close()
+    # Save
+    if config.save_figures:
+        temp_path = os.path.join(path_convex_hull, f'{band}')
+        os.makedirs(temp_path, exist_ok=True)
+        if config.relevant_channels:
+            plt.savefig(os.path.join(temp_path, f'relevant_channels_{config.relevant_channels}_{stims}.png'))
+        else:
+            plt.savefig(os.path.join(temp_path, f'{stims}.png'))
+    plt.close()
 
 # =========================================================================================================
 # VENN DIAGRAMS: it makes diagrams explaining correlation of each part of a shared model (upto 3 features).
@@ -156,9 +137,9 @@ mean_correlations = {}
 for band in bands:
     for stim in all_stimuli:
         # Get average correlation of each stimulus
-        data = load_pickle(path=os.path.join(final_corr_path, band, stim +'.pkl'))['average_correlation_subjects']
-        if relevant_channels:
-            filter_relevant_channels_filter = get_maximum_correlation_channels(data.mean(axis=0), number_of_lat_channels=relevant_channels)
+        data = load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects']
+        if config.relevant_channels:
+            filter_relevant_channels_filter = get_maximum_correlation_channels(data.mean(axis=0), number_of_lat_channels=config.relevant_channels)
             mean_correlations[stim] = data[:,filter_relevant_channels_filter].mean()
         else:
             mean_correlations[stim] = data.mean()
@@ -195,15 +176,13 @@ for band in bands:
               alpha=0.45)
 
         # Save figure
-        if save_figures:
+        if config.save_figures:
             temp_path = os.path.join(path_venn_diagrams, f'{band}')
             os.makedirs(temp_path, exist_ok=True)
-            if relevant_channels:
-                plt.savefig(os.path.join(temp_path, f'relevant_channels_{relevant_channels}_{stim12}.png'))
-                plt.savefig(os.path.join(temp_path, f'relevant_channels_{relevant_channels}_{stim12}.svg'))
+            if config.relevant_channels:
+                plt.savefig(os.path.join(temp_path, f'relevant_channels_{config.relevant_channels}_{stim12}.png'))
             else:
                 plt.savefig(os.path.join(temp_path, f'{stim12}.png'))
-                plt.savefig(os.path.join(temp_path, f'{stim12}.svg'))
         plt.close()
         
         # Make a print with information
@@ -255,15 +234,13 @@ for band in bands:
               set_colors=('C0', 'C1', 'purple'), 
               alpha=0.45)
 
-        if save_figures:
+        if config.save_figures:
             temp_path = os.path.join(path_venn_diagrams, f'{band}')
             os.makedirs(temp_path, exist_ok=True)
-            if relevant_channels:
-                plt.savefig(os.path.join(temp_path, f'relevant_channels_{relevant_channels}_{all_stimuli[-1]}.png'))
-                plt.savefig(os.path.join(temp_path, f'relevant_channels_{relevant_channels}_{all_stimuli[-1]}.svg'))
+            if config.relevant_channels:
+                plt.savefig(os.path.join(temp_path, f'relevant_channels_{config.relevant_channels}_{all_stimuli[-1]}.png'))
             else:
                 plt.savefig(os.path.join(temp_path, f'{all_stimuli[-1]}.png'))
-                plt.savefig(os.path.join(temp_path, f'{all_stimuli[-1]}.svg'))
         plt.close()
 
         # # Make a print with information
@@ -291,7 +268,7 @@ for band in bands:
 # for band in bands:
 #     for stim in all_stimuli:
 #         # Get average correlation of each stimulus
-#         data = load_pickle(path=os.path.join(final_corr_path, band, stim +'.pkl'))['average_correlation_subjects']
+#         data = load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects']
 #         if relevant_channels:
 #             filter_relevant_channels_filter = get_maximum_correlation_channels(data.mean(axis=0), number_of_lat_channels=relevant_channels)
 #             mean_correlations[stim] = data[:,filter_relevant_channels_filter].mean()
@@ -305,11 +282,11 @@ path_correlation_matrix_topo = os.path.join(path_figures,'correlation_matrix_top
 
 # Relevant parameters
 bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
-stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Mfccs', 'Phonemes-Discrete-Phonet', 'Phonological'] # 'Envelope_Phonemes-Discrete-Manual'
+stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Mfccs', 'Phonemes-Discrete-Phonet', 'Phonological'] 
 n_stims, n_bands = len(stimuli), len(bands)
 
 # Get mean correlations across subjects and total max and min
-correlations = {(stim,band):load_pickle(path=os.path.join(final_corr_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
+correlations = {(stim,band):load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
 minimum_cor, maximum_cor = min([correlation.min() for correlation in correlations.values()]), max([correlation.max() for correlation in correlations.values()])
 
 # Create figure and title
@@ -356,7 +333,7 @@ for i, band in enumerate(bands):
         # Plot topomap        
         mne.viz.plot_topomap(
                             data=average_correlation, 
-                            pos=info_mne, 
+                            pos=config.info_mne, 
                             axes=axes[i, j], 
                             show=False, 
                             sphere=0.07, 
@@ -371,7 +348,7 @@ cbar.ax.tick_params(labelsize=15)
 fig.show()
 
 # Save figure
-if save_figures:
+if config.save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
     temp_path = os.path.join(path_correlation_matrix_topo,'_'.join(sorted(short_stimuli)))
     os.makedirs(temp_path, exist_ok=True)
@@ -385,16 +362,15 @@ plt.close()
 path_similarities_matrix_topo = os.path.join(path_figures,'similarities_matrix_topo')
 
 # Relevant parameters
-# Relevant parameters
 bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
-stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Mfccs', 'Phonemes-Discrete-Phonet', 'Phonological'] # 'Envelope_Phonemes-Discrete-Manual'
+stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Mfccs', 'Phonemes-Discrete-Phonet', 'Phonological'] 
 n_stims, n_bands = len(stimuli), len(bands)
 
 # Get similarities across subjects and total max and min
 similarities = {}
 for band in bands:
     for stim in stimuli:
-        average_weights_subjects = load_pickle(path=os.path.join(weights_path, band, stim, 'total_weights_per_subject.pkl'))['average_weights_subjects']
+        average_weights_subjects = load_pickle(path=os.path.join(mtrf_path, band, stim, 'total_weights_per_subject.pkl'))['average_weights_subjects']
         n_subjects, n_chan, _, _ = average_weights_subjects.shape #nfeat ndelays
         average_weights = average_weights_subjects.mean(axis=2)
         correlation_matrices = np.zeros(shape=(n_chan, n_subjects, n_subjects))
@@ -426,7 +402,6 @@ if n_stims==1:
 elif n_bands==1:
     axes = axes.reshape(1, n_stims)
 
-# Set axis labels
 # Configure axis
 for ax, col in zip(axes[0], stimuli):
     if col=='Phonemes-Discrete-Phonet':
@@ -457,7 +432,7 @@ for i, band in enumerate(bands):
         # Plot topomap        
         mne.viz.plot_topomap(
                             data=similarity, 
-                            pos=info_mne, 
+                            pos=config.info_mne, 
                             axes=axes[i, j], 
                             show=False, 
                             sphere=0.07, 
@@ -472,7 +447,7 @@ cbar.ax.tick_params(labelsize=15)
 fig.show()
 
 # Save figure
-if save_figures:
+if config.save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
     temp_path = os.path.join(path_similarities_matrix_topo,'_'.join(sorted(short_stimuli)))
     os.makedirs(temp_path, exist_ok=True)
@@ -491,30 +466,30 @@ stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Mfccs', 'Phonemes-Discre
 n_stims, n_bands = len(stimuli), len(bands)
 
 # Get mean correlations across subjects and total max and min
-correlations = {(stim,band):load_pickle(path=os.path.join(final_corr_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
+correlations = {(stim,band):load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
 minimum_cor, maximum_cor = min([correlation.min() for correlation in correlations.values()]), max([correlation.max() for correlation in correlations.values()])
 
 # Get groups to make average correlations
 n_groups_x, n_groups_y = 12, 12
-posicion_x = np.array([montage._get_ch_pos()[ch][0] for ch in montage._get_ch_pos()])
-posicion_y = np.array([montage._get_ch_pos()[ch][1] for ch in montage._get_ch_pos()])
+posicion_x = np.array([config.montage._get_ch_pos()[ch][0] for ch in config.montage._get_ch_pos()])
+posicion_y = np.array([config.montage._get_ch_pos()[ch][1] for ch in config.montage._get_ch_pos()])
 bins_x = np.linspace(posicion_x.min(), posicion_x.max(), n_groups_x)
 bins_y = np.linspace(posicion_y.min(), posicion_y.max(), n_groups_y)
 groups_x, groups_y = [], []
 for i in range(1, n_groups_y):
     group_y = []
-    for ch in montage._get_ch_pos():
-        y_value = montage._get_ch_pos()[ch][1]
+    for ch in config.montage._get_ch_pos():
+        y_value = config.montage._get_ch_pos()[ch][1]
         if bins_y[i-1]<=y_value<=bins_y[i]:
-            group_y.append(info_mne.ch_names.index(ch))
+            group_y.append(config.info_mne.ch_names.index(ch))
     groups_y.append(group_y)
 for i in range(1, n_groups_x):
     group_x = []
-    for ch in montage._get_ch_pos():
-        x_value = montage._get_ch_pos()[ch][0]
-        y_value = montage._get_ch_pos()[ch][1]
+    for ch in config.montage._get_ch_pos():
+        x_value = config.montage._get_ch_pos()[ch][0]
+        y_value = config.montage._get_ch_pos()[ch][1]
         if (bins_x[i-1]<=x_value<=bins_x[i]) and (y_value>=0) :
-            group_x.append(info_mne.ch_names.index(ch))
+            group_x.append(config.info_mne.ch_names.index(ch))
     groups_x.append(group_x)
 # Para ver si está balanceado
 plt.figure()
@@ -549,7 +524,7 @@ axes[0].set_xlabel('Channel group selection', fontsize=15)
 axes[0].set_ylabel('Average correlation', fontsize=15)
 subax = axes[0].inset_axes([.05,.07,.6,.6])
 mne.viz.plot_sensors(
-                    info=info_mne,
+                    info=config.info_mne,
                     show_names=False,
                     block=False,
                     pointsize=35,
@@ -594,7 +569,7 @@ cbar.ax.tick_params(labelsize=15)
 fig.show()
 
 # Save figure
-if save_figures:
+if config.save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
     temp_path = os.path.join(path_distribution,'_'.join(sorted(short_stimuli)))
     os.makedirs(temp_path, exist_ok=True)
@@ -621,7 +596,7 @@ axes[0].set_xlabel('Channel group selection', fontsize=15)
 axes[0].set_ylabel('Average correlation', fontsize=15)
 subax = axes[0].inset_axes([.02,.07,.45,.45])
 mne.viz.plot_sensors(
-                    info=info_mne,
+                    info=config.info_mne,
                     show_names=False,
                     block=False,
                     pointsize=20,
@@ -665,7 +640,7 @@ cbar.ax.tick_params(labelsize=12)
 fig.show()
 
 # Save figure
-if save_figures:
+if config.save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
     temp_path = os.path.join(path_distribution,'_'.join(sorted(short_stimuli)))
     os.makedirs(temp_path, exist_ok=True)
@@ -692,7 +667,7 @@ axes[0].set_xlabel('Channel group selection', fontsize=15)
 axes[0].set_ylabel('Average correlation', fontsize=15)
 subax = axes[0].inset_axes([.35,.1,.7,.7])
 mne.viz.plot_sensors(
-                    info=info_mne,
+                    info=config.info_mne,
                     show_names=False,
                     block=False,
                     pointsize=35,
@@ -731,7 +706,7 @@ cbar.ax.tick_params(labelsize=15)
 fig.show()
 
 # Save figure
-if save_figures:
+if config.save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
     temp_path = os.path.join(path_distribution,'_'.join(sorted(short_stimuli)))
     os.makedirs(temp_path, exist_ok=True)
@@ -752,11 +727,11 @@ path_correlation_heatmaps = os.path.join(path_figures,'correlation_heatmaps')
 
 # Relevant parameters
 bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
-stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Mfccs', 'Phonemes-Discrete-Phonet', 'Phonological'] # 'Envelope_Phonemes-Discrete-Manual'
+stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Mfccs', 'Phonemes-Discrete-Phonet', 'Phonological'] 
 n_stims, n_bands = len(stimuli), len(bands)
 
 # Get mean correlations across subjects and total max and min
-correlations = {(stim,band):load_pickle(path=os.path.join(final_corr_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
+correlations = {(stim,band):load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
 minimum_cor, maximum_cor = min([correlation.mean() for correlation in correlations.values()]), max([correlation.mean() for correlation in correlations.values()])
 
 z = np.zeros(shape=(len(bands),len(stimuli)))
@@ -785,17 +760,13 @@ cbar.ax.tick_params(labelsize=15)
 fig.show()
 
 # Save figure
-if save_figures:
+if config.save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
     temp_path = os.path.join(path_correlation_heatmaps,'_'.join(sorted(short_stimuli)))
     os.makedirs(temp_path, exist_ok=True)
     fig.savefig(os.path.join(temp_path, f'heatmap_corr.png'), dpi=600,
                 transparent=True,
                   edgecolor='none')
-    fig.savefig(os.path.join(temp_path, f'heatmap_corr.svg'),
-                transparent=True,
-                  edgecolor='none')
-    
 plt.close()
 
 # # ===================
@@ -815,7 +786,7 @@ plt.close()
 # # Iterate over bands
 # for i, band in enumerate(bands):
 #     info = load_pickle(path=os.path.join(preprocesed_data_path, band, 'EEG/info.pkl'))  #TODO check path
-#     data = load_pickle(path=os.path.join(final_corr_path, band, stimulus +'.pkl'))
+#     data = load_pickle(path=os.path.join(correlations_path, band, stimulus +'.pkl'))
 #     avg_corr[band] = data['average_correlation_subjects'].mean(axis=0) # TODO CHECK mean if correct axis
     
 #     # Make topomap
@@ -851,7 +822,6 @@ plt.close()
 # if save_figures:
 #     os.makedirs(path_violin, exist_ok=True)
 #     plt.savefig(os.path.join(path_violin, f'{stimulus}.png'))
-#     plt.savefig(os.path.join(path_violin, f'{stimulus}.svg'))
 # plt.close()
 
 # # # ===================
@@ -926,7 +896,6 @@ plt.close()
 # # if Save_fig:
 # #     os.makedirs(Run_graficos_path, exist_ok=True)
 # #     plt.savefig(Run_graficos_path + '{}.png'.format(stim))
-# #     plt.savefig(Run_graficos_path + '{}.svg'.format(stim))
 
 # # # =======================
 # # # WILCOXON TEST TOPOPLOTS
@@ -1016,7 +985,6 @@ plt.close()
 # #         if Save_fig:
 # #             os.makedirs(Run_graficos_path, exist_ok=True)
 # #             plt.savefig(Run_graficos_path + f'pval_{sit1}-{sit2}.png'.format(Band))
-# #             plt.savefig(Run_graficos_path + f'pval_{sit1}-{sit2}.svg'.format(Band))
 
 # #     elif stat_test == 'log':
 # #         log_pval = np.log10(pval)
@@ -1042,7 +1010,6 @@ plt.close()
 # #         if Save_fig:
 # #             os.makedirs(Run_graficos_path, exist_ok=True)
 # #             plt.savefig(Run_graficos_path + f'pval_{sit1}-{sit2}.png'.format(Band))
-# #             plt.savefig(Run_graficos_path + f'pval_{sit1}-{sit2}.svg'.format(Band))
 
 # #         # Plot statistic
 # #         fig, ax = plt.subplots()
@@ -1057,7 +1024,6 @@ plt.close()
 # #         if Save_fig:
 # #             os.makedirs(Run_graficos_path, exist_ok=True)
 # #             plt.savefig(Run_graficos_path + f'stat_{sit1}-{sit2}.png'.format(Band))
-# #             plt.savefig(Run_graficos_path + f'stat_{sit1}-{sit2}.svg'.format(Band))
 
 # #     elif stat_test == 'cohen':
 # #         cohen_ds = []
@@ -1081,7 +1047,6 @@ plt.close()
 # #         if Save_fig:
 # #             os.makedirs(Run_graficos_path, exist_ok=True)
 # #             plt.savefig(Run_graficos_path + f'cohen_{sit1}-{sit2}.png'.format(Band))
-# #             plt.savefig(Run_graficos_path + f'cohen_{sit1}-{sit2}.svg'.format(Band))
 
 
 # # # ===================
@@ -1117,7 +1082,6 @@ plt.close()
 # # if Save_fig:
 # #     os.makedirs(Run_graficos_path, exist_ok=True)
 # #     plt.savefig(Run_graficos_path + '{}.png'.format(Band))
-# #     plt.savefig(Run_graficos_path + '{}.svg'.format(Band))
 
 # # # Box plot
 # # # my_pal = {'All': 'C0', 'Delta': 'C0', 'Theta': 'C0', 'Alpha': 'C0', 'Beta1': 'C0'}
@@ -1144,7 +1108,6 @@ plt.close()
 # # if Save_fig:
 # #     os.makedirs(Run_graficos_path, exist_ok=True)
 # #     plt.savefig(Run_graficos_path + '{}.png'.format(Band))
-# #     plt.savefig(Run_graficos_path + '{}.svg'.format(Band))
 # # # ==========================
 # # ## Violin Plot Situation
 
@@ -1336,7 +1299,6 @@ plt.close()
 # # if Save_fig:
 # #     os.makedirs(Run_graficos_path, exist_ok=True)
 # #     plt.savefig(Run_graficos_path + '{}.png'.format(stim))
-# #     plt.savefig(Run_graficos_path + '{}.svg'.format(stim))
 
 # # for Band in Bands:
 # #     print(f'\n{Band}')
@@ -1468,7 +1430,7 @@ band = 'Theta'
 stimulus = 'Envelope'
 
 # Get average weights across subjects
-weights = load_pickle(path=os.path.join(weights_path, band, stimulus, 'total_weights_per_subject.pkl'))['average_weights_subjects'].mean(axis=0).mean(axis=1)
+weights = load_pickle(path=os.path.join(mtrf_path, band, stimulus, 'total_weights_per_subject.pkl'))['average_weights_subjects'].mean(axis=0).mean(axis=1)
 # weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1) #-mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1).mean(axis=0)
 
 # Create figure and title
@@ -1479,8 +1441,8 @@ fig, axes = plt.subplots(
                         layout="constrained"
                         )
 fig.suptitle('Envelope-Theta weights')
-evoked = mne.EvokedArray(data=weights, info=info_mne)
-evoked.shift_time(times[0], relative=True)
+evoked = mne.EvokedArray(data=weights, info=config.info_mne)
+evoked.shift_time(config.times[0], relative=True)
 evoked.plot(
             scalings={'eeg':1}, 
             zorder='std', 
@@ -1493,7 +1455,7 @@ evoked.plot(
             axes=axes
             )
 axes.plot(
-        times*1000, #ms
+        config.times*1000, #ms
         evoked._data.mean(0), 
         'k-', 
         label='Mean', 
@@ -1514,11 +1476,10 @@ for item in ([axes.title, axes.xaxis.label, axes.yaxis.label] +
 fig.show()
 
 # Save figure
-if save_figures:
+if config.save_figures:
     temp_path = os.path.join(path_specific_weights, stimulus)
     os.makedirs(temp_path, exist_ok=True)
     fig.savefig(os.path.join(temp_path, f'{stimulus}_{band}.png'), dpi=600, transparent=True)
-    fig.savefig(os.path.join(temp_path, f'{stimulus}_{band}.svg'), transparent=True)
 plt.close()
 
 #========================
@@ -1529,7 +1490,7 @@ band = 'Theta'
 stimulus = 'Phonemes-Discrete-Phonet'
 
 # Get average weights across subjects
-weights_unordered = load_pickle(path=os.path.join(weights_path, band, stimulus, 'total_weights_per_subject.pkl'))['average_weights_subjects'].mean(axis=0).mean(axis=0)
+weights_unordered = load_pickle(path=os.path.join(mtrf_path, band, stimulus, 'total_weights_per_subject.pkl'))['average_weights_subjects'].mean(axis=0).mean(axis=0)
 phonemes_index_exclude = [exp_info.ph_labels_phonet[:-1].index(el) for el in ['Z', 'S', 'J', 'L', 'sil']]
 indexes_vocals = [exp_info.ph_labels_phonet[:-1].index(el) for el in ['a','o','e','i','u']]
 
@@ -1540,7 +1501,7 @@ weights[np.arange(weights_unordered.shape[0])[5:]] = weights_unordered[[el for e
 
 phonemes_labels = ['a','o','e','i','u'] + [el for el in exp_info.ph_labels_phonet[:-1] if el not in ['a','o','e','i','u']+['Z', 'S', 'J', 'L', 'sil']]
 # phonemes_labels = exp_info.ph_labels_phonet[:-1]
-# weights = load_pickle(path=os.path.join(weights_path, band, stimulus, 'total_weights_per_subject.pkl'))['average_weights_subjects'].mean(axis=0).mean(axis=0)
+# weights = load_pickle(path=os.path.join(mtrf_path, band, stimulus, 'total_weights_per_subject.pkl'))['average_weights_subjects'].mean(axis=0).mean(axis=0)
 # Create figure and title
 fig, axes = plt.subplots(
                         # figsize=(3*n_stims,1.5*n_bands), 
@@ -1552,7 +1513,7 @@ fig.suptitle('Phonemes-Theta weights')
 
 # Create colormesh figure
 im = axes.pcolormesh(
-                    times*1000,
+                    config.times*1000,
                     np.arange(weights.shape[0]), 
                     weights, 
                     cmap='RdBu', 
@@ -1582,10 +1543,9 @@ for item in ([axes.title, axes.xaxis.label, axes.yaxis.label] +
 fig.show()
 
 # Save figure
-if save_figures:
+if config.save_figures:
     temp_path = os.path.join(path_specific_weights, stimulus)
     os.makedirs(temp_path, exist_ok=True)
     fig.savefig(os.path.join(temp_path, f'{stimulus}_{band}.png'), dpi=600, transparent=True)
-    fig.savefig(os.path.join(temp_path, f'{stimulus}_{band}.svg'), transparent=True)
 plt.close()
 
