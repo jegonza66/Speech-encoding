@@ -1,13 +1,14 @@
 # Standard libraries
-import numpy as np
+import numpy as np, mne
+mne.set_log_level(verbose='WARNING')
 
 # Specific libraries
 from mne.decoding import ReceptiveField, TimeDelayingRidge
 from sklearn.linear_model import Ridge
+# from joblib import Parallel, delayed
 
 # Modules
-from processing import Normalize, Standarize, shifted_matrix
-import config
+from processing import Normalize, Standarize
 
 class TimeDelayingRidgeRegression(TimeDelayingRidge):
     def __init__(
@@ -207,9 +208,11 @@ class TimeDelayingRidgeRegression(TimeDelayingRidge):
         return X_train, y_train, X_pred, y_test
 
 class RidgeRegression(Ridge):
-    def __init__(self, relevant_indexes:np.ndarray=None, train_indexes:np.ndarray=None, 
-                 test_indexes:np.ndarray=None, stims_preprocess:str='Normalize', eeg_preprocess:str='Standarize', 
-                 alpha=1.0, fit_intercept=False, shuffle:bool=False):
+    def __init__(
+        self, relevant_indexes:np.ndarray=None, train_indexes:np.ndarray=None, 
+        test_indexes:np.ndarray=None, stims_preprocess:str='Normalize', eeg_preprocess:str='Standarize', 
+        alpha=1.0, fit_intercept:bool=False, shuffle:bool=False, validation:bool=False, n_jobs:int=-1
+        ):
         """
         Initialize the RidgeRegression model.
 
@@ -236,22 +239,26 @@ class RidgeRegression(Ridge):
         -------
         None
         """
-        super().__init__(alpha=alpha, fit_intercept=fit_intercept)
+        super().__init__(alpha=alpha, fit_intercept=fit_intercept, solver='auto')
         self.relevant_indexes = relevant_indexes
         self.train_indexes = train_indexes
         self.test_indexes = test_indexes
         self.stims_preprocess = stims_preprocess
         self.eeg_preprocess = eeg_preprocess
         self.shuffle = shuffle
+        self.validation = validation
+        self.n_jobs = n_jobs
 
-    def fit(self, X, y):
+    def fit(
+        self, X, y
+        ):
         """
         Fit the model according to the given training data.
 
         Parameters
         ----------
         X : np.ndarray
-            Training data, shape (n_samples, n_features).
+            Training data, shape (n_samples, n_features, n_delays).
         y : np.ndarray
             Target values, shape (n_samples, n_channels).
 
@@ -264,11 +271,7 @@ class RidgeRegression(Ridge):
         ------
         ValueError
             If the input arrays have inconsistent numbers of samples.
-        """
-        # Make design matrix
-        design_matrix = shifted_matrix(X, delays=config.delays) # samples, features, delays
-        X = design_matrix.reshape(X.shape[0], X.shape[1]*len(config.delays)) # samples, features*delays
-        
+        """        
         # Get relevant indexes
         X_r, y_r= X[self.relevant_indexes], y[self.relevant_indexes] 
         del X, y
@@ -327,8 +330,10 @@ class RidgeRegression(Ridge):
                                                                                 y_test=y_test
                                                                                 )
             return super().fit(X_train, y_train)
-        
-    def predict(self, X):
+
+    def predict(
+        self, X
+        ):
         """
         Predict the response for the given input data.
 
@@ -353,15 +358,16 @@ class RidgeRegression(Ridge):
         # Padd with zeros to make it compatible with desired shape of mne.ReceptiveField.predict()
         y_pred_full = np.zeros(shape=(n_samples, y_restricted_prediction.shape[-1]))
         if self.validation:
-            y_pred_full[self.train_indexes] = y_restricted_prediction
-            y_pred_full[self.train_cutoff:] # Notice that the filter is train_cutoff: because the following indexes are the one used for prediction
+            y_pred_full[self.train_indexes[self.train_cutoff:], :] = y_restricted_prediction # Notice that the filter is train_cutoff: because the following indexes are the one used for prediction
         else:
             y_pred_full[self.test_indexes] = y_restricted_prediction
 
         # When used relevant indexes must be filtered once again
         return y_pred_full
     
-    def standarize_normalize(self, X_train:np.ndarray, X_pred:np.ndarray, y_train:np.ndarray, y_test:np.ndarray):
+    def standarize_normalize(
+        self, X_train:np.ndarray, X_pred:np.ndarray, y_train:np.ndarray, y_test:np.ndarray
+        ):
         """Standarize|Normalize training and test data.
         Parameters
         ----------
@@ -488,6 +494,7 @@ class Receptive_field_adaptation:
                                                             stims_preprocess=stims_preprocess, 
                                                             eeg_preprocess=eeg_preprocess,
                                                             fit_intercept=fit_intercept,
+                                                            n_jobs=n_jobs,
                                                             shuffle=shuffle,
                                                             validation=validation
                                                             ),
@@ -503,7 +510,7 @@ class Receptive_field_adaptation:
         Parameters
         ----------
         stims : np.ndarray
-            The input stimuli data, shape (n_samples, n_features).
+            The input stimuli data, shape (n_samples, n_features*n_delays). Mne should create the design matrix before performing this fit.
         eeg : np.ndarray
             The EEG response data, shape (n_samples, n_channels).
 

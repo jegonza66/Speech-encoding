@@ -55,7 +55,7 @@ if __name__=="__main__":
     import scipy.io.wavfile as wavfile
     from scipy import signal as sgn
     import processing
-    wav_file = r'C:\repos\Speech-encoding\repo_speech_encoding\Datos\wavs\S21\s21.objects.01.channel1.wav'
+    wav_file = r'Datos\wavs\S21\s21.objects.01.channel1.wav'
     # Read file
     wav = wavfile.read(wav_file)[1]
     wav = wav.astype("float")
@@ -73,7 +73,7 @@ if __name__=="__main__":
     phonet_labels = [el if el!='<p:>' else '' for el in Exp_info().ph_labels_phonet]
 
     # Check if given kind is a permited input value
-    kind = 'Phonemes-Envelope-Phonet'
+    kind = 'Phonemes-Discrete-Phonet'
     allowed_kind = ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
     if kind not in allowed_kind:
         raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
@@ -118,5 +118,6 @@ if __name__=="__main__":
         for i, tagg in enumerate(phonemes_onset):
             if tagg!=0:
                 phonemes[i, phonet_labels.index(tagg)] = 1
+    print(phonemes)
     # return phonemes
 

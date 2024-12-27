@@ -7,7 +7,7 @@ from sklearn.model_selection import KFold
 
 # Modules
 from funciones import load_pickle, dump_pickle, dict_to_csv, Suppress_print
-from simulations import simulation_mtrf
+from model_parallelization import simulation_mtrf
 from load import load_data
 import config
 

@@ -188,14 +188,14 @@ def standarize_normalize(eeg_train_val, eeg_test, dstims_train_val, dstims_test,
     return eeg_train_val, eeg_test, dstims_train_val, dstims_test
 
 def shifted_matrix(features:np.ndarray, delays:np.ndarray):
-    """Computes shifted matrix for a given array of delayes
+    """Computes shifted matrix for a given array of delays
 
     Parameters
     ----------
     features : array, shape (n_times[, n_epochs], n_features) or list of length n_times
         The time series to delay must be 2D or 3D if array.
     delays : np.ndarray
-        Index delayes
+        Index delays
 
     Returns
     -------
