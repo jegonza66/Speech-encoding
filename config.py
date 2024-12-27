@@ -4,7 +4,7 @@ import numpy as np, mne
 # SESSIONS, STIMULI, SITUATION AND EEG BANDS
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 stimuli = [
-            'Phonological', 
+            'Phonemes-Discrete-Phonet', 
            ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situation = 'External' # 'External' #'External' # 'Internal' # 'External_BS' #'Internal_BS'
 bands = [
@@ -14,6 +14,14 @@ bands = [
         'Beta1', 
         'Beta2'
         ] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
+bands = ['Theta']
+
+# ==========================================
+# MODEL AND NORMALIZATION OF STIMULI AND EEG
+model, estimator = 'mtrf', 'ridge' # ridge or time_delaying_ridge
+if estimator=='ridge':
+	model = 'mtrf_ridge'
+stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 
 # ====================================================================
 # TFCE, T-TEST PARAMETERS, HIERARCHICAL_CLUSTERING and NUMBER OF FOLDS
@@ -24,9 +32,9 @@ n_folds = 5 # with 5 folds (remain 20% as validation set, then interchange to cr
 # ==========================================
 # LOADING/SAVING DATA, FIGURE CONFIGURATIONS
 praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
-display_interactive_mode, save_results, save_figures = False, True, True
+display_interactive_mode, save_results, save_figures, no_figures = False, True, True, False
+figure_format = '.png'
 just_load_data = False
-no_figures = False
 
 # =====================
 # VALIDATION PARAMETERS
@@ -46,11 +54,6 @@ power_n_bootstrap_samples = 1000
 # STATISTICAL TEST
 significance_threshold = 0.05/128 # Bonferroni correction (the test is in # channels)
 statistical_test = False
-
-# ==========================================
-# MODEL AND NORMALIZATION OF STIMULI AND EEG
-model, estimator = 'mtrf', 'time_delaying_ridge' # ridge or time_delaying_ridge
-stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 
 # ==============================
 # DEFAULT PENALIZATION PARAMETER 
@@ -76,25 +79,25 @@ class Exp_info:
         
         Attributes
         ----------
-                ph_labels : list
-                        A list of phoneme labels.
-                ph_labels_man : list
-                        A list of manually labeled phonemes.
-                ph_labels_phonet : list
-                        A list of phonemes labeled using phonetic transcription.
-                ph_labels_phonet_ordered : list
-                        An ordered list of phonemes labeled using phonetic transcription.
-                mistakes : list
-                        A list of types of mistakes.
-                control : list
-                        A list of control categories.
-                phonological_labels : dict
-                        A dictionary categorizing phonemes into various phonological features.
+			ph_labels : list
+					A list of phoneme labels.
+			ph_labels_man : list
+					A list of manually labeled phonemes.
+			ph_labels_phonet : list
+					A list of phonemes labeled using phonetic transcription.
+			ph_labels_phonet_ordered : list
+					An ordered list of phonemes labeled using phonetic transcription.
+			mistakes : list
+					A list of types of mistakes.
+			control : list
+					A list of control categories.
+			phonological_labels : dict
+					A dictionary categorizing phonemes into various phonological features.
                         
         Methods
         -------
-                __init__():
-                        Initializes the Exp_info class with predefined phoneme labels, mistake types, control categories, and phonological features.
+			__init__():
+					Initializes the Exp_info class with predefined phoneme labels, mistake types, control categories, and phonological features.
         """
          # Define ctf data path and files path
         self.ph_labels = ['CH', 'NY', 'R', 'a', 'b', 'd', 'e', 'f', 'g', 'i', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 's', 't', 'u', 'x', 'y']
