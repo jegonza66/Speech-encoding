@@ -477,7 +477,7 @@ class Trial_channel:
             Envelope of the audio signal using Hilbert transform
         kind : str, optional
            Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
-            []'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
+            ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
 
         Returns
         -------
