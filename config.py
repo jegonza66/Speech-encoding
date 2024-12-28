@@ -18,7 +18,7 @@ bands = ['Theta']
 
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
-model, estimator = 'mtrf', 'ridge' # ridge or time_delaying_ridge
+statistical_test, model, estimator = True, 'mtrf', 'ridge' # ridge or time_delaying_ridge
 if estimator=='ridge':
 	model = 'mtrf_ridge'
 stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
@@ -49,11 +49,7 @@ save_alphas = True
 random_permutations = 200
 correlation_length_samples = 104
 power_n_bootstrap_samples = 1000
-
-# ================
-# STATISTICAL TEST
 significance_threshold = 0.05/128 # Bonferroni correction (the test is in # channels)
-statistical_test = False
 
 # ==============================
 # DEFAULT PENALIZATION PARAMETER 
