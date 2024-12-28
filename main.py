@@ -147,38 +147,40 @@ for band in config.bands:
                 # Keep relevant indexes for eeg
                 relevant_eeg = eeg[relevant_indexes]
                 
-                # # Run folds simultaneously
-                # results = Parallel(n_jobs=-1, verbose=0)(delayed(parallel_fold_model)(
-                #                                                                 fold=fold,
-                #                                                                 alpha=alpha,
-                #                                                                 stims=stims,
-                #                                                                 eeg=eeg,
-                #                                                                 relevant_indexes=relevant_indexes,
-                #                                                                 train_indexes=train_indexes,
-                #                                                                 test_indexes=test_indexes,
-                #                                                                 validation=False,
-                #                                                                 statistical_test=config.statistical_test,
-                #                                                                 path_null=path_null,
-                #                                                                 session=sesion,
-                #                                                                 subject=sujeto,                              
-                #                                                                 ) for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)))
-                results = []
-                for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
-                    print(fold)
-                    results.append(parallel_fold_model(
-                                                    fold=fold,
-                                                    alpha=alpha,
-                                                    stims=stims,
-                                                    eeg=eeg,
-                                                    relevant_indexes=relevant_indexes,
-                                                    train_indexes=train_indexes,
-                                                    test_indexes=test_indexes,
-                                                    validation=False,
-                                                    statistical_test=config.statistical_test,
-                                                    path_null=path_null,
-                                                    session=sesion,
-                                                    subject=sujeto,                              
-                                                    ))
+                # Run folds simultaneously
+                results = Parallel(n_jobs=-1, verbose=0)(delayed(parallel_fold_model)(
+                                                                                fold=fold,
+                                                                                alpha=alpha,
+                                                                                stims=stims,
+                                                                                eeg=eeg,
+                                                                                relevant_indexes=relevant_indexes,
+                                                                                train_indexes=train_indexes,
+                                                                                test_indexes=test_indexes,
+                                                                                validation=False,
+                                                                                statistical_test=config.statistical_test,
+                                                                                path_null=path_null,
+                                                                                session=sesion,
+                                                                                subject=sujeto,                              
+                                                                                ) for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg))
+                                                        )
+                # results = []
+                # for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
+                #     print(fold)
+                #     results.append(parallel_fold_model(
+                #                                     fold=fold,
+                #                                     alpha=alpha,
+                #                                     stims=stims,
+                #                                     eeg=eeg,
+                #                                     relevant_indexes=relevant_indexes,
+                #                                     train_indexes=train_indexes,
+                #                                     test_indexes=test_indexes,
+                #                                     validation=False,
+                #                                     statistical_test=config.statistical_test,
+                #                                     path_null=path_null,
+                #                                     session=sesion,
+                #                                     subject=sujeto,                              
+                #                                     )
+                #                   )
                 for result in results:
                     fold, weights, correlation_matrix, root_mean_square_error = result[:4]
                     
