@@ -2,7 +2,7 @@ import numpy as np, mne
 
 # ==========================================
 # SESSIONS, STIMULI, SITUATION AND EEG BANDS
-sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
+sesiones = [21]#, 22, 23, 24, 25, 26, 27, 29, 30]
 stimuli = [
             'Envelope', 
            ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
@@ -18,7 +18,7 @@ bands = ['Theta']
 
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
-statistical_test, model, estimator = True, 'mtrf', 'ridge' # ridge or time_delaying_ridge
+statistical_test, model, estimator = False, 'mtrf', 'ridge' # ridge or time_delaying_ridge
 if estimator=='ridge':
 	model = 'mtrf_ridge'
 stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'

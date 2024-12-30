@@ -3,13 +3,13 @@ import numpy as np, pandas as pd, os, warnings
 
 # Specific libraries
 import mne, librosa, opensmile, textgrids, scipy.io.wavfile as wavfile
-from phonet.phonet import Phonet# TODO Solve KALDI_ROOT when parsing
+# from phonet.phonet import Phonet# TODO Solve KALDI_ROOT when parsing
 from praatio import pitch_and_intensity
 from scipy import signal as sgn
 
 # Modules
 import processing, funciones, config
-from phoneme_implementation_from_phonet import Phoenemes
+# from phoneme_implementation_from_phonet import Phoenemes
 
 # Review this If we want to update packages
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -467,85 +467,85 @@ class Trial_channel:
         shimmer = shimmer[:min(len(shimmer), len(envelope))].reshape(-1,1)
         return jitter, shimmer
     
-    def f_phonemes_phonet(self, envelope:np.ndarray, kind:str='Phonemes-Discrete-Phonet'):
-        """
-        It makes a time-match matrix between the phonemes and the envelope using Phonet implementation. The values and shape of given matrix depend on kind.
+    # def f_phonemes_phonet(self, envelope:np.ndarray, kind:str='Phonemes-Discrete-Phonet'):
+    #     """
+    #     It makes a time-match matrix between the phonemes and the envelope using Phonet implementation. The values and shape of given matrix depend on kind.
 
-        Parameters
-        ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform
-        kind : str, optional
-           Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
-            ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
+    #     Parameters
+    #     ----------
+    #     envelope : np.ndarray
+    #         Envelope of the audio signal using Hilbert transform
+    #     kind : str, optional
+    #        Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
+    #         ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
 
-        Returns
-        -------
-        np.ndarray
-            if kind.startswith('Phonemes-Envelope'):
-                Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhonemes_labels(in order)
-            elif kind.startswith('Phonemes-Discrete'):
-                Also a matrix but it has 1s and 0s instead of envelope amplitude.
-            elif kind.startswith('Phonemes-Onset'):
-                In this case the value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
+    #     Returns
+    #     -------
+    #     np.ndarray
+    #         if kind.startswith('Phonemes-Envelope'):
+    #             Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhonemes_labels(in order)
+    #         elif kind.startswith('Phonemes-Discrete'):
+    #             Also a matrix but it has 1s and 0s instead of envelope amplitude.
+    #         elif kind.startswith('Phonemes-Onset'):
+    #             In this case the value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
             
-        Raises
-        ------
-        SyntaxError
-            Whether the input value of 'kind' is passed correctly. It must be a one of:
-            ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet'].
-        """
-        # Get phonet labels
-        phonet_labels = [el if el!='<p:>' else '' for el in exp_info.ph_labels_phonet]
+    #     Raises
+    #     ------
+    #     SyntaxError
+    #         Whether the input value of 'kind' is passed correctly. It must be a one of:
+    #         ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet'].
+    #     """
+    #     # Get phonet labels
+    #     phonet_labels = [el if el!='<p:>' else '' for el in exp_info.ph_labels_phonet]
 
-        # Check if given kind is a permited input value
-        allowed_kind = ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
-        if kind not in allowed_kind:
-            raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
+    #     # Check if given kind is a permited input value
+    #     allowed_kind = ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
+    #     if kind not in allowed_kind:
+    #         raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
 
-        # Extract phonemes
-        phoneme_obj = Phoenemes(audio_file=self.wav_fname)
-        _,  sec_phonemes = phoneme_obj.compute_phonemes() 
+    #     # Extract phonemes
+    #     phoneme_obj = Phoenemes(audio_file=self.wav_fname)
+    #     _,  sec_phonemes = phoneme_obj.compute_phonemes() 
         
-        # Relabel silences
-        sec_phonemes = [phon if phon!='<p:>' else '' for phon in sec_phonemes]
+    #     # Relabel silences
+    #     sec_phonemes = [phon if phon!='<p:>' else '' for phon in sec_phonemes]
 
-        # Match features length
-        difference = len(sec_phonemes) - len(envelope)
+    #     # Match features length
+    #     difference = len(sec_phonemes) - len(envelope)
 
-        if difference > 0:
-            sec_phonemes = sec_phonemes[:-difference]
-        elif difference < 0:
-            # In this case, silences are append
-            for i in range(np.abs(difference)):
-                sec_phonemes.append('')
+    #     if difference > 0:
+    #         sec_phonemes = sec_phonemes[:-difference]
+    #     elif difference < 0:
+    #         # In this case, silences are append
+    #         for i in range(np.abs(difference)):
+    #             sec_phonemes.append('')
         
-        # # Make a list with phoneme labels tha already are in the known set
-        # updated_taggs = np.unique(sec_phonemes).tolist()
+    #     # # Make a list with phoneme labels tha already are in the known set
+    #     # updated_taggs = np.unique(sec_phonemes).tolist()
 
-        # Make empty array of phonemes
-        phonemes = np.zeros(shape=(len(sec_phonemes), len(phonet_labels)))
+    #     # Make empty array of phonemes
+    #     phonemes = np.zeros(shape=(len(sec_phonemes), len(phonet_labels)))
         
-        # Match phoneme with kind
-        if kind.startswith('Phonemes-Envelope'):
-            for i, tagg in enumerate(sec_phonemes):
-                phonemes[i, phonet_labels.index(tagg)] = envelope[i]
-        elif kind.startswith('Phonemes-Discrete'):
-            for i, tagg in enumerate(sec_phonemes):
-                phonemes[i, phonet_labels.index(tagg)] = 1
-        elif kind.startswith('Phonemes-Onset'):
-            # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
-            phonemes_onset = [sec_phonemes[0]]
-            for i in range(1, len(sec_phonemes)):
-                if sec_phonemes[i] == sec_phonemes[i-1]:
-                    phonemes_onset.append(0)
-                else:
-                    phonemes_onset.append(sec_phonemes[i])
-            # Match phoneme with envelope
-            for i, tagg in enumerate(phonemes_onset):
-                if tagg!=0:
-                    phonemes[i, phonet_labels.index(tagg)] = 1
-        return phonemes
+    #     # Match phoneme with kind
+    #     if kind.startswith('Phonemes-Envelope'):
+    #         for i, tagg in enumerate(sec_phonemes):
+    #             phonemes[i, phonet_labels.index(tagg)] = envelope[i]
+    #     elif kind.startswith('Phonemes-Discrete'):
+    #         for i, tagg in enumerate(sec_phonemes):
+    #             phonemes[i, phonet_labels.index(tagg)] = 1
+    #     elif kind.startswith('Phonemes-Onset'):
+    #         # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
+    #         phonemes_onset = [sec_phonemes[0]]
+    #         for i in range(1, len(sec_phonemes)):
+    #             if sec_phonemes[i] == sec_phonemes[i-1]:
+    #                 phonemes_onset.append(0)
+    #             else:
+    #                 phonemes_onset.append(sec_phonemes[i])
+    #         # Match phoneme with envelope
+    #         for i, tagg in enumerate(phonemes_onset):
+    #             if tagg!=0:
+    #                 phonemes[i, phonet_labels.index(tagg)] = 1
+    #     return phonemes
 
     def f_phonemes(self, envelope:np.ndarray, kind:str='Phonemes-Envelope-Manual'):
         """
@@ -675,42 +675,42 @@ class Trial_channel:
                     phonemes[i, updated_taggs.index(tagg)] = 1
         return phonemes
 
-    def f_phonological_features(self, envelope:np.ndarray):
-        """
-        Retrive phonological features as a matrix matching envelope length, using Phonet implementation.
+    # def f_phonological_features(self, envelope:np.ndarray):
+    #     """
+    #     Retrive phonological features as a matrix matching envelope length, using Phonet implementation.
 
-        Parameters
-        ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform
+    #     Parameters
+    #     ----------
+    #     envelope : np.ndarray
+    #         Envelope of the audio signal using Hilbert transform
 
-        Returns
-        -------
-        np.ndarray
-            Matrix with phonological features with shape SAMPLES X FEATURES
-        """
-        # Define phonological instance and phonological features
-        phon_features = Phonet(["all"]).get_PLLR(audio_file=self.wav_fname, plot_flag=False)
-        # phon_features = Phonet(['all']).get_PLLR(audio_file=r'Datos/wavs/S21/s21.objects.01.channel1.wav', plot_flag=False)
+    #     Returns
+    #     -------
+    #     np.ndarray
+    #         Matrix with phonological features with shape SAMPLES X FEATURES
+    #     """
+    #     # Define phonological instance and phonological features
+    #     phon_features = Phonet(["all"]).get_PLLR(audio_file=self.wav_fname, plot_flag=False)
+    #     # phon_features = Phonet(['all']).get_PLLR(audio_file=r'Datos/wavs/S21/s21.objects.01.channel1.wav', plot_flag=False)
         
-        # Interpole data in desire times
-        desire_time = np.linspace(0, envelope.shape[0]/self.sr + 1/self.sr , envelope.shape[0])
-        # desire_time = np.linspace(0, envelope.shape[0]/128 + 1/128 , envelope.shape[0])
+    #     # Interpole data in desire times
+    #     desire_time = np.linspace(0, envelope.shape[0]/self.sr + 1/self.sr , envelope.shape[0])
+    #     # desire_time = np.linspace(0, envelope.shape[0]/128 + 1/128 , envelope.shape[0])
 
-        # Get feature names
-        phon_features_names = [feat for feat in phon_features.columns if feat!='time']
+    #     # Get feature names
+    #     phon_features_names = [feat for feat in phon_features.columns if feat!='time']
         
-        phonological_features = []
-        for phon_feat in phon_features_names:
-            phonological_features.append(np.interp(
-                                                desire_time, 
-                                                phon_features['time'].values, 
-                                                phon_features[f'{phon_feat}'].values
-                                                )
-                                        )
+    #     phonological_features = []
+    #     for phon_feat in phon_features_names:
+    #         phonological_features.append(np.interp(
+    #                                             desire_time, 
+    #                                             phon_features['time'].values, 
+    #                                             phon_features[f'{phon_feat}'].values
+    #                                             )
+    #                                     )
         
-        # Return data in desired shape
-        return np.stack(phonological_features, axis=0).T
+    #     # Return data in desired shape
+    #     return np.stack(phonological_features, axis=0).T
 
     def f_pitch(self, envelope:np.ndarray, kind:str): 
         """

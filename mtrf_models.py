@@ -480,8 +480,8 @@ class Receptive_field_adaptation:
                                                                         shuffle=shuffle,
                                                                         validation=validation
                                                                         ),
-                                     scoring='corrcoef', 
-                                     verbose=False)
+                                     scoring='corrcoef'
+                                     )
         else:
             self.rf = ReceptiveField(tmin=tmin, 
                                      tmax=tmax, 
@@ -498,8 +498,7 @@ class Receptive_field_adaptation:
                                                             shuffle=shuffle,
                                                             validation=validation
                                                             ),
-                                     scoring='corrcoef', 
-                                     verbose=False)
+                                     scoring='corrcoef')
    
     def fit(
         self, stims, eeg

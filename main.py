@@ -15,7 +15,7 @@ from load import load_data
 import config, plot
 
 # Notification bot
-from labos.notificacion_bot import mensaje_tel
+# from labos.notificacion_bot import mensaje_tel
 api_token, chat_id = '5448153732:AAGhKraJQquEqMfpD3cb4rnTcrKB6U1ViMA', 1034347542
 
 # ============
@@ -534,6 +534,6 @@ dict_to_csv(
             )
 
 # Send text to telegram bot
-with Suppress_print():
-    mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=text)
+# with Suppress_print():
+    # mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=text)
 print(text)
