@@ -9,12 +9,12 @@ from praatio import pitch_and_intensity
 from disvoice.phonological.phonological import Phonological
 
 # Modules
-import processing, funciones, setup
+import processing, funciones, config
 
 # Review this If we want to update packages
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 mne.set_log_level(verbose='CRITICAL')
-exp_info = setup.exp_info()
+exp_info = config.Exp_info()
 
 # Modules
 from funciones  import load_pickle, dump_pickle

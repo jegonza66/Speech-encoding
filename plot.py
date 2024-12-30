@@ -27,8 +27,7 @@ matplotlib_colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purp
 
 # Modules
 from processing import clustering_by_correlation
-import funciones, setup
-exp_info = setup.exp_info()
+import funciones, config
 
 # ===================
 # Auxiliary functions
@@ -46,7 +45,7 @@ def define_ticks(axes, number_of_ticks:int, ylabel:str, xlabel:str='Time (ms)', 
         Label of the axes
     """
     # Load specific names of ticks
-    exp_info = setup.exp_info()
+    exp_info = config.Exp_info()
 
     if ylabel.startswith('Phonological'):
         axes.tick_params(axis='both', labelsize='medium') 
@@ -67,10 +66,6 @@ def define_ticks(axes, number_of_ticks:int, ylabel:str, xlabel:str='Time (ms)', 
         else:
             tags = exp_info.ph_labels
         ticks = np.arange(number_of_ticks)
-    
-    # Filter zeros and reorder tags
-    tags = tags if zeros_index is None else [tags[i] for i in range(len(tags)) if i not in zeros_index]
-    tags = tags if order is None else [tags[i] for i in order]
     
     # Frecuency correlated features are treated differently
     if ylabel.startswith('Spectrogram'):
@@ -96,6 +91,11 @@ def define_ticks(axes, number_of_ticks:int, ylabel:str, xlabel:str='Time (ms)', 
         ticks = np.arange(0, number_of_ticks, 2)
         ylabel= f"{ylabel}'s Index"
         tags = tags[::2]
+    else:
+        # Filter zeros and reorder tags
+        tags = tags if zeros_index is None else [tags[i] for i in range(len(tags)) if i not in zeros_index]
+        tags = tags if order is None else [tags[i] for i in order]
+    
     if title is None:
         axes.set(xlabel=xlabel, ylabel=ylabel, yticks=ticks, yticklabels=tags)
     else:
@@ -170,17 +170,17 @@ def phonemes_ocurrences(ocurrences:dict,
             # This is done to avoid working with long paths
             temp_path = os.path.normpath(save_path)
             os.chdir(temp_path)
-            fig.savefig(f'{stimulus}_ocurrences.png')
-            fig.savefig(f'{stimulus}_ocurrences.svg')
+            fig.savefig(f'{stimulus}_ocurrences{config.figure_format}')
             os.chdir(current_working_directory)
             
 
 # TODO HALF CHECK
 def null_correlation_vs_correlation_good_channels(good_channels_indexes:np.ndarray,
-                         average_correlation:np.ndarray, 
                          save_path:str,
                          correlation_per_channel:np.ndarray, 
                          null_correlation_per_channel:np.ndarray,
+                         power_correlation:float,
+                         power_rmse:float,
                          save:bool=False, 
                          display_interactive_mode:bool=False, 
                          session:int=21, 
@@ -219,56 +219,75 @@ def null_correlation_vs_correlation_good_channels(good_channels_indexes:np.ndarr
         plt.ion()
     else:
         plt.ioff()
-
-    # Define minimum and maximum of null correlations
+    # Take average across folds
+    average_correlation = correlation_per_channel.mean(axis=0)
+    channels = np.arange(len(average_correlation))
+    
+    # Define minimum and maximum of null correlations (mins/max across all iterations, then across all folds, leaving min/max for each channel)
     null_correlation_per_channel_min = null_correlation_per_channel.min(axis=1).min(axis=0)
-    null_correlation_per_channel_max = null_correlation_per_channel.max(axis=1).max(axis=0)
+    null_correlation_per_channel_max = null_correlation_per_channel.max(axis=1).max(axis=0) 
 
     # Create figure and title
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(10,7), layout='tight')
-    fig.suptitle(f'Session {session} - Subject {subject}')
+    fig.suptitle(f'Session {session} - Subject {subject} - '+r'$Power_{corr} Test$' +f': {power_correlation:.2f}'+r'$Power_{rmse} Test$' +f': {power_rmse:.2f}')
 
     # Graph average correlation
-    ax.plot(average_correlation, '.', color='C0', label="Full mean of correlations among folds")
+    ax.plot(
+        average_correlation, 
+        '.', 
+        color='C0', 
+        label="Mean correlation across folds"
+        )
     if len(good_channels_indexes): 
-        ax.plot(good_channels_indexes, average_correlation[good_channels_indexes], '*', color='C1', label="Mean of correlations among folds (Test passed)")
+        ax.plot(good_channels_indexes, 
+                average_correlation[good_channels_indexes], 
+                '*', 
+                color='C1', 
+                label="Significant mean correlation across folds"
+                )
 
     # Add shadow between min and max
-    ax.fill_between(x=np.arange(len(average_correlation)), 
-                    y1=correlation_per_channel.min(axis=0),
-                    y2=correlation_per_channel.max(axis=0), 
-                    alpha=0.5,
-                    label='Correlation distribution (Real data)')
-    ax.fill_between(x=np.arange(len(average_correlation)), 
-                    y1=null_correlation_per_channel_min,
-                    y2=null_correlation_per_channel_max, 
-                    alpha=0.5,
-                    label='Correlation distribution (Random data)')
+    ax.fill_between(
+                x=channels, 
+                y1=correlation_per_channel.min(axis=0), # min across all folds
+                y2=correlation_per_channel.max(axis=0), 
+                alpha=0.5,
+                label='Correlation distribution (Real data)'
+                )
+    ax.fill_between(
+                x=channels, 
+                y1=null_correlation_per_channel_min,
+                y2=null_correlation_per_channel_max, 
+                alpha=0.5,
+                label='Correlation distribution (Random data)'
+                )
     
     # Graph properties
     ax.grid(visible=True)
-    ax.set(xlim=[-1, 129],
-           xlabel='Channels',
-           ylabel='Correlation')
+    ax.set(
+        xlim=[-1, 129],
+        xlabel='Channels',
+        ylabel='Correlation'
+        )
     ax.legend(loc="lower right")
 
     # If there are no good channels
     if not len(good_channels_indexes): 
-        plt.text(64, 
-                 np.max(abs(correlation_per_channel))/2, 
-                 "No surviving channels", 
-                 size='xx-large', 
-                 ha='center')
+        plt.text(
+                64,
+                np.max(abs(correlation_per_channel))/2, 
+                "No significant channels", 
+                size='xx-large', 
+                ha='center'
+                )
 
     # Wether graph is saved
     if save:
-        save_path += 'correlation_vs_null_correlation/'
-        os.makedirs(save_path, exist_ok=True)
+        temp_path = os.path.normpath(os.path.join(save_path,'correlation_vs_null_correlation'))
+        os.makedirs(temp_path, exist_ok=True)
         # This is done to avoid working with long paths
-        temp_path = os.path.normpath(save_path)
         os.chdir(temp_path)
-        fig.savefig(f'session{session}_subject{subject}.png')
-        fig.savefig(f'session{session}_subject{subject}.svg')
+        fig.savefig(f'session{session}_subject{subject}{config.figure_format}')
         os.chdir(current_working_directory)
 
 
@@ -331,8 +350,7 @@ def lateralized_channels(info:mne.Info,
         # This is done to avoid working with long paths
         temp_path = os.path.normpath(save_path)
         os.chdir(temp_path)
-        fig.savefig(f'masked_left_vs_right_chs_{len(channels_right)}_channels.png')
-        fig.savefig(f'masked_left_vs_right_chs_{len(channels_right)}_channels.svg')
+        fig.savefig(f'masked_left_vs_right_chs_{len(channels_right)}_channels{config.figure_format}')
         os.chdir(current_working_directory)
 
 #TODO CHECK DESCRIPTION
@@ -446,8 +464,7 @@ def topomap(good_channels_indexes:np.ndarray,
         # This is done to avoid working with long paths
         temp_path = os.path.normpath(save_path)
         os.chdir(temp_path)
-        fig.savefig(f'{coefficient_name.lower()}_topomap_session_{session}_subject_{subject}.png')
-        fig.savefig(f'{coefficient_name.lower()}_topomap_session_{session}_subject_{subject}.svg')
+        fig.savefig(f'{coefficient_name.lower()}_topomap_session_{session}_subject_{subject}{config.figure_format}')
         os.chdir(current_working_directory)
         
 
@@ -532,8 +549,7 @@ def average_topomap(average_coefficient_subjects:np.ndarray,
         # This is done to avoid working with long paths
         temp_path = os.path.normpath(save_path)
         os.chdir(temp_path)
-        fig.savefig(f'average_{coefficient_name.lower()}_topomap.png')
-        fig.savefig(f'average_{coefficient_name.lower()}_topomap.svg')
+        fig.savefig(f'average_{coefficient_name.lower()}_topomap{config.figure_format}')
         os.chdir(current_working_directory)
         
 
@@ -605,8 +621,7 @@ def average_topomap(average_coefficient_subjects:np.ndarray,
             # This is done to avoid working with long paths
             temp_path = os.path.normpath(save_path)
             os.chdir(temp_path)
-            fig.savefig(f'left_vs_right_{coefficient_name.lower()}_{len(sorted_chs_right)}_channels.png')
-            fig.savefig(f'left_vs_right_{coefficient_name.lower()}_{len(sorted_chs_right)}_channels.svg')
+            fig.savefig(f'left_vs_right_{coefficient_name.lower()}_{len(sorted_chs_right)}_channels{config.figure_format}')
             os.chdir(current_working_directory)
         
       
@@ -682,8 +697,7 @@ def topo_average_pval(pvalues_coefficient_subjects:np.ndarray,
         # This is done to avoid working with long paths
         temp_path = os.path.normpath(save_path)
         os.chdir(temp_path)
-        fig.savefig(f'p-value_topo_{coefficient_name.lower()}.png')
-        fig.savefig(f'p-value_topo_{coefficient_name.lower()}.svg')
+        fig.savefig(f'p-value_topo_{coefficient_name.lower()}{config.figure_format}')
         os.chdir(current_working_directory)
 
 
@@ -723,36 +737,38 @@ def topo_repeated_channels(repeated_good_coefficients_channels_subjects:np.ndarr
     else:
         plt.ioff()
 
-    # Take mean across all subjects
-    sum_of_repeated_chan = repeated_good_coefficients_channels_subjects.sum(axis=0)
+    # Take mean across all subjects 
+    sum_of_repeated_chan = repeated_good_coefficients_channels_subjects.sum(axis=0) # n_channs, the max value of each channel is the total_number_of_subjects
+    n_sub = len(config.sesiones)*2
     
     # Create figure and title
     fig, ax = plt.subplots(nrows=1, ncols=1, layout='tight')
-    plt.suptitle(f"Channels passing 5 test per subject - {coefficient_name}")
-    plt.title(f'Mean: {sum_of_repeated_chan.mean():.3f}' +r'$\pm$'+ f'{sum_of_repeated_chan.std():.3f}')
+    plt.suptitle(f"Number of significant channels (all {config.n_folds} folds) across subjects - {coefficient_name}")
+    plt.title(f'Mean: {sum_of_repeated_chan.mean():.2f}' +r'$\pm$'+ f'{sum_of_repeated_chan.std():.2f}')
 
     # Make topomap
-    im = mne.viz.plot_topomap(data=sum_of_repeated_chan, 
-                              pos=info, 
-                              cmap='OrRd',
-                              vlim=(0, 18),
-                              show=False, 
-                              sphere=0.07, 
-                              axes=ax)
+    im = mne.viz.plot_topomap(
+                            data=sum_of_repeated_chan, 
+                            pos=info, 
+                            cmap='OrRd',
+                            vlim=(0, n_sub),
+                            show=False, 
+                            sphere=0.07, 
+                            axes=ax
+                            )
     # And colorbar
-    plt.colorbar(im[0], 
-                 shrink=0.85, 
-                 orientation='vertical', 
-                 label='Number of subjects passed')
-
+    plt.colorbar(
+                im[0], 
+                shrink=0.85, 
+                orientation='vertical', 
+                label='Number of subjects passed'
+                )
     if save:
         os.makedirs(save_path, exist_ok=True)
-        
+
         # This is done to avoid working with long paths
-        temp_path = os.path.normpath(save_path)
-        os.chdir(temp_path)
-        fig.savefig(f'topo_repeated_channels_{coefficient_name.lower()}.png')
-        fig.savefig(f'topo_repeated_channels_{coefficient_name.lower()}.svg')
+        os.chdir(save_path)
+        fig.savefig(f'topo_repeated_channels_{coefficient_name.lower()}{config.figure_format}')
         os.chdir(current_working_directory)
         
 
@@ -877,8 +893,7 @@ def topo_map_relevant_times(average_weights_subjects:np.ndarray,
             # This is done to avoid working with long paths
             temp_path = os.path.normpath(save_path)
             os.chdir(temp_path)
-            fig.savefig('relevant_times.png')
-            fig.savefig('relevant_times.svg')
+            fig.savefig(f'relevant_times{config.figure_format}')
             os.chdir(current_working_directory)
 
 
@@ -961,8 +976,7 @@ def channel_wise_correlation_topomap(average_weights_subjects:np.ndarray,
         # This is done to avoid working with long paths
         temp_path = os.path.normpath(save_path)
         os.chdir(temp_path)
-        fig.savefig('channelwise_correlation_topo.png')
-        fig.savefig('channelwise_correlation_topo.svg')
+        fig.savefig(f'channelwise_correlation_topo{config.figure_format}')
         os.chdir(current_working_directory)
         
 
@@ -1125,8 +1139,7 @@ def channel_weights(info:mne.Info,
         # This is done to avoid working with long paths
         temp_path = os.path.normpath(save_path)
         os.chdir(temp_path)
-        fig.savefig(f'session_{session}_subject_{subject}.png')
-        fig.savefig(f'session_{session}_subject_{subject}.svg')
+        fig.savefig(f'session_{session}_subject_{subject}{config.figure_format}')
         os.chdir(current_working_directory)
 
 
@@ -1303,8 +1316,7 @@ def average_regression_weights(average_weights_subjects:np.ndarray,
             # This is done to avoid working with long paths
             temp_path = os.path.normpath(save_path)
             os.chdir(temp_path)
-            fig.savefig(f'average_weights_{feat.lower()}.png')
-            fig.savefig(f'average_weights_{feat.lower()}.svg')
+            fig.savefig(f'average_weights_{feat.lower()}{config.figure_format}')
             os.chdir(current_working_directory)
 
 #TODO CHECK DESCRIPTION
@@ -1409,8 +1421,7 @@ def correlation_matrix_subjects(average_weights_subjects:np.ndarray,
             # This is done to avoid working with long paths
             temp_path = os.path.normpath(save_path)
             os.chdir(temp_path)
-            fig.savefig(f'TRF_correlation_matrix_{feat}.png')
-            fig.savefig(f'TRF_correlation_matrix_{feat}.svg')
+            fig.savefig(f'TRF_correlation_matrix_{feat}{config.figure_format}')
             os.chdir(current_working_directory)
 
 #CHECK DESCRIPTION
@@ -1626,8 +1637,7 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
             temp_path = os.path.join(os.path.normpath(save_path), 'TFCE')
             os.makedirs(temp_path, exist_ok=True)
             os.chdir(temp_path)
-            fig.savefig(f'average_weights_{feat.lower()}.png')
-            fig.savefig(f'average_weights_{feat.lower()}.svg')
+            fig.savefig(f'average_weights_{feat.lower()}{config.figure_format}')
             os.chdir(current_working_directory)
 
 # #TODO CHECK DESCRIPTION E Y LABEL
@@ -1903,8 +1913,7 @@ def plot_pvalue_tfce(average_weights_subjects:np.ndarray,
 #             # This is done to avoid working with long paths
 #             temp_path = os.path.normpath(save_path)
 #             os.chdir(temp_path)
-#             fig.savefig(f'pvalue_{feat.lower()}_{pval_tresh:.0e}.png')
-#             fig.savefig(f'pvalue_{feat.lower()}_{pval_tresh:.0e}.svg')
+#             fig.savefig(f'pvalue_{feat.lower()}_{pval_tresh:.0e}{config.figure_format}')
 #             os.chdir(current_working_directory)
         
 # =====================
@@ -1990,8 +1999,7 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
         # This is done to avoid working with long paths
         temp_path = os.path.normpath(save_path)
         os.chdir(temp_path)
-        fig.savefig(f'session_{session}_subject_{subject}.png')
-        fig.savefig(f'session_{session}_subject_{subject}.svg')
+        fig.savefig(f'session_{session}_subject_{subject}{config.figure_format}')
         os.chdir(current_working_directory)
         plt.close(fig)
     
@@ -2134,8 +2142,7 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
 #         # This is done to avoid working with long paths
 #         temp_path = os.path.normpath(save_path)
 #         os.chdir(temp_path)
-#         fig.savefig(f'tvals_{band}_{stim}_{pval_tresh:.0e}.png')
-#         fig.savefig(f'tvals_{band}_{stim}_{pval_tresh:.0e}.svg')
+#         fig.savefig(f'tvals_{band}_{stim}_{pval_tresh:.0e}{config.figure_format}')
 #         os.chdir(current_working_directory)
         
 
@@ -2223,8 +2230,7 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
 #     if save:
 #         save_path += 'TFCE/'
 #         os.makedirs(save_path, exist_ok=True)
-#         plt.savefig(save_path + f'trf_tfce_{pval_trhesh}_{n_permutations}.png')
-#         plt.savefig(save_path + f'trf_tfce_{pval_trhesh}_{n_permutations}.svg')
+#         plt.savefig(save_path + f'trf_tfce_{pval_trhesh}_{n_permutations}{config.figure_format}')
 
 # def highlight_cell(x, y, ax=None, **kwargs):
 #     rect = plt.Rectangle((x - .5, y - .5), 1, 1, **kwargs)
@@ -2257,8 +2263,7 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
 #             os.makedirs(save_path_cabezas)
 #         except:
 #             pass
-#         fig.savefig(save_path_cabezas + '{}_Sesion{}_Sujeto{}.png'.format(name, sesion, sujeto))
-#         fig.savefig(save_path_cabezas + '{}_Sesion{}_Sujeto{}.svg'.format(name, sesion, sujeto))
+#         fig.savefig(save_path_cabezas + '{}_Sesion{}_Sujeto{}{config.figure_format}'.format(name, sesion, sujeto))
 
 
 
@@ -2283,8 +2288,7 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
 #     if Save:
 #         save_path_graficos = 'gráficos/PSD/Zoom/{}/{}/'.format(save_path, Band)
 #         os.makedirs(save_path_graficos, exist_ok=True)
-#         plt.savefig(save_path_graficos + 'Sesion{} - Sujeto{}.png'.format(sesion, sujeto, Band))
-#         plt.savefig(save_path_graficos + 'Sesion{} - Sujeto{}.svg'.format(sesion, sujeto, Band))
+#         plt.savefig(save_path_graficos + 'Sesion{} - Sujeto{}{config.figure_format}'.format(sesion, sujeto, Band))
 
 
 # def violin_plot_decoding(Correlaciones_totales_sujetos, display_interactive_mode, Save, Run_graficos_path, title):
@@ -2305,8 +2309,7 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
 #     if Save:
 #         save_path_graficos = Run_graficos_path
 #         os.makedirs(save_path_graficos, exist_ok=True)
-#         fig.savefig(save_path_graficos + '{}_promedio.svg'.format(title))
-#         fig.savefig(save_path_graficos + '{}_promedio.png'.format(title))
+#         fig.savefig(save_path_graficos + '{}_promedio{config.figure_format}'.format(title))
 
 #     return Correlaciones_totales_sujetos.mean(), Correlaciones_totales_sujetos.std()
 
@@ -2341,8 +2344,7 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
 #             os.makedirs(Run_graficos_path)
 #         except:
 #             pass
-#         fig.savefig(Run_graficos_path + '{}.svg'.format(title))
-#         fig.savefig(Run_graficos_path + '{}.png'.format(title))
+#         fig.savefig(Run_graficos_path + '{}{config.figure_format}'.format(title))
 
 #     return Correlaciones_promedio.mean(), Correlaciones_promedio.std()
 
@@ -2369,8 +2371,7 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
 #     if Save:
 #         save_path_graficos = Run_graficos_path
 #         os.makedirs(save_path_graficos, exist_ok=True)
-#         fig.savefig(save_path_graficos + 'PSD Boxplot.png')
-#         fig.savefig(save_path_graficos + 'PSD Boxplot.svg')
+#         fig.savefig(save_path_graficos + 'PSD Boxplot{config.figure_format}')
 
 
 # def weights_ERP(Pesos_totales_sujetos_todos_canales, info, times, display_interactive_mode,
@@ -2423,9 +2424,8 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
 #         if Save:
 #             os.makedirs(Run_graficos_path, exist_ok=True)
 #             fig.savefig(
-#                 Run_graficos_path + 'Regression_Weights_{}.svg'.format(Stims_Order[j] if Cant_Estimulos > 1 else stim))
 #             fig.savefig(
-#                 Run_graficos_path + 'Regression_Weights_{}.png'.format(Stims_Order[j] if Cant_Estimulos > 1 else stim))
+#                 Run_graficos_path + 'Regression_Weights_{}{config.figure_format}'.format(Stims_Order[j] if Cant_Estimulos > 1 else stim))
 
 
 # def decoding_t_lags(Correlaciones_totales_sujetos, times, Band, display_interactive_mode, Save, Run_graficos_path):
@@ -2459,8 +2459,7 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
 
 #     if Save:
 #         os.makedirs(Run_graficos_path, exist_ok=True)
-#         fig.savefig(Run_graficos_path + 'Correlation_time_lags_{}.svg'.format(Band))
-#         fig.savefig(Run_graficos_path + 'Correlation_time_lags_{}.png'.format(Band))
+#         fig.savefig(Run_graficos_path + 'Correlation_time_lags_{}{config.figure_format}'.format(Band))
 
 
 # def Brain_sync(data, Band, info, display_interactive_mode, Save, graficos_save_path, total_subjects=18, sesion=None, sujeto=None):
@@ -2488,11 +2487,9 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
 #     if Save:
 #         os.makedirs(graficos_save_path, exist_ok=True)
 #         if data.shape == (total_subjects, info['nchan'], info['nchan']):
-#             plt.savefig(graficos_save_path + 'Inter Brain sync - {}.png'.format(Band))
-#             plt.savefig(graficos_save_path + 'Inter Brain sync - {}.svg'.format(Band))
+#             plt.savefig(graficos_save_path + 'Inter Brain sync - {}{config.figure_format}'.format(Band))
 #         elif data.shape == (info['nchan'], info['nchan']):
-#             plt.savefig(graficos_save_path + 'Inter Brain sync - Sesion{}_Sujeto{}.png'.format(sesion, sujeto))
-#             plt.savefig(graficos_save_path + 'Inter Brain sync - Sesion{}_Sujeto{}.svg'.format(sesion, sujeto))
+#             plt.savefig(graficos_save_path + 'Inter Brain sync - Sesion{}_Sujeto{}{config.figure_format}'.format(sesion, sujeto))
 
 
 
@@ -2570,11 +2567,9 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
 #     if Save:
 #         os.makedirs(graficos_save_path, exist_ok=True)
 #         if total_data.shape == (info['nchan'], len(delays)):
-#             plt.savefig(graficos_save_path + 't_lags_{}_Sesion{}_Sujeto{}.png'.format(title, sesion, sujeto))
-#             plt.savefig(graficos_save_path + 't_lags_{}_Sesion{}_Sujeto{}.svg'.format(title, sesion, sujeto))
+#             plt.savefig(graficos_save_path + 't_lags_{}_Sesion{}_Sujeto{}{config.figure_format}'.format(title, sesion, sujeto))
 #         elif total_data.shape == (total_subjects, info['nchan'], len(delays)):
-#             plt.savefig(graficos_save_path + 't_lags_{}.png'.format(title))
-#             plt.savefig(graficos_save_path + 't_lags_{}.svg'.format(title))
+#             plt.savefig(graficos_save_path + 't_lags_{}{config.figure_format}'.format(title))
 
 
 
@@ -2627,7 +2622,7 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
 # #                     os.makedirs(save_path_graficos)
 # #                 except:
 # #                     pass
-# #                 fig.savefig(save_path_graficos + 'Weights Autocorrelation.png')
+# #                 fig.savefig(save_path_graficos + 'Weights Autocorrelation{config.figure_format}')
 
 # #         evoked = mne.EvokedArray(Pesos_totales_sujetos_todos_canales_copy[:, j * len(times):(j + 1) * len(times)], info)
 # #         evoked.shift_time(times[0], relative=True)
@@ -2684,7 +2679,6 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
 # #             except:
 # #                 pass
 # #             fig.savefig(
-# #                 save_path_graficos + 'Instantes_interes_{}.svg'.format(Stims_Order[j] if Cant_Estimulos > 1 else stim))
 
 # #     return returns
 
@@ -2739,7 +2733,7 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
 # #             os.makedirs(save_path_graficos)
 # #         except:
 # #             pass
-# #         fig.savefig(save_path_graficos + 'Correlation_matrix.png')
+# #         fig.savefig(save_path_graficos + 'Correlation_matrix{config.figure_format}')
 
 
 # # def Matriz_std_channel_wise(Pesos_totales_sujetos_todos_canales, Display, Save, Run_graficos_path):
@@ -2792,7 +2786,7 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
 # #             os.makedirs(save_path_graficos)
 # #         except:
 # #             pass
-# #         fig.savefig(save_path_graficos + 'Channelwise_std_matrix.png')
+# #         fig.savefig(save_path_graficos + 'Channelwise_std_matrix{config.figure_format}')
 
 
 # # def Cabezas_corr_promedio_scaled(Correlaciones_totales_sujetos, info, Display, Save, Run_graficos_path, title):
@@ -2816,8 +2810,7 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
 # #     if Save:
 # #         save_path_graficos = Run_graficos_path
 # #         os.makedirs(save_path_graficos, exist_ok=True)
-# #         fig.savefig(save_path_graficos + '{}_promedio_scaled.svg'.format(title))
-# #         fig.savefig(save_path_graficos + '{}_promedio_sacled.png'.format(title))
+# #         fig.savefig(save_path_graficos + '{}_promedio_sacled{config.figure_format}'.format(title))
 
 
 # # def Plot_instantes_casera(Pesos_totales_sujetos_todos_canales, info, Band, times, sr, Display_figure_instantes,
@@ -2891,7 +2884,7 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
 # #             os.makedirs(save_path_graficos)
 # #         except:
 # #             pass
-# #         fig.savefig(save_path_graficos + 'Instantes_interes.png')
+# #         fig.savefig(save_path_graficos + 'Instantes_interes{config.figure_format}')
 
 # #     return Pesos_totales_sujetos_todos_canales_copy.mean(1)
 

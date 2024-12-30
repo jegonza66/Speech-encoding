@@ -188,14 +188,14 @@ def standarize_normalize(eeg_train_val, eeg_test, dstims_train_val, dstims_test,
     return eeg_train_val, eeg_test, dstims_train_val, dstims_test
 
 def shifted_matrix(features:np.ndarray, delays:np.ndarray):
-    """Computes shifted matrix for a given array of delayes
+    """Computes shifted matrix for a given array of delays
 
     Parameters
     ----------
     features : array, shape (n_times[, n_epochs], n_features) or list of length n_times
         The time series to delay must be 2D or 3D if array.
     delays : np.ndarray
-        Index delayes
+        Index delays
 
     Returns
     -------
@@ -365,6 +365,27 @@ def tfce(average_weights_subjects:np.ndarray,
 
         # Return average across channels
         return t_tfce, p_tfce
+    
+def block_bootstrap(data:np.ndarray, block_size:int=104):
+    """Bootstrap data with blocks of size block_size
+    Parameters
+    ----------
+    data : np.ndarray
+        Data to be bootstraped
+    block_size : int
+        Correlation length to have into account when making bootstrap
+
+    Returns
+    -------
+    np.ndarray
+        Resampled data
+    """
+    n_samples = len(data)
+    n_blocks = n_samples // block_size
+    indices = np.arange(n_samples)
+    block_indices = np.random.choice(n_blocks, n_blocks, replace=True)
+    resampled_indices = np.hstack([indices[i*block_size:(i+1)*block_size] for i in block_indices])
+    return data[resampled_indices]
 
 def clustering_by_correlation(weights:np.ndarray):
     """Cluster by correlation the weights

@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as np, mne
 
 # ==========================================
 # SESSIONS, STIMULI, SITUATION AND EEG BANDS
@@ -14,6 +14,14 @@ bands = [
         'Beta1', 
         'Beta2'
         ] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
+bands = ['Theta']
+
+# ==========================================
+# MODEL AND NORMALIZATION OF STIMULI AND EEG
+statistical_test, model, estimator = True, 'mtrf', 'ridge' # ridge or time_delaying_ridge
+if estimator=='ridge':
+	model = 'mtrf_ridge'
+stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 
 # ====================================================================
 # TFCE, T-TEST PARAMETERS, HIERARCHICAL_CLUSTERING and NUMBER OF FOLDS
@@ -23,9 +31,10 @@ n_folds = 5 # with 5 folds (remain 20% as validation set, then interchange to cr
 
 # ==========================================
 # LOADING/SAVING DATA, FIGURE CONFIGURATIONS
-display_interactive_mode, save_results, save_figures = False, True, True
+praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
+display_interactive_mode, save_results, save_figures, no_figures = False, True, True, False
+figure_format = '.png'
 just_load_data = False
-no_figures = False
 
 # =====================
 # VALIDATION PARAMETERS
@@ -35,22 +44,83 @@ alphas_swept = np.logspace(min_order, max_order, steps)
 alpha_step = np.diff(np.log(alphas_swept))[0]
 save_alphas = True
 
-# ==========================================
-# MODEL AND NORMALIZATION OF STIMULI AND EEG
-model, estimator = 'mtrf', 'time_delaying_ridge' # ridge or time_delaying_ridge
-stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
+# =======================
+# RANDOM PERMUTATION TEST
+random_permutations = 200
+correlation_length_samples = 104
+power_n_bootstrap_samples = 1000
+significance_threshold = 0.05/128 # Bonferroni correction (the test is in # channels)
 
 # ==============================
 # DEFAULT PENALIZATION PARAMETER 
 correlation_limit_percentage, default_alpha, set_alpha = 0.01, 400, None
-
-# =============================================
-# STATISTICAL TEST, RANDOM PERMUTATION ANALYSIS
-umbral = 0.05/128 # TODO que onda con features no unidimensionales
-statistical_test = False
 
 # =========================
 # EEG SAMPLE RATE AND TIMES
 tmin, tmax, sr = -.2, .6, 128
 delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
 times = (delays/sr)
+
+# =================
+# MODEL COMPARISON
+montage = mne.channels.make_standard_montage('biosemi128')
+info_mne = mne.create_info(ch_names=montage.ch_names[:], sfreq=sr, ch_types='eeg').set_montage(montage)
+relevant_channels = 12 #None
+
+# ============
+# PLOTS LABELS
+class Exp_info:
+    def __init__(self):
+        """A class used to represent experimental information for speech encoding.
+        
+        Attributes
+        ----------
+			ph_labels : list
+					A list of phoneme labels.
+			ph_labels_man : list
+					A list of manually labeled phonemes.
+			ph_labels_phonet : list
+					A list of phonemes labeled using phonetic transcription.
+			ph_labels_phonet_ordered : list
+					An ordered list of phonemes labeled using phonetic transcription.
+			mistakes : list
+					A list of types of mistakes.
+			control : list
+					A list of control categories.
+			phonological_labels : dict
+					A dictionary categorizing phonemes into various phonological features.
+                        
+        Methods
+        -------
+			__init__():
+					Initializes the Exp_info class with predefined phoneme labels, mistake types, control categories, and phonological features.
+        """
+         # Define ctf data path and files path
+        self.ph_labels = ['CH', 'NY', 'R', 'a', 'b', 'd', 'e', 'f', 'g', 'i', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 's', 't', 'u', 'x', 'y']
+
+        self.ph_labels_man = ['(d)o', 'A', 'AH', 'CH', 'F', 'NY', 'R', 'Y', 'a', 'ap', 'b', 'br', 'c', 'chas', 'd','de', 'e', 'es', 'f', 'g', 'h', 'i', 'k', 'l', 'lg', 'm', 'n', 'ns', 'o', 'p', 'r', 's','si', 't', 'u', 'v', 'x', 'y']
+        self.ph_labels_phonet = ['B', 'D', 'F', 'G', 'N', 'T', 'a', 'b', 'd', 'e', 'f', 'i', 'j', 'jj', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 'rr', 's', 't', 'tS', 'u', 'w', 'x', 'z', 'Z', 'g', 'S', 'J', 'L', 'sil', '<p:>']
+        self.ph_labels_phonet_ordered = ['B', 'D', 'F', 'G', 'N', 'T', 'a', 'b', 'd', 'e', 'f', 'i', 'j', 'jj', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 'rr', 's', 't', 'tS', 'u', 'w', 'x', 'z', 'Z', 'g', 'S', 'J', 'L', 'sil', '<p:>']
+        
+        self.mistakes = ['Articulatory', 'Lexical', 'Discursive']
+        self.control = ['Articulatory', 'Lexical', 'Discursive']
+        self.phonological_labels={
+            "vocalic" : ["a","e","i","o","u", "w", "j"],
+            "consonantal" : ["b", "B","d", "D","f", "F","k","l","m","n", "N","p","r","rr","s", "Z", "T","t","g", "G","tS","S","x", "jj", "J", "L", "z"],
+            "back"        : ["a","o","u", "w"],
+            "anterior"    : ["e","i","j"],
+            "open"        : ["a","e","o"],
+            "close"       : ["j","i","u", "w"],
+            "nasal"       : ["m","n", "N"],
+            "stop"        : ["p","b", "B","t","k","g", "G","tS","d", "D"],
+            "continuant"  : ["f", "F","b", "B","tS","d", "D","s", "Z", "T","x", "jj", "J","g", "G","S","L","x", "jj", "J", "z"],
+            "lateral"     :["l"],
+            "flap"        :["r"],
+            "trill"       :["rr"],
+            "voice"       :["a","e","i","o","u", "w","b", "B","d", "D","l","m","n", "N","rr","g", "G","L", "j"],
+            "strident"    :["tS","f", "F","s", "Z", "T", "z",  "S"],
+            "labial"      :["m","p","b", "B","f", "F"],
+            "dental"      :["t","d", "D"],
+            "velar"       :["k","g", "G"],
+            "pause"       :  ["sil", "<p:>"]
+            }
