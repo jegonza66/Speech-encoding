@@ -37,7 +37,7 @@ for band in config.bands:
         path_weights = f'saves/{config.model}/{config.situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
         path_null = f'saves/{config.model}/{config.situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
         path_figures = f'figures/{config.model}/{config.situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-        
+
         path_validation = f'saves/{config.model}/{config.situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
         alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
         
@@ -230,12 +230,17 @@ for band in config.bands:
 
                 if config.statistical_test:
                     # Find good indexes by checking where all folds (at the same time) are significant
-                    corr_good_channel_indexes, _ = np.where(
-                                                            np.all((proba_correlation_per_channel < 1), axis=0)
-                                                            )
-                    rmse_good_channel_indexes, _ = np.where(
-                                                            np.all((proba_rmse_per_channel < 1), axis=0)
-                                                            )   
+                    try:
+                        corr_good_channel_indexes, _ = np.where(
+                                                                np.all((proba_correlation_per_channel < 1), axis=0)
+                                                                )
+                        rmse_good_channel_indexes, _ = np.where(
+                                                                np.all((proba_rmse_per_channel < 1), axis=0)
+                                                                )
+                    except:
+                        corr_good_channel_indexes = []
+                        rmse_good_channel_indexes = []
+                        print('No significant channels found')   
 
                     # Saves passing channels by subject
                     repeated_good_correlation_channels[corr_good_channel_indexes] += 1 # binary array with ones where significant

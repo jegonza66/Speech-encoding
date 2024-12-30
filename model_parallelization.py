@@ -1,5 +1,5 @@
 # Standard libraries
-import numpy as np
+import numpy as np, os
 
 # Specific libraries
 from joblib import Parallel, delayed
@@ -100,42 +100,41 @@ def parallel_fold_model(
     if statistical_test:
         # Null Hypothesis (H0): There is no significant relationship between the predicted and actual EEG data. The test statistic (e.g., correlation or RMSE) follows the null distribution.
         # Alternative Hypothesis (H1): There is a significant relationship between the predicted and actual EEG data. The test statistic follows the alternative distribution.
-        if config.statistical_test:
-            null_data = load_pickle(path=path_null + f'null_metrics_ses_{session}_sub_{subject}.pkl')
-            null_correlation_per_channel, null_errors = null_data['null_correlation_per_channel_per_fold'], null_data['null_errors_per_fold']
-            iterations =  null_correlation_per_channel.shape[1]
+        null_data = load_pickle(path=os.path.join(path_null, f'null_metrics_ses_{session}_sub_{subject}.pkl'))
+        null_correlation_per_channel, null_errors = null_data['null_correlation_per_channel_per_fold'], null_data['null_errors_per_fold']
+        iterations =  null_correlation_per_channel.shape[1]
 
-            # Correlation and RMSE (n_iterations_, n_channels)
-            null_correlation_matrix = null_correlation_per_channel[fold]
-            null_root_mean_square_error = null_errors[fold]
+        # Correlation and RMSE (n_iterations_, n_channels)
+        null_correlation_matrix = null_correlation_per_channel[fold]
+        null_root_mean_square_error = null_errors[fold]
 
-            # p-values for both tests: probability of getting a value equal or greater than the measured value, given the null hypothesis distribution (P(X>=X_obs|H0))
-            # (null_correlation_matrix > correlation_matrix) is the number of iterations that surpasses the measured values for each channel (n_channels)
-            p_corr = ((null_correlation_matrix > correlation_matrix).sum(axis=0) + 1) / (iterations + 1) # +1 to avoid division by zero, right tail test
-            p_rmse = ((null_root_mean_square_error < root_mean_square_error).sum(axis=0) + 1) / (iterations + 1) # left tail test
-            
-            # Calculate power of the test: probability of measuring H1 when H1 is true. It's usefull to know if the test is sensitive enough
-            significant_corr_count = 0
-            significant_rmse_count = 0
+        # p-values for both tests: probability of getting a value equal or greater than the measured value, given the null hypothesis distribution (P(X>=X_obs|H0))
+        # (null_correlation_matrix > correlation_matrix) is the number of iterations that surpasses the measured values for each channel (n_channels)
+        p_corr = ((null_correlation_matrix > correlation_matrix).sum(axis=0) + 1) / (iterations + 1) # +1 to avoid division by zero, right tail test
+        p_rmse = ((null_root_mean_square_error < root_mean_square_error).sum(axis=0) + 1) / (iterations + 1) # left tail test
+        
+        # Calculate power of the test: probability of measuring H1 when H1 is true. It's usefull to know if the test is sensitive enough
+        significant_corr_count = 0
+        significant_rmse_count = 0
 
-            # We make a bootstrap distribution of the H1, using blocks of correlation length
-            for _ in range(config.power_n_bootstrap_samples):
-                # Generate blocks of bootstraped samples
-                bootstrap_eeg_test = block_bootstrap(eeg_test, block_size=config.correlation_length_samples)
-                bootstrap_predicted = block_bootstrap(predicted, block_size=config.correlation_length_samples)
+        # We make a bootstrap distribution of the H1, using blocks of correlation length
+        for _ in range(config.power_n_bootstrap_samples):
+            # Generate blocks of bootstraped samples
+            bootstrap_eeg_test = block_bootstrap(eeg_test, block_size=config.correlation_length_samples)
+            bootstrap_predicted = block_bootstrap(predicted, block_size=config.correlation_length_samples)
 
-                # Calculate correlation and RMSE for bootstrap samples
-                bootstrap_correlation_matrix = np.array([np.corrcoef(bootstrap_eeg_test[:, j], bootstrap_predicted[:, j])[0,1] for j in range(bootstrap_eeg_test.shape[1])])
-                bootstrap_rmse = np.array(np.sqrt(np.power((bootstrap_predicted - bootstrap_eeg_test), 2).mean(0)))
+            # Calculate correlation and RMSE for bootstrap samples
+            bootstrap_correlation_matrix = np.array([np.corrcoef(bootstrap_eeg_test[:, j], bootstrap_predicted[:, j])[0,1] for j in range(bootstrap_eeg_test.shape[1])])
+            bootstrap_rmse = np.array(np.sqrt(np.power((bootstrap_predicted - bootstrap_eeg_test), 2).mean(0)))
 
-                # Calculate p-values for bootstrap samples
-                bootstrap_p_corr = ((null_correlation_matrix > bootstrap_correlation_matrix).sum(axis=0) + 1) / (iterations + 1)
-                bootstrap_p_rmse = ((null_root_mean_square_error < bootstrap_rmse).sum(axis=0) + 1) / (iterations + 1)
+            # Calculate p-values for bootstrap samples
+            bootstrap_p_corr = ((null_correlation_matrix > bootstrap_correlation_matrix).sum(axis=0) + 1) / (iterations + 1)
+            bootstrap_p_rmse = ((null_root_mean_square_error < bootstrap_rmse).sum(axis=0) + 1) / (iterations + 1)
 
-                # Count significant results
-                significant_corr_count += (bootstrap_p_corr < config.significance_threshold).sum()
-                significant_rmse_count += (bootstrap_p_rmse < config.significance_threshold).sum()
-            
+            # Count significant results
+            significant_corr_count += (bootstrap_p_corr < config.significance_threshold).sum()
+            significant_rmse_count += (bootstrap_p_rmse < config.significance_threshold).sum()
+        
         return fold, weights, correlation_matrix, root_mean_square_error, p_corr, p_rmse, significant_corr_count, significant_rmse_count, null_correlation_per_channel
     else:
         if shuffle:
