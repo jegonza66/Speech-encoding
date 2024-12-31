@@ -2,9 +2,9 @@ import numpy as np, mne
 
 # ==========================================
 # SESSIONS, STIMULI, SITUATION AND EEG BANDS
-sesiones = [21]#, 22, 23, 24, 25, 26, 27, 29, 30]
+sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 stimuli = [
-            'Envelope', 
+            'Spectrogram', 
            ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situation = 'External' # 'External' #'External' # 'Internal' # 'External_BS' #'Internal_BS'
 bands = [
@@ -18,11 +18,16 @@ bands = ['Theta']
 
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
-statistical_test, model, estimator = False, 'mtrf', 'ridge' # ridge or time_delaying_ridge
+statistical_test, model = False, 'mtrf'
+estimator = 'ridge' # ridge, ridge_torch or time_delaying_ridge
+stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 if estimator=='ridge':
 	model = 'mtrf_ridge'
-stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
-
+elif estimator == 'ridge_torch':
+    model = 'mtrf_ridge_torch'
+    use_gpu = True
+else:
+    model = 'mtrf'
 # ====================================================================
 # TFCE, T-TEST PARAMETERS, HIERARCHICAL_CLUSTERING and NUMBER OF FOLDS
 perform_tfce, n_permutations, significance, number_of_jobs = False, 2500, .05, -1

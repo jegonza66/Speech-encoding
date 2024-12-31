@@ -5,7 +5,7 @@ import numpy as np
 
 # Specific libraries
 from sklearn.model_selection import KFold
-from joblib import Parallel, delayed
+# from joblib import Parallel, delayed
 
 # Modules
 from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
@@ -15,7 +15,7 @@ from load import load_data
 import config, plot
 
 # Notification bot
-# from labos.notificacion_bot import mensaje_tel
+from labos.notificacion_bot import mensaje_tel
 api_token, chat_id = '5448153732:AAGhKraJQquEqMfpD3cb4rnTcrKB6U1ViMA', 1034347542
 
 # ============
@@ -168,7 +168,7 @@ for band in config.bands:
                     print(fold)
                     results.append(parallel_fold_model(
                                                     fold=fold,
-                                                    alpha=alpha,
+                                                    alpha=np.float32(alpha),
                                                     stims=stims,
                                                     eeg=eeg,
                                                     relevant_indexes=relevant_indexes,
@@ -534,6 +534,6 @@ dict_to_csv(
             )
 
 # Send text to telegram bot
-# with Suppress_print():
-    # mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=text)
+with Suppress_print():
+    mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=text)
 print(text)

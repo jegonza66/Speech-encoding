@@ -6,10 +6,259 @@ mne.set_log_level(verbose='WARNING')
 from mne.decoding import ReceptiveField, TimeDelayingRidge
 from sklearn.linear_model import Ridge
 # from joblib import Parallel, delayed
+import torch
 
 # Modules
-from processing import Normalize, Standarize
+from processing import Normalize, Standarize, shifted_matrix
+import config
 
+class TorchMtrf:
+    def __init__(
+        self, 
+        alpha:float, 
+        relevant_indexes:np.ndarray, 
+        train_indexes:np.ndarray, 
+        test_indexes:np.ndarray, 
+        stims_preprocess:str, 
+        eeg_preprocess:str, 
+        fit_intercept:bool=False, 
+        shuffle:bool=False, 
+        validation:bool=False,
+        use_gpu:bool=True,
+        )->None:
+        """
+        Initialize the TorchMtrf model, a PyTorch implementation of the TimeDelayingRidge of stimulus to predict EEG.
+
+        Parameters
+        ----------
+        alpha : float
+            Regularization strength.
+        relevant_indexes : np.ndarray
+            Array of relevant indexes.
+        train_indexes : np.ndarray
+            Array of training indexes.
+        test_indexes : np.ndarray
+            Array of testing indexes.
+        stims_preprocess : str
+            Preprocessing method for stimuli.
+        eeg_preprocess : str
+            Preprocessing method for EEG data.
+        fit_intercept : bool, optional
+            Whether to fit the intercept, by default False.
+        shuffle : bool, optional
+            Whether to shuffle the data, by default False.
+        validation : bool, optional
+            Whether to perform validation, by default False.
+        use_gpu : bool, optional
+            Whether to use the GPU (CUDA) for computation, by default True.
+
+        Returns
+        -------
+        None
+        
+        Raises
+        ------
+        None
+        """
+        self.relevant_indexes = relevant_indexes
+        self.train_indexes = train_indexes
+        self.test_indexes = test_indexes
+        self.alpha = alpha
+        self.stims_preprocess = stims_preprocess
+        self.eeg_preprocess = eeg_preprocess    
+        self.fit_intercept = fit_intercept
+        self.shuffle = shuffle
+        self.validation = validation
+        self.use_gpu = use_gpu
+        if use_gpu:
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    def fit(
+        self, 
+        stims:np.ndarray, 
+        eeg:np.ndarray
+        )->None:
+        """
+        Fit the TorchMtrf model to the given stimuli and EEG data.
+
+        This method constructs the design matrix from the stimuli, applies the relevant indexes,
+        and separates the data into training and testing sets. It then standardizes and normalizes
+        the data, and fits a Ridge regression model to the training data. If validation is enabled,
+        it further splits the training data into training and validation sets and fits the model
+        accordingly.
+
+        Parameters
+        ----------
+        stims : np.ndarray
+            The input stimuli data, shape (n_samples, n_features).
+        eeg : np.ndarray
+            The EEG response data, shape (n_samples, n_channels).
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            If the input data shapes are not compatible with the model.
+        """
+        # Construct design matrix and transform for GPU computation
+        design_matrix = shifted_matrix(stims, delays=config.delays, use_gpu=self.use_gpu)
+        n_samples, n_featuresbyn_delays = design_matrix.shape
+        n_features = n_featuresbyn_delays // len(config.delays)
+
+        # Get relevant indexes and transform to GPU
+        X_temp = design_matrix[self.relevant_indexes]
+        del design_matrix
+        X_temp = torch.tensor(X_temp).to(self.device)
+        y_temp = torch.tensor(eeg[self.relevant_indexes]).to(self.device)
+        del stims, eeg
+        
+        # Separate into training and testing
+
+        X_train = X_temp[self.train_indexes]
+        y_train = y_temp[self.train_indexes]
+        X_pred = X_temp[self.test_indexes]
+        y_test = y_temp[self.test_indexes]
+        del X_temp, y_temp
+        
+        if not self.validation:
+            # Shuffle the data if required for random permutations
+            if self.shuffle:
+                indices = np.arange(X_train.shape[0])
+                np.random.shuffle(indices)
+                X_train = X_train[indices]
+            
+            # Standarize and normalize
+            X_train, y_train, X_pred, self.y_test = self.standarize_normalize(
+                                                        X_train=X_train, 
+                                                        X_pred=X_pred, 
+                                                        y_train=y_train, 
+                                                        y_test=y_test
+                                                        )
+            del y_test
+
+            # Fit the Ridge model
+            XTX = X_train.T @ X_train  # X^T * X
+            I = torch.eye(XTX.shape[0], device=self.device)  # Identity matrix
+            mtrfs =  torch.linalg.inv(XTX + self.alpha.astype(np.float32) * I) @ X_train.T @ y_train
+            
+            # Perform predictions
+            self.y_predicted = X_pred @ mtrfs
+            del X_pred
+            
+            # Store mtrfs
+            # self.coefs = mtrfs.cpu().numpy()
+            self.coefs = mtrfs.view(len(config.delays), n_features, mtrfs.shape[-1]).permute(2, 1, 0).cpu().numpy()
+            
+        else:
+            # Make split for validation: validation sets, fixing the train percent of data
+            train_percent = .8
+            self.train_cutoff = int(train_percent * len(self.train_indexes))
+            X_train_for_val = X_train[:self.train_cutoff]
+            y_train_for_val = y_train[:self.train_cutoff]
+            X_val = X_train[self.train_cutoff:]
+            y_val = y_train[self.train_cutoff:]
+            del X_train, y_train
+                        
+            # Standarize and normalize
+            X_train_for_val, y_train_for_val, X_pred, self.y_val = self.standarize_normalize(
+                                                                                X_train=X_train_for_val, 
+                                                                                X_pred=X_val, 
+                                                                                y_train=y_train_for_val, 
+                                                                                y_test=y_val
+                                                                                )
+            del y_val
+            
+            # Fit the Ridge model
+            XTX = X_train_for_val.T @ X_train_for_val  # X^T * X
+            I = torch.eye(XTX.shape[0], device=self.device)  # Identity matrix
+            mtrfs =  torch.linalg.inv(XTX + self.alpha.astype(np.float32) * I) @ X_train.T @ y_train
+            
+            # Perform predictions
+            self.y_predicted = X_pred @ mtrfs
+            del X_pred
+            
+            # Store mtrfs
+            # self.coefs = mtrfs.cpu().numpy()
+            self.coefs = mtrfs.view(len(config.delays), n_features, mtrfs.shape[-1]).permute(2, 1, 0).cpu().numpy()
+
+    def predict(
+        self
+        )->tuple:
+        """
+        Predict the EEG response using the fitted TorchMtrf model.
+
+        This method returns the predicted EEG response for the test data. If validation is enabled,
+        it returns the predicted response for the validation set; otherwise, it returns the predicted
+        response for the test set.
+
+        Returns
+        -------
+        tuple
+            A tuple containing the predicted response and the corresponding true response.
+            - If validation is enabled: (predicted_response, validation_response)
+            - If validation is not enabled: (predicted_response, test_response)
+
+        Raises
+        ------
+        ValueError
+            If the model has not been fitted before calling this method.
+        """
+        
+        if self.validation:
+            return self.y_predicted.cpu().detach().numpy(), self.y_val.cpu().detach().numpy()
+        else:
+            return self.y_predicted.cpu().detach().numpy(), self.y_test.cpu().detach().numpy()
+    
+    def standarize_normalize(
+        self, X_train:np.ndarray, X_pred:np.ndarray, y_train:np.ndarray, y_test:np.ndarray
+        ):
+        """
+        Standarize|Normalize training and test data.
+        Parameters
+        ----------
+        X_train : np.ndarray
+            Fatures to be normalized. Its dimensions should be samples x features 
+        y_train : np.ndarray
+            EEG samples to be normalized. Its dimensions should be samples x features
+
+        Returns
+        -------
+        tuple
+            A tuple containing the standardized/normalized training and test data: (X_train, y_train, X_pred, y_test).
+        """
+        # Instances of normalize and standarize
+        norm = Normalize(
+                axis=0, 
+                porcent=5, 
+                by_gpu=self.use_gpu
+                )
+        estandar = Standarize(
+                    axis=0,
+                    by_gpu=self.use_gpu
+                    )
+    
+        # Iterates to normalize|standarize over features
+        if self.stims_preprocess=='Standarize':
+            for feat in range(X_train.shape[1]):
+                X_train[:, feat] = estandar.fit_standarize_train(train_data=X_train[:, feat]) 
+                X_pred[:, feat] = estandar.fit_standarize_test(test_data=X_pred[:, feat])
+        if self.stims_preprocess=='Normalize':
+            for feat in range(X_train.shape[1]):
+                X_train[:, feat] = norm.fit_normalize_train(train_data=X_train[:, feat]) 
+                X_pred[:, feat] = norm.fit_normalize_test(test_data=X_pred[:, feat])
+        if self.eeg_preprocess=='Standarize':
+            y_train=estandar.fit_standarize_train(train_data=y_train)
+            y_test=estandar.fit_standarize_test(test_data=y_test)
+        if self.eeg_preprocess=='Normalize':
+            y_train=norm.fit_normalize_percent(data=y_train)
+            y_test=norm.fit_normalize_test(test_data=y_test)
+        return X_train, y_train, X_pred, y_test
+        
+
+#TODO: obsolete due to incorrect filtering implementation
 class TimeDelayingRidgeRegression(TimeDelayingRidge):
     def __init__(
         self, tmin:float, tmax:float, sfreq:int, relevant_indexes:np.ndarray=None, 
@@ -207,6 +456,164 @@ class TimeDelayingRidgeRegression(TimeDelayingRidge):
             y_test=norm.fit_normalize_test(test_data=y_test)
         return X_train, y_train, X_pred, y_test
 
+class Receptive_field_adaptation:
+    def __init__(
+        self, tmin:float, tmax:float, sample_rate:int, alpha:float, relevant_indexes:np.ndarray, 
+        train_indexes:np.ndarray, test_indexes:np.ndarray, stims_preprocess:str, 
+        eeg_preprocess:str, estimator:str='time_delaying_ridge', n_jobs:int=-1, fit_intercept:bool=False, 
+        shuffle:bool=False, validation:bool=False
+        ):
+        """
+        Initialize the Receptive_field_adaptation model.
+
+        Parameters
+        ----------
+        tmin : float
+            The minimum time lag.
+        tmax : float
+            The maximum time lag.
+        sample_rate : int
+            The sampling frequency.
+        alpha : float
+            Regularization strength.
+        relevant_indexes : np.ndarray
+            Array of relevant indexes.
+        train_indexes : np.ndarray
+            Array of training indexes.
+        test_indexes : np.ndarray
+            Array of testing indexes.
+        stims_preprocess : str
+            Preprocessing method for stimuli.
+        eeg_preprocess : str
+            Preprocessing method for EEG data.
+        estimator : str, optional
+            The type of estimator to use, by default 'time_delaying_ridge'.
+        n_jobs : int, optional
+            Number of jobs to run in parallel, by default -1.
+        fit_intercept : bool, optional
+            Whether to fit the intercept, by default False.
+        shuffle : bool, optional
+            Whether to shuffle the data, by default False.
+        validation : bool, optional
+            Whether to perform validation, by default False.
+
+        Returns
+        -------
+        None
+        
+        Raises
+        ------
+        SyntaxError
+            If the estimator is not one of the allowed models.
+        """
+        allowed_models = ['ridge', 'time_delaying_ridge']
+        self.train_indexes = train_indexes
+        self.test_indexes = test_indexes
+        self.sample_rate = sample_rate
+        if estimator not in allowed_models:
+            raise SyntaxError(f"{estimator} is not an allowed situation. Allowed ones are: {allowed_models}")
+        else:
+            self.estimator = estimator
+
+        if estimator =='time_delaying_ridge':
+            self.rf = ReceptiveField(tmin=tmin,
+                                     tmax=tmax, 
+                                     sfreq=sample_rate,
+                                     estimator=TimeDelayingRidgeRegression(
+                                                                        tmin=tmin, 
+                                                                        tmax=tmax, 
+                                                                        sfreq=sample_rate,
+                                                                        alpha=alpha,
+                                                                        relevant_indexes=relevant_indexes,
+                                                                        train_indexes=train_indexes,
+                                                                        test_indexes=test_indexes,
+                                                                        stims_preprocess=stims_preprocess, 
+                                                                        eeg_preprocess=eeg_preprocess,
+                                                                        fit_intercept=fit_intercept,
+                                                                        n_jobs=n_jobs,
+                                                                        shuffle=shuffle,
+                                                                        validation=validation
+                                                                        ),
+                                     scoring='corrcoef'
+                                     )
+        else:
+            self.rf = ReceptiveField(tmin=tmin, 
+                                     tmax=tmax, 
+                                     sfreq=sample_rate,
+                                     estimator=RidgeRegression(
+                                                            alpha=alpha,
+                                                            relevant_indexes=relevant_indexes,
+                                                            train_indexes=train_indexes,
+                                                            test_indexes=test_indexes,
+                                                            stims_preprocess=stims_preprocess, 
+                                                            eeg_preprocess=eeg_preprocess,
+                                                            fit_intercept=fit_intercept,
+                                                            n_jobs=n_jobs,
+                                                            shuffle=shuffle,
+                                                            validation=validation
+                                                            ),
+                                     scoring='corrcoef')
+   
+    def fit(
+        self, stims, eeg
+        ):
+        """
+        Fit the ReceptiveField model to the given stimuli and EEG data.
+
+        Parameters
+        ----------
+        stims : np.ndarray
+            The input stimuli data, shape (n_samples, n_features*n_delays). Mne should create the design matrix before performing this fit.
+        eeg : np.ndarray
+            The EEG response data, shape (n_samples, n_channels).
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            If the input data shapes are not compatible with the model.
+        """
+        self.rf.fit(stims, eeg)
+        self.coefs = self.rf.coef_ # n_chanels, n_feats, n_delays
+
+    def predict(
+        self, stims
+        ):
+        """
+        Predict the EEG response for the given stimuli data.
+
+        Parameters
+        ----------
+        stims : np.ndarray
+            The input stimuli data, shape (n_samples, n_features).
+
+        Returns
+        -------
+        tuple
+            A tuple containing the predicted response and the test data.
+
+        Raises
+        ------
+        ValueError
+            If the input data shapes are not compatible with the model.
+        """
+        predicted = self.rf.predict(stims)
+        if self.rf.estimator_.validation:
+            test = self.rf.estimator_.y_val
+            if self.estimator=='ridge':
+                return predicted[self.train_indexes[self.rf.estimator_.train_cutoff:]], test
+            else:
+                return predicted[self.train_indexes[self.rf.estimator_.train_cutoff:]], test.reshape((test.shape[0], test.shape[2]))
+        else:
+            test = self.rf.estimator_.y_test
+            if self.estimator=='ridge':
+                return predicted[self.test_indexes], test
+            else:
+                return predicted[self.test_indexes], test.reshape((test.shape[0], test.shape[2]))
+
 class RidgeRegression(Ridge):
     def __init__(
         self, relevant_indexes:np.ndarray=None, train_indexes:np.ndarray=None, 
@@ -402,163 +809,7 @@ class RidgeRegression(Ridge):
             y_test=norm.fit_normalize_test(test_data=y_test)
         return X_train, y_train, X_pred, y_test
 
-class Receptive_field_adaptation:
-    def __init__(
-        self, tmin:float, tmax:float, sample_rate:int, alpha:float, relevant_indexes:np.ndarray, 
-        train_indexes:np.ndarray, test_indexes:np.ndarray, stims_preprocess:str, 
-        eeg_preprocess:str, estimator:str='time_delaying_ridge', n_jobs:int=-1, fit_intercept:bool=False, 
-        shuffle:bool=False, validation:bool=False
-        ):
-        """
-        Initialize the Receptive_field_adaptation model.
 
-        Parameters
-        ----------
-        tmin : float
-            The minimum time lag.
-        tmax : float
-            The maximum time lag.
-        sample_rate : int
-            The sampling frequency.
-        alpha : float
-            Regularization strength.
-        relevant_indexes : np.ndarray
-            Array of relevant indexes.
-        train_indexes : np.ndarray
-            Array of training indexes.
-        test_indexes : np.ndarray
-            Array of testing indexes.
-        stims_preprocess : str
-            Preprocessing method for stimuli.
-        eeg_preprocess : str
-            Preprocessing method for EEG data.
-        estimator : str, optional
-            The type of estimator to use, by default 'time_delaying_ridge'.
-        n_jobs : int, optional
-            Number of jobs to run in parallel, by default -1.
-        fit_intercept : bool, optional
-            Whether to fit the intercept, by default False.
-        shuffle : bool, optional
-            Whether to shuffle the data, by default False.
-        validation : bool, optional
-            Whether to perform validation, by default False.
-
-        Returns
-        -------
-        None
-        
-        Raises
-        ------
-        SyntaxError
-            If the estimator is not one of the allowed models.
-        """
-        allowed_models = ['ridge', 'time_delaying_ridge']
-        self.train_indexes = train_indexes
-        self.test_indexes = test_indexes
-        self.sample_rate = sample_rate
-        if estimator not in allowed_models:
-            raise SyntaxError(f"{estimator} is not an allowed situation. Allowed ones are: {allowed_models}")
-        else:
-            self.estimator = estimator
-
-        if estimator =='time_delaying_ridge':
-            self.rf = ReceptiveField(tmin=tmin,
-                                     tmax=tmax, 
-                                     sfreq=sample_rate,
-                                     estimator=TimeDelayingRidgeRegression(
-                                                                        tmin=tmin, 
-                                                                        tmax=tmax, 
-                                                                        sfreq=sample_rate,
-                                                                        alpha=alpha,
-                                                                        relevant_indexes=relevant_indexes,
-                                                                        train_indexes=train_indexes,
-                                                                        test_indexes=test_indexes,
-                                                                        stims_preprocess=stims_preprocess, 
-                                                                        eeg_preprocess=eeg_preprocess,
-                                                                        fit_intercept=fit_intercept,
-                                                                        n_jobs=n_jobs,
-                                                                        shuffle=shuffle,
-                                                                        validation=validation
-                                                                        ),
-                                     scoring='corrcoef'
-                                     )
-        else:
-            self.rf = ReceptiveField(tmin=tmin, 
-                                     tmax=tmax, 
-                                     sfreq=sample_rate,
-                                     estimator=RidgeRegression(
-                                                            alpha=alpha,
-                                                            relevant_indexes=relevant_indexes,
-                                                            train_indexes=train_indexes,
-                                                            test_indexes=test_indexes,
-                                                            stims_preprocess=stims_preprocess, 
-                                                            eeg_preprocess=eeg_preprocess,
-                                                            fit_intercept=fit_intercept,
-                                                            n_jobs=n_jobs,
-                                                            shuffle=shuffle,
-                                                            validation=validation
-                                                            ),
-                                     scoring='corrcoef')
-   
-    def fit(
-        self, stims, eeg
-        ):
-        """
-        Fit the ReceptiveField model to the given stimuli and EEG data.
-
-        Parameters
-        ----------
-        stims : np.ndarray
-            The input stimuli data, shape (n_samples, n_features*n_delays). Mne should create the design matrix before performing this fit.
-        eeg : np.ndarray
-            The EEG response data, shape (n_samples, n_channels).
-
-        Returns
-        -------
-        None
-
-        Raises
-        ------
-        ValueError
-            If the input data shapes are not compatible with the model.
-        """
-        self.rf.fit(stims, eeg)
-        self.coefs = self.rf.coef_ # n_chanels, n_feats, n_delays
-
-    def predict(
-        self, stims
-        ):
-        """
-        Predict the EEG response for the given stimuli data.
-
-        Parameters
-        ----------
-        stims : np.ndarray
-            The input stimuli data, shape (n_samples, n_features).
-
-        Returns
-        -------
-        tuple
-            A tuple containing the predicted response and the test data.
-
-        Raises
-        ------
-        ValueError
-            If the input data shapes are not compatible with the model.
-        """
-        predicted = self.rf.predict(stims)
-        if self.rf.estimator_.validation:
-            test = self.rf.estimator_.y_val
-            if self.estimator=='ridge':
-                return predicted[self.train_indexes[self.rf.estimator_.train_cutoff:]], test
-            else:
-                return predicted[self.train_indexes[self.rf.estimator_.train_cutoff:]], test.reshape((test.shape[0], test.shape[2]))
-        else:
-            test = self.rf.estimator_.y_test
-            if self.estimator=='ridge':
-                return predicted[self.test_indexes], test
-            else:
-                return predicted[self.test_indexes], test.reshape((test.shape[0], test.shape[2]))
 
 #====================#    
 #=== OTHER MODELS ===#
