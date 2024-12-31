@@ -150,7 +150,7 @@ class TorchMtrf:
             
             # Store mtrfs
             # self.coefs = mtrfs.cpu().numpy()
-            self.coefs = mtrfs.view(len(config.delays), n_features, mtrfs.shape[-1]).permute(2, 1, 0).cpu().numpy()
+            self.coefs = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1).cpu().numpy()
             
         else:
             # Make split for validation: validation sets, fixing the train percent of data
@@ -182,7 +182,7 @@ class TorchMtrf:
             
             # Store mtrfs
             # self.coefs = mtrfs.cpu().numpy()
-            self.coefs = mtrfs.view(len(config.delays), n_features, mtrfs.shape[-1]).permute(2, 1, 0).cpu().numpy()
+            self.coefs = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1).cpu().numpy()
 
     def predict(
         self
@@ -257,204 +257,6 @@ class TorchMtrf:
             y_test=norm.fit_normalize_test(test_data=y_test)
         return X_train, y_train, X_pred, y_test
         
-
-#TODO: obsolete due to incorrect filtering implementation
-class TimeDelayingRidgeRegression(TimeDelayingRidge):
-    def __init__(
-        self, tmin:float, tmax:float, sfreq:int, relevant_indexes:np.ndarray=None, 
-        train_indexes:np.ndarray=None, test_indexes:np.ndarray=None, 
-        stims_preprocess:str='Normalize', eeg_preprocess:str='Standarize', alpha=1.0, 
-        fit_intercept=False, n_jobs:int=1, shuffle:bool=False, validation:bool=False
-        ):
-        """
-        Initialize the TimeDelayingRidgeRegression model.
-
-        Parameters
-        ----------
-        tmin : float
-            The minimum time lag.
-        tmax : float
-            The maximum time lag.
-        sfreq : int
-            The sampling frequency.
-        relevant_indexes : np.ndarray, optional
-            Array of relevant indexes.
-        train_indexes : np.ndarray, optional
-            Array of training indexes.
-        test_indexes : np.ndarray, optional
-            Array of testing indexes.
-        stims_preprocess : str, optional
-            Preprocessing method for stimuli, by default 'Normalize'.
-        eeg_preprocess : str, optional
-            Preprocessing method for EEG data, by default 'Standarize'.
-        alpha : float, optional
-            Regularization strength, by default 1.0.
-        fit_intercept : bool, optional
-            Whether to fit the intercept, by default False.
-        n_jobs : int, optional
-            Number of jobs to run in parallel, by default 1.
-        shuffle : bool, optional
-            Whether to shuffle the data, by default False.
-        validation : bool, optional
-            Whether to perform validation, by default False.
-
-        Returns
-        -------
-        None
-        """
-        super().__init__(tmin=tmin, tmax=tmax, sfreq=sfreq, alpha=alpha, fit_intercept=fit_intercept, n_jobs=n_jobs)
-        self.relevant_indexes = relevant_indexes
-        self.train_indexes = train_indexes
-        self.test_indexes = test_indexes
-        self.stims_preprocess = stims_preprocess
-        self.eeg_preprocess = eeg_preprocess
-        self.shuffle = shuffle
-        self.validation = validation
-
-    def fit(
-        self, X, y
-        ):
-        """
-        Fit the model according to the given training data.
-
-        Parameters
-        ----------
-        X : np.ndarray
-            Training data, shape (n_samples, n_features).
-        y : np.ndarray
-            Target values, shape (n_samples, n_channels).
-
-        Returns
-        -------
-        self : object
-            Returns self.
-
-        Raises
-        ------
-        ValueError
-            If the input arrays have inconsistent numbers of samples.
-        """
-        # Get relevant indexes
-        X_r, y_r= X[self.relevant_indexes], y[self.relevant_indexes] # relevant_samples relevant_samples, features*delays, antes relevant_samples, [epochs,features], delays
-        del X, y
-
-        if self.validation:
-            # Make split
-            X_train_val = X_r[self.train_indexes] 
-            y_train_val = y_r[self.train_indexes]
-            X_pred = X_r[self.test_indexes]
-            y_test = y_r[self.test_indexes]
-            del X_r, y_r
-            
-            # Separate training and validation sets, fixing the train percent of data
-            train_percent = .8
-            self.train_cutoff = int(train_percent * len(self.train_indexes))
-            X_train = X_train_val[:self.train_cutoff]
-            y_train = y_train_val[:self.train_cutoff]
-            X_val = X_train_val[self.train_cutoff:]
-            y_val = y_train_val[self.train_cutoff:]
-            
-            # Standarize and normalize
-            X_train, y_train, self.X_pred, self.y_val = self.standarize_normalize(
-                                                                                X_train=X_train, 
-                                                                                X_pred=X_val, 
-                                                                                y_train=y_train, 
-                                                                                y_test=y_val
-                                                                                )
-            return super().fit(X_train, y_train)
-        else:
-            # Make split
-            X_train = X_r[self.train_indexes] 
-            X_pred = X_r[self.test_indexes]
-            y_train = y_r[self.train_indexes]
-            y_test = y_r[self.test_indexes]
-            del X_r, y_r
-            
-            # When making random permutations, rearange delaying windows by shuffling
-            if self.shuffle:
-                np.random.shuffle(X_train)
-                np.random.shuffle(X_pred)
-                np.random.shuffle(y_train)
-                np.random.shuffle(y_test)
-            
-            # Standarize and normalize
-            X_train, y_train, self.X_pred, self.y_test = self.standarize_normalize(
-                                                                                X_train=X_train, 
-                                                                                X_pred=X_pred, 
-                                                                                y_train=y_train, 
-                                                                                y_test=y_test
-                                                                                )
-            return super().fit(X_train, y_train)
-    
-    def predict(
-        self, X
-        ):
-        """
-        Predict the response for the given input data.
-
-        Parameters
-        ----------
-        X : np.ndarray
-            Input data, shape (n_samples, n_features).
-
-        Returns
-        -------
-        np.ndarray
-            Predicted response, shape (n_samples, n_channels).
-
-        Raises
-        ------
-        ValueError
-            If the input data shape is not compatible with the model.
-        """
-        n_samples = X.shape[0]
-        y_restricted_prediction = super().predict(self.X_pred) # n_samples, n_channels
-        
-        # Padd with zeros to make it compatible with desired shape of mne.ReceptiveField.predict()
-        y_pred_full = np.zeros(shape=(n_samples, 1, y_restricted_prediction.shape[-1]))
-        if self.validation:
-            y_pred_full[self.train_indexes[self.train_cutoff:], :, :] = y_restricted_prediction # Notice that the filter is train_cutoff: because the following indexes are the one used for prediction
-        else:
-            y_pred_full[self.test_indexes, :, :] = y_restricted_prediction
-        # When used relevant indexes must be filtered once again
-        return y_pred_full
-    
-    def standarize_normalize(
-        self, X_train:np.ndarray, X_pred:np.ndarray, y_train:np.ndarray, y_test:np.ndarray
-        ):
-        """Standarize|Normalize training and test data.
-        Parameters
-        ----------
-        X_train : np.ndarray
-            Fatures to be normalized. Its dimensions should be samples x features 
-        y_train : np.ndarray
-            EEG samples to be normalized. Its dimensions should be samples x features
-
-        Returns
-        -------
-        tuple
-            A tuple containing the standardized/normalized training and test data: (X_train, y_train, X_pred, y_test).
-        """
-        # Instances of normalize and standarize
-        norm = Normalize(axis=0, porcent=5)
-        estandar = Standarize(axis=0)
-        
-        # Iterates to normalize|standarize over features
-        if self.stims_preprocess=='Standarize':
-            for feat in range(X_train.shape[1]):
-                X_train[:, feat] = estandar.fit_standarize_train(train_data=X_train[:, feat]) 
-                X_pred[:, feat] = estandar.fit_standarize_test(test_data=X_pred[:, feat])
-        if self.stims_preprocess=='Normalize':
-            for feat in range(X_train.shape[1]):
-                X_train[:, feat] = norm.fit_normalize_train(train_data=X_train[:, feat]) 
-                X_pred[:, feat] = norm.fit_normalize_test(test_data=X_pred[:, feat])
-        if self.eeg_preprocess=='Standarize':
-            y_train=estandar.fit_standarize_train(train_data=y_train)
-            y_test=estandar.fit_standarize_test(test_data=y_test)
-        if self.eeg_preprocess=='Normalize':
-            y_train=norm.fit_normalize_percent(data=y_train)
-            y_test=norm.fit_normalize_test(test_data=y_test)
-        return X_train, y_train, X_pred, y_test
 
 class Receptive_field_adaptation:
     def __init__(
@@ -810,6 +612,203 @@ class RidgeRegression(Ridge):
         return X_train, y_train, X_pred, y_test
 
 
+#TODO: obsolete due to incorrect filtering implementation
+class TimeDelayingRidgeRegression(TimeDelayingRidge):
+    def __init__(
+        self, tmin:float, tmax:float, sfreq:int, relevant_indexes:np.ndarray=None, 
+        train_indexes:np.ndarray=None, test_indexes:np.ndarray=None, 
+        stims_preprocess:str='Normalize', eeg_preprocess:str='Standarize', alpha=1.0, 
+        fit_intercept=False, n_jobs:int=1, shuffle:bool=False, validation:bool=False
+        ):
+        """
+        Initialize the TimeDelayingRidgeRegression model.
+
+        Parameters
+        ----------
+        tmin : float
+            The minimum time lag.
+        tmax : float
+            The maximum time lag.
+        sfreq : int
+            The sampling frequency.
+        relevant_indexes : np.ndarray, optional
+            Array of relevant indexes.
+        train_indexes : np.ndarray, optional
+            Array of training indexes.
+        test_indexes : np.ndarray, optional
+            Array of testing indexes.
+        stims_preprocess : str, optional
+            Preprocessing method for stimuli, by default 'Normalize'.
+        eeg_preprocess : str, optional
+            Preprocessing method for EEG data, by default 'Standarize'.
+        alpha : float, optional
+            Regularization strength, by default 1.0.
+        fit_intercept : bool, optional
+            Whether to fit the intercept, by default False.
+        n_jobs : int, optional
+            Number of jobs to run in parallel, by default 1.
+        shuffle : bool, optional
+            Whether to shuffle the data, by default False.
+        validation : bool, optional
+            Whether to perform validation, by default False.
+
+        Returns
+        -------
+        None
+        """
+        super().__init__(tmin=tmin, tmax=tmax, sfreq=sfreq, alpha=alpha, fit_intercept=fit_intercept, n_jobs=n_jobs)
+        self.relevant_indexes = relevant_indexes
+        self.train_indexes = train_indexes
+        self.test_indexes = test_indexes
+        self.stims_preprocess = stims_preprocess
+        self.eeg_preprocess = eeg_preprocess
+        self.shuffle = shuffle
+        self.validation = validation
+
+    def fit(
+        self, X, y
+        ):
+        """
+        Fit the model according to the given training data.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Training data, shape (n_samples, n_features).
+        y : np.ndarray
+            Target values, shape (n_samples, n_channels).
+
+        Returns
+        -------
+        self : object
+            Returns self.
+
+        Raises
+        ------
+        ValueError
+            If the input arrays have inconsistent numbers of samples.
+        """
+        # Get relevant indexes
+        X_r, y_r= X[self.relevant_indexes], y[self.relevant_indexes] # relevant_samples relevant_samples, features*delays, antes relevant_samples, [epochs,features], delays
+        del X, y
+
+        if self.validation:
+            # Make split
+            X_train_val = X_r[self.train_indexes] 
+            y_train_val = y_r[self.train_indexes]
+            X_pred = X_r[self.test_indexes]
+            y_test = y_r[self.test_indexes]
+            del X_r, y_r
+            
+            # Separate training and validation sets, fixing the train percent of data
+            train_percent = .8
+            self.train_cutoff = int(train_percent * len(self.train_indexes))
+            X_train = X_train_val[:self.train_cutoff]
+            y_train = y_train_val[:self.train_cutoff]
+            X_val = X_train_val[self.train_cutoff:]
+            y_val = y_train_val[self.train_cutoff:]
+            
+            # Standarize and normalize
+            X_train, y_train, self.X_pred, self.y_val = self.standarize_normalize(
+                                                                                X_train=X_train, 
+                                                                                X_pred=X_val, 
+                                                                                y_train=y_train, 
+                                                                                y_test=y_val
+                                                                                )
+            return super().fit(X_train, y_train)
+        else:
+            # Make split
+            X_train = X_r[self.train_indexes] 
+            X_pred = X_r[self.test_indexes]
+            y_train = y_r[self.train_indexes]
+            y_test = y_r[self.test_indexes]
+            del X_r, y_r
+            
+            # When making random permutations, rearange delaying windows by shuffling
+            if self.shuffle:
+                np.random.shuffle(X_train)
+                np.random.shuffle(X_pred)
+                np.random.shuffle(y_train)
+                np.random.shuffle(y_test)
+            
+            # Standarize and normalize
+            X_train, y_train, self.X_pred, self.y_test = self.standarize_normalize(
+                                                                                X_train=X_train, 
+                                                                                X_pred=X_pred, 
+                                                                                y_train=y_train, 
+                                                                                y_test=y_test
+                                                                                )
+            return super().fit(X_train, y_train)
+    
+    def predict(
+        self, X
+        ):
+        """
+        Predict the response for the given input data.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Input data, shape (n_samples, n_features).
+
+        Returns
+        -------
+        np.ndarray
+            Predicted response, shape (n_samples, n_channels).
+
+        Raises
+        ------
+        ValueError
+            If the input data shape is not compatible with the model.
+        """
+        n_samples = X.shape[0]
+        y_restricted_prediction = super().predict(self.X_pred) # n_samples, n_channels
+        
+        # Padd with zeros to make it compatible with desired shape of mne.ReceptiveField.predict()
+        y_pred_full = np.zeros(shape=(n_samples, 1, y_restricted_prediction.shape[-1]))
+        if self.validation:
+            y_pred_full[self.train_indexes[self.train_cutoff:], :, :] = y_restricted_prediction # Notice that the filter is train_cutoff: because the following indexes are the one used for prediction
+        else:
+            y_pred_full[self.test_indexes, :, :] = y_restricted_prediction
+        # When used relevant indexes must be filtered once again
+        return y_pred_full
+    
+    def standarize_normalize(
+        self, X_train:np.ndarray, X_pred:np.ndarray, y_train:np.ndarray, y_test:np.ndarray
+        ):
+        """Standarize|Normalize training and test data.
+        Parameters
+        ----------
+        X_train : np.ndarray
+            Fatures to be normalized. Its dimensions should be samples x features 
+        y_train : np.ndarray
+            EEG samples to be normalized. Its dimensions should be samples x features
+
+        Returns
+        -------
+        tuple
+            A tuple containing the standardized/normalized training and test data: (X_train, y_train, X_pred, y_test).
+        """
+        # Instances of normalize and standarize
+        norm = Normalize(axis=0, porcent=5)
+        estandar = Standarize(axis=0)
+        
+        # Iterates to normalize|standarize over features
+        if self.stims_preprocess=='Standarize':
+            for feat in range(X_train.shape[1]):
+                X_train[:, feat] = estandar.fit_standarize_train(train_data=X_train[:, feat]) 
+                X_pred[:, feat] = estandar.fit_standarize_test(test_data=X_pred[:, feat])
+        if self.stims_preprocess=='Normalize':
+            for feat in range(X_train.shape[1]):
+                X_train[:, feat] = norm.fit_normalize_train(train_data=X_train[:, feat]) 
+                X_pred[:, feat] = norm.fit_normalize_test(test_data=X_pred[:, feat])
+        if self.eeg_preprocess=='Standarize':
+            y_train=estandar.fit_standarize_train(train_data=y_train)
+            y_test=estandar.fit_standarize_test(test_data=y_test)
+        if self.eeg_preprocess=='Normalize':
+            y_train=norm.fit_normalize_percent(data=y_train)
+            y_test=norm.fit_normalize_test(test_data=y_test)
+        return X_train, y_train, X_pred, y_test
 
 #====================#    
 #=== OTHER MODELS ===#
