@@ -5,6 +5,7 @@ import numpy as np, os
 from joblib import Parallel, delayed
 
 # Modules
+from cuml_ridge import CumlRidgeRegression
 from mtrf_models import Receptive_field_adaptation
 from processing import block_bootstrap
 from funciones import load_pickle
@@ -58,32 +59,42 @@ def parallel_fold_model(
         Otherwise (statistical_test False, shuffle True), returns (iteration, fold, weights, correlation_matrix, root_mean_square_error).
     """
     # Implement mne model
-    mtrf = Receptive_field_adaptation(
-                                    tmin=config.tmin, 
-                                    tmax=config.tmax, 
-                                    sample_rate=config.sr, 
-                                    alpha=alpha, 
-                                    relevant_indexes=np.array(relevant_indexes),
-                                    train_indexes=train_indexes, 
-                                    test_indexes=test_indexes, 
-                                    stims_preprocess=config.stims_preprocess, 
-                                    eeg_preprocess=config.eeg_preprocess,
-                                    fit_intercept=False,
-                                    # n_jobs=n_jobs, 
-                                    n_jobs=1,
-                                    estimator=config.estimator,
-                                    validation=validation,
-                                    shuffle=shuffle
-                                    )
+    # mtrf = Receptive_field_adaptation(
+    #                                 tmin=config.tmin, 
+    #                                 tmax=config.tmax, 
+    #                                 sample_rate=config.sr, 
+    #                                 alpha=alpha, 
+    #                                 relevant_indexes=np.array(relevant_indexes),
+    #                                 train_indexes=train_indexes, 
+    #                                 test_indexes=test_indexes, 
+    #                                 stims_preprocess=config.stims_preprocess, 
+    #                                 eeg_preprocess=config.eeg_preprocess,
+    #                                 fit_intercept=False,
+    #                                 # n_jobs=n_jobs, 
+    #                                 n_jobs=1,
+    #                                 estimator=config.estimator,
+    #                                 validation=validation,
+    #                                 shuffle=shuffle
+    #                                 )
+    mtrf = CumlRidgeRegression(
+            alpha=alpha, 
+            relevant_indexes=np.array(relevant_indexes),
+            train_indexes=train_indexes, 
+            test_indexes=test_indexes, 
+            stims_preprocess=config.stims_preprocess, 
+            eeg_preprocess=config.eeg_preprocess,
+            fit_intercept=False,
+            validation=validation,
+            shuffle=shuffle
+            )
     
     # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
-    mtrf.fit(stims, eeg)
-    
-    # Get weights coefficients shape n_chans, feats, delays
-    weights = mtrf.coefs
-    
+    weights = mtrf.fit(stims, eeg) # Coefficients shape n_chans, feats, delays
+
     # Predict and save
-    predicted, eeg_test = mtrf.predict(stims)
+    # predicted, eeg_test = mtrf.predict(stims)
+    predicted, eeg_test = mtrf.predict()
+    
     if (predicted==0).all():
         print(f'\n\t\tFold {fold+1}/{config.n_folds} prediction is null, this may be due to the sparsity of weights. If there are\n\t\ttoo many zeros when making product with selected stimuli, the product may be null.')
 
