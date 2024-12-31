@@ -204,7 +204,7 @@ def shifted_matrix(
 
     Returns
     -------
-    np.ndarray
+    np.ndarray|cp.ndarray
         Concatenated shifted matrix of shape samples, [epochs,features], delays
     """
     if isinstance(features, list):
@@ -229,10 +229,7 @@ def shifted_matrix(
             use_X = features
         out[:] = use_X
     
-    if use_gpu:
-        return cp.asnumpy(shifted_matrix)
-    else:
-        return shifted_matrix
+    return shifted_matrix
 
 def butter_filter(data, frecuencias, sampling_freq, btype, order, axis, ftype):
     if btype == 'lowpass' or btype == 'highpass':

@@ -4,7 +4,7 @@ import numpy as np, os
 # Specific libraries
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 from cuml.linear_model import Ridge as CumlRidge
-from sklearn.multioutput import MultiOutputRegressor
+# from sklearn.multioutput import MultiOutputRegressor
 from cuml.preprocessing import MinMaxScaler, StandardScaler
 import cupy as cp
 
@@ -80,15 +80,16 @@ class CumlRidgeRegression:
         np.ndarray
             Coefficients of the model
         """
-        # Construct design matrix
+        # Construct design matrix and transform for GPU computation
         design_matrix = shifted_matrix(stims, delays=config.delays, use_gpu=True)
         n_samples, n_features, n_delays = design_matrix.shape
         design_matrix = design_matrix.reshape(n_samples, n_features*n_delays)
 
-        # Get relevant indexes
+        # Get relevant indexes and transform to GPU
         X_temp = design_matrix[self.relevant_indexes]
         del design_matrix
-        y_temp = eeg[self.relevant_indexes]
+        y_temp = cp.asarray(eeg[self.relevant_indexes])
+        del stims, eeg
         
         # Separate into training and testing
         X_train = X_temp[self.train_indexes]
@@ -113,15 +114,13 @@ class CumlRidgeRegression:
                                                         )
             del X_pred, y_test
             
-            # Transfer data to GPU
-            X_train = cp.asarray(X_train)
-            y_train = cp.asarray(y_train)
-
             # Fit the Ridge model
-            self.model = MultiOutputRegressor(CumlRidge(alpha=self.alpha, fit_intercept=self.fit_intercept))
-            self.model.fit(X_train, y_train)
-            weights_unordered = cp.vstack([model.coef_ for model in self.model.estimators_])
-            
+            self.models = []
+            for i in range(y_train.shape[1]):
+                model = CumlRidge(alpha=self.alpha, fit_intercept=self.fit_intercept)
+                model.fit(X_train, y_train[:, i])
+                self.models.append(model)
+            weights_unordered = cp.vstack([model.coef_ for model in self.models])
             return cp.asnumpy(weights_unordered.reshape(weights_unordered.shape[0], n_features, n_delays))
         else:
             # Make split for validation: validation sets, fixing the train percent of data
@@ -142,15 +141,13 @@ class CumlRidgeRegression:
                                                                                 )
             del X_val, y_val
             
-            # Transfer data to GPU
-            X_train_for_val = cp.asarray(X_train_for_val)
-            y_train_for_val = cp.asarray(y_train_for_val)
-
             # Fit the Ridge model
-            self.model = MultiOutputRegressor(CumlRidge(alpha=self.alpha, fit_intercept=self.fit_intercept))
-            self.model.fit(X_train_for_val, y_train_for_val)
-            weights_unordered = cp.vstack([model.coef_ for model in self.model.estimators_])
-            
+            self.models = []
+            for i in range(y_train_for_val.shape[1]):
+                model = CumlRidge(alpha=self.alpha, fit_intercept=self.fit_intercept)
+                model.fit(X_train_for_val, y_train_for_val[:, i])
+                self.models.append(model)
+            weights_unordered = cp.vstack([model.coef_ for model in self.models])
             return cp.asnumpy(weights_unordered.reshape(weights_unordered.shape[0], n_features, n_delays))
         
     def predict(self) -> np.ndarray:
@@ -164,14 +161,12 @@ class CumlRidgeRegression:
         -------
         np.ndarray
             Predicted response, shape (n_samples, n_channels).
-        """
-        # Transfer data to GPU
-        self.X_pred = cp.asarray(self.X_pred)
-        
+        """       
+        predictions = cp.hstack([model.predict(self.X_pred) for model in self.models])
         if self.validation:
-            return cp.asnumpy(self.model.predict(self.X_pred)), self.y_val
+            return predictions, self.y_val
         else:
-            return cp.asnumpy(self.model.predict(self.X_pred)), self.y_test
+            return predictions, self.y_test
     
     def standarize_normalize(
         self, X_train:np.ndarray, X_pred:np.ndarray, y_train:np.ndarray, y_test:np.ndarray
