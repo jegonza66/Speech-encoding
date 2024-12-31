@@ -162,11 +162,11 @@ class CumlRidgeRegression:
         np.ndarray
             Predicted response, shape (n_samples, n_channels).
         """       
-        predictions = cp.hstack([model.predict(self.X_pred) for model in self.models])
+        predictions = cp.vstack([model.predict(self.X_pred) for model in self.models]).T
         if self.validation:
-            return predictions, self.y_val
+            return cp.asnumpy(predictions), cp.asnumpy(self.y_val)
         else:
-            return predictions, self.y_test
+            return cp.asnumpy(predictions), cp.asnumpy(self.y_test)
     
     def standarize_normalize(
         self, X_train:np.ndarray, X_pred:np.ndarray, y_train:np.ndarray, y_test:np.ndarray
