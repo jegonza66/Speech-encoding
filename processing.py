@@ -187,7 +187,10 @@ def standarize_normalize(eeg_train_val, eeg_test, dstims_train_val, dstims_test,
 
     return eeg_train_val, eeg_test, dstims_train_val, dstims_test
 
-def shifted_matrix(features:np.ndarray, delays:np.ndarray):
+def shifted_matrix(
+    features:np.ndarray, 
+    delays:np.ndarray, 
+    use_gpu:bool=False) -> np.ndarray:
     """Computes shifted matrix for a given array of delays
 
     Parameters
@@ -196,6 +199,8 @@ def shifted_matrix(features:np.ndarray, delays:np.ndarray):
         The time series to delay must be 2D or 3D if array.
     delays : np.ndarray
         Index delays
+    use_gpu : bool, optional
+        Whether to use GPU for computation, by default False
 
     Returns
     -------
@@ -204,24 +209,30 @@ def shifted_matrix(features:np.ndarray, delays:np.ndarray):
     """
     if isinstance(features, list):
         features = np.array(features)
-    # Is asumed this is a one dimensional feature with number of samples as length
-    shifted_matrix = np.zeros(features.shape + (len(delays),))
+    
+    if use_gpu:
+        import cupy as cp
+        features = cp.asarray(features)
+        shifted_matrix = cp.zeros(features.shape + (len(delays),))
+    else:
+        shifted_matrix = np.zeros(features.shape + (len(delays),))
 
     for i, delay in enumerate(delays):
-        # Put last elements at the begining. For ex.: feature, delay = [1,2,3,4].T, -1 --> [2,3,4,0].T
         if delay < 0:
             out = shifted_matrix[:delay, ..., i]
-            use_X = features[-delay:]             
-        # Put the first elements at the end. For ex.: feature, delay = [1,2,3,4].T, 1 --> [0,1,2,3].T
+            use_X = features[-delay:]
         elif delay > 0:
             out = shifted_matrix[delay:, ..., i]
             use_X = features[:-delay]
-        # Leave it exactly the same
         else:
             out = shifted_matrix[..., i]
             use_X = features
         out[:] = use_X
-    return shifted_matrix
+    
+    if use_gpu:
+        return cp.asnumpy(shifted_matrix)
+    else:
+        return shifted_matrix
 
 def butter_filter(data, frecuencias, sampling_freq, btype, order, axis, ftype):
     if btype == 'lowpass' or btype == 'highpass':

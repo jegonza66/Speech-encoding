@@ -6,6 +6,7 @@ os.environ["CUDA_VISIBLE_DEVICES"]="0"
 from cuml.linear_model import Ridge as CumlRidge
 from sklearn.multioutput import MultiOutputRegressor
 from cuml.preprocessing import MinMaxScaler, StandardScaler
+import cupy as cp
 
 # Modules
 from processing import shifted_matrix
@@ -80,7 +81,7 @@ class CumlRidgeRegression:
             Coefficients of the model
         """
         # Construct design matrix
-        design_matrix = shifted_matrix(stims, delays=config.delays)
+        design_matrix = shifted_matrix(stims, delays=config.delays, use_gpu=True)
         n_samples, n_features, n_delays = design_matrix.shape
         design_matrix = design_matrix.reshape(n_samples, n_features*n_delays)
 
@@ -111,13 +112,17 @@ class CumlRidgeRegression:
                                                         y_test=y_test
                                                         )
             del X_pred, y_test
+            
+            # Transfer data to GPU
+            X_train = cp.asarray(X_train)
+            y_train = cp.asarray(y_train)
 
             # Fit the Ridge model
             self.model = MultiOutputRegressor(CumlRidge(alpha=self.alpha, fit_intercept=self.fit_intercept))
             self.model.fit(X_train, y_train)
-            weights_unordered = np.vstack([model.coef_ for model in self.model.estimators_])
+            weights_unordered = cp.vstack([model.coef_ for model in self.model.estimators_])
             
-            return weights_unordered.reshape(weights_unordered.shape[0], n_features, n_delays)
+            return cp.asnumpy(weights_unordered.reshape(weights_unordered.shape[0], n_features, n_delays))
         else:
             # Make split for validation: validation sets, fixing the train percent of data
             train_percent = .8
@@ -137,12 +142,16 @@ class CumlRidgeRegression:
                                                                                 )
             del X_val, y_val
             
+            # Transfer data to GPU
+            X_train_for_val = cp.asarray(X_train_for_val)
+            y_train_for_val = cp.asarray(y_train_for_val)
+
             # Fit the Ridge model
             self.model = MultiOutputRegressor(CumlRidge(alpha=self.alpha, fit_intercept=self.fit_intercept))
             self.model.fit(X_train_for_val, y_train_for_val)
-            weights_unordered = np.vstack([model.coef_ for model in self.model.estimators_])
+            weights_unordered = cp.vstack([model.coef_ for model in self.model.estimators_])
             
-            return weights_unordered.reshape(weights_unordered.shape[0], n_features, n_delays)
+            return cp.asnumpy(weights_unordered.reshape(weights_unordered.shape[0], n_features, n_delays))
         
     def predict(self) -> np.ndarray:
         """
@@ -156,10 +165,13 @@ class CumlRidgeRegression:
         np.ndarray
             Predicted response, shape (n_samples, n_channels).
         """
+        # Transfer data to GPU
+        self.X_pred = cp.asarray(self.X_pred)
+        
         if self.validation:
-            return self.model.predict(self.X_pred), self.y_val
+            return cp.asnumpy(self.model.predict(self.X_pred)), self.y_val
         else:
-            return self.model.predict(self.X_pred), self.y_test
+            return cp.asnumpy(self.model.predict(self.X_pred)), self.y_test
     
     def standarize_normalize(
         self, X_train:np.ndarray, X_pred:np.ndarray, y_train:np.ndarray, y_test:np.ndarray
