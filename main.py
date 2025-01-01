@@ -147,42 +147,29 @@ for band in config.bands:
                 # Keep relevant indexes for eeg
                 relevant_eeg = eeg[relevant_indexes]
                 
-                # Run folds simultaneously
-                # results = Parallel(n_jobs=-1, verbose=0)(delayed(parallel_fold_model)(
-                #                                                                 fold=fold,
-                #                                                                 alpha=np.float32(alpha),
-                #                                                                 stims=stims,
-                #                                                                 eeg=eeg,
-                #                                                                 relevant_indexes=relevant_indexes,
-                #                                                                 train_indexes=train_indexes,
-                #                                                                 test_indexes=test_indexes,
-                #                                                                 validation=False,
-                #                                                                 statistical_test=config.statistical_test,
-                #                                                                 path_null=path_null,
-                #                                                                 session=sesion,
-                #                                                                 subject=sujeto,                              
-                #                                                                 ) for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg))
-                #                                         )
-                results = []
+                # Run folds
+                k_models_output = []
                 for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
-                    print(fold)
-                    results.append(parallel_fold_model(
-                                                    fold=fold,
-                                                    alpha=np.float32(alpha),
-                                                    stims=stims,
-                                                    eeg=eeg,
-                                                    relevant_indexes=relevant_indexes,
-                                                    train_indexes=train_indexes,
-                                                    test_indexes=test_indexes,
-                                                    validation=False,
-                                                    statistical_test=config.statistical_test,
-                                                    path_null=path_null,
-                                                    session=sesion,
-                                                    subject=sujeto,                              
-                                                    )
-                                  )
-                for result in results:
-                    fold, weights, correlation_matrix, root_mean_square_error = result[:4]
+                    print(f'\n\t······  [{fold+1}/{config.n_folds}]')
+                    k_models_output.append(
+                                    parallel_fold_model(
+                                    fold=fold,
+                                    alpha=np.float32(alpha),
+                                    stims=stims,
+                                    eeg=eeg,
+                                    relevant_indexes=relevant_indexes,
+                                    train_indexes=train_indexes,
+                                    test_indexes=test_indexes,
+                                    validation=False,
+                                    statistical_test=config.statistical_test,
+                                    path_null=path_null,
+                                    session=sesion,
+                                    subject=sujeto,                              
+                                    )
+                                    )
+                # Store model output
+                for output_k in k_models_output:
+                    fold, weights, correlation_matrix, root_mean_square_error = output_k[:4]
                     
                     # Update weights and metrics per fold
                     weights_per_fold[fold] = weights
@@ -190,7 +177,7 @@ for band in config.bands:
                     rmse_per_channel[fold] = root_mean_square_error 
                     
                     if config.statistical_test:
-                        p_corr, p_rmse, significant_corr_count, significant_rmse_count, null_correlation_per_channel = result[4:]
+                        p_corr, p_rmse, significant_corr_count, significant_rmse_count, null_correlation_per_channel = output_k[4:]
                     
                         # p-values for significant channels (the rest are ones, i.e: not significant)
                         proba_correlation_per_channel[fold][p_corr < config.significance_threshold] = p_corr[p_corr < config.significance_threshold]

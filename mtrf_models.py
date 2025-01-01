@@ -149,7 +149,6 @@ class TorchMtrf:
             del X_pred
             
             # Store mtrfs
-            # self.coefs = mtrfs.cpu().numpy()
             self.coefs = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1).cpu().numpy()
             
         else:
@@ -181,7 +180,6 @@ class TorchMtrf:
             del X_pred
             
             # Store mtrfs
-            # self.coefs = mtrfs.cpu().numpy()
             self.coefs = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1).cpu().numpy()
 
     def predict(

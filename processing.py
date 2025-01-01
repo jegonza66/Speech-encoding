@@ -223,7 +223,9 @@ def shifted_matrix(
         out[:] = use_X
     
     # Return the shifted matrix reshaped for the final output
+    # return shifted_matrix.cpu().numpy()
     return shifted_matrix.reshape(n_samples, n_features * len(delays)).cpu().numpy()
+    
 
 def butter_filter(data, frecuencias, sampling_freq, btype, order, axis, ftype):
     if btype == 'lowpass' or btype == 'highpass':
