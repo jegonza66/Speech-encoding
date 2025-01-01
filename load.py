@@ -353,7 +353,7 @@ class Trial_channel:
         
         return S_DB.T
     
-    def f_mfccs(self, kind:str='Log-Raw'):
+    def f_mfccs(self, kind:str='Mfccs'):
         """
         Calculates mel frequency clepstral coefficients from .wav.
 
@@ -388,7 +388,7 @@ class Trial_channel:
         
         # Calculate matrix of mfccs
         sample_window = int(self.audio_sr/self.sr)
-        mfccs = librosa.feature.mfcc(y=wav, n_mfcc=12, n_mels=12, sr=self.audio_sr, n_fft=sample_window, hop_length=sample_window)
+        mfccs = librosa.feature.mfcc(y=wav, n_mfcc=16, n_mels=16, sr=self.audio_sr, n_fft=sample_window, hop_length=sample_window)
         
         # Append deltas and deltas deltas
         if kind.startswith('Mfccs'):
