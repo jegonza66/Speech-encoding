@@ -6,7 +6,7 @@ sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 stimuli = [
             'Mfccs', 
            ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
-situation = 'External' # 'External' #'External' # 'Internal' # 'External_BS' #'Internal_BS'
+situations = ['External', 'Internal'] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
 bands = [
         'Delta', 
         'Theta', 
@@ -28,6 +28,7 @@ elif estimator == 'ridge_torch':
     use_gpu = True
 else:
     model = 'mtrf'
+    
 # ====================================================================
 # TFCE, T-TEST PARAMETERS, HIERARCHICAL_CLUSTERING and NUMBER OF FOLDS
 perform_tfce, n_permutations, significance, number_of_jobs = False, 2500, .05, -1
