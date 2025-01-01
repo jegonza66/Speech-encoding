@@ -5,7 +5,7 @@ import numpy as np, os
 from joblib import Parallel, delayed
 
 # Modules
-from mtrf_models import Receptive_field_adaptation
+from mtrf_models import ReceptiveFieldAdaptation
 from mtrf_models import TorchMtrf
 from processing import block_bootstrap
 from funciones import load_pickle
@@ -60,7 +60,7 @@ def parallel_fold_model(
     """
     # Implement mne model
     if config.model=='mtrf_ridge' or config.model=='mtrf':
-        mtrf = Receptive_field_adaptation(
+        mtrf = ReceptiveFieldAdaptation(
                                     tmin=config.tmin, 
                                     tmax=config.tmax, 
                                     sample_rate=config.sr, 
@@ -105,8 +105,6 @@ def parallel_fold_model(
 
         # Predict and save
         predicted, eeg_test = mtrf.predict()
-    
-    
     if (predicted==0).all():
         print(f'\n\t\tFold {fold+1}/{config.n_folds} prediction is null, this may be due to the sparsity of weights. If there are\n\t\ttoo many zeros when making product with selected stimuli, the product may be null.')
 
@@ -166,7 +164,7 @@ def parallel_fold_model(
             return fold, weights, correlation_matrix, root_mean_square_error
 
 def simulation_mtrf(
-    iterations:int,
+    n_iterations:int,
     fold:int,
     stims:np.ndarray, 
     eeg:np.ndarray,
@@ -188,7 +186,7 @@ def simulation_mtrf(
     Perform mTRF simulation by running multiple iterations of the permutation test.
 
     Parameters:
-        iterations (int): Number of iterations to run.
+        n_iterations (int): Number of iterations to run.
         fold (int): Current fold number.
         stims (np.ndarray): Stimuli data.
         eeg (np.ndarray): EEG data.
@@ -211,48 +209,28 @@ def simulation_mtrf(
         tuple: Updated null_weights, null_correlation, and null_errors.
     """
     # Define the iterations array
-    iterations = np.arange(iterations)
+    iterations = np.arange(n_iterations)
     
     # Whethet to perform parallel computation
-    if sum(n_feats) < 16:
-        results = Parallel(n_jobs=-1, verbose=0)(delayed(parallel_fold_model)(
-                                                                            fold=fold, 
-                                                                            alpha=alpha, 
-                                                                            stims=stims, 
-                                                                            eeg=eeg, 
-                                                                            relevant_indexes=relevant_indexes, 
-                                                                            train_indexes=train_indexes, 
-                                                                            test_indexes=test_indexes, 
-                                                                            validation=False, 
-                                                                            shuffle=True, 
-                                                                            statistical_test=False, 
-                                                                            path_null=None, 
-                                                                            session=None, 
-                                                                            subject=None, 
-                                                                            iteration=iteration
-                                                                            ) for iteration in iterations)
-        for i, result in enumerate(results):
-            _, fold, null_weights[fold, i], null_correlation[fold, i], null_errors[fold, i] = result
-    else:
-        for i in iterations:
-            _, fold, null_weights[fold, i], null_correlation[fold, i], null_errors[fold, i] = parallel_fold_model(
-                                                                                                                fold=fold, 
-                                                                                                                alpha=alpha, 
-                                                                                                                stims=stims, 
-                                                                                                                eeg=eeg, 
-                                                                                                                relevant_indexes=relevant_indexes, 
-                                                                                                                train_indexes=train_indexes, 
-                                                                                                                test_indexes=test_indexes, 
-                                                                                                                validation=False, 
-                                                                                                                shuffle=True, 
-                                                                                                                statistical_test=False, 
-                                                                                                                path_null=None, 
-                                                                                                                session=None, 
-                                                                                                                subject=None, 
-                                                                                                                iteration=i
-                                                                                                                )
-            if (len(iterations)>=10) and (i in iterations[::int(len(iterations)/10)]):
-                print("\t\t\rProgress {}%".format(int((i + 1) * 100 / len(iterations))), end='')
-            elif len(iterations)<10:
-                print("\t\t\rProgress {}%".format(int((i + 1) * 100 / len(iterations))), end='')
+    for i in iterations:
+        _, fold, null_weights[fold, i], null_correlation[fold, i], null_errors[fold, i] = parallel_fold_model(
+                                                                                        fold=fold, 
+                                                                                        alpha=alpha, 
+                                                                                        stims=stims, 
+                                                                                        eeg=eeg, 
+                                                                                        relevant_indexes=relevant_indexes, 
+                                                                                        train_indexes=train_indexes, 
+                                                                                        test_indexes=test_indexes, 
+                                                                                        validation=False, 
+                                                                                        shuffle=True, 
+                                                                                        statistical_test=False, 
+                                                                                        path_null=None, 
+                                                                                        session=None, 
+                                                                                        subject=None, 
+                                                                                        iteration=i
+                                                                                        )
+        if (n_iterations>=10) and (i in iterations[::int(n_iterations/10)]):
+            print("\t\t\rProgress {}%".format(int((i + 1) * 100 / n_iterations)), end='')
+        elif n_iterations<10:
+            print("\t\t\rProgress {}%".format(int((i + 1) * 100 / n_iterations)), end='')
     return null_weights, null_correlation, null_errors

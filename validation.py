@@ -8,7 +8,6 @@ from joblib import Parallel, delayed
 
 # Modules
 from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
-from mtrf_models import Receptive_field_adaptation
 from model_parallelization import parallel_fold_model
 from plot import hyperparameter_selection
 from load import load_data
@@ -182,90 +181,3 @@ dict_to_csv(
 # Send text to telegram bot
 with Suppress_print():
     mensaje_tel(api_token=api_token, chat_id=chat_id, mensaje=text)
-
-# def parallel_alpha_search(
-#     i_alpha:float, alpha:float, stims:np.ndarray, eeg:np.ndarray,
-#     relevant_indexes:np.ndarray, info:dict, n_feats:list
-#     ) -> tuple:
-#     """
-#     Performs parallel alpha search for model validation.
-    
-#     Parameters
-#     ----------
-#     i_alpha : float
-#         Index of the current alpha value in the sweep.
-#     alpha : float
-#         Regularization parameter for the model.
-#     stims : np.ndarray
-#         Stimuli data.
-#     eeg : np.ndarray
-#         EEG data.
-#     relevant_indexes : np.ndarray
-#         Indexes of relevant data points.
-#     info : dict
-#         Dictionary containing information about the data.
-#     n_feats : list
-#         List containing the number of features for each stimulus.
-    
-#     Returns
-#     -------
-#     tuple
-#         A tuple containing the index of the alpha, mean correlation, and standard deviation of the correlation.
-#     """
-#     weights_per_fold = np.zeros((config.n_folds, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float16)
-#     correlation_per_channel = np.zeros((config.n_folds, info['nchan']))
-#     rmse_per_channel = np.zeros((config.n_folds, info['nchan']))
-
-#     # Make the Kfold test
-#     kf_test = KFold(config.n_folds, shuffle=False)
-
-#     # Keep relevant indexes for eeg
-#     relevant_eeg = eeg[relevant_indexes]
-
-#     for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
-#         # print(f'\n\t\t······  [{fold+1}/{n_folds}]')
-
-#         # Determine wether to run the model in parallel or not
-#         # n_jobs=-1 if sum(n_feats)>1 else 1
-        
-#         # Implement mne model
-#         mtrf = Receptive_field_adaptation(
-#                                         tmin=config.tmin, 
-#                                         tmax=config.tmax, 
-#                                         sample_rate=config.sr, 
-#                                         alpha=alpha, 
-#                                         relevant_indexes=np.array(relevant_indexes),
-#                                         train_indexes=train_indexes, 
-#                                         test_indexes=test_indexes, 
-#                                         stims_preprocess=config.stims_preprocess, 
-#                                         eeg_preprocess=config.eeg_preprocess,
-#                                         fit_intercept=False,
-#                                         # n_jobs=n_jobs, 
-#                                         n_jobs=-1,
-#                                         estimator=config.estimator,
-#                                         validation=True
-#                                         )
-        
-#         # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
-#         mtrf.fit(stims, eeg)
-        
-#         # Get weights coefficients shape n_chans, feats, delays
-#         weights_per_fold[fold] = mtrf.coefs
-        
-#         # Predict and save
-#         predicted, eeg_val = mtrf.predict(stims)
-#         if (predicted==0).all():
-#             print(f'\n\t\tFold {fold+1}/{config.n_folds} prediction is null, this may be due to the sparsity of weights. If there are\n\t\ttoo many zeros when making product with selected stimuli, the product may be null.')
-
-#         # Calculates and saves correlation of each channel
-#         try:
-#             correlation_matrix = np.array([np.corrcoef(eeg_val[:, j], predicted[:, j])[0,1] for j in range(eeg_val.shape[1])])
-#         except RuntimeWarning:
-#             correlation_matrix = np.zeros(eeg_val.shape[1])
-#         correlation_per_channel[fold] = correlation_matrix
-
-#         # Calculates and saves root mean square error of each channel
-#         root_mean_square_error = np.array(np.sqrt(np.power((predicted - eeg_val), 2).mean(0)))
-#         rmse_per_channel[fold] = root_mean_square_error
-
-#     return i_alpha, np.nan_to_num(np.nanmean(correlation_per_channel)), np.nan_to_num(np.nanstd(correlation_per_channel))

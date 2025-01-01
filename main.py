@@ -5,7 +5,6 @@ import numpy as np
 
 # Specific libraries
 from sklearn.model_selection import KFold
-# from joblib import Parallel, delayed
 
 # Modules
 from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print

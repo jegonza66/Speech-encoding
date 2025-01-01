@@ -256,7 +256,7 @@ class TorchMtrf:
         return X_train, y_train, X_pred, y_test
         
 
-class Receptive_field_adaptation:
+class ReceptiveFieldAdaptation:
     def __init__(
         self, tmin:float, tmax:float, sample_rate:int, alpha:float, relevant_indexes:np.ndarray, 
         train_indexes:np.ndarray, test_indexes:np.ndarray, stims_preprocess:str, 
@@ -264,7 +264,7 @@ class Receptive_field_adaptation:
         shuffle:bool=False, validation:bool=False
         ):
         """
-        Initialize the Receptive_field_adaptation model.
+        Initialize the ReceptiveFieldAdaptation model.
 
         Parameters
         ----------

@@ -39,15 +39,15 @@ for band in config.bands:
             
             # Load data by subject, EEG and info
             sujeto_1, sujeto_2, samples_info = load_data(
-                                                        sesion=sesion,
-                                                        stim=stim,
-                                                        band=band,
-                                                        sr=config.sr,
-                                                        delays=config.delays,
-                                                        preprocessed_data_path=preprocessed_data_path,
-                                                        praat_executable_path=config.praat_executable_path,
-                                                        situation=config.situation
-                                                        )
+                                                sesion=sesion,
+                                                stim=stim,
+                                                band=band,
+                                                sr=config.sr,
+                                                delays=config.delays,
+                                                preprocessed_data_path=preprocessed_data_path,
+                                                praat_executable_path=config.praat_executable_path,
+                                                situation=config.situation
+                                                )
             eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
 
             if config.just_load_data:
