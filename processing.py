@@ -196,6 +196,8 @@ def shifted_matrix(
         Concatenated shifted matrix of shape (samples, features*delays)
     """
     # Convert features to tensor and move to GPU if needed
+    if features.ndim == 1:
+        features = features.reshape(-1, 1)
     features_tensor = torch.tensor(features, dtype=torch.float32)
     if use_gpu:
         features_tensor = features_tensor.cuda()
