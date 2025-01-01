@@ -3,19 +3,42 @@ import numpy as np, mne
 # ==========================================
 # SESSIONS, STIMULI, SITUATION AND EEG BANDS
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
+# stimuli = [
+#         'Envelope',
+#         'Pitch-Log-Raw',
+#         'Spectrogram',
+#         'Mfccs',
+#         'Phonological',
+#         'Phonemes-Discrete-Phonet'
+#         ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
+# situations = [
+#         'External', 
+#         'Internal', 
+#         'External_BS',
+#         'Internal_BS'
+#         ] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
+# bands = [
+#         'Delta', 
+#         'Theta', 
+#         'Alpha', 
+#         'Beta1', 
+#         'Beta2',
+#         'All'
+#         ] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
 stimuli = [
-            'Envelope', 
-           ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
-situations = ['External']#, 'Internal', 'External_BS','Internal_BS'] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
+        'Envelope',
+        'Pitch-Log-Raw',
+        'Spectrogram',
+        'Mfccs',
+        'Phonological',
+        'Phonemes-Discrete-Phonet'
+        ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
+situations = [
+        'External' 
+        ] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
 bands = [
-        'Delta', 
-        'Theta', 
-        'Alpha', 
-        'Beta1', 
-        'Beta2',
-        'All'
+        'Theta' 
         ] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
-bands = ['Theta']
 
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
