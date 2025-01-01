@@ -1,20 +1,27 @@
 # Standard libraries
 import numpy as np, os
 
-# Specific libraries
-from joblib import Parallel, delayed
-
 # Modules
-from mtrf_models import ReceptiveFieldAdaptation
-from mtrf_models import TorchMtrf
+from mtrf_models import ReceptiveFieldAdaptation, TorchMtrf
 from processing import block_bootstrap
 from funciones import load_pickle
 import config
 
-def parallel_fold_model(
-    fold:int, alpha:float, stims:np.ndarray, eeg:np.ndarray, relevant_indexes:np.ndarray,
-    train_indexes:np.ndarray, test_indexes:np.ndarray, validation:bool=False, shuffle:bool=False,
-    statistical_test:bool=False, path_null:str=None, session:int=None, subject:int=None, iteration:int=0
+def fold_model(
+    fold:int, 
+    alpha:float, 
+    stims:np.ndarray, 
+    eeg:np.ndarray, 
+    relevant_indexes:np.ndarray,
+    train_indexes:np.ndarray, 
+    test_indexes:np.ndarray, 
+    validation:bool=False, 
+    shuffle:bool=False,
+    statistical_test:bool=False, 
+    path_null:str=None, 
+    session:int=None, 
+    subject:int=None, 
+    iteration:int=0
     ) -> tuple:
     """
     Perform parallel fold model training and evaluation. 
@@ -61,22 +68,22 @@ def parallel_fold_model(
     # Implement mne model
     if config.model=='mtrf_ridge' or config.model=='mtrf':
         mtrf = ReceptiveFieldAdaptation(
-                                    tmin=config.tmin, 
-                                    tmax=config.tmax, 
-                                    sample_rate=config.sr, 
-                                    alpha=alpha, 
-                                    relevant_indexes=np.array(relevant_indexes),
-                                    train_indexes=train_indexes, 
-                                    test_indexes=test_indexes, 
-                                    stims_preprocess=config.stims_preprocess, 
-                                    eeg_preprocess=config.eeg_preprocess,
-                                    fit_intercept=False,
-                                    # n_jobs=n_jobs, 
-                                    n_jobs=1,
-                                    estimator=config.estimator,
-                                    validation=validation,
-                                    shuffle=shuffle
-                                    )
+            tmin=config.tmin, 
+            tmax=config.tmax, 
+            sample_rate=config.sr, 
+            alpha=alpha, 
+            relevant_indexes=np.array(relevant_indexes),
+            train_indexes=train_indexes, 
+            test_indexes=test_indexes, 
+            stims_preprocess=config.stims_preprocess, 
+            eeg_preprocess=config.eeg_preprocess,
+            fit_intercept=False,
+            # n_jobs=n_jobs, 
+            n_jobs=1,
+            estimator=config.estimator,
+            validation=validation,
+            shuffle=shuffle
+            )
         # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
         mtrf.fit(stims, eeg)
         
@@ -86,17 +93,17 @@ def parallel_fold_model(
         predicted, eeg_test = mtrf.predict(stims)
     else:
         mtrf = TorchMtrf(
-                alpha=alpha, 
-                relevant_indexes=np.array(relevant_indexes),
-                train_indexes=train_indexes, 
-                test_indexes=test_indexes, 
-                stims_preprocess=config.stims_preprocess, 
-                eeg_preprocess=config.eeg_preprocess,
-                fit_intercept=False,
-                validation=validation,
-                shuffle=shuffle, 
-                use_gpu=config.use_gpu,
-                )
+            alpha=alpha, 
+            relevant_indexes=np.array(relevant_indexes),
+            train_indexes=train_indexes, 
+            test_indexes=test_indexes, 
+            stims_preprocess=config.stims_preprocess, 
+            eeg_preprocess=config.eeg_preprocess,
+            fit_intercept=False,
+            validation=validation,
+            shuffle=shuffle, 
+            use_gpu=config.use_gpu,
+            )
         
         # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
         mtrf.fit(stims, eeg)
@@ -180,7 +187,6 @@ def simulation_mtrf(
     null_correlation:np.ndarray, 
     null_weights:np.ndarray, 
     null_errors:np.ndarray,
-    n_feats:list=[1]
     )-> tuple:
     """
     Perform mTRF simulation by running multiple iterations of the permutation test.
@@ -202,8 +208,6 @@ def simulation_mtrf(
         null_correlation (np.ndarray): Array to store null correlations.
         null_weights (np.ndarray): Array to store null weights.
         null_errors (np.ndarray): Array to store null errors.
-        n_feats (list): Number of features, if it exceeds the limit (16/18), then 
-        it doesn't perform parallel computation. Default is 1.
 
     Returns:
         tuple: Updated null_weights, null_correlation, and null_errors.
@@ -213,7 +217,7 @@ def simulation_mtrf(
     
     # Whethet to perform parallel computation
     for i in iterations:
-        _, fold, null_weights[fold, i], null_correlation[fold, i], null_errors[fold, i] = parallel_fold_model(
+        _, fold, null_weights[fold, i], null_correlation[fold, i], null_errors[fold, i] = fold_model(
                                                                                         fold=fold, 
                                                                                         alpha=alpha, 
                                                                                         stims=stims, 

@@ -6,17 +6,17 @@ import matplotlib.cm as cm
 import matplotlib.pylab as pylab
 import matplotlib.ticker as pticker
 
-params = {'legend.fontsize': 'x-large',
-          'legend.title_fontsize': 'x-large',
-          'figure.figsize': (8, 6),
-          'figure.titlesize': 'xx-large',
-          'axes.labelsize': 'x-large',
-          'axes.titlesize':'x-large',
-          'xtick.labelsize':'large',
-          'ytick.labelsize':'large'}
+params = {
+        'legend.fontsize': 'x-large',
+        'legend.title_fontsize': 'x-large',
+        'figure.figsize': (8, 6),
+        'figure.titlesize': 'xx-large',
+        'axes.labelsize': 'x-large',
+        'axes.titlesize':'x-large',
+        'xtick.labelsize':'large',
+        'ytick.labelsize':'large'
+        }
 pylab.rcParams.update(params)
-
-# Specific libraries
 
 # Modules
 from funciones import load_pickle, dump_pickle
@@ -24,35 +24,7 @@ from processing import tfce
 from config import Exp_info
 phonological_labels = list(Exp_info().phonological_labels)
 
-# ===========
-# PARAMETERS
-tmin, tmax, sr = -.2, .6, 128
-delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
-times = (delays/sr)
-
-montage = mne.channels.make_standard_montage('biosemi128')
-info_mne = mne.create_info(ch_names=montage.ch_names[:], sfreq=sr, ch_types='eeg').set_montage(montage)
-stims_preprocess = 'Normalize'
-eeg_preprocess = 'Standarize'
-model = 'mtrf'
-
-# TFCE parameters
-significance, n_permutations = .05, 2500
-
-# Code parameters
-save_figures = True
-#==================
-# FEATURE SELECTION
-stimuli = ['Envelope', 'Spectrogram', 'Deltas', 'Phonological', 'Mfccs', 'Mfccs-Deltas', 'Phonological_Spectrogram','Phonological_Deltas']
-stimuli+= ['Phonological_Deltas_Spectrogram','Pitch-Log-Raw','Phonemes-Discrete', 'Phonemes-Onset']
-stimuli+= ['Phonemes-Discrete_Pitch-Log-Raw_Envelope', 'Phonemes-Discrete_Pitch-Log-Raw', 'Envelope_Pitch-Log-Raw']
-stimuli+= ['Envelope_Phonemes-Onset', 'Envelope_Phonemes-Discrete']
-stimuli = ['Envelope', 'Spectrogram', 'Deltas', 'Phonological', 'Mfccs', 'Mfccs-Deltas', 'Pitch-Log-Raw', 'Phonemes-Discrete']
-
-bands = ['Delta','Theta', 'Alpha', 'Beta1', 'Beta2']
-
-situation = 'External'
-
+# ============
 # Relevant paths
 path_figures = os.path.normpath(f'figures/{model}/relevant_times/{situation}/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/')
 final_corr_path = os.path.normpath(f'saves/{model}/{situation}/correlations/tmin{tmin}_tmax{tmax}/')
@@ -61,7 +33,6 @@ path_TFCE = f'saves/{model}/{situation}/TFCE/stims_{stims_preprocess}_EEG_{eeg_p
 
 # =========
 # RUN TFCE
-bands, stimuli = ['Theta'], ['Spectrogram']
 significant_n_channels = {band:{stimulus:None for stimulus in stimuli} for band in bands}
 pvalues = {band:{stimulus:None for stimulus in stimuli} for band in bands}
 for band in bands:
@@ -87,11 +58,11 @@ for band in bands:
             
             # Compute TFCE to get p-value
             tvalue_tfce, pvalue_tfce = tfce(
-                                            average_weights_subjects=average_weights_subjects,
-                                            stimulus=stimulus, 
-                                            n_jobs=-1, 
-                                            n_permutations=n_permutations
-                                            )
+                                    average_weights_subjects=average_weights_subjects,
+                                    stimulus=stimulus, 
+                                    n_jobs=-1, 
+                                    n_permutations=n_permutations
+                                    )
             
             # Save TFCE
             os.makedirs(os.path.join(path_TFCE, band), exist_ok=True)

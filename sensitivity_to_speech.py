@@ -41,15 +41,15 @@ figures_path = os.path.normpath(f'figures/sensitivity_speech_latency/stims_{conf
 correlation_path = os.path.normpath(f'saves/{config.model}/{config.situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/{config.bands[0]}/Phonemes_Discrete_Phonet.pkl')
 mtrfs_path = os.path.normpath(f'saves/{config.situation}/{config.model}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{config.bands[0]}/Phonemes-Discrete-Phonet/total_weights_per_subject.pkl')
 
-# Read data
-average_weights_subjects = load_pickle( # n_subj, n_chans, n_feats, n_delays
-                                    path=os.path.join(
-                                                    mtrfs_path, 
-                                                    config.bands[0], 
-                                                    'phonemes',
-                                                    'total_weights_per_subject.pkl'
-                                                    )
-                                    )['average_weights_subjects']
+# Read data  n_subj, n_chans, n_feats, n_delays
+average_weights_subjects = load_pickle( 
+                        path=os.path.join(
+                            mtrfs_path, 
+                            config.bands[0], 
+                            'phonemes',
+                            'total_weights_per_subject.pkl'
+                            )
+                        )['average_weights_subjects']
 
 # Take average across all subjects, then select specific channels and apply average across all selected channels
 average_weights = average_weights_subjects.mean(axis=0)[config.channel_selection].mean(axis=0) # n_feats, n_delays
@@ -118,11 +118,11 @@ for k, window in enumerate(rolling_windows):
     
     # Use multidimensional scaling (MDS) to convert distances into features 
     mds = MDS(
-            n_components=5,#average_weights.shape[0], 
-            dissimilarity='euclidean', 
-            random_state=i,
-            normalized_stress='auto'
-            )
+        n_components=5,#average_weights.shape[0], 
+        dissimilarity='euclidean', 
+        random_state=i,
+        normalized_stress='auto'
+        )
     
     features = mds.fit_transform(average_weights[:, window])
 
@@ -132,10 +132,10 @@ for k, window in enumerate(rolling_windows):
     # Apply KMeans on the derived feature space
     for i in range(nruns):
         kmeans = KMeans(
-                        n_clusters=2, #consonants and no consonantes
-                        random_state=i,
-                        n_init='auto'
-                        )
+                n_clusters=2, #consonants and no consonantes
+                random_state=i,
+                n_init='auto'
+                )
         kmeans_labels[i] = kmeans.fit_predict(features)
 
     # Take mode
@@ -152,14 +152,17 @@ for k, window in enumerate(rolling_windows):
     kmeans_labels = np.array([label_mapping[label] for label in kmeans_labels])
 
     # Keep track of mappings
-    dataframes.append(pd.DataFrame({
-    'Original_index': np.arange(average_weights.shape[0], dtype=int),
-    'Feature_1': features[:, 0],
-    'Feature_2': features[:, 1],
-    'Manual_label': original_manual_labels,
-    'Cluster_Label': kmeans_labels
-    })
-    )
+    dataframes.append(
+                pd.DataFrame(
+                        {
+                        'Original_index': np.arange(average_weights.shape[0], dtype=int),
+                        'Feature_1': features[:, 0],
+                        'Feature_2': features[:, 1],
+                        'Manual_label': original_manual_labels,
+                        'Cluster_Label': kmeans_labels
+                        }   
+                    )   
+                )   
     # Compute metrics
     f_scores.append(f1_score(manual_labels, kmeans_labels, average='weighted'))
     nmis.append(normalized_mutual_info_score(manual_labels, kmeans_labels))

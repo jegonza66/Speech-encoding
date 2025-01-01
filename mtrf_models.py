@@ -104,7 +104,11 @@ class TorchMtrf:
             If the input data shapes are not compatible with the model.
         """
         # Construct design matrix and transform for GPU computation
-        design_matrix = shifted_matrix(stims, delays=config.delays, use_gpu=False)#self.use_gpu)
+        design_matrix = shifted_matrix(
+                    stims, 
+                    delays=config.delays, 
+                    use_gpu=False
+                    )#self.use_gpu)
         n_samples, n_featuresbyn_delays = design_matrix.shape
         n_features = n_featuresbyn_delays // len(config.delays)
 
@@ -132,11 +136,11 @@ class TorchMtrf:
             
             # Standarize and normalize
             X_train, y_train, X_pred, self.y_test = self.standarize_normalize(
-                                                        X_train=X_train, 
-                                                        X_pred=X_pred, 
-                                                        y_train=y_train, 
-                                                        y_test=y_test
-                                                        )
+                                                X_train=X_train, 
+                                                X_pred=X_pred, 
+                                                y_train=y_train, 
+                                                y_test=y_test
+                                                )
             del y_test
 
             # Fit the Ridge model
@@ -163,11 +167,11 @@ class TorchMtrf:
                         
             # Standarize and normalize
             X_train_for_val, y_train_for_val, X_pred, self.y_val = self.standarize_normalize(
-                                                                                X_train=X_train_for_val, 
-                                                                                X_pred=X_val, 
-                                                                                y_train=y_train_for_val, 
-                                                                                y_test=y_val
-                                                                                )
+                                                                X_train=X_train_for_val, 
+                                                                X_pred=X_val, 
+                                                                y_train=y_train_for_val, 
+                                                                y_test=y_val
+                                                                )
             del y_val
             
             # Fit the Ridge model
@@ -211,7 +215,11 @@ class TorchMtrf:
             return self.y_predicted.cpu().detach().numpy(), self.y_test.cpu().detach().numpy()
     
     def standarize_normalize(
-        self, X_train:np.ndarray, X_pred:np.ndarray, y_train:np.ndarray, y_test:np.ndarray
+        self, 
+        X_train:np.ndarray, 
+        X_pred:np.ndarray, 
+        y_train:np.ndarray, 
+        y_test:np.ndarray
         ):
         """
         Standarize|Normalize training and test data.
@@ -229,14 +237,14 @@ class TorchMtrf:
         """
         # Instances of normalize and standarize
         norm = Normalize(
-                axis=0, 
-                porcent=5, 
+            axis=0, 
+            porcent=5, 
+            by_gpu=self.use_gpu
+            )
+        estandar = Standarize(
+                axis=0,
                 by_gpu=self.use_gpu
                 )
-        estandar = Standarize(
-                    axis=0,
-                    by_gpu=self.use_gpu
-                    )
     
         # Iterates to normalize|standarize over features
         if self.stims_preprocess=='Standarize':
@@ -258,10 +266,21 @@ class TorchMtrf:
 
 class ReceptiveFieldAdaptation:
     def __init__(
-        self, tmin:float, tmax:float, sample_rate:int, alpha:float, relevant_indexes:np.ndarray, 
-        train_indexes:np.ndarray, test_indexes:np.ndarray, stims_preprocess:str, 
-        eeg_preprocess:str, estimator:str='time_delaying_ridge', n_jobs:int=-1, fit_intercept:bool=False, 
-        shuffle:bool=False, validation:bool=False
+        self, 
+        tmin:float, 
+        tmax:float, 
+        sample_rate:int, 
+        alpha:float,
+        relevant_indexes:np.ndarray, 
+        train_indexes:np.ndarray, 
+        test_indexes:np.ndarray, 
+        stims_preprocess:str, 
+        eeg_preprocess:str, 
+        estimator:str='time_delaying_ridge', 
+        n_jobs:int=-1, 
+        fit_intercept:bool=False, 
+        shuffle:bool=False, 
+        validation:bool=False
         ):
         """
         Initialize the ReceptiveFieldAdaptation model.
@@ -316,46 +335,51 @@ class ReceptiveFieldAdaptation:
             self.estimator = estimator
 
         if estimator =='time_delaying_ridge':
-            self.rf = ReceptiveField(tmin=tmin,
-                                     tmax=tmax, 
-                                     sfreq=sample_rate,
-                                     estimator=TimeDelayingRidgeRegression(
-                                                                        tmin=tmin, 
-                                                                        tmax=tmax, 
-                                                                        sfreq=sample_rate,
-                                                                        alpha=alpha,
-                                                                        relevant_indexes=relevant_indexes,
-                                                                        train_indexes=train_indexes,
-                                                                        test_indexes=test_indexes,
-                                                                        stims_preprocess=stims_preprocess, 
-                                                                        eeg_preprocess=eeg_preprocess,
-                                                                        fit_intercept=fit_intercept,
-                                                                        n_jobs=n_jobs,
-                                                                        shuffle=shuffle,
-                                                                        validation=validation
-                                                                        ),
-                                     scoring='corrcoef'
-                                     )
+            self.rf = ReceptiveField(
+                tmin=tmin,
+                tmax=tmax, 
+                sfreq=sample_rate,
+                estimator=TimeDelayingRidgeRegression(
+                    tmin=tmin, 
+                    tmax=tmax, 
+                    sfreq=sample_rate,
+                    alpha=alpha,
+                    relevant_indexes=relevant_indexes,
+                    train_indexes=train_indexes,
+                    test_indexes=test_indexes,
+                    stims_preprocess=stims_preprocess, 
+                    eeg_preprocess=eeg_preprocess,
+                    fit_intercept=fit_intercept,
+                    n_jobs=n_jobs,
+                    shuffle=shuffle,
+                    validation=validation
+                    ),
+                scoring='corrcoef'
+                )
         else:
-            self.rf = ReceptiveField(tmin=tmin, 
-                                     tmax=tmax, 
-                                     sfreq=sample_rate,
-                                     estimator=RidgeRegression(
-                                                            alpha=alpha,
-                                                            relevant_indexes=relevant_indexes,
-                                                            train_indexes=train_indexes,
-                                                            test_indexes=test_indexes,
-                                                            stims_preprocess=stims_preprocess, 
-                                                            eeg_preprocess=eeg_preprocess,
-                                                            fit_intercept=fit_intercept,
-                                                            n_jobs=n_jobs,
-                                                            shuffle=shuffle,
-                                                            validation=validation
-                                                            ),
-                                     scoring='corrcoef')
+            self.rf = ReceptiveField(
+                tmin=tmin, 
+                tmax=tmax, 
+                sfreq=sample_rate,
+                estimator=RidgeRegression(
+                    alpha=alpha,
+                    relevant_indexes=relevant_indexes,
+                    train_indexes=train_indexes,
+                    test_indexes=test_indexes,
+                    stims_preprocess=stims_preprocess, 
+                    eeg_preprocess=eeg_preprocess,
+                    fit_intercept=fit_intercept,
+                    n_jobs=n_jobs,
+                    shuffle=shuffle,
+                    validation=validation
+                    ),
+                scoring='corrcoef'
+                )
    
     def fit(
-        self, stims, eeg
+        self, 
+        stims,
+        eeg
         ):
         """
         Fit the ReceptiveField model to the given stimuli and EEG data.
@@ -380,7 +404,8 @@ class ReceptiveFieldAdaptation:
         self.coefs = self.rf.coef_ # n_chanels, n_feats, n_delays
 
     def predict(
-        self, stims
+        self, 
+        stims
         ):
         """
         Predict the EEG response for the given stimuli data.
@@ -416,9 +441,17 @@ class ReceptiveFieldAdaptation:
 
 class RidgeRegression(Ridge):
     def __init__(
-        self, relevant_indexes:np.ndarray=None, train_indexes:np.ndarray=None, 
-        test_indexes:np.ndarray=None, stims_preprocess:str='Normalize', eeg_preprocess:str='Standarize', 
-        alpha=1.0, fit_intercept:bool=False, shuffle:bool=False, validation:bool=False, n_jobs:int=-1
+        self, 
+        relevant_indexes:np.ndarray=None, 
+        train_indexes:np.ndarray=None, 
+        test_indexes:np.ndarray=None, 
+        stims_preprocess:str='Normalize', 
+        eeg_preprocess:str='Standarize', 
+        alpha=1.0, 
+        fit_intercept:bool=False, 
+        shuffle:bool=False, 
+        validation:bool=False, 
+        n_jobs:int=-1
         ):
         """
         Initialize the RidgeRegression model.
@@ -457,7 +490,9 @@ class RidgeRegression(Ridge):
         self.n_jobs = n_jobs
 
     def fit(
-        self, X, y
+        self, 
+        X, 
+        y
         ):
         """
         Fit the model according to the given training data.
@@ -508,11 +543,11 @@ class RidgeRegression(Ridge):
             
             # Standarize and normalize
             X_train, y_train, self.X_pred, self.y_val = self.standarize_normalize(
-                                                                                X_train=X_train, 
-                                                                                X_pred=X_val, 
-                                                                                y_train=y_train, 
-                                                                                y_test=y_val
-                                                                                )
+                                                    X_train=X_train, 
+                                                    X_pred=X_val, 
+                                                    y_train=y_train, 
+                                                    y_test=y_val
+                                                    )
             return super().fit(X_train, y_train)
         else:
             # Make split
@@ -531,15 +566,16 @@ class RidgeRegression(Ridge):
             
             # Standarize and normalize
             X_train, y_train, self.X_pred, self.y_test = self.standarize_normalize(
-                                                                                X_train=X_train, 
-                                                                                X_pred=X_pred, 
-                                                                                y_train=y_train, 
-                                                                                y_test=y_test
-                                                                                )
+                                                    X_train=X_train, 
+                                                    X_pred=X_pred, 
+                                                    y_train=y_train, 
+                                                    y_test=y_test
+                                                    )
             return super().fit(X_train, y_train)
 
     def predict(
-        self, X
+        self, 
+        X
         ):
         """
         Predict the response for the given input data.
@@ -573,7 +609,11 @@ class RidgeRegression(Ridge):
         return y_pred_full
     
     def standarize_normalize(
-        self, X_train:np.ndarray, X_pred:np.ndarray, y_train:np.ndarray, y_test:np.ndarray
+        self,
+        X_train:np.ndarray,
+        X_pred:np.ndarray, 
+        y_train:np.ndarray, 
+        y_test:np.ndarray
         ):
         """Standarize|Normalize training and test data.
         Parameters
@@ -613,10 +653,20 @@ class RidgeRegression(Ridge):
 #TODO: obsolete due to incorrect filtering implementation
 class TimeDelayingRidgeRegression(TimeDelayingRidge):
     def __init__(
-        self, tmin:float, tmax:float, sfreq:int, relevant_indexes:np.ndarray=None, 
-        train_indexes:np.ndarray=None, test_indexes:np.ndarray=None, 
-        stims_preprocess:str='Normalize', eeg_preprocess:str='Standarize', alpha=1.0, 
-        fit_intercept=False, n_jobs:int=1, shuffle:bool=False, validation:bool=False
+        self, 
+        tmin:float,
+        tmax:float, 
+        sfreq:int, 
+        relevant_indexes:np.ndarray=None, 
+        train_indexes:np.ndarray=None, 
+        test_indexes:np.ndarray=None, 
+        stims_preprocess:str='Normalize',
+        eeg_preprocess:str='Standarize', 
+        alpha=1.0, 
+        fit_intercept=False, 
+        n_jobs:int=1,
+        shuffle:bool=False,
+        validation:bool=False
         ):
         """
         Initialize the TimeDelayingRidgeRegression model.
@@ -664,7 +714,9 @@ class TimeDelayingRidgeRegression(TimeDelayingRidge):
         self.validation = validation
 
     def fit(
-        self, X, y
+        self, 
+        X, 
+        y
         ):
         """
         Fit the model according to the given training data.
@@ -708,11 +760,11 @@ class TimeDelayingRidgeRegression(TimeDelayingRidge):
             
             # Standarize and normalize
             X_train, y_train, self.X_pred, self.y_val = self.standarize_normalize(
-                                                                                X_train=X_train, 
-                                                                                X_pred=X_val, 
-                                                                                y_train=y_train, 
-                                                                                y_test=y_val
-                                                                                )
+                                                    X_train=X_train, 
+                                                    X_pred=X_val, 
+                                                    y_train=y_train, 
+                                                    y_test=y_val
+                                                    )
             return super().fit(X_train, y_train)
         else:
             # Make split
@@ -731,15 +783,16 @@ class TimeDelayingRidgeRegression(TimeDelayingRidge):
             
             # Standarize and normalize
             X_train, y_train, self.X_pred, self.y_test = self.standarize_normalize(
-                                                                                X_train=X_train, 
-                                                                                X_pred=X_pred, 
-                                                                                y_train=y_train, 
-                                                                                y_test=y_test
-                                                                                )
+                                                    X_train=X_train, 
+                                                    X_pred=X_pred, 
+                                                    y_train=y_train, 
+                                                    y_test=y_test
+                                                    )
             return super().fit(X_train, y_train)
     
     def predict(
-        self, X
+        self,
+        X
         ):
         """
         Predict the response for the given input data.
@@ -772,7 +825,11 @@ class TimeDelayingRidgeRegression(TimeDelayingRidge):
         return y_pred_full
     
     def standarize_normalize(
-        self, X_train:np.ndarray, X_pred:np.ndarray, y_train:np.ndarray, y_test:np.ndarray
+        self, 
+        X_train:np.ndarray,
+        X_pred:np.ndarray,
+        y_train:np.ndarray, 
+        y_test:np.ndarray
         ):
         """Standarize|Normalize training and test data.
         Parameters

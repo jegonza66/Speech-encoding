@@ -9,8 +9,13 @@ from scipy import signal
 import torch
 
 class Standarize():
-    def __init__(self, axis:int=0, by_gpu:bool=False):
-        """Standarize train and test data to be used in a linear regressor model. 
+    def __init__(
+        self, 
+        axis:int=0, 
+        by_gpu:bool=False
+        )->None:
+        """
+        Standarize train and test data to be used in a linear regressor model. 
 
         Parameters
         ----------
@@ -22,8 +27,23 @@ class Standarize():
         self.axis = axis
         self.by_gpu = by_gpu
 
-    def _to_device(self, data: np.ndarray):
-        """Move data to GPU if by_gpu is True."""
+    def _to_device(
+        self, 
+        data:np.ndarray
+        )->torch.Tensor:
+        """
+        Move data to GPU if by_gpu is True.
+        
+        Parameters
+        ----------
+        data : np.ndarray
+            Data to be moved to GPU if by_gpu is True.
+            
+        Returns
+        -------
+        torch.Tensor
+            Data moved to GPU if by_gpu is True.
+        """
         if self.by_gpu:
             if isinstance(data, torch.Tensor):
                 if data.is_cuda:
@@ -35,8 +55,23 @@ class Standarize():
         else:
             return torch.tensor(data)
 
-    def fit_standarize_train(self, train_data: np.ndarray):
-        """Standardize train data, also define mean and std to standardize future data."""
+    def fit_standarize_train(
+        self, 
+        train_data:np.ndarray
+        )->np.ndarray:
+        """
+        Standardize train data, also define mean and std to standardize future data.
+        
+        Parameters
+        ----------
+        train_data : np.ndarray
+            Train data to be standardized.
+            
+        Returns
+        -------
+        np.ndarray
+            Standardized train data.
+        """
         train_data = self._to_device(train_data)
         
         # Fix mean and standard deviation with train data
@@ -51,8 +86,22 @@ class Standarize():
         else:
             return train_data.cpu().numpy().astype(np.float32)  # Return as numpy for compatibility
 
-    def fit_standarize_test(self, test_data: np.ndarray):
-        """Standardize test data with mean and std of train data."""
+    def fit_standarize_test(
+        self, 
+        test_data:np.ndarray
+        )->np.ndarray:
+        """
+        Standardize test data with mean and std of train data
+        
+        Parameters
+        ----------
+        test_data : np.ndarray
+
+        Returns
+        -------
+        np.ndarray
+            Standardized test data.
+        """
         test_data = self._to_device(test_data)
         
         # Standardize with mean and standard deviation of train
@@ -63,8 +112,23 @@ class Standarize():
         else:
             return test_data.cpu().numpy().astype(np.float32)  # Return as numpy for compatibility
 
-    def standarize_data(self, data: np.ndarray):
-        """Standardize data with its own mean and standard deviation."""
+    def standarize_data(
+        self,
+        data:np.ndarray
+        )->np.ndarray:
+        """
+        Standardize data with its own mean and standard deviation.
+        
+        Parameters
+        ----------
+        data : np.ndarray
+            Data to be standardized.
+        
+        Returns
+        -------
+        np.ndarray
+            Standardized data.
+        """
         data = self._to_device(data)
         
         data -= data.mean(dim=self.axis)
@@ -75,8 +139,14 @@ class Standarize():
             return data.cpu().numpy().astype(np.float32)  # Return as numpy for compatibility
 
 class Normalize():
-    def __init__(self, axis:int=0, porcent:float=5, by_gpu:bool=False):
-        """Normalize train and test data to be used in a linear regressor model.
+    def __init__(
+        self, 
+        axis:int=0, 
+        porcent:float=5, 
+        by_gpu:bool=False
+        )->None:
+        """
+        Normalize train and test data to be used in a linear regressor model.
 
         Parameters
         ----------
@@ -91,8 +161,23 @@ class Normalize():
         self.porcent = porcent
         self.by_gpu = by_gpu
 
-    def _to_device(self, data: np.ndarray):
-        """Move data to GPU if by_gpu is True."""
+    def _to_device(
+        self, 
+        data:np.ndarray
+        )->torch.Tensor:
+        """
+        Move data to GPU if by_gpu is True.
+        
+        Parameters
+        ----------
+        data : np.ndarray
+            Data to be moved to GPU if by_gpu is True.
+            
+        Returns
+        -------
+        torch.Tensor
+            Data moved to GPU if by_gpu is True.
+        """
         if self.by_gpu:
             if isinstance(data, torch.Tensor):
                 if data.is_cuda:
@@ -104,8 +189,23 @@ class Normalize():
         else:
             return torch.tensor(data)
 
-    def fit_normalize_train(self, train_data: np.ndarray):
-        """Normalize train data, also define min and max to normalize future data."""
+    def fit_normalize_train(
+        self, 
+        train_data:np.ndarray
+        )->np.ndarray:
+        """
+        Normalize train data, also define min and max to normalize future data
+        
+        Parameters
+        ----------
+        train_data : np.ndarray
+            Train data to be normalized.
+            
+        Returns
+        -------
+        np.ndarray
+            Normalized train data.
+        """
         train_data = self._to_device(train_data)
         
         # Remove offset by minimum
@@ -121,8 +221,23 @@ class Normalize():
         else:
             return train_data.cpu().numpy().astype(np.float32)  # Return as numpy for compatibility
 
-    def fit_normalize_test(self, test_data: np.ndarray):
-        """Normalize test data with min and max of train data."""
+    def fit_normalize_test(
+        self, 
+        test_data:np.ndarray
+        )->np.ndarray:
+        """
+        Normalize test data with min and max of train data.
+        
+        Parameters
+        ----------
+        test_data : np.ndarray
+            Test data to be normalized.
+        
+        Returns
+        -------
+        np.ndarray
+            Normalized test data.
+        """
         test_data = self._to_device(test_data)
         
         test_data -= self.min
@@ -132,8 +247,26 @@ class Normalize():
         else:
             return test_data.cpu().numpy().astype(np.float32)  # Return as numpy for compatibility
 
-    def normalize_data(self, data: np.ndarray, kind:str="1"):
-        """Normalize data."""
+    def normalize_data(
+        self, 
+        data:np.ndarray, 
+        kind:str="1"
+        )->np.ndarray:
+        """
+        Normalize data
+        
+        Parameters
+        ----------
+        data : np.ndarray
+            Data to be normalized.
+        kind : str, optional
+            Type of normalization, by default '1'
+        
+        Returns
+        -------
+        np.ndarray
+            Normalized data.
+        """
         data = self._to_device(data)
         
         data -= data.min(dim=self.axis)[0]
@@ -148,8 +281,23 @@ class Normalize():
         else:
             return data.cpu().numpy().astype(np.float32)  # Return as numpy for compatibility
 
-    def fit_normalize_percent(self, data: np.ndarray):
-        """Normalize data using percentiles."""
+    def fit_normalize_percent(
+        self, 
+        data:np.ndarray
+        )->np.ndarray:
+        """
+        Normalize data using percentiles
+        
+        Parameters
+        ----------
+        data : np.ndarray
+            Data to be normalized.
+        
+        Returns
+        -------
+        np.ndarray
+            Normalized data.
+        """
         data = self._to_device(data)
         
         # Calculate n
@@ -177,7 +325,8 @@ class Normalize():
 def shifted_matrix(
     features:np.ndarray, 
     delays:np.ndarray, 
-    use_gpu:bool=True) -> np.ndarray:
+    use_gpu:bool=True
+    ) -> np.ndarray:
     """
     Computes shifted matrix for a given array of delays
     
@@ -227,15 +376,52 @@ def shifted_matrix(
     # Return the shifted matrix reshaped for the final output
     # return shifted_matrix.cpu().numpy()
     return shifted_matrix.reshape(n_samples, n_features * len(delays)).cpu().numpy()
+                
+def butter_filter(
+    data:np.ndarray, 
+    frequencies:float, 
+    sampling_freq:float, 
+    btype:str='lowpass', 
+    order:int=3, 
+    axis:int=0, 
+    ftype:str='Causal'
+    )->np.ndarray:
+    """
+    Apply a Butterworth filter to the input data.
     
-
-def butter_filter(data, frecuencias, sampling_freq, btype, order, axis, ftype):
+    Parameters
+    ----------
+    data : np.ndarray
+        The input data to be filtered.
+    frequencies : float or list
+        The cutoff frequency (for 'lowpass' and 'highpass') or frequencies (for 'bandpass').
+    sampling_freq : float
+        The sampling frequency of the input data.
+    btype : str, optional
+        The type of filter to apply ('lowpass', 'highpass', 'bandpass'), by default 'lowpass'.
+    order : int, optional
+        The order of the filter, by default 3.
+    axis : int, optional
+        The axis along which to apply the filter, by default 0.
+    ftype : str, optional
+        The type of filtering ('Causal' or 'NonCausal'), by default 'Causal'.
+    
+    Returns
+    -------
+    np.ndarray
+        The filtered data.
+    
+    Raises
+    ------
+    ValueError
+        If an invalid filter type is provided.
+    """
     if btype == 'lowpass' or btype == 'highpass':
-        frecuencia = frecuencias / (sampling_freq / 2)
-        b, a = signal.butter(order, frecuencia, btype=btype)
+        frequency = frequencies / (sampling_freq / 2)
+        b, a = signal.butter(order, frequency, btype=btype)
     elif btype == 'bandpass':
-        frecuencias = [frecuencia / (sampling_freq / 2) for frecuencia in frecuencias]
-        b, a = signal.butter(order, frecuencias, btype=btype)
+        frequencies = [frequency / (sampling_freq / 2) for frequency in frequencies]
+        b, a = signal.butter(order, frequencies, btype=btype)
 
     if ftype == 'Causal':
         y = signal.lfilter(b, a, data, axis=axis)
@@ -243,15 +429,52 @@ def butter_filter(data, frecuencias, sampling_freq, btype, order, axis, ftype):
         y = signal.filtfilt(b, a, data, axis=axis, padlen=None)
     return y
 
-def subsamplear(x, cada_cuanto):
+def subsample(
+    x:np.ndarray, 
+    step:int
+    )->np.ndarray:
+    """
+    Subsamples the input array by selecting every `step`-th element.
+    
+    Parameters
+    ----------
+    x : np.ndarray
+        The input array to be subsampled.
+    step : int
+        The step size for subsampling.
+    
+    Returns
+    -------
+    np.ndarray
+        The subsampled array.
+    """
     if not isinstance(x, np.ndarray):
         x = np.array(x)
-    tomar = np.arange(0, len(x), int(cada_cuanto))
-    return x[tomar]
+    indices = np.arange(0, len(x), int(step))
+    return x[indices]
 
-def band_freq(band):
+def band_freq(
+    band:str
+    )->tuple:
+    """
+    Returns the frequency range for a given frequency EEG band.
+    
+    Parameters
+    ----------
+    band : str or tuple
+        The EEG frequency band to return the frequency range for.
+    
+    Returns
+    -------
+    tuple
+        The frequency range for the given EEG band.
+    
+    Raises
+    ------
+    Exception
+        If an invalid band is provided.
+    """
     if type(band) == str:
-
         if band == 'Delta':
             l_freq = 1
             h_freq = 4
@@ -286,29 +509,45 @@ def band_freq(band):
 
     return l_freq, h_freq
 
-# TODO CHECK DESCRIPTION
-def tfce(average_weights_subjects:np.ndarray,
-         stimulus:str, 
-         n_jobs:int=-1, 
-         sr:int=128,
-         n_permutations:int=64, 
-         threshold_tfce:dict=dict(start=0, step=0.2),
-         verbose_tfce:bool=True):
-    """_summary_
-
+def tfce(
+    average_weights_subjects:np.ndarray,
+    stimulus:str, 
+    n_jobs:int=-1, 
+    sr:int=128,
+    n_permutations:int=64, 
+    threshold_tfce:dict=dict(start=0, step=0.2),
+    verbose_tfce:bool=True
+    )->tuple:
+    """
+    Perform Threshold-Free Cluster Enhancement (TFCE) on the input data. It performs TFCE according to
+    https://mne.tools/1.6/generated/mne.stats.permutation_cluster_test.html
+    
     Parameters
     ----------
     average_weights_subjects : np.ndarray
-        _description_
+        The input data to perform TFCE on.
+    stimulus : str
+        The stimulus type to perform TFCE on.
+    n_jobs : int, optional
+        The number of jobs to run in parallel, by default -1.
+    sr : int, optional
+        The sampling rate of the input data, by default 128.
     n_permutations : int, optional
-        _description_, by default 1024
+        The number of permutations to perform, by default 64.
     threshold_tfce : dict, optional
-        _description_, by default dict(start=0, step=0.2)
-
+        The threshold parameters for TFCE, by default dict(start=0, step=0.2).
+    verbose_tfce : bool, optional
+        Whether to print verbose output, by default True.
+    
     Returns
     -------
-    _type_
-        _description_
+    tuple
+        The TFCE t-values and p-values
+    
+    Raises
+    ------
+    Exception
+        If an invalid stimulus is provided.
     """
     t_0 = datetime.now().replace(microsecond=0)
 
@@ -348,7 +587,6 @@ def tfce(average_weights_subjects:np.ndarray,
         # weights_subjects_mean_across_subjects = average_weights_subjects.copy().mean(axis=0)
         t_tfce, p_tfce = [], []
         for feat in range(total_number_features):
-            # It performs tfce on https://mne.tools/1.6/generated/mne.stats.permutation_cluster_test.html
             weights = average_weights_subjects.copy()[:, :, feat, :].swapaxes(1, 2) #---> n_sub, n_delay, n_chans for specific feat
             t_tfce_feat, clusters, p_tfce_feat, H0 = mne.stats.permutation_cluster_1samp_test(
                                                                                             X=weights,
@@ -372,8 +610,12 @@ def tfce(average_weights_subjects:np.ndarray,
         # Return average across channels
         return t_tfce, p_tfce
     
-def block_bootstrap(data:np.ndarray, block_size:int=104):
-    """Bootstrap data with blocks of size block_size
+def block_bootstrap(
+    data:np.ndarray, 
+    block_size:int=104
+    )->np.ndarray:
+    """
+    Bootstrap data with blocks of size block_size
     Parameters
     ----------
     data : np.ndarray
@@ -393,8 +635,11 @@ def block_bootstrap(data:np.ndarray, block_size:int=104):
     resampled_indices = np.hstack([indices[i*block_size:(i+1)*block_size] for i in block_indices])
     return data[resampled_indices]
 
-def clustering_by_correlation(weights:np.ndarray):
-    """Cluster by correlation the weights
+def clustering_by_correlation(
+    weights:np.ndarray
+    )->list:
+    """
+    Cluster by correlation the weights
 
     Parameters
     ----------

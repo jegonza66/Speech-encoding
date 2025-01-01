@@ -40,15 +40,15 @@ for situation in config.situations:
                 
                 # Load data by subject, EEG and info
                 sujeto_1, sujeto_2, samples_info = load_data(
-                                                    sesion=sesion,
-                                                    stim=stim,
-                                                    band=band,
-                                                    sr=config.sr,
-                                                    delays=config.delays,
-                                                    preprocessed_data_path=preprocessed_data_path,
-                                                    praat_executable_path=config.praat_executable_path,
-                                                    situation=situation
-                                                    )
+                                                sesion=sesion,
+                                                stim=stim,
+                                                band=band,
+                                                sr=config.sr,
+                                                delays=config.delays,
+                                                preprocessed_data_path=preprocessed_data_path,
+                                                praat_executable_path=config.praat_executable_path,
+                                                situation=situation
+                                                )
                 eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
 
                 if config.just_load_data:
@@ -94,24 +94,23 @@ for situation in config.situations:
 
                         # Run permutations 
                         null_weights_per_fold, null_correlation_per_channel_per_fold, null_errors_per_fold = simulation_mtrf(
-                                                                                                                            iterations=config.random_permutations,
-                                                                                                                            fold=fold,
-                                                                                                                            stims=stims,
-                                                                                                                            eeg=eeg,
-                                                                                                                            sr=config.sr,
-                                                                                                                            tmin=config.tmin,
-                                                                                                                            tmax=config.tmax,
-                                                                                                                            relevant_indexes=relevant_indexes,
-                                                                                                                            alpha=alpha,
-                                                                                                                            train_indexes=train_indexes,
-                                                                                                                            test_indexes=test_indexes,
-                                                                                                                            stims_preprocess=config.stims_preprocess,
-                                                                                                                            eeg_preprocess=config.eeg_preprocess,
-                                                                                                                            null_correlation=null_correlation_per_channel_per_fold,
-                                                                                                                            null_weights=null_weights_per_fold,
-                                                                                                                            null_errors=null_errors_per_fold, 
-                                                                                                                            n_feats=n_feats
-                                                                                                                            )
+                                                                                                            n_iterations=config.random_permutations,
+                                                                                                            fold=fold,
+                                                                                                            stims=stims,
+                                                                                                            eeg=eeg,
+                                                                                                            sr=config.sr,
+                                                                                                            tmin=config.tmin,
+                                                                                                            tmax=config.tmax,
+                                                                                                            relevant_indexes=relevant_indexes,
+                                                                                                            alpha=np.float32(alpha),
+                                                                                                            train_indexes=train_indexes,
+                                                                                                            test_indexes=test_indexes,
+                                                                                                            stims_preprocess=config.stims_preprocess,
+                                                                                                            eeg_preprocess=config.eeg_preprocess,
+                                                                                                            null_correlation=null_correlation_per_channel_per_fold,
+                                                                                                            null_weights=null_weights_per_fold,
+                                                                                                            null_errors=null_errors_per_fold 
+                                                                                                            )
                     # Save permutations
                     os.makedirs(path_null, exist_ok=True)
                     dump_pickle(
@@ -134,15 +133,16 @@ for situation in config.situations:
     text = f'\n\n\t\t\tPARAMETERS  \n\n\tModel: ' + config.model +f'\n\tBands: {config.bands}'+'\n\tStimuli: ' + f'{config.stimuli}'+'\n\tCondition: ' +situation+f'\n\tTime interval: ({config.tmin},{config.tmax})s'+f'\n\tSessions: {config.sesiones}'
     if config.just_load_data:
         text += '\n\n\t\t\tJUST LOADING DATA'
+    text += '\n\n\t\trandom_permutations.py'
     text += f'\n\n\t\t\tRUN TIME:{run_time}'
 
     # Dump metadata
     metadata_path = f'saves/log/permutations_{datetime.now().strftime("%Y-%m-%d--%H-%M-%S")}/'
     os.makedirs(metadata_path, exist_ok=True)
     metadata = {
-                name: getattr(config, name) for name in dir(config) 
-                if (not name.startswith("__")) and (not callable(getattr(config, name)) and (name not in ['phonemes_to_ipa','ordered_phonemes']))
-                }
+            name: getattr(config, name) for name in dir(config) 
+            if (not name.startswith("__")) and (not callable(getattr(config, name)) and (name not in ['phonemes_to_ipa','ordered_phonemes']))
+            }
     dict_to_csv(
                 path=metadata_path+'metadata.csv',
                 obj=metadata,

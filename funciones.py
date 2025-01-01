@@ -3,26 +3,55 @@ import numpy as np, pickle, os, sys, mne, csv#, warnings, pandas as pd, scipy
 # from typing import Union
 
 class Suppress_print:
-    """A context manager to suppress the standard output (stdout).
-        This class can be used to temporarily suppress the output of print statements
-        or any other output to the standard output stream.
+    """
+    A context manager to suppress the standard output (stdout).
+    This class can be used to temporarily suppress the output of print statements
+    or any other output to the standard output stream.
     
     Methods:
     --------
-        __enter__():
-            Redirects the standard output to os.devnull, effectively suppressing any output.
-        __exit__(exc_type, exc_value, traceback):
-            Restores the original standard output stream.
+    __enter__():
+        Redirects the standard output to os.devnull, effectively suppressing any output.
+    __exit__(exc_type, exc_value, traceback):
+        Restores the original standard output stream.
     """
-    def __enter__(self):
+    def __enter__(
+        self
+        )->None:
+        """
+        Redirect the standard output to os.devnull.
+        """
         self._original_stdout = sys.stdout
         sys.stdout = open(os.devnull, 'w')
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self, 
+        exc_type, 
+        exc_val, 
+        exc_tb
+        )->None:
+        """
+        Restore the original standard output stream.
+        
+        Parameters
+        ----------
+        exc_type : type
+            The exception type.
+        exc_val : Exception
+            The exception value.
+        exc_tb : traceback
+            The traceback object.
+            
+        Returns
+        -------
+        None
+        """
         sys.stdout.close()
         sys.stdout = self._original_stdout
 
-def all_possible_combinations(a: list):
+def all_possible_combinations(
+    a:list
+    )->list:
     """
     Generate all possible combinations of elements in the list `a`.
     
@@ -52,7 +81,9 @@ def all_possible_combinations(a: list):
         cs += [c, c + [a[0]]]
     return cs
 
-def load_pickle(path:str):
+def load_pickle(
+    path:str
+    )->object:
     """
     Load a pickle file from the specified path.
     
@@ -81,7 +112,12 @@ def load_pickle(path:str):
     else:
         raise Exception(f"The file '{path}' doesn't exist.")
     
-def dump_pickle(path:str, obj, rewrite:bool=False, verbose:bool=False):
+def dump_pickle(
+    path:str, 
+    obj, 
+    rewrite:bool=False, 
+    verbose:bool=False
+    )->None:
     """
     Save an object to a pickle file at the specified path.
     
@@ -118,7 +154,12 @@ def dump_pickle(path:str, obj, rewrite:bool=False, verbose:bool=False):
     except:
         raise Exception("Something went wrong when saving")
     
-def dict_to_csv(path:str, obj:dict, rewrite:bool=False, verbose:bool=False):
+def dict_to_csv(
+    path:str, 
+    obj:dict, 
+    rewrite:bool=False, 
+    verbose:bool=False
+    )->None:
     """
     Save a dictionary to a CSV file at the specified path.
     
@@ -157,7 +198,11 @@ def dict_to_csv(path:str, obj:dict, rewrite:bool=False, verbose:bool=False):
     except:
         raise Exception("Something went wrong when saving")
 
-def iteration_percentage(txt:str, i:int, length_of_iterator:int):
+def iteration_percentage(
+    txt:str, 
+    i:int, 
+    length_of_iterator:int
+    )->None:
     """
     Display the iteration progress as a percentage bar.
     
@@ -181,9 +226,11 @@ def iteration_percentage(txt:str, i:int, length_of_iterator:int):
         percentage_bar =  f"[{'·'*(l):50s}] {(l*2)/100:.0%}\n"
     sys.stdout.write(txt+'\n'+percentage_bar)
 
-def get_maximum_correlation_channels(average_correlation_across_subject:np.ndarray,
-                                     number_of_lat_channels:int=12,
-                                     lateralization:bool=False):
+def get_maximum_correlation_channels(
+    average_correlation_across_subject:np.ndarray,
+    number_of_lat_channels:int=12,
+    lateralization:bool=False
+    )->list:
     """
     Get the channels with the maximum correlation across subjects.
 
@@ -253,7 +300,10 @@ def get_maximum_correlation_channels(average_correlation_across_subject:np.ndarr
             sorted_chs = sorted_chs[-number_of_lat_channels:]
         return [ch in sorted_chs for ch in channel_names]
 
-def maximo_comun_divisor(a, b):
+def maximo_comun_divisor(
+    a:int, 
+    b:int
+    )->int:
     """
     Calculate the greatest common divisor (GCD) of two integers using the Euclidean algorithm.
     
@@ -281,7 +331,10 @@ def maximo_comun_divisor(a, b):
         a = temporal
     return a
 
-def minimo_comun_multiplo(a, b):
+def minimo_comun_multiplo(
+    a:int, 
+    b:int
+    )->int:
     """
     Calculate the least common multiple (LCM) of two integers.
     
@@ -304,7 +357,10 @@ def minimo_comun_multiplo(a, b):
     """
     return (a * b) / maximo_comun_divisor(a, b)
 
-def cohen_d(x,y):
+def cohen_d(
+    x:np.ndarray, 
+    y:np.ndarray
+    )->float:
     """
     Calculate Cohen's d effect size between two samples.
     

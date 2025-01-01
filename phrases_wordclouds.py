@@ -11,10 +11,10 @@ for session in sessions:
     words_session = ''
     for file in  os.listdir(session_path):
         data = pd.read_table(
-                            filepath_or_buffer=os.path.join(session_path, file),
-                            header=None, 
-                            sep="\t"
-                            )
+            filepath_or_buffer=os.path.join(session_path, file),
+            header=None, 
+            sep="\t"
+            )
         phrases = [phrase.replace('-', '').replace('?', '') for phrase in data[2].tolist() if phrase != '#' and '>' not in phrase]
         words_session += ' '.join(phrases)
     total_words += words_session

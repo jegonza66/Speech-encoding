@@ -7,7 +7,7 @@ from sklearn.model_selection import KFold
 
 # Modules
 from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
-from model_implementations import parallel_fold_model
+from model_implementations import fold_model
 from processing import tfce 
 from load import load_data
 import config, plot
@@ -60,15 +60,15 @@ for situation in config.situations:
 
                 # Load data by subject, EEG and info
                 sujeto_1, sujeto_2, samples_info = load_data(
-                                                            sesion=sesion,
-                                                            stim=stim,
-                                                            band=band,
-                                                            sr=config.sr,
-                                                            delays=config.delays,
-                                                            preprocessed_data_path=preprocessed_data_path,
-                                                            praat_executable_path=config.praat_executable_path,
-                                                            situation=situation
-                                                            )
+                                                sesion=sesion,
+                                                stim=stim,
+                                                band=band,
+                                                sr=config.sr,
+                                                delays=config.delays,
+                                                preprocessed_data_path=preprocessed_data_path,
+                                                praat_executable_path=config.praat_executable_path,
+                                                situation=situation
+                                                )
                 eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
 
                 if config.just_load_data:
@@ -150,20 +150,20 @@ for situation in config.situations:
                     for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
                         print(f'\n\t······  [{fold+1}/{config.n_folds}]')
                         k_models_output.append(
-                                        parallel_fold_model(
-                                        fold=fold,
-                                        alpha=np.float32(alpha),
-                                        stims=stims,
-                                        eeg=eeg,
-                                        relevant_indexes=relevant_indexes,
-                                        train_indexes=train_indexes,
-                                        test_indexes=test_indexes,
-                                        validation=False,
-                                        statistical_test=config.statistical_test,
-                                        path_null=path_null,
-                                        session=sesion,
-                                        subject=sujeto,                              
-                                        )
+                                        fold_model(
+                                            fold=fold,
+                                            alpha=np.float32(alpha),
+                                            stims=stims,
+                                            eeg=eeg,
+                                            relevant_indexes=relevant_indexes,
+                                            train_indexes=train_indexes,
+                                            test_indexes=test_indexes,
+                                            validation=False,
+                                            statistical_test=config.statistical_test,
+                                            path_null=path_null,
+                                            session=sesion,
+                                            subject=sujeto,                              
+                                            )
                                         )
                     # Store model output
                     for output_k in k_models_output:
@@ -217,11 +217,11 @@ for situation in config.situations:
                         # Find good indexes by checking where all folds (at the same time) are significant
                         try:
                             corr_good_channel_indexes, _ = np.where(
-                                                                    np.all((proba_correlation_per_channel < 1), axis=0)
-                                                                    )
+                                                        np.all((proba_correlation_per_channel < 1), axis=0)
+                                                        )
                             rmse_good_channel_indexes, _ = np.where(
-                                                                    np.all((proba_rmse_per_channel < 1), axis=0)
-                                                                    )
+                                                        np.all((proba_rmse_per_channel < 1), axis=0)
+                                                        )
                         except:
                             corr_good_channel_indexes = []
                             rmse_good_channel_indexes = []
@@ -233,17 +233,17 @@ for situation in config.situations:
 
                         # Plot shadows for each subject
                         plot.null_correlation_vs_correlation_good_channels(
-                                                                        display_interactive_mode=config.display_interactive_mode, session=sesion, subject=sujeto,
-                                                                        save_path=path_figures, 
-                                                                        good_channels_indexes=corr_good_channel_indexes, 
-                                                                        correlation_per_channel=correlation_per_channel,
-                                                                        null_correlation_per_channel=null_correlation_per_channel, 
-                                                                        average_correlation=average_correlation,
-                                                                        power_correlation=power_correlation_per_channel.mean(axis=0),
-                                                                        power_rmse=power_rmse_per_channel.mean(axis=0),
-                                                                        save=config.save_figures, 
-                                                                        no_figures=config.no_figures
-                                                                        )
+                            display_interactive_mode=config.display_interactive_mode, session=sesion, subject=sujeto,
+                            save_path=path_figures, 
+                            good_channels_indexes=corr_good_channel_indexes, 
+                            correlation_per_channel=correlation_per_channel,
+                            null_correlation_per_channel=null_correlation_per_channel, 
+                            average_correlation=average_correlation,
+                            power_correlation=power_correlation_per_channel.mean(axis=0),
+                            power_rmse=power_rmse_per_channel.mean(axis=0),
+                            save=config.save_figures, 
+                            no_figures=config.no_figures
+                            )
 
                     # Avergae p-values across all folds
                     topo_pval_corr_sujeto = topo_pvalues_corr_per_fold.mean(axis=0)
@@ -251,48 +251,48 @@ for situation in config.situations:
 
                     # Plot head topomap across al channel for correlation and rmse
                     plot.topomap(
-                                good_channels_indexes=corr_good_channel_indexes, 
-                                average_coefficient=average_correlation, 
-                                info=info,
-                                coefficient_name='Correlation', 
-                                save=config.save_figures, 
-                                display_interactive_mode=config.display_interactive_mode,
-                                save_path=path_figures, 
-                                subject=sujeto, 
-                                session=sesion, 
-                                no_figures=config.no_figures
+                        good_channels_indexes=corr_good_channel_indexes, 
+                        average_coefficient=average_correlation, 
+                        info=info,
+                        coefficient_name='Correlation', 
+                        save=config.save_figures, 
+                        display_interactive_mode=config.display_interactive_mode,
+                        save_path=path_figures, 
+                        subject=sujeto, 
+                        session=sesion, 
+                        no_figures=config.no_figures
                                 )
                     plot.topomap(
-                                good_channels_indexes=rmse_good_channel_indexes, 
-                                average_coefficient=average_rmse, 
-                                info=info,
-                                coefficient_name='RMSE', 
-                                save=config.save_figures, 
-                                display_interactive_mode=config.display_interactive_mode,
-                                save_path=path_figures, 
-                                subject=sujeto, 
-                                session=sesion, 
-                                no_figures=config.no_figures #TODO: remove all config. parameters and put them in plot module
-                                )
+                        good_channels_indexes=rmse_good_channel_indexes, 
+                        average_coefficient=average_rmse, 
+                        info=info,
+                        coefficient_name='RMSE', 
+                        save=config.save_figures, 
+                        display_interactive_mode=config.display_interactive_mode,
+                        save_path=path_figures, 
+                        subject=sujeto, 
+                        session=sesion, 
+                        no_figures=config.no_figures #TODO: remove all config. parameters and put them in plot module
+                        )
 
                     # Plot weights
                     plot.channel_weights(
-                                        info=info, 
-                                        save=config.save_figures, 
-                                        save_path=path_figures, 
-                                        average_correlation=average_correlation,
-                                        average_rmse=average_rmse, 
-                                        best_alpha=alpha, 
-                                        average_weights=average_weights, 
-                                        times=config.times,
-                                        n_feats=n_feats, 
-                                        stim=stim, 
-                                        session=sesion, 
-                                        subject=sujeto, 
-                                        hierarchical_clustering=config.hierarchical_clustering,
-                                        display_interactive_mode=config.display_interactive_mode, 
-                                        no_figures=config.no_figures
-                                        )
+                        info=info, 
+                        save=config.save_figures, 
+                        save_path=path_figures, 
+                        average_correlation=average_correlation,
+                        average_rmse=average_rmse, 
+                        best_alpha=alpha, 
+                        average_weights=average_weights, 
+                        times=config.times,
+                        n_feats=n_feats, 
+                        stim=stim, 
+                        session=sesion, 
+                        subject=sujeto, 
+                        hierarchical_clustering=config.hierarchical_clustering,
+                        display_interactive_mode=config.display_interactive_mode, 
+                        no_figures=config.no_figures
+                        )
 
                     # Saves average correlation, RMSE and weights between folds of each channel of each subject to take average above subjects channels
                     average_weights_subjects.append(average_weights)
@@ -328,14 +328,18 @@ for situation in config.situations:
             if config.save_results and total_number_of_subjects==18:
                 os.makedirs(save_results_path, exist_ok=True)
                 os.makedirs(path_weights, exist_ok=True)
-                dump_pickle(path=save_results_path+f'{stim}.pkl',
-                            obj={'average_correlation_subjects':average_correlation_subjects,
-                                'repeated_good_correlation_channels_subjects':repeated_good_correlation_channels_subjects},
-                            rewrite=True,
-                            verbose=True)
-                dump_pickle(path=path_weights+'total_weights_per_subject.pkl',
-                            obj={'average_weights_subjects':average_weights_subjects},
-                            rewrite=True)
+                dump_pickle(
+                        path=save_results_path+f'{stim}.pkl',
+                        obj={'average_correlation_subjects':average_correlation_subjects,
+                            'repeated_good_correlation_channels_subjects':repeated_good_correlation_channels_subjects},
+                        rewrite=True,
+                        verbose=True
+                        )
+                dump_pickle(
+                        path=path_weights+'total_weights_per_subject.pkl',
+                        obj={'average_weights_subjects':average_weights_subjects},
+                        rewrite=True
+                        )
 
             # Plot phoneme ocurrences
             # if np.array([bool(d) for d in phonemes_occurrences.values()]).any():
@@ -346,118 +350,118 @@ for situation in config.situations:
 
             # Plot average topomap metrics across each subject
             plot.average_topomap(
-                                average_coefficient_subjects=average_rmse_subjects, 
-                                stim=stim, 
-                                info=info, 
-                                display_interactive_mode=config.display_interactive_mode,
-                                save=config.save_figures, 
-                                save_path=path_figures, 
-                                coefficient_name='RMSE', 
-                                no_figures=config.no_figures
-                                )
+                average_coefficient_subjects=average_rmse_subjects, 
+                stim=stim, 
+                info=info, 
+                display_interactive_mode=config.display_interactive_mode,
+                save=config.save_figures, 
+                save_path=path_figures, 
+                coefficient_name='RMSE', 
+                no_figures=config.no_figures
+                )
             plot.average_topomap(
-                                average_coefficient_subjects=average_correlation_subjects, 
-                                stim=stim, 
-                                display_interactive_mode=config.display_interactive_mode,
-                                info=info, 
-                                save=config.save_figures, 
-                                save_path=path_figures,
-                                coefficient_name='Correlation', 
-                                test_result=False, 
-                                no_figures=config.no_figures
-                                ) 
+                average_coefficient_subjects=average_correlation_subjects, 
+                stim=stim, 
+                display_interactive_mode=config.display_interactive_mode,
+                info=info, 
+                save=config.save_figures, 
+                save_path=path_figures,
+                coefficient_name='Correlation', 
+                test_result=False, 
+                no_figures=config.no_figures
+                ) 
 
             # Plot topomap with relevant times
             plot.topo_map_relevant_times(
-                                        average_weights_subjects=average_weights_subjects, 
-                                        info=info, 
-                                        n_feats=n_feats,
-                                        band=band,
-                                        stim=stim, 
-                                        times=config.times,
-                                        sample_rate=config.sr, 
-                                        save_path=path_figures, 
-                                        save=config.save_figures, 
-                                        display_interactive_mode=config.display_interactive_mode, 
-                                        no_figures=config.no_figures
-                                        )
+                average_weights_subjects=average_weights_subjects, 
+                info=info, 
+                n_feats=n_feats,
+                band=band,
+                stim=stim, 
+                times=config.times,
+                sample_rate=config.sr, 
+                save_path=path_figures, 
+                save=config.save_figures, 
+                display_interactive_mode=config.display_interactive_mode, 
+                no_figures=config.no_figures
+                )
 
             # Plot channel-wise correlation topomap
             plot.channel_wise_correlation_topomap(
-                                                average_weights_subjects=average_weights_subjects,
-                                                info=info,
-                                                stim=stim, 
-                                                save=config.save_figures,
-                                                save_path=path_figures, 
-                                                display_interactive_mode=config.display_interactive_mode, 
-                                                no_figures=config.no_figures
-                                                )
+                average_weights_subjects=average_weights_subjects,
+                info=info,
+                stim=stim, 
+                save=config.save_figures,
+                save_path=path_figures, 
+                display_interactive_mode=config.display_interactive_mode, 
+                no_figures=config.no_figures
+                )
 
             # Plot weights
             plot.average_regression_weights(
-                                        average_weights_subjects=average_weights_subjects, 
-                                        info=info, 
-                                        save=config.save_figures, 
-                                        save_path=path_figures, 
-                                        hierarchical_clustering=config.hierarchical_clustering,
-                                        times=config.times, 
-                                        n_feats=n_feats, 
-                                        stim=stim, 
-                                        display_interactive_mode=config.display_interactive_mode,
-                                        no_figures=config.no_figures
-                                        )
+                average_weights_subjects=average_weights_subjects, 
+                info=info, 
+                save=config.save_figures, 
+                save_path=path_figures, 
+                hierarchical_clustering=config.hierarchical_clustering,
+                times=config.times, 
+                n_feats=n_feats, 
+                stim=stim, 
+                display_interactive_mode=config.display_interactive_mode,
+                no_figures=config.no_figures
+                )
 
             # Plot correlation matrix between subjects
             plot.correlation_matrix_subjects(
-                                            average_weights_subjects=average_weights_subjects,
-                                            stim=stim, 
-                                            n_feats=n_feats, 
-                                            save=config.save_figures,
-                                            save_path=path_figures, 
-                                            display_interactive_mode=config.display_interactive_mode, 
-                                            no_figures=config.no_figures
-                                            )
+                average_weights_subjects=average_weights_subjects,
+                stim=stim, 
+                n_feats=n_feats, 
+                save=config.save_figures,
+                save_path=path_figures, 
+                display_interactive_mode=config.display_interactive_mode, 
+                no_figures=config.no_figures
+                )
 
             if config.statistical_test:
                 # Plot topomap of average p-values across all subject
                 plot.topo_average_pval(
-                                    pvalues_coefficient_subjects=pvalues_corr_subjects, 
-                                    info=info, 
-                                    display_interactive_mode=config.display_interactive_mode,
-                                    save=config.save_figures, 
-                                    save_path=path_figures,
-                                    coefficient_name='correlation', 
-                                    no_figures=config.no_figures
-                                    )
+                    pvalues_coefficient_subjects=pvalues_corr_subjects, 
+                    info=info, 
+                    display_interactive_mode=config.display_interactive_mode,
+                    save=config.save_figures, 
+                    save_path=path_figures,
+                    coefficient_name='correlation', 
+                    no_figures=config.no_figures
+                    )
                 plot.topo_average_pval(
-                                    pvalues_coefficient_subjects=pvalues_rmse_subjects, 
-                                    info=info, 
-                                    display_interactive_mode=config.display_interactive_mode,
-                                    save=config.save_figures, 
-                                    save_path=path_figures, 
-                                    coefficient_name='RMSE', 
-                                    no_figures=config.no_figures
-                                    )
+                    pvalues_coefficient_subjects=pvalues_rmse_subjects, 
+                    info=info, 
+                    display_interactive_mode=config.display_interactive_mode,
+                    save=config.save_figures, 
+                    save_path=path_figures, 
+                    coefficient_name='RMSE', 
+                    no_figures=config.no_figures
+                    )
 
                 # Plot topomap of sum of repeated channels across all subject
                 plot.topo_repeated_channels(
-                                        repeated_good_coefficients_channels_subjects=repeated_good_correlation_channels_subjects,
-                                        info=info, 
-                                        display_interactive_mode=config.display_interactive_mode, 
-                                        save=config.save_figures,
-                                        save_path=path_figures,
-                                        coefficient_name='correlation',
-                                        no_figures=config.no_figures
-                                        )
+                    repeated_good_coefficients_channels_subjects=repeated_good_correlation_channels_subjects,
+                    info=info, 
+                    display_interactive_mode=config.display_interactive_mode, 
+                    save=config.save_figures,
+                    save_path=path_figures,
+                    coefficient_name='correlation',
+                    no_figures=config.no_figures
+                    )
                 plot.topo_repeated_channels(
-                                        repeated_good_coefficients_channels_subjects=repeated_good_rmse_channels_subjects,
-                                        info=info, 
-                                        display_interactive_mode=config.display_interactive_mode, 
-                                        save=config.save_figures,
-                                        save_path=path_figures,
-                                        coefficient_name='RMSE',
-                                        no_figures=config.no_figures
-                                        )
+                    repeated_good_coefficients_channels_subjects=repeated_good_rmse_channels_subjects,
+                    info=info, 
+                    display_interactive_mode=config.display_interactive_mode, 
+                    save=config.save_figures,
+                    save_path=path_figures,
+                    coefficient_name='RMSE',
+                    no_figures=config.no_figures
+                    )
             if config.perform_tfce:
                 del average_weights, average_rmse, average_correlation, correlation_per_channel, rmse_per_channel, correlation_matrix,\
                     root_mean_square_error, eeg, stims, stims_sujeto_1, stims_sujeto_2, sujeto_1, sujeto_2, eeg_sujeto_1, eeg_sujeto_2
@@ -470,12 +474,12 @@ for situation in config.situations:
 
                     # Compute TFCE to get p-value
                     tvalue_tfce, pvalue_tfce = tfce(
-                                                    average_weights_subjects=average_weights_subjects, # (n_subjects, n_chan, n_feats, n_delays)
-                                                    stimulus=stim,
-                                                    n_jobs=config.number_of_jobs,
-                                                    n_permutations=config.n_permutations,
-                                                    verbose_tfce=True
-                                                    )
+                                            average_weights_subjects=average_weights_subjects, # (n_subjects, n_chan, n_feats, n_delays)
+                                            stimulus=stim,
+                                            n_jobs=config.number_of_jobs,
+                                            n_permutations=config.n_permutations,
+                                            verbose_tfce=True
+                                            )
 
                     # Save TFCE
                     os.makedirs(os.path.join(path_TFCE, band), exist_ok=True)
@@ -483,18 +487,18 @@ for situation in config.situations:
 
                 # Plot t and p values
                 plot.plot_pvalue_tfce(
-                                    average_weights_subjects=average_weights_subjects, 
-                                    pvalue=pvalue_tfce, 
-                                    times=config.times, 
-                                    stim=stim,
-                                    n_feats=n_feats, 
-                                    info=info, 
-                                    significance=config.significance, 
-                                    save_path=path_figures, 
-                                    display_interactive_mode=config.display_interactive_mode,
-                                    save=config.save_figures, 
-                                    no_figures=config.no_figures
-                                    )
+                    average_weights_subjects=average_weights_subjects, 
+                    pvalue=pvalue_tfce, 
+                    times=config.times, 
+                    stim=stim,
+                    n_feats=n_feats, 
+                    info=info, 
+                    significance=config.significance, 
+                    save_path=path_figures, 
+                    display_interactive_mode=config.display_interactive_mode,
+                    save=config.save_figures, 
+                    no_figures=config.no_figures
+                    )
 
     # Get run time
     run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
@@ -508,9 +512,9 @@ for situation in config.situations:
     metadata_path = f'saves/log/main_{datetime.now().strftime("%Y-%m-%d--%H-%M-%S")}/'
     os.makedirs(metadata_path, exist_ok=True)
     metadata = {
-                name: getattr(config, name) for name in dir(config) 
-                if (not name.startswith("__")) and (not callable(getattr(config, name)) and (name not in ['phonemes_to_ipa','ordered_phonemes']))
-                }
+            name: getattr(config, name) for name in dir(config) 
+            if (not name.startswith("__")) and (not callable(getattr(config, name)) and (name not in ['phonemes_to_ipa','ordered_phonemes']))
+            }
     dict_to_csv(
                 path=metadata_path+'metadata.csv',
                 obj=metadata,

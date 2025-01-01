@@ -17,9 +17,18 @@ mne.set_log_level(verbose='CRITICAL')
 exp_info = config.Exp_info()
 
 class Trial_channel:
-    def __init__(self, s:int=21, trial:int=1, channel:int=1, band:str='All', sr:float=128, 
-                 causal_filter_eeg:bool=True, envelope_filter:bool=False, silence_threshold:float=0.03,
-                 praat_executable_path:str=r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe"): 
+    def __init__(
+        self, 
+        s:int=21, 
+        trial:int=1, 
+        channel:int=1, 
+        band:str='All', 
+        sr:float=128, 
+        causal_filter_eeg:bool=True, 
+        envelope_filter:bool=False, 
+        silence_threshold:float=0.03,
+        praat_executable_path:str=r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe"
+        )->None: 
         """
         Initializes the Trial_channel class with the given parameters.
 
@@ -88,7 +97,9 @@ class Trial_channel:
         self.mistakes_path = os.path.normpath(f"Datos/mistakes_corrected/filtered_session{s}_trial{trial:02d}_channel{channel}.TextGrid")
         self.mistakes_control_path = os.path.normpath(f"Datos/mistakes_control/filtered_session{s}_trial{trial:02d}_channel{channel}.TextGrid")
         
-    def f_eeg(self):
+    def f_eeg(
+        self
+        )->np.ndarray:
         """
         Reads the EEG data from a .set file, applies a filter based on the specified band, and downsamples the data.
 
@@ -136,10 +147,15 @@ class Trial_channel:
         eeg = self.eeg.get_data().T*1e6  # paso a array y tiro la primer columna de tiempo
 
         # Downsample
-        eeg = processing.subsamplear(eeg, int(self.eeg.info.get("sfreq")/ self.sr))
+        eeg = processing.subsample(
+            x=eeg, 
+            step=int(self.eeg.info.get("sfreq")/ self.sr)
+            )
         return eeg
 
-    def f_info(self):
+    def f_info(
+        self
+        )->mne.Info:
         """
         A montage is define as a descriptor for the set up: EEG channel names and relative positions of sensors on the scalp. 
         A montage can also contain locations for HPI points, fiducial points, or extra head shape points.In this case, 'BioSemi
@@ -155,7 +171,11 @@ class Trial_channel:
         channel_names = montage.ch_names
         return mne.create_info(ch_names=channel_names[:], sfreq=self.sr, ch_types='eeg').set_montage(montage)
 
-    def f_mistakes(self, envelope:np.ndarray, kind:str='Mistakes-Separated'):
+    def f_mistakes(
+        self, 
+        envelope:np.ndarray, 
+        kind:str='Mistakes-Separated'
+        )->np.ndarray:
         """
         Calculates mistakes (lexical, articulatory, discursive) signal from annotated data
 
@@ -221,7 +241,11 @@ class Trial_channel:
 
         return mistake_signal
     
-    def f_mistakes_control(self, envelope:np.ndarray, kind:str='Control-Separated'):
+    def f_mistakes_control(
+        self, 
+        envelope:np.ndarray, 
+        kind:str='Control-Separated'
+        )->np.ndarray:
         """
         Calculates mistakes control (lexical, articulatory, discursive) signal from annotated data
 
@@ -284,7 +308,9 @@ class Trial_channel:
             control_signal = np.concatenate((control_signal, np.zeros(shape=(np.abs(difference), 3)))) if separated else np.concatenate((control_signal, np.zeros(shape=(np.abs(difference), 1))))
         return control_signal
 
-    def f_envelope(self): 
+    def f_envelope(
+        self
+        )->np.ndarray: 
         """
         Takes the low pass filtered -butterworth-, downsample and smoothened envelope of .wav file. Then matches in length to the EEG
 
@@ -302,11 +328,25 @@ class Trial_channel:
         
         # Apply lowpass butterworth filter
         if self.envelope_filter == 'Causal':# TODO can it be replaced for a mne filter?
-            envelope = processing.butter_filter(data=envelope, frecuencias=25, sampling_freq=self.audio_sr,  #frecuencias 25 creo que es el cutoff
-                                                btype='lowpass', order=3, axis=0, ftype='Causal').reshape(-1,1)
+            envelope = processing.butter_filter(
+                    data=envelope, 
+                    frequencies=25, #frequencies=25 creo que es el cutoff
+                    sampling_freq=self.audio_sr,  
+                    btype='lowpass', 
+                    order=3, 
+                    axis=0, 
+                    ftype='Causal'
+                    ).reshape(-1,1)
         elif self.envelope_filter == 'NonCausal':
-            envelope = processing.butter_filter(data=envelope, frecuencias=25, sampling_freq=self.audio_sr,
-                                                btype='lowpass', order=3, axis=0, ftype='NonCausal').reshape(-1,1)
+            envelope = processing.butter_filter(
+                    data=envelope, 
+                    frequencies=25, 
+                    sampling_freq=self.audio_sr,
+                    btype='lowpass', 
+                    order=3, 
+                    axis=0, 
+                    ftype='NonCausal'
+                    ).reshape(-1,1)
         
         # Resample # TODO padear un cero en el envelope
         window_size, stride = int(self.audio_sr/self.sr), int(self.audio_sr/self.sr)
@@ -323,7 +363,9 @@ class Trial_channel:
         # envelope_mne_array.resample(sfreq=self.sr)
         # return envelope_mne_array.get_data().T
 
-    def f_spectrogram(self):
+    def f_spectrogram(
+        self
+        )->np.ndarray:
         """
         Calculates spectrogram of .wav file between 16 Mel frequencies
 
@@ -353,7 +395,10 @@ class Trial_channel:
         
         return S_DB.T
     
-    def f_mfccs(self, kind:str='Mfccs'):
+    def f_mfccs(
+        self, 
+        kind:str='Mfccs'
+        )->np.ndarray:
         """
         Calculates mel frequency clepstral coefficients from .wav.
 
@@ -419,7 +464,10 @@ class Trial_channel:
         #                         sr=sr)
         # plt.colorbar(format="%+2.f")
    
-    def f_jitter_shimmer(self, envelope:np.ndarray): # NEVER USED
+    def f_jitter_shimmer(
+        self, 
+        envelope:np.ndarray
+        )->tuple: # NEVER USED
         """
         Gives the jitter and shimmer matching the size of the envelope
 
@@ -459,15 +507,25 @@ class Trial_channel:
         shimmer = np.repeat(shimmer, mcm / len(shimmer))
 
         # Subsample by the number of times it takes the length of the envelope to achive the mcm. Now it has exactly the same size as envelope
-        jitter = processing.subsamplear(jitter, mcm / len(envelope))
-        shimmer = processing.subsamplear(shimmer, mcm / len(envelope))
+        jitter = processing.subsample(
+            x=jitter, 
+            step=mcm/len(envelope)
+            )
+        shimmer = processing.subsample(
+            x=shimmer, 
+            step=mcm/len(envelope)
+            )
 
         # Reassurance that the count is correct
         jitter = jitter[:min(len(jitter), len(envelope))].reshape(-1,1)
         shimmer = shimmer[:min(len(shimmer), len(envelope))].reshape(-1,1)
         return jitter, shimmer
     
-    def f_phonemes_phonet(self, envelope:np.ndarray, kind:str='Phonemes-Discrete-Phonet'):
+    def f_phonemes_phonet(
+        self, 
+        envelope:np.ndarray, 
+        kind:str='Phonemes-Discrete-Phonet'
+        )->np.ndarray:
         """
         It makes a time-match matrix between the phonemes and the envelope using Phonet implementation. The values and shape of given matrix depend on kind.
 
@@ -547,7 +605,11 @@ class Trial_channel:
                     phonemes[i, phonet_labels.index(tagg)] = 1
         return phonemes
 
-    def f_phonemes(self, envelope:np.ndarray, kind:str='Phonemes-Envelope-Manual'):
+    def f_phonemes(
+        self, 
+        envelope:np.ndarray, 
+        kind:str='Phonemes-Envelope-Manual'
+        )->np.ndarray:
         """
         It makes a time-match matrix between the phonemes and the envelope. The values and shape of given matrix depend on kind.
 
@@ -675,7 +737,10 @@ class Trial_channel:
                     phonemes[i, updated_taggs.index(tagg)] = 1
         return phonemes
 
-    def f_phonological_features(self, envelope:np.ndarray):
+    def f_phonological_features(
+        self, 
+        envelope:np.ndarray
+        )->np.ndarray:
         """
         Retrive phonological features as a matrix matching envelope length, using Phonet implementation.
 
@@ -712,7 +777,11 @@ class Trial_channel:
         # Return data in desired shape
         return np.stack(phonological_features, axis=0).T
 
-    def f_pitch(self, envelope:np.ndarray, kind:str): 
+    def f_pitch(
+        self, 
+        envelope:np.ndarray, 
+        kind:str
+        )->np.ndarray: 
         """
         Loads the pitch of the speaker, after calculating it from .wav file, using Praat.
 
@@ -756,14 +825,16 @@ class Trial_channel:
         # Define sample step and calculate pitch
         self.sampleStep = 1/self.sr # .01
         if 'Quad' in kind:
-            pitch_and_intensity.extractPI(inputFN=os.path.abspath(self.wav_fname), 
-                                        outputFN=os.path.abspath(self.pitch_fname), 
-                                        praatEXE=self.praat_executable_path, 
-                                        minPitch=minPitch,
-                                        maxPitch=maxPitch, 
-                                        sampleStep=self.sampleStep, 
-                                        silenceThreshold=self.silence_threshold,
-                                        pitchQuadInterp=True)
+            pitch_and_intensity.extractPI(
+                                inputFN=os.path.abspath(self.wav_fname), 
+                                outputFN=os.path.abspath(self.pitch_fname), 
+                                praatEXE=self.praat_executable_path, 
+                                minPitch=minPitch,
+                                maxPitch=maxPitch, 
+                                sampleStep=self.sampleStep, 
+                                silenceThreshold=self.silence_threshold,
+                                pitchQuadInterp=True
+                                )
             # Loads data
             data = np.genfromtxt(os.path.abspath(self.pitch_fname), dtype=np.float, delimiter=',', missing_values='--undefined--', filling_values=np.inf)
             time, pitch = data[:, 0], data[:, 1]
@@ -778,13 +849,15 @@ class Trial_channel:
             logpitch[logpitch==np.inf]=0
             return logpitch.reshape(-1, 1)
         else:
-            pitch_and_intensity.extractPI(inputFN=os.path.abspath(self.wav_fname), 
-                                        outputFN=os.path.abspath(self.pitch_fname), 
-                                        praatEXE=self.praat_executable_path, 
-                                        minPitch=minPitch,
-                                        maxPitch=maxPitch, 
-                                        sampleStep=self.sampleStep, 
-                                        silenceThreshold=self.silence_threshold)
+            pitch_and_intensity.extractPI(
+                                inputFN=os.path.abspath(self.wav_fname), 
+                                outputFN=os.path.abspath(self.pitch_fname), 
+                                praatEXE=self.praat_executable_path, 
+                                minPitch=minPitch,
+                                maxPitch=maxPitch, 
+                                sampleStep=self.sampleStep, 
+                                silenceThreshold=self.silence_threshold
+                                )
             # sampleStep - the frequency to sample pitch at
             # silenceThreshold - segments with lower intensity won't be analyzed
             #                 for pitch
@@ -872,7 +945,10 @@ class Trial_channel:
                 pitch[pitch==np.inf]=0
                 return pitch.reshape(-1,1)
             
-    def load_trial(self, stims:list): 
+    def load_trial(
+        self, 
+        stims:list
+        )->dict: 
         """Extract EEG and calculates specified stimuli.
         Parameters
         ----------
@@ -914,12 +990,20 @@ class Trial_channel:
         return channel
 
 class Sesion_class: 
-    def __init__(self, sesion:int=21, stim:str='Envelope', band:str='All', sr:float=128, 
-                 causal_filter_eeg:bool=True, envelope_filter:bool=False, situation:str='External', 
-                 silence_threshold:float=0.03, delays:np.ndarray=None,
-                 preprocessed_data_path:str=os.path.normpath(f'saves/preprocessed_data/tmin{-0.6}_tmax{-.002}/'),
-                 praat_executable_path:str=r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe"
-                 ):
+    def __init__(
+        self, 
+        sesion:int=21, 
+        stim:str='Envelope', 
+        band:str='All', 
+        sr:float=128, 
+        causal_filter_eeg:bool=True, 
+        envelope_filter:bool=False, 
+        situation:str='External', 
+        silence_threshold:float=0.03,
+        delays:np.ndarray=None,
+        preprocessed_data_path:str=os.path.normpath(f'saves/preprocessed_data/tmin{-0.6}_tmax{-.002}/'),
+        praat_executable_path:str=r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe"
+        )->None:
         """
         This class handles the loading (concatenating trials) and processing of EEG and stimuli data for a given session. 
         It supports both raw and preprocessed data, and can extract various features such as envelope, MFCCs, pitch, phonemes, and more.
@@ -1048,8 +1132,9 @@ class Sesion_class:
         self.export_paths['Control-Separated'] = os.path.join(self.preprocessed_data_path, 'Control-Separated/')
         self.export_paths['Control-Together'] = os.path.join(self.preprocessed_data_path, 'Control-Together/')
         
-        
-    def load_from_raw(self):
+    def load_from_raw(
+        self
+        )->dict:
         """
         Loads raw data, this includes EEG, info and stimuli.
 
@@ -1089,25 +1174,27 @@ class Sesion_class:
             # Create trial for both channels in order to extract features and EEG signal
             try:
                 channel_1 = Trial_channel(
-                    s=self.sesion, 
-                    trial=trial, 
-                    channel=1,
-                    band=self.band, 
-                    sr=self.sr,
-                    causal_filter_eeg=self.causal_filter_eeg,
-                    envelope_filter=self.envelope_filter,
-                    silence_threshold=self.silence_threshold,
-                    praat_executable_path=self.praat_executable_path)
+                        s=self.sesion, 
+                        trial=trial, 
+                        channel=1,
+                        band=self.band, 
+                        sr=self.sr,
+                        causal_filter_eeg=self.causal_filter_eeg,
+                        envelope_filter=self.envelope_filter,
+                        silence_threshold=self.silence_threshold,
+                        praat_executable_path=self.praat_executable_path
+                        )
                 channel_2 = Trial_channel(
-                    s=self.sesion,
-                    trial=trial,
-                    channel=2,
-                    band=self.band,
-                    sr=self.sr,
-                    causal_filter_eeg=self.causal_filter_eeg,
-                    envelope_filter=self.envelope_filter,
-                    silence_threshold=self.silence_threshold,
-                    praat_executable_path=self.praat_executable_path)
+                        s=self.sesion,
+                        trial=trial,
+                        channel=2,
+                        band=self.band,
+                        sr=self.sr,
+                        causal_filter_eeg=self.causal_filter_eeg,
+                        envelope_filter=self.envelope_filter,
+                        silence_threshold=self.silence_threshold,
+                        praat_executable_path=self.praat_executable_path
+                        )
 
                 # Extract dictionaries with the data
                 trial_channel_1 = channel_1.load_trial(stims=self.stim.split('_'))
@@ -1192,7 +1279,9 @@ class Sesion_class:
 
         return {'Sujeto_1': sujeto_1_return, 'Sujeto_2': sujeto_2_return}, self.samples_info
     
-    def load_procesed(self):
+    def load_procesed(
+        self
+        )->dict:
         """
         Loads procesed data, this includes EEG, info and stimuli.
 
@@ -1213,7 +1302,11 @@ class Sesion_class:
             sujeto_1[stimulus], sujeto_2[stimulus] = funciones.load_pickle(path=os.path.join(self.export_paths[stimulus], f'Sesion{self.sesion}.pkl'))
         return {'Sujeto_1': sujeto_1, 'Sujeto_2': sujeto_2}, samples_info
     
-    def labeling(self, trial:int, channel:int):
+    def labeling(
+        self, 
+        trial:int, 
+        channel:int
+        )->np.ndarray:
         """
         Gives an array with speaking channel: 3 (both speak), 2 (interlocutor), 1 (channel), 0 (silence)
 
@@ -1262,7 +1355,10 @@ class Sesion_class:
         # Return an array with envelope length, having values 3 if both participants are speaking; 2, if just locutor; 1, interlocutor and 0, silence
         return speaker + listener * 2
     
-    def shifted_indexes_to_keep(self, speaker_labels:np.ndarray):
+    def shifted_indexes_to_keep(
+        self,
+        speaker_labels:np.ndarray
+        )->np.ndarray:
         """
         Obtain shifted matrix indexes that match situation
 
@@ -1301,7 +1397,11 @@ class Sesion_class:
         return ((shifted_matrix_speaker_labels==situation_label)).all(axis=1).nonzero()[0]
     
     @staticmethod
-    def print_trials(p:int, trial:int, trials:list):
+    def print_trials(
+        p:int,
+        trial:int,
+        trials:list
+        )->None:
         """
         Make print for trial update
 
@@ -1330,7 +1430,11 @@ class Sesion_class:
         else:
             print(f'Trial {trial} of {trials[-1]}.')
 
-    def match_lengths(self, dic:dict, speaker_labels:np.ndarray):
+    def match_lengths(
+        self, 
+        dic:dict, 
+        speaker_labels:np.ndarray
+        )->tuple:
         """
         Match length of speaker labels and trial dictionary. It takes the minimum length between dic and speaker_labels (EEG)
 
@@ -1362,10 +1466,19 @@ class Sesion_class:
             speaker_labels = speaker_labels[:minimum]
         return dic, speaker_labels, minimum
     
-def load_data(sesion:int, stim:str, band:str, sr:float, preprocessed_data_path:str, 
-              praat_executable_path:str, situation:str='External', 
-              causal_filter_eeg:bool=True, envelope_filter:bool=False, 
-              silence_threshold:float=0.03, delays:np.ndarray=None):
+def load_data(
+    sesion:int, 
+    stim:str, 
+    band:str,
+    sr:float,
+    preprocessed_data_path:str, 
+    praat_executable_path:str,
+    situation:str='External', 
+    causal_filter_eeg:bool=True, 
+    envelope_filter:bool=False, 
+    silence_threshold:float=0.03, 
+    delays:np.ndarray=None
+    )->tuple:
     """
     Loads and processes EEG and stimuli data for a given session.
 

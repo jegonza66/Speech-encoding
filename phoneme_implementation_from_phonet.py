@@ -7,7 +7,22 @@ from phonet import Phonet
 from scipy.signal import resample_poly
 
 class Phoenemes(Phonet):
-    def __init__(self, audio_file:str):
+    def __init__(
+        self, 
+        audio_file:str
+        )->None:
+        """
+        Initialize the Phoenemes class.
+        
+        Parameters
+        ----------
+        audio_file : str
+            The path to the audio file to be analyzed
+            
+        Returns
+        -------
+        None            
+        """
         super().__init__(phonological_classes='All')
         self.audio_file = audio_file
         
@@ -16,7 +31,17 @@ class Phoenemes(Phonet):
         self.size_frame = 1/self.sr
         self.time_shift = 1/self.sr
     
-    def compute_phonemes(self):
+    def compute_phonemes(
+        self
+        )->tuple:
+        """
+        Compute phonemes from the audio file.
+        
+        Returns
+        -------
+        tuple
+            A tuple containing the times and phonemes extracted from the audio file
+        """
         # Read the audio (.wav) file
         fs, signal = read(self.audio_file)
         if fs!=16000:
@@ -62,7 +87,7 @@ if __name__=="__main__":
     # Calculate envelope
     envelope = np.abs(sgn.hilbert(wav))
     # Apply lowpass butterworth filter
-    envelope = processing.butter_filter(data=envelope, frecuencias=25, sampling_freq=16000,
+    envelope = processing.butter_filter(data=envelope, frequencies=25, sampling_freq=16000,
                                             btype='lowpass', order=3, axis=0, ftype='Causal').reshape(-1,1)
     # Resample # TODO padear un cero en el envelope
     window_size, stride = int(16000/128), int(16000/128)
@@ -119,5 +144,4 @@ if __name__=="__main__":
             if tagg!=0:
                 phonemes[i, phonet_labels.index(tagg)] = 1
     print(phonemes)
-    # return phonemes
 

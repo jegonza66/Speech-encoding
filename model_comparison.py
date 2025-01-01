@@ -13,6 +13,7 @@ from scipy.stats import wilcoxon
 
 # Modules
 from funciones import load_pickle, cohen_d, all_possible_combinations, get_maximum_correlation_channels
+from plot import save_figure
 import config
 exp_info = config.Exp_info()
 
@@ -20,14 +21,16 @@ exp_info = config.Exp_info()
 #'xx-small':0.579,'x-small':0.694,'s
 # mall':0.833,'medium':1.0,'large':1.200,'x-large':1.440,'xx-large':1.728,None:1.0}
 import matplotlib.pylab as pylab
-params = {'legend.fontsize': 'x-large',
-          'legend.title_fontsize': 'x-large',
-          'figure.figsize': (8, 6),
-          'figure.titlesize': 'xx-large',
-          'axes.labelsize': 'x-large',
-          'axes.titlesize':'x-large',
-          'xtick.labelsize':'large',
-          'ytick.labelsize':'large'}
+params = {
+    'legend.fontsize': 'x-large',
+    'legend.title_fontsize': 'x-large',
+    'figure.figsize': (8, 6),
+    'figure.titlesize': 'xx-large',
+    'axes.labelsize': 'x-large',
+    'axes.titlesize':'x-large',
+    'xtick.labelsize':'large',
+    'ytick.labelsize':'large'
+    }
 pylab.rcParams.update(params)
 
 # Relevant paths
@@ -72,26 +75,32 @@ for band in bands:
         stim_hull = ConvexHull(stim_points)
 
         # Plot good channels for each stim
-        plt.plot(avg_corr[stims][good_ch[stim] != 0], 
-                 avg_corr[stim][good_ch[stim] != 0], 
-                 '.', 
-                 color=f'C{i}',
-                 label=stim, 
-                 ms=2.5)
+        plt.plot(
+            avg_corr[stims][good_ch[stim] != 0], 
+            avg_corr[stim][good_ch[stim] != 0], 
+            '.', 
+            color=f'C{i}',
+            label=stim, 
+            ms=2.5
+            )
 
         # Plot bad channels for each stim
-        plt.plot(avg_corr[stims][good_ch[stim] == 0], 
-                 avg_corr[stim][good_ch[stim] == 0], 
-                 '.', 
-                 color='grey',
-                alpha=0.5, 
-                label='Failed permutation test', 
-                markersize=2)
-        plt.fill(stim_points[stim_hull.vertices, 0], 
-                 stim_points[stim_hull.vertices, 1], 
-                 color=f'C{i}',
-                 alpha=0.3, 
-                 linewidth=0)
+        plt.plot(
+            avg_corr[stims][good_ch[stim] == 0], 
+            avg_corr[stim][good_ch[stim] == 0], 
+            '.', 
+            color='grey',
+            alpha=0.5, 
+            label='Failed permutation test', 
+            markersize=2
+            )
+        plt.fill(
+            stim_points[stim_hull.vertices, 0], 
+            stim_points[stim_hull.vertices, 1], 
+            color=f'C{i}',
+            alpha=0.3, 
+            linewidth=0
+            )
 
     # Get limits
     xlimit, ylimit = plt.xlim(), plt.ylim()
@@ -109,12 +118,12 @@ for band in bands:
 
     # Save
     if config.save_figures:
-        temp_path = os.path.join(path_convex_hull, f'{band}')
-        os.makedirs(temp_path, exist_ok=True)
-        if config.relevant_channels:
-            plt.savefig(os.path.join(temp_path, f'relevant_channels_{config.relevant_channels}_{stims}.png'))
-        else:
-            plt.savefig(os.path.join(temp_path, f'{stims}.png'))
+        fname = f'relevant_channels_{config.relevant_channels}_{stims}' if config.relevant_channels else f'{stims}'
+        save_figure(
+                save_path=os.path.join(path_convex_hull, f'{band}'),
+                file_name=fname, 
+                fig=fig
+                )
     plt.close()
 
 # =========================================================================================================
@@ -170,19 +179,21 @@ for band in bands:
         plt.title(f'Diagram {band} band - {title}')
 
         # Make plot
-        venn2(subsets=areas, # left area diagran, right area diagram, shared area <--> (10, 01, 11)
-              set_labels=(stim1, stim2),
-              set_colors=('C0', 'C1'), 
-              alpha=0.45)
+        venn2(
+            subsets=areas, # left area diagran, right area diagram, shared area <--> (10, 01, 11)
+            set_labels=(stim1, stim2),
+            set_colors=('C0', 'C1'), 
+            alpha=0.45
+            )
 
         # Save figure
         if config.save_figures:
-            temp_path = os.path.join(path_venn_diagrams, f'{band}')
-            os.makedirs(temp_path, exist_ok=True)
-            if config.relevant_channels:
-                plt.savefig(os.path.join(temp_path, f'relevant_channels_{config.relevant_channels}_{stim12}.png'))
-            else:
-                plt.savefig(os.path.join(temp_path, f'{stim12}.png'))
+            fname =  f'relevant_channels_{config.relevant_channels}_{stim12}' if config.relevant_channels else f'{stim12}'
+            save_figure(
+                save_path=os.path.join(path_venn_diagrams, f'{band}'),
+                file_name=fname,
+                fig=fig
+                )
         plt.close()
         
         # Make a print with information
@@ -229,18 +240,20 @@ for band in bands:
         plt.title(f'Diagram {band} band - {title}')
 
         # Make plot
-        venn3(subsets=areas, # left area diagran, right area diagram, shared area <--> (100, 010, 110, 001, 101, 011, 111).
-              set_labels=(all_stimuli[0], all_stimuli[1], all_stimuli[2]), 
-              set_colors=('C0', 'C1', 'purple'), 
-              alpha=0.45)
+        venn3(
+            subsets=areas, # left area diagran, right area diagram, shared area <--> (100, 010, 110, 001, 101, 011, 111).
+            set_labels=(all_stimuli[0], all_stimuli[1], all_stimuli[2]), 
+            set_colors=('C0', 'C1', 'purple'), 
+            alpha=0.45
+            )
 
         if config.save_figures:
-            temp_path = os.path.join(path_venn_diagrams, f'{band}')
-            os.makedirs(temp_path, exist_ok=True)
-            if config.relevant_channels:
-                plt.savefig(os.path.join(temp_path, f'relevant_channels_{config.relevant_channels}_{all_stimuli[-1]}.png'))
-            else:
-                plt.savefig(os.path.join(temp_path, f'{all_stimuli[-1]}.png'))
+            fname = f'relevant_channels_{config.relevant_channels}_{all_stimuli[-1]}' if config.relevant_channels else f'{all_stimuli[-1]}'
+            save_figure(
+                save_path=os.path.join(path_venn_diagrams, f'{band}'),
+                file_name=fname,
+                fig=fig
+                )
         plt.close()
 
         # # Make a print with information
@@ -291,11 +304,11 @@ minimum_cor, maximum_cor = min([correlation.min() for correlation in correlation
 
 # Create figure and title
 fig, axes = plt.subplots(
-                        # figsize=(3*n_stims,1.5*n_bands), 
-                        nrows=n_bands, 
-                        ncols=n_stims, 
-                        layout="constrained"
-                        )
+        # figsize=(3*n_stims,1.5*n_bands), 
+        nrows=n_bands, 
+        ncols=n_stims, 
+        layout="constrained"
+        )
 fig.suptitle('Correlation topomaps')
 if n_stims==1:
     axes = axes.reshape(n_bands, 1)
@@ -332,15 +345,15 @@ for i, band in enumerate(bands):
 
         # Plot topomap        
         mne.viz.plot_topomap(
-                            data=average_correlation, 
-                            pos=config.info_mne, 
-                            axes=axes[i, j], 
-                            show=False, 
-                            sphere=0.07, 
-                            cmap='Reds', 
-                            # vlim=(minimum_cor, maximum_cor),
-                            cnorm=normalizer
-                            )
+                data=average_correlation, 
+                pos=config.info_mne, 
+                axes=axes[i, j], 
+                show=False, 
+                sphere=0.07, 
+                cmap='Reds', 
+                # vlim=(minimum_cor, maximum_cor),
+                cnorm=normalizer
+                )
 
 # Make colorbar
 cbar = fig.colorbar(im, ax=axes.ravel().tolist())
@@ -350,10 +363,11 @@ fig.show()
 # Save figure
 if config.save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
-    temp_path = os.path.join(path_correlation_matrix_topo,'_'.join(sorted(short_stimuli)))
-    os.makedirs(temp_path, exist_ok=True)
-    fig.savefig(os.path.join(temp_path, f'correlation_matrix_topo.png'), dpi=600, transparent=True)
-    fig.savefig(os.path.join(temp_path, f'correlation_matrix_topo.svg'), transparent=True)
+    save_figure(
+        save_path=os.path.join(path_correlation_matrix_topo, '_'.join(sorted(short_stimuli))),
+        file_name='correlation_matrix_topo',
+        fig=fig
+        )
 plt.close()
 
 # ==============================================================================================================
@@ -392,10 +406,10 @@ minimum_sim, maximum_sim = min([similarity.min() for similarity in similarities.
 
 # Create figure and title
 fig, axes = plt.subplots(
-                        nrows=n_bands, 
-                        ncols=n_stims, 
-                        layout="constrained"
-                        )   
+        nrows=n_bands, 
+        ncols=n_stims, 
+        layout="constrained"
+        )   
 fig.suptitle('Similarity topomaps')
 if n_stims==1:
     axes = axes.reshape(n_bands, 1)
@@ -431,15 +445,15 @@ for i, band in enumerate(bands):
 
         # Plot topomap        
         mne.viz.plot_topomap(
-                            data=similarity, 
-                            pos=config.info_mne, 
-                            axes=axes[i, j], 
-                            show=False, 
-                            sphere=0.07, 
-                            cmap='Greens', 
-                            # vlim=(similarity.min(), similarity.max()),
-                            cnorm=normalizer
-                            )
+                data=similarity, 
+                pos=config.info_mne, 
+                axes=axes[i, j], 
+                show=False, 
+                sphere=0.07, 
+                cmap='Greens', 
+                # vlim=(similarity.min(), similarity.max()),
+                cnorm=normalizer
+                )
 
 # Add colorbar
 cbar = fig.colorbar(im, ax=axes.ravel().tolist())
@@ -449,10 +463,11 @@ fig.show()
 # Save figure
 if config.save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
-    temp_path = os.path.join(path_similarities_matrix_topo,'_'.join(sorted(short_stimuli)))
-    os.makedirs(temp_path, exist_ok=True)
-    fig.savefig(os.path.join(temp_path, f'similarities_matrix_topo.png'), dpi=600, transparent=True)
-    fig.savefig(os.path.join(temp_path, f'similarities_matrix_topo.svg'), transparent=True)
+    save_figure(
+        save_path=os.path.join(path_similarities_matrix_topo, '_'.join(sorted(short_stimuli))),
+        file_name='similarities_matrix_topo',
+        fig=fig
+        )
 plt.close()
 
 # ===================================================================================================================
@@ -524,16 +539,16 @@ axes[0].set_xlabel('Channel group selection', fontsize=15)
 axes[0].set_ylabel('Average correlation', fontsize=15)
 subax = axes[0].inset_axes([.05,.07,.6,.6])
 mne.viz.plot_sensors(
-                    info=config.info_mne,
-                    show_names=False,
-                    block=False,
-                    pointsize=35,
-                    cmap='plasma',
-                    axes=subax,
-                    ch_groups=groups_x,
-                    linewidth=0
-                    )
-# # Create a legend
+        info=config.info_mne,
+        show_names=False,
+        block=False,
+        pointsize=35,
+        cmap='plasma',
+        axes=subax,
+        ch_groups=groups_x,
+        linewidth=0
+        )
+# Create a legend
 # cmap = colormaps['plasma']
 # colors = cmap(np.linspace(0, 1, len(groups_x)))
 # handles = [mpatches.Patch(color=colour, label=f'G{i}') for i, colour in enumerate(colors)]
@@ -554,11 +569,11 @@ for i, band in enumerate(bands):
 # axes[1].set_title('Lateralization: right(G[0-3])-left(G[7-10])')
 axes[1].set_title('Lateralization: correlation difference')
 im = axes[1].imshow(
-                    z, 
-                    vmin=z.min(), 
-                    vmax=z.max(),
-                    cmap='plasma'
-                    )
+            z, 
+            vmin=z.min(), 
+            vmax=z.max(),
+            cmap='plasma'
+            )
 axes[1].set_xticks(np.arange(len(stimuli)))
 axes[1].set_xticklabels([stim.split('-')[0] if stim!='Pitch-Log-Raw' else 'Pitch-Log' for stim in stimuli], minor=False, fontsize=12, rotation=35)
 axes[1].set_yticks(np.arange(len(bands)))
@@ -571,18 +586,21 @@ fig.show()
 # Save figure
 if config.save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
-    temp_path = os.path.join(path_distribution,'_'.join(sorted(short_stimuli)))
-    os.makedirs(temp_path, exist_ok=True)
-    fig.savefig(os.path.join(temp_path, f'lateralization.png'), dpi=600, transparent=True)
-    fig.savefig(os.path.join(temp_path, f'lateralization.svg'), transparent=True)
+    save_figure(
+        save_path=os.path.join(path_distribution, '_'.join(sorted(short_stimuli))),
+        file_name='lateralization',
+        fig=fig
+        )
 plt.close()
 
 # ======================
 # HEATMAP CENTRALIZATION
 fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10,4), constrained_layout='True')
-axes[0].set_title('Correlation: Phonemes-Theta',
-                   y=1.05, 
-                   verticalalignment="top")
+axes[0].set_title(
+        'Correlation: Phonemes-Theta',
+        y=1.05, 
+        verticalalignment="top"
+        )
 axes[0].grid(visible=True)
 axes[0].set_axisbelow(True)
 # axes[0].scatter(np.arange(n_groups_y-1), [correlations[('Phonemes-Discrete-Phonet','Theta')][group].mean() for group in groups_y], color='black')
@@ -596,15 +614,15 @@ axes[0].set_xlabel('Channel group selection', fontsize=15)
 axes[0].set_ylabel('Average correlation', fontsize=15)
 subax = axes[0].inset_axes([.02,.07,.45,.45])
 mne.viz.plot_sensors(
-                    info=config.info_mne,
-                    show_names=False,
-                    block=False,
-                    pointsize=20,
-                    cmap='turbo',
-                    axes=subax,
-                    ch_groups=groups_x, 
-                    linewidth=0
-                    )
+        info=config.info_mne,
+        show_names=False,
+        block=False,
+        pointsize=20,
+        cmap='turbo',
+        axes=subax,
+        ch_groups=groups_x, 
+        linewidth=0
+        )
 # # Create a legend
 # cmap = colormaps['plasma']
 # colors = cmap(np.linspace(0, 1, len(groups_x)))
@@ -625,11 +643,11 @@ for i, band in enumerate(bands):
         z[i,j] = average_correlation[sides_group].mean()-average_correlation[center_group].mean()
 axes[1].set_title('Centralization: correlation difference')
 im = axes[1].imshow(
-                z, 
-                vmin=z.min(), 
-                vmax=z.max(),
-                cmap='plasma'
-                )
+            z, 
+            vmin=z.min(), 
+            vmax=z.max(),
+            cmap='plasma'
+            )
 axes[1].set_xticks(np.arange(len(stimuli)))
 axes[1].set_xticklabels([stim.split('-')[0] if stim!='Pitch-Log-Raw' else 'Pitch-Log' for stim in stimuli], minor=False, fontsize=12, rotation=35)
 axes[1].set_yticks(np.arange(len(bands)))
@@ -642,18 +660,21 @@ fig.show()
 # Save figure
 if config.save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
-    temp_path = os.path.join(path_distribution,'_'.join(sorted(short_stimuli)))
-    os.makedirs(temp_path, exist_ok=True)
-    fig.savefig(os.path.join(temp_path, f'centralization.png'), dpi=600, transparent=True)
-    fig.savefig(os.path.join(temp_path, f'centralization.svg'), transparent=True)
+    save_figure(
+        save_path=os.path.join(path_distribution, '_'.join(sorted(short_stimuli))),
+        file_name='centralization',
+        fig=fig
+        )
 plt.close()
 
 # ==========================
 # HEATMAP ANTERIOR-POSTERIOR
 fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10,4), constrained_layout='True')
-axes[0].set_title('Correlation: Phonological-Theta',
-                   y=1.05, 
-                   verticalalignment="top")
+axes[0].set_title(
+        'Correlation: Phonological-Theta',
+        y=1.05, 
+        verticalalignment="top"
+        )
 axes[0].grid(visible=True)
 axes[0].set_axisbelow(True)
 # axes[0].scatter(np.arange(n_groups_y-1), [correlations[('Phonological','Theta')][group].mean() for group in groups_y], color='black')
@@ -667,15 +688,15 @@ axes[0].set_xlabel('Channel group selection', fontsize=15)
 axes[0].set_ylabel('Average correlation', fontsize=15)
 subax = axes[0].inset_axes([.35,.1,.7,.7])
 mne.viz.plot_sensors(
-                    info=config.info_mne,
-                    show_names=False,
-                    block=False,
-                    pointsize=35,
-                    cmap='cividis',
-                    axes=subax,
-                    ch_groups=groups_y, 
-                    linewidth=0
-                    )
+        info=config.info_mne,
+        show_names=False,
+        block=False,
+        pointsize=35,
+        cmap='cividis',
+        axes=subax,
+        ch_groups=groups_y, 
+        linewidth=0
+        )
 # # Create a legend
 # cmap = colormaps['cividis']
 # colors = cmap(np.linspace(0, 1, len(groups_y)))
@@ -689,11 +710,11 @@ for i, band in enumerate(bands):
 
 axes[1].set_title('Pearson correlation')
 im = axes[1].imshow(
-                    z, 
-                    vmin=-1, 
-                    vmax=1,
-                    cmap='plasma'
-                    )
+            z, 
+            vmin=-1, 
+            vmax=1,
+            cmap='plasma'
+            )
 axes[1].set_xticks(np.arange(len(stimuli)))
 axes[1].set_xticklabels([stim.split('-')[0] if stim!='Pitch-Log-Raw' else 'Pitch-Log' for stim in stimuli], minor=False, fontsize=12, rotation=35)
 axes[1].set_yticks(np.arange(len(bands)))
@@ -708,16 +729,11 @@ fig.show()
 # Save figure
 if config.save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
-    temp_path = os.path.join(path_distribution,'_'.join(sorted(short_stimuli)))
-    os.makedirs(temp_path, exist_ok=True)
-    fig.savefig(os.path.join(temp_path, f'anterior_posterior.png'), dpi=600, transparent=True)
-    fig.savefig(os.path.join(temp_path, f'anterior_posterior.svg'), transparent=True)
-plt.close()
-plt.figure()
-plt.text(.25, .5, 'Center', ha='left', va='top', fontsize=45)
-plt.axis('off')
-# plt.show()
-plt.savefig(os.path.join(temp_path, f'Center.png'), dpi=600, transparent=True)
+    save_figure(    
+        save_path=os.path.join(path_distribution, '_'.join(sorted(short_stimuli))),
+        file_name='anterior_posterior',
+        fig=fig
+        )
 plt.close()
 
 # =================================================================================================
@@ -745,11 +761,11 @@ ax = fig.gca()
 rect = fig.patch
 # rect.set_facecolor('#f3f3f3ff')
 im = plt.imshow(
-                z, 
-                vmin=z.min(), 
-                vmax=z.max(),
-                cmap='plasma'
-                )
+        z, 
+        vmin=z.min(), 
+        vmax=z.max(),
+        cmap='plasma'
+        )
 ax.set_xticks(np.arange(len(stimuli)))
 ax.set_xticklabels([stim.split('-')[0] if stim!='Pitch-Log-Raw' else 'Pitch-Log' for stim in stimuli], minor=False, fontsize=15, rotation=35)
 ax.set_yticks(np.arange(len(bands)))
@@ -762,11 +778,11 @@ fig.show()
 # Save figure
 if config.save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
-    temp_path = os.path.join(path_correlation_heatmaps,'_'.join(sorted(short_stimuli)))
-    os.makedirs(temp_path, exist_ok=True)
-    fig.savefig(os.path.join(temp_path, f'heatmap_corr.png'), dpi=600,
-                transparent=True,
-                  edgecolor='none')
+    save_figure(
+        save_path=os.path.join(path_correlation_heatmaps, '_'.join(sorted(short_stimuli))),
+        file_name='correlation_heatmap',
+        fig=fig
+        )
 plt.close()
 
 # # ===================

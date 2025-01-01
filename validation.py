@@ -8,7 +8,7 @@ from joblib import Parallel, delayed
 
 # Modules
 from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
-from model_implementations import parallel_fold_model
+from model_implementations import fold_model
 from plot import hyperparameter_selection
 from load import load_data
 import config
@@ -50,15 +50,15 @@ for situation in config.situations:
 
                 # Load data by subject, EEG and info
                 sujeto_1, sujeto_2, samples_info = load_data(
-                                                            sesion=sesion,
-                                                            stim=stim,
-                                                            band=band,
-                                                            sr=config.sr,
-                                                            delays=config.delays,
-                                                            preprocessed_data_path=preprocessed_data_path,
-                                                            praat_executable_path=config.praat_executable_path,
-                                                            situation=situation
-                                                            )
+                                                sesion=sesion,
+                                                stim=stim,
+                                                band=band,
+                                                sr=config.sr,
+                                                delays=config.delays,
+                                                preprocessed_data_path=preprocessed_data_path,
+                                                praat_executable_path=config.praat_executable_path,
+                                                situation=situation
+                                                )
                 eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
                 
                 if config.just_load_data:
@@ -101,7 +101,7 @@ for situation in config.situations:
                         k_models_output = []
                         for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
                             k_models_output.append(
-                                            parallel_fold_model(
+                                            fold_model(
                                             fold=fold,
                                             alpha=alpha,
                                             stims=stims,
@@ -170,9 +170,9 @@ for situation in config.situations:
     metadata_path = f'saves/log/validation_{datetime.now().strftime("%Y-%m-%d--%H-%M-%S")}/'
     os.makedirs(metadata_path, exist_ok=True)
     metadata = {
-                name: getattr(config, name) for name in dir(config) 
-                if (not name.startswith("__")) and (not callable(getattr(config, name)) and (name not in ['phonemes_to_ipa','ordered_phonemes']))
-                }
+            name: getattr(config, name) for name in dir(config) 
+            if (not name.startswith("__")) and (not callable(getattr(config, name)) and (name not in ['phonemes_to_ipa','ordered_phonemes']))
+            }
 
     dict_to_csv(
                 path=metadata_path+'metadata.csv',
