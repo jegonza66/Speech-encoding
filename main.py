@@ -150,7 +150,7 @@ for band in config.bands:
                 # Run folds simultaneously
                 # results = Parallel(n_jobs=-1, verbose=0)(delayed(parallel_fold_model)(
                 #                                                                 fold=fold,
-                #                                                                 alpha=alpha,
+                #                                                                 alpha=np.float32(alpha),
                 #                                                                 stims=stims,
                 #                                                                 eeg=eeg,
                 #                                                                 relevant_indexes=relevant_indexes,

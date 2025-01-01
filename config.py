@@ -4,7 +4,7 @@ import numpy as np, mne
 # SESSIONS, STIMULI, SITUATION AND EEG BANDS
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 stimuli = [
-            'Spectrogram', 
+            'Mfccs', 
            ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situation = 'External' # 'External' #'External' # 'Internal' # 'External_BS' #'Internal_BS'
 bands = [
@@ -19,7 +19,7 @@ bands = ['Theta']
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
 statistical_test, model = False, 'mtrf'
-estimator = 'ridge' # ridge, ridge_torch or time_delaying_ridge
+estimator = 'ridge_torch' # ridge, ridge_torch or time_delaying_ridge
 stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 if estimator=='ridge':
 	model = 'mtrf_ridge'
