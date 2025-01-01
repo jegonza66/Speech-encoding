@@ -8,7 +8,7 @@ from joblib import Parallel, delayed
 
 # Modules
 from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
-from model_parallelization import parallel_fold_model
+from model_implementations import parallel_fold_model
 from plot import hyperparameter_selection
 from load import load_data
 import config
