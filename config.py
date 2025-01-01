@@ -6,15 +6,16 @@ sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 stimuli = [
             'Envelope', 
            ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
-situations = ['External', 'Internal'] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
+situations = ['External', 'Internal', 'External_BS', 'Internal_BS'] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
 bands = [
         'Delta', 
         'Theta', 
         'Alpha', 
         'Beta1', 
-        'Beta2'
-        ] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
-bands = ['Theta']
+        'Beta2',
+        'All'
+        ] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
+# bands = ['All']
 
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
@@ -40,7 +41,7 @@ n_folds = 5 # with 5 folds (remain 20% as validation set, then interchange to cr
 praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
 display_interactive_mode, save_results, save_figures, no_figures = False, True, True, False
 figure_format = '.png'
-just_load_data = False
+just_load_data = True
 
 # =====================
 # VALIDATION PARAMETERS

@@ -266,7 +266,7 @@ def band_freq(band):
             l_freq = 19
             h_freq = 25
         elif band == 'All':
-            l_freq = None
+            l_freq = 1
             h_freq = 40
         elif band == 'Delta_Theta':
             l_freq = 1
