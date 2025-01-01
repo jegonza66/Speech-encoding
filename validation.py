@@ -29,7 +29,7 @@ for situation in config.situations:
             stim, band = '_'.join(ordered_stims), '_'.join(ordered_band)
             
             # Update
-            print('\n===========================\n','\tPARAMETERS\n\n','Model: ' + config.model+'\n','Band: ' + str(band)+'\n','Stimulus: ' + stim+'\n','Status: ' + situation+'\n',f'Time interval: ({config.tmin},{config.tmax})s\n','\n===========================\n')
+            print('\n===========================\n','\tPARAMETERS\n\n','Model: ' + config.model+'\n','Band: ' + str(band)+'\n','Stimulus: ' + stim+'\n','Condition: ' + situation+'\n',f'Time interval: ({config.tmin},{config.tmax})s\n','\n===========================\n')
             
             # Relevant paths
             preprocessed_data_path = os.path.normpath(f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/')
@@ -158,7 +158,7 @@ for situation in config.situations:
 
     # Get run time            
     run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
-    text = f'PARAMETERS  \nModel: ' + config.model +f'\nBands: {config.bands}'+'\nStimuli: ' + f'{config.stimuli}'+'\nStatus: ' +situation+f'\nTime interval: ({config.tmin},{config.tmax})s'
+    text = f'PARAMETERS  \nModel: ' + config.model +f'\nBands: {config.bands}'+'\nStimuli: ' + f'{config.stimuli}'+'\nCondition: ' +situation+f'\nTime interval: ({config.tmin},{config.tmax})s'
     if config.just_load_data:
         text += '\n\n\tJUST LOADING DATA'
     else:

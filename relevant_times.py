@@ -71,14 +71,14 @@ for band in bands:
         stimulus, band = '_'.join(ordered_stims), '_'.join(ordered_band)
 
         # Update
-        print('\n\t===========================\n','\t\tPARAMETERS\n\n','\t\tModel: ' + model+'\n','\t\tBand: ' + str(band)+'\n','\t\tStimulus: ' + stimulus+'\n','\t\tStatus: ' + situation+'\n','\n\t===========================\n')
+        print('\n\t===========================\n','\t\tPARAMETERS\n\n','\t\tModel: ' + model+'\n','\t\tBand: ' + str(band)+'\n','\t\tStimulus: ' + stimulus+'\n','\t\tCondition: ' + situation+'\n','\n\t===========================\n')
 
         # Loads TFCE
         try:
             print("\nLoading data")
             tvalue_tfce, pvalue_tfce = load_pickle(path=os.path.join(path_TFCE, band, stimulus + f'_{n_permutations}.pkl'))
             pvalues[band][stimulus] = pvalue_tfce
-            print('\n===========================\n','\n\tBand: ' + str(band)+'\n','\tStimulus: ' + stimulus+'\n','\tStatus: ' + situation+'\n','\n\tLoad succesful\n','\n===========================\n')
+            print('\n===========================\n','\n\tBand: ' + str(band)+'\n','\tStimulus: ' + stimulus+'\n','\tCondition: ' + situation+'\n','\n\tLoad succesful\n','\n===========================\n')
         except:
             print("\nLoad fail", "\nComputing TFCE")
 
