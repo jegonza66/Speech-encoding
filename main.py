@@ -1,7 +1,6 @@
 # Standard libraries
 from datetime import datetime
-import os
-import numpy as np
+import os, numpy as np
 
 # Specific libraries
 from sklearn.model_selection import KFold
