@@ -4,6 +4,7 @@ import matplotlib.patches as mpatches
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize, LogNorm
 from matplotlib import colormaps
+current_working_directory = os.getcwd()
 
 # Specific libraries
 # from statsmodels.stats.multitest import fdrcorrection
@@ -120,6 +121,7 @@ for band in bands:
     if config.save_figures:
         fname = f'relevant_channels_{config.relevant_channels}_{stims}' if config.relevant_channels else f'{stims}'
         save_figure(
+                cwd=current_working_directory,
                 save_path=os.path.join(path_convex_hull, f'{band}'),
                 file_name=fname, 
                 fig=fig
@@ -190,6 +192,7 @@ for band in bands:
         if config.save_figures:
             fname =  f'relevant_channels_{config.relevant_channels}_{stim12}' if config.relevant_channels else f'{stim12}'
             save_figure(
+                cwd=current_working_directory,
                 save_path=os.path.join(path_venn_diagrams, f'{band}'),
                 file_name=fname,
                 fig=fig
@@ -250,6 +253,7 @@ for band in bands:
         if config.save_figures:
             fname = f'relevant_channels_{config.relevant_channels}_{all_stimuli[-1]}' if config.relevant_channels else f'{all_stimuli[-1]}'
             save_figure(
+                cwd=current_working_directory,
                 save_path=os.path.join(path_venn_diagrams, f'{band}'),
                 file_name=fname,
                 fig=fig
@@ -364,6 +368,7 @@ fig.show()
 if config.save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
     save_figure(
+        cwd=current_working_directory,
         save_path=os.path.join(path_correlation_matrix_topo, '_'.join(sorted(short_stimuli))),
         file_name='correlation_matrix_topo',
         fig=fig
@@ -464,6 +469,7 @@ fig.show()
 if config.save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
     save_figure(
+        cwd=current_working_directory,
         save_path=os.path.join(path_similarities_matrix_topo, '_'.join(sorted(short_stimuli))),
         file_name='similarities_matrix_topo',
         fig=fig
@@ -587,6 +593,7 @@ fig.show()
 if config.save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
     save_figure(
+        cwd=current_working_directory,
         save_path=os.path.join(path_distribution, '_'.join(sorted(short_stimuli))),
         file_name='lateralization',
         fig=fig
@@ -661,6 +668,7 @@ fig.show()
 if config.save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
     save_figure(
+        cwd=current_working_directory,
         save_path=os.path.join(path_distribution, '_'.join(sorted(short_stimuli))),
         file_name='centralization',
         fig=fig
@@ -730,6 +738,7 @@ fig.show()
 if config.save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
     save_figure(    
+        cwd=current_working_directory,
         save_path=os.path.join(path_distribution, '_'.join(sorted(short_stimuli))),
         file_name='anterior_posterior',
         fig=fig
@@ -779,6 +788,7 @@ fig.show()
 if config.save_figures:
     short_stimuli = [stimulus.split('-')[0] if stimulus!='Pitch-Log-Raw' else 'Pitch-Log' for stimulus in stimuli]
     save_figure(
+        cwd=current_working_directory,
         save_path=os.path.join(path_correlation_heatmaps, '_'.join(sorted(short_stimuli))),
         file_name='correlation_heatmap',
         fig=fig

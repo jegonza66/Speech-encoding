@@ -6,7 +6,7 @@ sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
 stimuli = [
             'Envelope', 
            ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
-situations = ['External', 'Internal', 'External_BS','Internal_BS'] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
+situations = ['External']#, 'Internal', 'External_BS','Internal_BS'] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
 bands = [
         'Delta', 
         'Theta', 

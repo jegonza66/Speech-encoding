@@ -226,6 +226,7 @@ def phonemes_ocurrences(
 
         if save:
             save_figure(
+                    cwd=current_working_directory,
                     save_path=save_path, 
                     file_name=f'{stimulus}_ocurrences', 
                     fig=fig
@@ -351,6 +352,7 @@ def null_correlation_vs_correlation_good_channels(
     # Wether graph is saved
     if save:
         save_figure(
+            cwd=current_working_directory,
             save_path=os.path.join(save_path,'correlation_vs_null_correlation'), 
             file_name=f'session{session}_subject{subject}', 
             fig=fig
@@ -419,6 +421,7 @@ def lateralized_channels(
     # Save figure
     if save:
         save_figure(
+            cwd=current_working_directory,
             save_path=os.path.join(save_path,'lateralization'), 
             file_name=f'masked_left_vs_right_chs_{len(channels_right)}_channels', 
             fig=fig
@@ -543,6 +546,7 @@ def topomap(
             )
     if save:
         save_figure(
+            cwd=current_working_directory,
             save_path=os.path.join(save_path,'topomaps'), 
             file_name=f'{coefficient_name.lower()}_topomap_session_{session}_subject_{subject}', 
             fig=fig
@@ -630,6 +634,7 @@ def average_topomap(
         )
     if save:
         save_figure(
+            cwd=current_working_directory,
             save_path=save_path, 
             file_name=f'average_{coefficient_name.lower()}_topomap', 
             fig=fig
@@ -702,6 +707,7 @@ def average_topomap(
 
         if save:
             save_figure(
+                cwd=current_working_directory,
                 save_path=os.path.join(save_path, 'lateralization'),
                 file_name=f'left_vs_right_{coefficient_name.lower()}_{len(sorted_chs_right)}_channels', 
                 fig=fig
@@ -780,6 +786,7 @@ def topo_average_pval(
     # Save figure
     if save:
         save_figure(
+                cwd=current_working_directory,
                 save_path=save_path,
                 file_name=f'p-value_topo_{coefficient_name.lower()}', 
                 fig=fig
@@ -857,6 +864,7 @@ def topo_repeated_channels(
                 )
     if save:
         save_figure(
+            cwd=current_working_directory,
             save_path=save_path, 
             file_name=f'topo_repeated_channels_{coefficient_name.lower()}', 
             fig=fig
@@ -985,6 +993,7 @@ def topo_map_relevant_times(
         plt.figtext(x=.05, y=.05, s='Red is reserved for positive peaks, blue for negative ones', fontdict={'weight':'light'})
         if save:
             save_figure(
+                cwd=current_working_directory,
                 save_path=save_path, 
                 file_name=f'relevant_times', 
                 fig=fig
@@ -1074,6 +1083,7 @@ def channel_wise_correlation_topomap(
 
     if save:
         save_figure(
+            cwd=current_working_directory,
             save_path=save_path, 
             file_name=f'channelwise_correlation_topo', 
             fig=fig
@@ -1242,6 +1252,7 @@ def channel_weights(
     # Save figure
     if save:
         save_figure(   
+            cwd=current_working_directory,
             save_path=os.path.join(save_path, 'individual_weights'),
             file_name=f'weights_session_{session}_subject_{subject}', 
             fig=fig
@@ -1423,6 +1434,7 @@ def average_regression_weights(
             ax.legend()
         if save:
             save_figure(
+                cwd=current_working_directory,
                 save_path=save_path,
                 file_name=f'average_weights_{feat.lower()}', 
                 fig=fig
@@ -1537,6 +1549,7 @@ def correlation_matrix_subjects(
         # Save figure        
         if save:
             save_figure(
+                cwd=current_working_directory,
                 save_path=save_path,
                 file_name=f'TRF_correlation_matrix_{feat.lower()}', 
                 fig=fig
@@ -1758,6 +1771,7 @@ def plot_pvalue_tfce(
                 )
         if save:
             save_figure(
+                cwd=current_working_directory,
                 save_path=os.path.join(save_path,'TFCE'),
                 file_name=f'pvalue_over_average_trf{feat.lower()}', 
                 fig=fig
