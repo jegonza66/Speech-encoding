@@ -41,7 +41,7 @@ n_folds = 5 # with 5 folds (remain 20% as validation set, then interchange to cr
 praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
 display_interactive_mode, save_results, save_figures, no_figures = False, True, True, False
 figure_format = '.png'
-just_load_data = True
+just_load_data = False
 
 # =====================
 # VALIDATION PARAMETERS
@@ -53,7 +53,7 @@ save_alphas = True
 
 # =======================
 # RANDOM PERMUTATION TEST
-random_permutations = 200
+random_permutations = 2000
 correlation_length_samples = 104
 power_n_bootstrap_samples = 1000
 significance_threshold = 0.05/128 # Bonferroni correction (the test is in # channels)
