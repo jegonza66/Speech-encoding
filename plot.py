@@ -13,6 +13,7 @@ import librosa
 
 # Default size is 10 pts, the scalings (10pts*scale) are:
 #'xx-small':0.579,'x-small':0.694,'small':0.833,'medium':1.0,'large':1.200,'x-large':1.440,'xx-large':1.728,None:1.0}
+from matplotlib.lines import Line2D
 import matplotlib.pylab as pylab
 params = {
         'legend.fontsize': 'x-large',
@@ -237,8 +238,8 @@ def null_correlation_vs_correlation_good_channels(
     save_path:str,
     correlation_per_channel:np.ndarray, 
     null_correlation_per_channel:np.ndarray,
-    power_correlation:float,
-    power_rmse:float,
+    # power_correlation:float,
+    # power_rmse:float,
     save:bool=False, 
     display_interactive_mode:bool=False, 
     session:int=21, 
@@ -278,6 +279,7 @@ def null_correlation_vs_correlation_good_channels(
     None
     """
     # Exit function
+    plt.close()
     if no_figures:
         return
 
@@ -296,7 +298,9 @@ def null_correlation_vs_correlation_good_channels(
 
     # Create figure and title
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(10,7), layout='tight')
-    fig.suptitle(f'Session {session} - Subject {subject} - '+r'$Power_{corr} Test$' +f': {power_correlation:.2f}'+r'$Power_{rmse} Test$' +f': {power_rmse:.2f}')
+    # fig.suptitle(f'Session {session} - Subject {subject} - '+r'$Power_{corr} Test$' +f': {power_correlation:.2f}'+r'$Power_{rmse} Test$' +f': {power_rmse:.2f}')
+    fig.suptitle(f'Session {session} - Subject {subject}')
+    
 
     # Graph average correlation
     ax.plot(
@@ -310,7 +314,7 @@ def null_correlation_vs_correlation_good_channels(
             good_channels_indexes, 
             average_correlation[good_channels_indexes], 
             '*', 
-            color='C1', 
+            color='k', 
             label="Significant mean correlation across folds"
             )
 
@@ -483,42 +487,42 @@ def topomap(
     # Plot head correlation
     if len(good_channels_indexes):
         # Create figure and title
-        fig, axs = plt.subplots(nrows=1, ncols=2, layout='tight')
-        plt.suptitle(f"Session{session} Subject{subject}\n{coefficient_name} = ({average_coefficient.mean():.3f}" +r'$\pm$'+ f"{average_coefficient.std():.3f})")
-        
-        # Make topomap
-        im = mne.viz.plot_topomap(
-            data=average_coefficient, 
-            pos=info, 
-            axes=axs[0], 
-            show=False, 
-            sphere=0.07, 
-            cmap='Greys', 
-            vlim=(average_coefficient.min(), average_coefficient.max())
-            )
+        fig, axs = plt.subplots(nrows=1, ncols=1, layout='tight')
+        plt.suptitle(f"Session {session} - Subject {subject}\n{coefficient_name} = ({average_coefficient.mean():.3f}" +r'$\pm$'+ f"{average_coefficient.std():.3f})")
         
         # Mask for good channels
         mask = np.array([i in good_channels_indexes for i in range(info['nchan'])])
-        im2 = mne.viz.plot_topomap(
-            data=np.zeros(info['nchan']), 
+        im = mne.viz.plot_topomap(
+            data=average_coefficient, 
             pos=info, 
-            axes=axs[1], 
+            axes=axs, 
             show=False, 
-            sphere=0.07,
-            mask=mask, 
-            mask_params=dict(marker='o', markerfacecolor='g', markeredgecolor='k', linewidth=0, markersize=4)
-            )
+            sphere=0.07, 
+            cmap='Greys', 
+            vlim=(average_coefficient.min(), average_coefficient.max()),
+            mask=mask,
+            mask_params=dict(marker='o', markerfacecolor='red', markeredgecolor='k', linewidth=0, markersize=4, alpha=.35)
+        )
         # Make plot
         plt.colorbar(
             im[0], 
-            ax=[axs[0], axs[1]],
+            ax=axs,
             shrink=0.85, 
             label=coefficient_name, 
             orientation='horizontal',
             boundaries=np.linspace(average_coefficient.min().round(decimals=3), average_coefficient.max().round(decimals=3), 100),
             ticks=np.linspace(average_coefficient.min(), average_coefficient.max(), 9).round(decimals=3)
             )
-
+        
+        # Add legend for masked channels
+        legend_elements = [Line2D([0], [0], marker='o', color='w',alpha=.35, markerfacecolor='red', markeredgecolor='k', markersize=10, label='Significant channels')]
+        axs.legend(
+            handles=legend_elements, 
+            loc='upper center', 
+            bbox_to_anchor=(1.2, 1),  # Place legend below the head
+            ncol=1,  # Adjust number of columns if needed
+            frameon=False  # Optional: remove legend frame
+            )
     else:
         # Create figure and title
         fig, ax = plt.subplots(nrows=1, ncols=1, layout='tight')

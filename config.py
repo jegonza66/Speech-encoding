@@ -3,46 +3,32 @@ import numpy as np, mne
 # ==========================================
 # SESSIONS, STIMULI, SITUATION AND EEG BANDS
 sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
-# stimuli = [
-#         'Envelope',
-#         'Pitch-Log-Raw',
-#         'Spectrogram',
-#         'Mfccs',
-#         'Phonological',
-#         'Phonemes-Discrete-Phonet'
-#         ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
-# situations = [
-#         'External', 
-#         'Internal', 
-#         'External_BS',
-#         'Internal_BS'
-#         ] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
-# bands = [
-#         'Delta', 
-#         'Theta', 
-#         'Alpha', 
-#         'Beta1', 
-#         'Beta2',
-#         'All'
-#         ] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
 stimuli = [
-        'Envelope',
-        'Pitch-Log-Raw',
+        # 'Envelope',
+        # 'Pitch-Log-Raw',
         'Spectrogram',
-        'Mfccs',
-        'Phonological',
-        'Phonemes-Discrete-Phonet'
+        # 'Mfccs',
+        # 'Phonological',
+        # 'Phonemes-Discrete-Phonet'
         ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situations = [
-        'External' 
+        'External', 
+        # 'Internal', 
+        # 'External_BS',
+        # 'Internal_BS'
         ] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
 bands = [
-        'Theta' 
+        # 'Delta', 
+        'Theta', 
+        # 'Alpha', 
+        # 'Beta1', 
+        # 'Beta2',
+        # 'All'
         ] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
 
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
-statistical_test, model = False, 'mtrf'
+statistical_test, perform_tfce, model = True, True, 'mtrf'
 estimator = 'ridge_torch' # ridge, ridge_torch or time_delaying_ridge
 stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 if estimator=='ridge':
@@ -55,7 +41,7 @@ else:
     
 # ====================================================================
 # TFCE, T-TEST PARAMETERS, HIERARCHICAL_CLUSTERING and NUMBER OF FOLDS
-perform_tfce, n_permutations, significance, number_of_jobs = False, 2500, .05, -1
+n_permutations, significance, number_of_jobs = 2500, .05, -1
 hierarchical_clustering = True
 n_folds = 5 # with 5 folds (remain 20% as validation set, then interchange to cross validate)
 
@@ -79,7 +65,7 @@ save_alphas = True
 random_permutations = 2000
 correlation_length_samples = 104
 power_n_bootstrap_samples = 1000
-significance_threshold = 0.05/128 # Bonferroni correction (the test is in # channels)
+significance_threshold = 0.065/128 # Bonferroni correction (the test is in # channels) #TODO
 
 # ==============================
 # DEFAULT PENALIZATION PARAMETER 
