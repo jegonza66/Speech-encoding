@@ -118,12 +118,8 @@ for situation in config.situations:
                 # Variable to store p-value of significant channels
                 proba_correlation_per_channel = np.ones((config.n_folds, info['nchan']))
                 proba_rmse_per_channel = np.ones((config.n_folds, info['nchan']))
-                power_correlation_per_channel = np.zeros((config.n_folds, info['nchan']))
-                power_rmse_per_channel = np.zeros((config.n_folds, info['nchan']))
-
-                # Variable to store significant channels
-                repeated_good_correlation_channels = np.zeros(info['nchan'])
-                repeated_good_rmse_channels = np.zeros(info['nchan'])
+                # power_correlation_per_channel = np.zeros((config.n_folds, info['nchan']))
+                # power_rmse_per_channel = np.zeros((config.n_folds, info['nchan']))
 
                 # Run model for each subject
                 for sujeto, eeg, stims, relevant_indexes in zip((1, 2), (eeg_sujeto_1, eeg_sujeto_2), (stims_sujeto_1, stims_sujeto_2), (relevant_indexes_1, relevant_indexes_2)):
@@ -152,7 +148,7 @@ for situation in config.situations:
                         k_models_output.append(
                                         fold_model(
                                             fold=fold,
-                                            alpha=np.float32(alpha),
+                                            alpha=np.float32(alpha),#TODO adapt inside
                                             stims=stims,
                                             eeg=eeg,
                                             relevant_indexes=relevant_indexes,
@@ -175,8 +171,9 @@ for situation in config.situations:
                         rmse_per_channel[fold] = root_mean_square_error 
                         
                         if config.statistical_test:
-                            p_corr, p_rmse, significant_corr_count, significant_rmse_count, null_correlation_per_channel = output_k[4:]
-                        
+                            # p_corr, p_rmse, significant_corr_count, significant_rmse_count, null_correlation_per_channel = output_k[4:]
+                            p_corr, p_rmse, null_correlation_per_channel = output_k[4:]
+
                             # p-values for significant channels (the rest are ones, i.e: not significant)
                             proba_correlation_per_channel[fold][p_corr < config.significance_threshold] = p_corr[p_corr < config.significance_threshold]
                             proba_rmse_per_channel[fold][p_rmse < config.significance_threshold] = p_rmse[p_rmse < config.significance_threshold]
@@ -186,8 +183,8 @@ for situation in config.situations:
                             topo_pvalues_rmse_per_fold[fold] = p_rmse
                             
                             # Estimate power
-                            power_correlation_per_channel[fold] = significant_corr_count / (config.power_n_bootstrap_samples * eeg.shape[1])
-                            power_rmse_per_channel[fold] = significant_rmse_count / (config.power_n_bootstrap_samples * eeg.shape[1])
+                            # power_correlation_per_channel[fold] = significant_corr_count / (config.power_n_bootstrap_samples * eeg.shape[1])
+                            # power_rmse_per_channel[fold] = significant_rmse_count / (config.power_n_bootstrap_samples * eeg.shape[1])
                     
                     print(f'\n\t······  Run model\n')
 
@@ -212,14 +209,18 @@ for situation in config.situations:
                     # Channels that passed the tests
                     corr_good_channel_indexes = []
                     rmse_good_channel_indexes = []
+                
+                    # Variable to store significant channels
+                    repeated_good_correlation_channels = np.zeros(info['nchan'])
+                    repeated_good_rmse_channels = np.zeros(info['nchan'])
 
                     if config.statistical_test:
                         # Find good indexes by checking where all folds (at the same time) are significant
                         try:
-                            corr_good_channel_indexes, _ = np.where(
+                            corr_good_channel_indexes, = np.where(
                                                         np.all((proba_correlation_per_channel < 1), axis=0)
                                                         )
-                            rmse_good_channel_indexes, _ = np.where(
+                            rmse_good_channel_indexes, = np.where(
                                                         np.all((proba_rmse_per_channel < 1), axis=0)
                                                         )
                         except:
@@ -233,14 +234,15 @@ for situation in config.situations:
 
                         # Plot shadows for each subject
                         plot.null_correlation_vs_correlation_good_channels(
-                            display_interactive_mode=config.display_interactive_mode, session=sesion, subject=sujeto,
+                            display_interactive_mode=config.display_interactive_mode, 
+                            session=sesion, 
+                            subject=sujeto,
                             save_path=path_figures, 
                             good_channels_indexes=corr_good_channel_indexes, 
                             correlation_per_channel=correlation_per_channel,
                             null_correlation_per_channel=null_correlation_per_channel, 
-                            average_correlation=average_correlation,
-                            power_correlation=power_correlation_per_channel.mean(axis=0),
-                            power_rmse=power_rmse_per_channel.mean(axis=0),
+                            # power_correlation=power_correlation_per_channel.mean(),
+                            # power_rmse=power_rmse_per_channel.mean(),
                             save=config.save_figures, 
                             no_figures=config.no_figures
                             )
@@ -261,7 +263,7 @@ for situation in config.situations:
                         subject=sujeto, 
                         session=sesion, 
                         no_figures=config.no_figures
-                                )
+                        )
                     plot.topomap(
                         good_channels_indexes=rmse_good_channel_indexes, 
                         average_coefficient=average_rmse, 
