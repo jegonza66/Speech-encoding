@@ -1185,7 +1185,7 @@ def channel_weights(
             weights = average_weights[:, index_slice[0]:index_slice[1], :].mean(axis=0) # n_feats, n_delays
             
             # Perform clustering
-            if hierarchical_clustering: 
+            if hierarchical_clustering and not (feat.startswith('Spectro') or feat.startswith('Mfc') or feat.startswith('Deltas')): 
                 order, null_indexes = clustering_by_correlation(weights=weights) 
                 if null_indexes is not None:
                     weights = weights[[i for i in np.arange(weights.shape[0]) if i not in null_indexes]] 
@@ -1366,7 +1366,7 @@ def average_regression_weights(
             feat_weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=0)
 
             # Perform clustering
-            if hierarchical_clustering: 
+            if hierarchical_clustering and not (feat.startswith('Spectro') or feat.startswith('Mfc') or feat.startswith('Deltas')): 
                 order, null_indexes = clustering_by_correlation(weights=feat_weights) 
                 if null_indexes is not None:
                     feat_weights = feat_weights[[i for i in np.arange(feat_weights.shape[0]) if i not in null_indexes]] 
@@ -1652,7 +1652,7 @@ def plot_pvalue_tfce(
             feat_weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=0)
 
             # Perform clustering
-            if hierarchical_clustering: 
+            if hierarchical_clustering and not (feat.startswith('Spectro') or feat.startswith('Mfc') or feat.startswith('Deltas')): 
                 order, null_indexes = clustering_by_correlation(weights=feat_weights) 
                 if null_indexes is not None:
                     feat_weights = feat_weights[[i for i in np.arange(feat_weights.shape[0]) if i not in null_indexes]] 
@@ -1743,9 +1743,10 @@ def plot_pvalue_tfce(
                 )
         else:
             bar_label = r"$-log_{10}(p_{values})$"
+            
             # Define y and z according to the number of features (this is just to make a wark around 1 dimensional colormesh)
             number_of_ticks = pvals_for_graph.shape[1]
-            y, z = (np.arange(n_feat+1), np.concatenate((pvals_for_graph,pvals_for_graph))) if n_feat==1 else (np.arange(number_of_ticks), pvals_for_graph)
+            y, z = (np.arange(n_feat+1), np.concatenate((pvals_for_graph,pvals_for_graph))) if n_feat==1 else (np.arange(number_of_ticks), pvals_for_graph.T)
             im2 = axes[1].pcolormesh(
                 times*1e3, # x
                 y, # y
@@ -1753,7 +1754,6 @@ def plot_pvalue_tfce(
                 shading='auto',
                 cmap='inferno'
                 )
-
         if n_feat>1:
             define_ticks(axes=axes[1], number_of_ticks=number_of_ticks, ylabel=feat, xlabel='Time (ms)', title=None, order=order, zeros_index=null_indexes) 
             fig.colorbar( 

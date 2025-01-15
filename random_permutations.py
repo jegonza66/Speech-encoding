@@ -114,7 +114,7 @@ for situation in config.situations:
                     # Save permutations
                     os.makedirs(path_null, exist_ok=True)
                     dump_pickle(
-                                path=path_null+ f'null_metrics_ses_{sesion}_sub_{sujeto}.pkl',
+                                path=path_null+ f'null_metrics_ses_{sesion}_sub_{sujeto}_{config.random_permutations}.pkl',
                                 obj={
                                     'null_correlation_per_channel_per_fold':null_correlation_per_channel_per_fold, 
                                     'null_errors_per_fold':null_errors_per_fold
@@ -122,7 +122,7 @@ for situation in config.situations:
                                 rewrite=True
                                 )
                     dump_pickle(
-                                path=path_null+ f'null_weights_ses_{sesion}_sub_{sujeto}.pkl',
+                                path=path_null+ f'null_weights_ses_{sesion}_sub_{sujeto}_{config.random_permutations}.pkl',
                                 obj=null_weights_per_fold.mean(axis=0),
                                 rewrite=True
                                 )

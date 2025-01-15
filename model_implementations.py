@@ -128,7 +128,7 @@ def fold_model(
     if statistical_test:
         # Null Hypothesis (H0): There is no significant relationship between the predicted and actual EEG data. The test statistic (e.g., correlation or RMSE) follows the null distribution.
         # Alternative Hypothesis (H1): There is a significant relationship between the predicted and actual EEG data. The test statistic follows the alternative distribution.
-        null_data = load_pickle(path=os.path.join(path_null, f'null_metrics_ses_{session}_sub_{subject}.pkl'))
+        null_data = load_pickle(path=os.path.join(path_null, f'null_metrics_ses_{session}_sub_{subject}_{config.random_permutations}.pkl'))
         null_correlation_per_channel, null_errors = null_data['null_correlation_per_channel_per_fold'], null_data['null_errors_per_fold']
         iterations =  null_correlation_per_channel.shape[1]
 

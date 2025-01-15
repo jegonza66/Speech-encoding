@@ -41,7 +41,7 @@ else:
     
 # ====================================================================
 # TFCE, T-TEST PARAMETERS, HIERARCHICAL_CLUSTERING and NUMBER OF FOLDS
-n_permutations, significance, number_of_jobs = 2500, .05, -1
+n_permutations, significance, number_of_jobs = 4096, .05, -1
 hierarchical_clustering = True
 n_folds = 5 # with 5 folds (remain 20% as validation set, then interchange to cross validate)
 
@@ -62,10 +62,10 @@ save_alphas = True
 
 # =======================
 # RANDOM PERMUTATION TEST
-random_permutations = 2000
+random_permutations = 3000
 correlation_length_samples = 104
 power_n_bootstrap_samples = 1000
-significance_threshold = 0.065/128 # Bonferroni correction (the test is in # channels) #TODO
+significance_threshold = 0.05/128 # Bonferroni correction (the test is in # channels) #TODO
 
 # ==============================
 # DEFAULT PENALIZATION PARAMETER 
