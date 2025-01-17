@@ -1,8 +1,11 @@
 # Standard libraries
-import numpy as np, pandas as pd, os, warnings
+import numpy as np, pandas as pd, os, warnings, time
 
 # Specific libraries
-import mne, librosa, opensmile, textgrids, scipy.io.wavfile as wavfile
+import torch, mne, librosa, opensmile, textgrids, scipy.io.wavfile as wavfile
+from transformers import Wav2Vec2Model, Wav2Vec2Processor, Wav2Vec2Config
+from sklearn.decomposition import PCA
+
 from phonet.phonet import Phonet# TODO Solve KALDI_ROOT when parsing
 from praatio import pitch_and_intensity
 from scipy import signal as sgn
@@ -15,6 +18,8 @@ from phoneme_implementation_from_phonet import Phoenemes
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 mne.set_log_level(verbose='CRITICAL')
 exp_info = config.Exp_info()
+wac2vec2model = "facebook/wav2vec2-large-xlsr-53-distilled"
+# wac2vec2model = "facebook/wav2vec2-base"
 
 class Trial_channel:
     def __init__(
@@ -394,6 +399,68 @@ class Trial_channel:
         S_DB = librosa.power_to_db(S=S, ref=np.max)
         
         return S_DB.T
+
+    def f_wav2vec2(
+        self,
+        envelope:np.ndarray,
+        n_pca:int=12
+        )->np.ndarray:
+        """
+        Extracts features from an audio file using the Wav2Vec2 model, applies PCA for dimensionality reduction, and returns the reduced features.
+
+        Parameters
+        ----------
+        envelope : np.ndarray
+            Envelope of the audio signal using Hilbert transform.
+        n_pca : int
+            Number of principal components to retain after applying PCA.
+
+        Returns
+        -------
+        np.ndarray
+            Reduced hidden states from the Wav2Vec2 model after applying PCA.
+        """
+        # Read file
+        wav = wavfile.read(self.wav_fname)[1]
+        wav = wav.astype("float")
+        
+        # Preprocessing
+        input_values = processor(
+                    wav, 
+                    sampling_rate=self.audio_sr, 
+                    return_tensors="pt"
+                    ).input_values
+        
+        # Get hidden layer of model after input of the audio
+        with torch.no_grad():
+            ini = time.time()
+            
+            # Get model's output
+            outputs = model(
+                    input_values, 
+                    output_hidden_states=True
+                    )
+            
+            # Get last hidden layer
+            hidden_states = outputs.hidden_states[-1]  #(batch_size, sequence_length, hidden_size)
+            end = time.time()
+        print(f'The model took {(end-ini)/60:.2f} minutes')
+        
+        # Adjust dimensions (take out batch dimension and resample sequence length to match envelope)
+        hidden_states = hidden_states.squeeze(0)  
+        hidden_states_resampled = torch.nn.functional.interpolate(
+                                hidden_states.T.unsqueeze(0),
+                                size=envelope.shape[0],
+                                mode="linear",
+                                align_corners=True
+                                ).squeeze(0).T
+
+        # Apply PCA to find 12 principal components
+        pca = PCA(n_components=n_pca)
+        reduced_hidden_states = pca.fit_transform(hidden_states_resampled)
+        
+        print(f'Portion of variance of whole hidden layer explained by {n_pca} components: {np.sum(pca.explained_variance_ratio_)*100:.2f}%')
+        return reduced_hidden_states
     
     def f_mfccs(
         self, 
@@ -957,7 +1024,7 @@ class Trial_channel:
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
             'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet',
-            'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated']
+            'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2']
 
         Returns
         -------
@@ -980,6 +1047,8 @@ class Trial_channel:
                 channel[stim] = self.f_mistakes(envelope=channel['Envelope'], kind=stim)
             if stim.startswith('Control'):
                 channel[stim] = self.f_mistakes_control(envelope=channel['Envelope'], kind=stim)
+            if stim=='Wav2vec2':
+                channel[stim] = self.f_wav2vec2(envelope=channel['Envelope'])
             if stim=='Spectrogram':
                 channel['Spectrogram'] = self.f_spectrogram()
             if stim.startswith('Phonemes'):
@@ -1017,7 +1086,7 @@ class Sesion_class:
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
             'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 
-            'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated']
+            'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2']
         band : str
             Neural frequency band. It could be one of:
             ['Delta','Theta', 'Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
@@ -1050,7 +1119,7 @@ class Sesion_class:
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
             'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 
-            'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated']
+            'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2']
             If 'band' is not an allowed band frequency. Allowed frequencies are:
             ['Delta','Theta', 'Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
             If 'situation' is not an allowed situation. Allowed situations are:
@@ -1059,7 +1128,7 @@ class Sesion_class:
         # Check if band, stim and situation parameters where passed with the right syntax
         allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', \
                         'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', \
-                        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated']
+                        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2']
         allowed_band_frequencies = ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
         allowed_situationes = ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
         for st in stim.split('_'):
@@ -1131,6 +1200,7 @@ class Sesion_class:
         self.export_paths['Mistakes-Together'] = os.path.join(self.preprocessed_data_path, 'Mistakes-Together/')
         self.export_paths['Control-Separated'] = os.path.join(self.preprocessed_data_path, 'Control-Separated/')
         self.export_paths['Control-Together'] = os.path.join(self.preprocessed_data_path, 'Control-Together/')
+        self.export_paths['Wav2vec2'] = os.path.join(self.preprocessed_data_path, 'Wav2vec2/')
         
     def load_from_raw(
         self
@@ -1493,7 +1563,7 @@ def load_data(
         'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
         'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 
         'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 
-        'Control-Together', 'Control-Separated'].
+        'Control-Together', 'Control-Separated', 'Wav2vec2'].
     band : str
         Neural frequency band. It could be one of: ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta'].
     sr : float
@@ -1530,7 +1600,7 @@ def load_data(
         'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
         'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 
         'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 
-        'Control-Together', 'Control-Separated']
+        'Control-Together', 'Control-Separated', 'Wav2vec2']
         If 'band' is not an allowed band frequency. Allowed ones are:
         ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
         If 'situation' is not an allowed situation. Allowed ones are:
@@ -1539,7 +1609,7 @@ def load_data(
     # Define allowed stimuli
     allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes',\
                     'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset',\
-                    'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated']
+                    'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2']
     allowed_situations = ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
     allowed_bands = ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
 

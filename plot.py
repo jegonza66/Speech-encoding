@@ -81,6 +81,9 @@ def define_ticks(
     elif ylabel.startswith('Control'):
         tags = list(exp_info.control)
         ticks = np.arange(number_of_ticks)
+    elif ylabel.startwith('Wav2vec2'):
+        ticks = np.arange(number_of_ticks)
+        tags = [f'C{tick}' for tick in ticks]
     elif ylabel.startswith('Phonemes'):
         axes.tick_params(axis='both', labelsize='medium')
         if ylabel.endswith('Manual'):
