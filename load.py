@@ -3,7 +3,8 @@ import numpy as np, pandas as pd, os, warnings, time
 
 # Specific libraries
 import torch, mne, librosa, opensmile, textgrids, scipy.io.wavfile as wavfile
-from transformers import Wav2Vec2Model, Wav2Vec2Processor, Wav2Vec2Config
+# from transformers import Wav2Vec2Model, Wav2Vec2Processor
+from transformers import WhisperProcessor, WhisperModel
 from sklearn.decomposition import PCA
 
 from phonet.phonet import Phonet# TODO Solve KALDI_ROOT when parsing
@@ -18,8 +19,9 @@ from phoneme_implementation_from_phonet import Phoenemes
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 mne.set_log_level(verbose='CRITICAL')
 exp_info = config.Exp_info()
-wac2vec2model = "facebook/wav2vec2-large-xlsr-53-distilled"
-# wac2vec2model = "facebook/wav2vec2-base"
+wav2vec2model = "openai/whisper-tiny"
+# wav2vec2model = "facebook/wav2vec2-large-xlsr-53-distilled"
+# wav2vec2model = "facebook/wav2vec2-base"
 
 class Trial_channel:
     def __init__(
@@ -424,26 +426,50 @@ class Trial_channel:
         wav = wavfile.read(self.wav_fname)[1]
         wav = wav.astype("float")
         
+        # Get name of folder
+        modelfname = f'wav2vec2_weights_{wav2vec2model.split("wav2vec2-")[1]}' if 'wav2vec2' in wav2vec2model else f'whisper_weights_{wav2vec2model.split("whisper-")[1]}'
+
+        # Loads model and proccesor
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning, message="Passing `gradient_checkpointing` to a config initialization is deprecated")
+            # processor = Wav2Vec2Processor.from_pretrained(wac2vec2model, cache_dir=f'saves/preprocessed_Data/{modelfname}')
+            # model = Wav2Vec2Model.from_pretrained(wac2vec2model, cache_dir=f'saves/preprocessed_Data/{modelfname}')
+            processor = WhisperProcessor.from_pretrained(wav2vec2model, cache_dir=f'saves/preprocessed_Data/{modelfname}')
+            model = WhisperModel.from_pretrained(wav2vec2model, cache_dir=f'saves/preprocessed_Data/{modelfname}')
+            
+    
         # Preprocessing
         input_values = processor(
                     wav, 
                     sampling_rate=self.audio_sr, 
                     return_tensors="pt"
-                    ).input_values
+                    ).input_features
+                    # ).input_values
         
         # Get hidden layer of model after input of the audio
-        with torch.no_grad():
-            ini = time.time()
+        # with torch.no_grad():
+        #     ini = time.time()
             
-            # Get model's output
-            outputs = model(
-                    input_values, 
-                    output_hidden_states=True
-                    )
+        #     # Get model's output
+        #     outputs = model(
+        #             input_values, 
+        #             output_hidden_states=True
+        #             )
             
-            # Get last hidden layer
-            hidden_states = outputs.hidden_states[-1]  #(batch_size, sequence_length, hidden_size)
-            end = time.time()
+        #     # Get last hidden layer
+        #     hidden_states = outputs.hidden_states[-1]  #(batch_size, sequence_length, hidden_size)
+        #     end = time.time()
+        ini = time.time()
+        
+        # Get model's output
+        outputs = model.encoder(
+                input_values, 
+                output_hidden_states=True
+                )
+        
+        # Get last hidden layer
+        hidden_states = outputs.hidden_states[-1]  #(batch_size, sequence_length, hidden_size)
+        end = time.time()
         print(f'The model took {(end-ini)/60:.2f} minutes')
         
         # Adjust dimensions (take out batch dimension and resample sequence length to match envelope)
@@ -453,7 +479,8 @@ class Trial_channel:
                                 size=envelope.shape[0],
                                 mode="linear",
                                 align_corners=True
-                                ).squeeze(0).T
+                                ).squeeze(0).T.detach().numpy()
+                                # ).squeeze(0).T
 
         # Apply PCA to find 12 principal components
         pca = PCA(n_components=n_pca)

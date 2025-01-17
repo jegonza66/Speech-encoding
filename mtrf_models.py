@@ -108,7 +108,8 @@ class TorchMtrf:
                     stims, 
                     delays=config.delays, 
                     use_gpu=False
-                    )#self.use_gpu)
+                    # use_gpu=self.use_gpu
+                    )
         n_samples, n_featuresbyn_delays = design_matrix.shape
         n_features = n_featuresbyn_delays // len(config.delays)
 
