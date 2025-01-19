@@ -145,9 +145,13 @@ class TorchMtrf:
             del y_test
 
             # Fit the Ridge model
-            XTX = X_train.T @ X_train  # X^T * X
-            I = torch.eye(XTX.shape[0], device=self.device)  # Identity matrix
-            mtrfs =  torch.linalg.inv(XTX + self.alpha.astype(np.float32) * I) @ X_train.T @ y_train
+            # XTX = X_train.T @ X_train  # X^T * X
+            # I = torch.eye(XTX.shape[0], device=self.device)  # Identity matrix
+            # mtrfs =  torch.linalg.inv(XTX + self.alpha.astype(np.float32) * I) @ X_train.T @ y_train
+            
+            # Fit the Ridge model (X^T X + alpha * I) * mtrfs = X^T * y_train
+            XTX_reg = X_train.T @ X_train + self.alpha.astype(np.float32) *  torch.eye(XTX.shape[0], device=self.device) # X^T * X + alpha*I
+            mtrfs = torch.linalg.solve(XTX_reg, X_train.T @ y_train)
             
             # Perform predictions
             self.y_predicted = X_pred @ mtrfs
@@ -175,10 +179,14 @@ class TorchMtrf:
                                                                 )
             del y_val
             
-            # Fit the Ridge model
-            XTX = X_train_for_val.T @ X_train_for_val  # X^T * X
-            I = torch.eye(XTX.shape[0], device=self.device)  # Identity matrix
-            mtrfs =  torch.linalg.inv(XTX + self.alpha.astype(np.float32) * I) @ X_train.T @ y_train
+            # # Fit the Ridge model
+            # XTX = X_train_for_val.T @ X_train_for_val  # X^T * X
+            # I = torch.eye(XTX.shape[0], device=self.device)  # Identity matrix
+            # mtrfs =  torch.linalg.inv(XTX + self.alpha.astype(np.float32) * I) @ X_train.T @ y_train
+            
+            # Fit the Ridge model (X^T X + alpha * I) * mtrfs = X^T * y_train
+            XTX_reg = X_train_for_val.T @ X_train_for_val + self.alpha.astype(np.float32) *  torch.eye(XTX.shape[0], device=self.device) # X^T * X + alpha*I
+            mtrfs = torch.linalg.solve(XTX_reg, X_train_for_val.T @ y_train)
             
             # Perform predictions
             self.y_predicted = X_pred @ mtrfs
