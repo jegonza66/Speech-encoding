@@ -13,7 +13,7 @@ from scipy import signal as sgn
 
 # Modules
 import processing, funciones, config
-from phoneme_implementation_from_phonet import Phoenemes
+from phoneme_implementation_from_phonet import Phones
 
 # Review this If we want to update packages
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -619,7 +619,7 @@ class Trial_channel:
         shimmer = shimmer[:min(len(shimmer), len(envelope))].reshape(-1,1)
         return jitter, shimmer
     
-    def f_phones_phonet( # TODO CAMBAIR EN TODOS LADOS ESTO SON FONOS NO FONEMAS
+    def f_phonemes_phonet( 
         self, 
         envelope:np.ndarray, 
         kind:str='Phonemes-Discrete-Phonet'
@@ -651,65 +651,145 @@ class Trial_channel:
             Whether the input value of 'kind' is passed correctly. It must be a one of:
             ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet'].
         """
-        # Get phonet labels
-        phonet_labels = [el if el!='<p:>' else '' for el in exp_info.ph_labels_phonet]
+        # Remove silences, since it won't be used in prediction (when silence occurs, all phoneme are 0)
+        phonet_labels = Exp_info().phonemes_phonet
+        phonet_labels.remove('/sil/')
 
         # Check if given kind is a permited input value
+        kind = 'Phonemes-Discrete-Phonet'
         allowed_kind = ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
         if kind not in allowed_kind:
             raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
-
-        # Extract phonemes
-        phoneme_obj = Phoenemes(audio_file=self.wav_fname)
-        _,  sec_phonemes = phoneme_obj.compute_phonemes() 
         
-        # Relabel silences
-        sec_phonemes = [phon if phon!='<p:>' else '' for phon in sec_phonemes]
-
+        # Extract phonemes
+        phones_obj = Phones(audio_file=wav_file)
+        time,  sec_phones = phones_obj.compute_phones() #9167
+        
         # Match features length
-        difference = len(sec_phonemes) - len(envelope)
+        difference = len(sec_phones) - len(envelope)
 
         if difference > 0:
-            sec_phonemes = sec_phonemes[:-difference]
+            sec_phones = sec_phones[:-difference]
         elif difference < 0:
             # In this case, silences are append
             for i in range(np.abs(difference)):
-                sec_phonemes.append('')
+                sec_phones.append('<p:>')
         
-        # # Make a list with phoneme labels tha already are in the known set
-        # updated_taggs = np.unique(sec_phonemes).tolist()
-
         # Make empty array of phonemes
-        phonemes = np.zeros(shape=(len(sec_phonemes), len(phonet_labels)))
+        phonemes = np.zeros(shape=(len(sec_phones), len(phonet_labels)))
         
         # Match phoneme with kind
         if kind.startswith('Phonemes-Envelope'):
-            for i, tagg in enumerate(sec_phonemes):
-                phonemes[i, phonet_labels.index(tagg)] = envelope[i]
+            for i, tagg in enumerate(sec_phones):
+                if (tagg!='<p:>') and (tagg!='sil'):
+                    phonemes[i, phonet_labels.index(Exp_info().phones_to_phonemes[tagg])] = envelope[i]
         elif kind.startswith('Phonemes-Discrete'):
-            for i, tagg in enumerate(sec_phonemes):
-                phonemes[i, phonet_labels.index(tagg)] = 1
+            for i, tagg in enumerate(sec_phones):
+                if (tagg!='<p:>') and (tagg!='sil'):
+                    phonemes[i, phonet_labels.index(Exp_info().phones_to_phonemes[tagg])] = 1
         elif kind.startswith('Phonemes-Onset'):
             # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
-            phonemes_onset = [sec_phonemes[0]]
-            for i in range(1, len(sec_phonemes)):
-                if sec_phonemes[i] == sec_phonemes[i-1]:
+            phonemes_onset = [sec_phones[0]]
+            for i in range(1, len(sec_phones)):
+                if sec_phones[i] == sec_phones[i-1]:
                     phonemes_onset.append(0)
                 else:
-                    phonemes_onset.append(sec_phonemes[i])
+                    phonemes_onset.append(sec_phones[i])
             # Match phoneme with envelope
             for i, tagg in enumerate(phonemes_onset):
-                if tagg!=0:
-                    phonemes[i, phonet_labels.index(tagg)] = 1
+                if (tagg!='<p:>') and (tagg!='sil') and (tagg!=0):
+                    phonemes[i, phonet_labels.index(Exp_info().phones_to_phonemes[tagg])] = 1
         return phonemes
     
-    def f_phonemes_phonet(
+    # def f_phones_phonet( # TODO CAMBAIR EN TODOS LADOS ESTO SON FONOS NO FONEMAS
+    #     self, 
+    #     envelope:np.ndarray, 
+    #     kind:str='Phones-Discrete-Phonet'
+    #     )->np.ndarray:
+    #     """
+    #     It makes a time-match matrix between the phones and the envelope using Phonet implementation. The values and shape of given matrix depend on kind.
+
+    #     Parameters
+    #     ----------
+    #     envelope : np.ndarray
+    #         Envelope of the audio signal using Hilbert transform
+    #     kind : str, optional
+    #        Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
+    #         ['Phones-Envelope-Phonet', 'Phones-Discrete-Phonet', 'Phones-Onset-Phonet']
+
+    #     Returns
+    #     -------
+    #     np.ndarray
+    #         if kind.startswith('Phones-Envelope'):
+    #             Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhones_labels(in order)
+    #         elif kind.startswith('Phones-Discrete'):
+    #             Also a matrix but it has 1s and 0s instead of envelope amplitude.
+    #         elif kind.startswith('Phones-Onset'):
+    #             In this case the value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
+            
+    #     Raises
+    #     ------
+    #     SyntaxError
+    #         Whether the input value of 'kind' is passed correctly. It must be a one of:
+    #         ['Phones-Envelope-Phonet', 'Phones-Discrete-Phonet', 'Phones-Onset-Phonet'].
+    #     """
+    #     # Get phonet phoneme labels
+    #     phonet_labels = Exp_info().ph_labels_phonet
+    #     phonet_labels.remove('<p:>')
+    #     phonet_labels.remove('sil')
+
+    #     # Check if given kind is a permited input value
+    #     allowed_kind = ['Phones-Envelope-Phonet', 'Phones-Discrete-Phonet', 'Phones-Onset-Phonet']
+    #     if kind not in allowed_kind:
+    #         raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phones are: {allowed_kind}")
+
+    #     # Extract phones
+    #     phones_obj = Phones(audio_file=self.wav_fname)
+    #     _,  sec_phones = phones_obj.compute_phones() 
+
+    #     # Match features length
+    #     difference = len(sec_phones) - len(envelope)
+
+    #     if difference > 0:
+    #         sec_phones = sec_phones[:-difference]
+    #     elif difference < 0:
+    #         # In this case, silences are appended
+    #         for i in range(np.abs(difference)):
+    #             sec_phones.append('<p:>')
+        
+    #     # Make empty array of phones
+    #     phones = np.zeros(shape=(len(sec_phones), len(phonet_labels)))
+        
+    #     # Match phoneme with kind
+    #     if kind.startswith('Phones-Envelope'):
+    #         for i, tagg in enumerate(sec_phones):
+    #             if (tagg!='<p:>') and (tagg!='sil'):
+    #                 phones[i, phonet_labels.index(tagg)] = envelope[i]
+    #     elif kind.startswith('Phones-Discrete'):
+    #         for i, tagg in enumerate(sec_phones):
+    #             if (tagg!='<p:>') and (tagg!='sil'):
+    #                 phones[i, phonet_labels.index(tagg)] = 1
+    #     elif kind.startswith('Phones-Onset'):
+    #         # Makes a list giving only first ocurrences of phones (also ordered by sample) 
+    #         phones_onset = [sec_phones[0]]
+    #         for i in range(1, len(sec_phones)):
+    #             if sec_phones[i] == sec_phones[i-1]:
+    #                 phones_onset.append(0)
+    #             else:
+    #                 phones_onset.append(sec_phones[i])
+    #         # Match phoneme with envelope
+    #         for i, tagg in enumerate(phones_onset):
+    #             if (tagg!='<p:>') and (tagg!='sil') and (tagg!=0):
+    #                 phones[i, phonet_labels.index(tagg)] = 1
+    #     return phones
+    
+    def f_phones_phonet( # TODO CAMBAIR POR LA FUNCIÓN DE ARRIBA QUE EXCLUYE BIEN LOS SILENCIOS
         self, 
         envelope:np.ndarray, 
-        kind:str='Phonemes-Discrete-Phonet'
+        kind:str='Phones-Discrete-Phonet'
         )->np.ndarray:
         """
-        It makes a time-match matrix between the phonemes and the envelope using Phonet implementation. The values and shape of given matrix depend on kind.
+        It makes a time-match matrix between the phones and the envelope using Phonet implementation. The values and shape of given matrix depend on kind.
 
         Parameters
         ----------
@@ -717,39 +797,37 @@ class Trial_channel:
             Envelope of the audio signal using Hilbert transform
         kind : str, optional
            Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
-            ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
+            ['Phones-Envelope-Phonet', 'Phones-Discrete-Phonet', 'Phones-Onset-Phonet']
 
         Returns
         -------
         np.ndarray
-            if kind.startswith('Phonemes-Envelope'):
-                Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhonemes_labels(in order)
-            elif kind.startswith('Phonemes-Discrete'):
+            if kind.startswith('Phones-Envelope'):
+                Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhones_labels(in order)
+            elif kind.startswith('Phones-Discrete'):
                 Also a matrix but it has 1s and 0s instead of envelope amplitude.
-            elif kind.startswith('Phonemes-Onset'):
+            elif kind.startswith('Phones-Onset'):
                 In this case the value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
             
         Raises
         ------
         SyntaxError
             Whether the input value of 'kind' is passed correctly. It must be a one of:
-            ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet'].
+            ['Phones-Envelope-Phonet', 'Phones-Discrete-Phonet', 'Phones-Onset-Phonet'].
         """
         # Get phonet phoneme labels
-        # phonet_labels = [el if el!='<p:>' else '' for el in exp_info.ph_labels_phonet]
-        phonet_labels = exp_info.phonemes_phonet
+        phonet_labels = Exp_info().ph_labels_phonet
+        phonet_labels.remove('<p:>')
+        phonet_labels.remove('sil')
 
         # Check if given kind is a permited input value
-        allowed_kind = ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
+        allowed_kind = ['Phones-Envelope-Phonet', 'Phones-Discrete-Phonet', 'Phones-Onset-Phonet']
         if kind not in allowed_kind:
-            raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
+            raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phones are: {allowed_kind}")
 
         # Extract phones
-        phones_obj = Phoenemes(audio_file=self.wav_fname)
-        _,  sec_phones = phones_obj.compute_phonemes() 
-        
-        # Relabel silences
-        # sec_phonemes = [phon if phon!='<p:>' else '' for phon in sec_phonemes]
+        phones_obj = Phones(audio_file=self.wav_fname)
+        _,  sec_phones = phones_obj.compute_phones() 
 
         # Match features length
         difference = len(sec_phones) - len(envelope)
@@ -761,29 +839,29 @@ class Trial_channel:
             for i in range(np.abs(difference)):
                 sec_phones.append('<p:>')
         
-        # Make empty array of phonemes
-        phonemes = np.zeros(shape=(len(sec_phones), len(phonet_labels)))
+        # Make empty array of phones
+        phones = np.zeros(shape=(len(sec_phones), len(phonet_labels)))
         
         # Match phoneme with kind
-        if kind.startswith('Phonemes-Envelope'):
+        if kind.startswith('Phones-Envelope'):
             for i, tagg in enumerate(sec_phones):
-                phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = envelope[i]
-        elif kind.startswith('Phonemes-Discrete'):
+                phones[i, phonet_labels.index(tagg)] = envelope[i]
+        elif kind.startswith('Phones-Discrete'):
             for i, tagg in enumerate(sec_phones):
-                phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1
-        elif kind.startswith('Phonemes-Onset'):
-            # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
-            phonemes_onset = [sec_phones[0]]
+                phones[i, phonet_labels.index(tagg)] = 1
+        elif kind.startswith('Phones-Onset'):
+            # Makes a list giving only first ocurrences of phones (also ordered by sample) 
+            phones_onset = [sec_phones[0]]
             for i in range(1, len(sec_phones)):
                 if sec_phones[i] == sec_phones[i-1]:
-                    phonemes_onset.append(0)
+                    phones_onset.append(0)
                 else:
-                    phonemes_onset.append(sec_phones[i])
+                    phones_onset.append(sec_phones[i])
             # Match phoneme with envelope
-            for i, tagg in enumerate(phonemes_onset):
+            for i, tagg in enumerate(phones_onset):
                 if tagg!=0:
-                    phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1
-        return phonemes
+                    phones[i, phonet_labels.index(tagg)] = 1
+        return phones
 
     def f_phonemes(
         self, 
@@ -1169,6 +1247,8 @@ class Trial_channel:
                     channel[stim] = self.f_phonemes_phonet(envelope=channel['Envelope'], kind=stim)
                 else:
                     channel[stim] = self.f_phonemes(envelope=channel['Envelope'], kind=stim)
+            if stim.startswith('Phones'):
+                channel[stim] = self.f_phones_phonet(envelope=channel['Envelope'], kind=stim)
         return channel
 
 class Sesion_class: 
@@ -1199,7 +1279,7 @@ class Sesion_class:
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
             'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 
-            'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2']
+            'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
         band : str
             Neural frequency band. It could be one of:
             ['Delta','Theta', 'Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
@@ -1232,7 +1312,7 @@ class Sesion_class:
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
             'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 
-            'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2']
+            'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
             If 'band' is not an allowed band frequency. Allowed frequencies are:
             ['Delta','Theta', 'Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
             If 'situation' is not an allowed situation. Allowed situations are:
@@ -1241,7 +1321,7 @@ class Sesion_class:
         # Check if band, stim and situation parameters where passed with the right syntax
         allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', \
                         'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', \
-                        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2']
+                        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
         allowed_band_frequencies = ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
         allowed_situationes = ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
         for st in stim.split('_'):
@@ -1314,6 +1394,9 @@ class Sesion_class:
         self.export_paths['Control-Separated'] = os.path.join(self.preprocessed_data_path, 'Control-Separated/')
         self.export_paths['Control-Together'] = os.path.join(self.preprocessed_data_path, 'Control-Together/')
         self.export_paths['Wav2vec2'] = os.path.join(self.preprocessed_data_path, 'Wav2vec2/')
+        self.export_paths['Phones-Envelope-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phones-Envelope-Phonet/')
+        self.export_paths['Phones-Discrete-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phones-Discrete-Phonet/')
+        self.export_paths['Phones-Onset-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phones-Onset-Phonet/')
         
     def load_from_raw(
         self
@@ -1676,7 +1759,7 @@ def load_data(
         'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
         'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 
         'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 
-        'Control-Together', 'Control-Separated', 'Wav2vec2'].
+        'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
     band : str
         Neural frequency band. It could be one of: ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta'].
     sr : float
@@ -1713,7 +1796,7 @@ def load_data(
         'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
         'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 
         'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 
-        'Control-Together', 'Control-Separated', 'Wav2vec2']
+        'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
         If 'band' is not an allowed band frequency. Allowed ones are:
         ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
         If 'situation' is not an allowed situation. Allowed ones are:
@@ -1722,7 +1805,7 @@ def load_data(
     # Define allowed stimuli
     allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes',\
                     'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset',\
-                    'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2']
+                    'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
     allowed_situations = ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
     allowed_bands = ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
 

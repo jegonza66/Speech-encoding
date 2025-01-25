@@ -6,7 +6,7 @@ from scipy.io.wavfile import read
 from phonet import Phonet
 from scipy.signal import resample_poly
 
-class Phoenemes(Phonet):
+class Phones(Phonet):
     def __init__(
         self, 
         audio_file:str
@@ -31,16 +31,16 @@ class Phoenemes(Phonet):
         self.size_frame = 1/self.sr
         self.time_shift = 1/self.sr
     
-    def compute_phonemes(
+    def compute_phones(
         self
         )->tuple:
         """
-        Compute phonemes from the audio file.
+        Compute phones from the audio file.
         
         Returns
         -------
         tuple
-            A tuple containing the times and phonemes extracted from the audio file
+            A tuple containing the times and phones extracted from the audio file
         """
         # Read the audio (.wav) file
         fs, signal = read(self.audio_file)
@@ -63,7 +63,7 @@ class Phoenemes(Phonet):
         features = features-self.MU
         features = features/self.STD
         
-        # Get phonemes and times
+        # Get phones and times
         pred_mat_phon = np.asarray(self.model_phon.predict(features))
         pred_mat_phon_seq = np.concatenate(pred_mat_phon, axis=0)
         pred_vec_phon = np.argmax(pred_mat_phon_seq, axis=1)
@@ -72,9 +72,9 @@ class Phoenemes(Phonet):
         if nf>len(pred_vec_phon):
             nf=len(pred_vec_phon)
         
-        phonemes_list = self.number2phoneme(pred_vec_phon[:nf])
+        phones_list = self.number2phoneme(pred_vec_phon[:nf])
         times = np.arange(nf)*self.time_shift
-        return times, phonemes_list
+        return times, phones_list
     
 if __name__=="__main__":
     import scipy.io.wavfile as wavfile
@@ -93,9 +93,14 @@ if __name__=="__main__":
     window_size, stride = int(16000/128), int(16000/128)
     envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)])
     envelope = envelope.reshape(-1, 1)
-    # ================
+    
+    # ==================
+    # Phoneme extraction
     from config import Exp_info
-    phonet_labels = [el if el!='<p:>' else '' for el in Exp_info().ph_labels_phonet]
+    
+    # Remove silences, since it won't be used in prediction (when silence occurs, all phoneme are 0)
+    phonet_labels = Exp_info().phonemes_phonet
+    phonet_labels.remove('/sil/')
 
     # Check if given kind is a permited input value
     kind = 'Phonemes-Discrete-Phonet'
@@ -103,45 +108,93 @@ if __name__=="__main__":
     if kind not in allowed_kind:
         raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
 
-    phoneme_obj = Phoenemes(audio_file=wav_file)
-    # phoneme_obj = Phoenemes(audio_file=self.wav_fname)
-    time,  sec_phonemes = phoneme_obj.compute_phonemes() #9167
-    sec_phonemes = [phon if phon!='<p:>' else '' for phon in sec_phonemes]
-
+    phones_obj = Phones(audio_file=wav_file)
+    time,  sec_phones = phones_obj.compute_phones() #9167
+    
     # Match features length
-    difference = len(sec_phonemes) - len(envelope)
+    difference = len(sec_phones) - len(envelope)
 
     if difference > 0:
-        sec_phonemes = sec_phonemes[:-difference]
+        sec_phones = sec_phones[:-difference]
     elif difference < 0:
         # In this case, silences are append
         for i in range(difference):
-            sec_phonemes.append('')
+            sec_phones.append('<p:>')
     
-    # Make a list with phoneme labels tha already are in the known set
-    updated_taggs = np.unique(sec_phonemes).tolist()
-
     # Make empty array of phonemes
-    phonemes = np.zeros(shape=(len(sec_phonemes), len(phonet_labels)))
+    phonemes = np.zeros(shape=(len(sec_phones), len(phonet_labels)))
     
     # Match phoneme with kind
     if kind.startswith('Phonemes-Envelope'):
-        for i, tagg in enumerate(sec_phonemes):
-            phonemes[i, phonet_labels.index(tagg)] = envelope[i]
+        for i, tagg in enumerate(sec_phones):
+            if (tagg!='<p:>') and (tagg!='sil'):
+                phonemes[i, phonet_labels.index(Exp_info().phones_to_phonemes[tagg])] = envelope[i]
     elif kind.startswith('Phonemes-Discrete'):
-        for i, tagg in enumerate(sec_phonemes):
-            phonemes[i, phonet_labels.index(tagg)] = 1
+        for i, tagg in enumerate(sec_phones):
+            if (tagg!='<p:>') and (tagg!='sil'):
+                phonemes[i, phonet_labels.index(Exp_info().phones_to_phonemes[tagg])] = 1
     elif kind.startswith('Phonemes-Onset'):
         # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
-        phonemes_onset = [sec_phonemes[0]]
-        for i in range(1, len(sec_phonemes)):
-            if sec_phonemes[i] == sec_phonemes[i-1]:
+        phonemes_onset = [sec_phones[0]]
+        for i in range(1, len(sec_phones)):
+            if sec_phones[i] == sec_phones[i-1]:
                 phonemes_onset.append(0)
             else:
-                phonemes_onset.append(sec_phonemes[i])
+                phonemes_onset.append(sec_phones[i])
         # Match phoneme with envelope
         for i, tagg in enumerate(phonemes_onset):
-            if tagg!=0:
-                phonemes[i, phonet_labels.index(tagg)] = 1
+            if (tagg!='<p:>') and (tagg!='sil') and (tagg!=0):
+                phonemes[i, phonet_labels.index(Exp_info().phones_to_phonemes[tagg])] = 1
     print(phonemes)
 
+    # ==================
+    # Phone extraction
+    from config import Exp_info
+    phonet_labels = Exp_info().ph_labels_phonet
+    phonet_labels.remove('<p:>')
+    phonet_labels.remove('sil')
+
+    # Check if given kind is a permited input value
+    kind = 'Phonemes-Discrete-Phonet'
+    allowed_kind = ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
+    if kind not in allowed_kind:
+        raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
+
+    phones_obj = Phones(audio_file=wav_file)
+    time,  sec_phones = phones_obj.compute_phones() #9167
+    
+    # Match features length
+    difference = len(sec_phones) - len(envelope)
+
+    if difference > 0:
+        sec_phones = sec_phones[:-difference]
+    elif difference < 0:
+        # In this case, silences are append
+        for i in range(difference):
+            sec_phones.append('<p:>')
+    
+    # Make empty array of phonemes
+    phones = np.zeros(shape=(len(sec_phones), len(phonet_labels)))
+    
+    # Match phoneme with kind
+    if kind.startswith('Phonemes-Envelope'):
+        for i, tagg in enumerate(sec_phones):
+            if (tagg!='<p:>') and (tagg!='sil'):
+                phones[i, phonet_labels.index(tagg)] = envelope[i]
+    elif kind.startswith('Phonemes-Discrete'):
+        for i, tagg in enumerate(sec_phones):
+            if (tagg!='<p:>') and (tagg!='sil'):
+                phones[i, phonet_labels.index(tagg)] = 1
+    elif kind.startswith('Phonemes-Onset'):
+        # Makes a list giving only first ocurrences of phones (also ordered by sample) 
+        phones_onset = [sec_phones[0]]
+        for i in range(1, len(sec_phones)):
+            if sec_phones[i] == sec_phones[i-1]:
+                phones_onset.append(0)
+            else:
+                phones_onset.append(sec_phones[i])
+        # Match phoneme with envelope
+        for i, tagg in enumerate(phones_onset):
+            if (tagg!='<p:>') and (tagg!='sil') and (tagg!=0):
+                phones[i, phonet_labels.index(tagg)] = 1
+    print(phones)
