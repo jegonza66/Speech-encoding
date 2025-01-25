@@ -128,6 +128,44 @@ class Exp_info:
         self.ph_labels_man = ['(d)o', 'A', 'AH', 'CH', 'F', 'NY', 'R', 'Y', 'a', 'ap', 'b', 'br', 'c', 'chas', 'd','de', 'e', 'es', 'f', 'g', 'h', 'i', 'k', 'l', 'lg', 'm', 'n', 'ns', 'o', 'p', 'r', 's','si', 't', 'u', 'v', 'x', 'y']
         self.ph_labels_phonet = ['B', 'D', 'F', 'G', 'N', 'T', 'a', 'b', 'd', 'e', 'f', 'i', 'j', 'jj', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 'rr', 's', 't', 'tS', 'u', 'w', 'x', 'z', 'Z', 'g', 'S', 'J', 'L', 'sil', '<p:>']
         self.ph_labels_phonet_ordered = ['B', 'D', 'F', 'G', 'N', 'T', 'a', 'b', 'd', 'e', 'f', 'i', 'j', 'jj', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 'rr', 's', 't', 'tS', 'u', 'w', 'x', 'z', 'Z', 'g', 'S', 'J', 'L', 'sil', '<p:>']
+        self.phones_to_phonemes = {
+            'a' : '/a/',
+            'e' : '/e/',
+            'i' : '/i/',
+            'o' : '/o/',
+            'j' : '/i/',
+            'w' : '/u/',
+            'u' : '/u/',
+            'l' : '/l/',
+            'r' : r'/\textfishhookr/',
+            'rr': 'r',
+            't' : '/t/',
+            'd' : '/d/',
+            'D' : '/d/',
+            'sil' : '/sil/',
+            '<p:>' : '/sil/',
+            'm' : '/m/',
+            'n' : '/n/',
+            'N' : '/n/',
+            'k' : '/k/',
+            'g' : '/g/',
+            'G' : '/g/',
+            'tS': r'/t\textesh/',
+            'T' : r'/t\textesh/',
+            'f' : '/f/',
+            'F' : '/f/',
+            's' : '/s/',
+            'S' : '/s/',
+            'z' : '/z/',
+            'Z' : '/z/',
+            'p' : '/p/',
+            'b' : '/b/',
+            'B' : '/b/',
+            'L' : r'/\textturny/',
+            'x' : '/x/',
+            'jj': '/x/',
+            'J' : '/x/'
+            }
         
         self.mistakes = ['Articulatory', 'Lexical', 'Discursive']
         self.control = ['Articulatory', 'Lexical', 'Discursive']
