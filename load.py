@@ -19,7 +19,9 @@ from phoneme_implementation_from_phonet import Phoenemes
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 mne.set_log_level(verbose='CRITICAL')
 exp_info = config.Exp_info()
-wav2vec2model = "openai/whisper-tiny"
+
+wav2vec2model = "openai/whisper-base"
+# wav2vec2model = "openai/whisper-tiny"
 # wav2vec2model = "facebook/wav2vec2-large-xlsr-53-distilled"
 # wav2vec2model = "facebook/wav2vec2-base"
 
@@ -405,7 +407,7 @@ class Trial_channel:
     def f_wav2vec2(
         self,
         envelope:np.ndarray,
-        n_pca:int=12
+        n_pca:int=15
         )->np.ndarray:
         """
         Extracts features from an audio file using the Wav2Vec2 model, applies PCA for dimensionality reduction, and returns the reduced features.

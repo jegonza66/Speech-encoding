@@ -2,14 +2,25 @@ import numpy as np, mne
 
 # ==========================================
 # SESSIONS, STIMULI, SITUATION AND EEG BANDS
-sesiones = [21, 22, 23, 24, 25, 26, 27, 29, 30]
+sesiones = [
+            # 21, 
+            # 22, 
+            # 23, 
+            24, 
+            # 25, 
+            # 26, 
+            # 27, 
+            # 29, 
+            # 30
+            ]
 stimuli = [
         # 'Envelope',
         # 'Pitch-Log-Raw',
-        'Spectrogram',
+        # 'Spectrogram',
         # 'Mfccs',
         # 'Phonological',
-        # 'Phonemes-Discrete-Phonet'
+        'Phonemes-Discrete-Phonet',
+        # 'Wav2vec2'
         ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situations = [
         'External', 
@@ -25,6 +36,13 @@ bands = [
         # 'Beta2',
         # 'All'
         ] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
+
+# ==========================================
+# LOADING/SAVING DATA, FIGURE CONFIGURATIONS
+praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
+display_interactive_mode, save_results, save_figures, no_figures = False, True, True, False
+figure_format = '.png'
+just_load_data = False
 
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
@@ -44,13 +62,6 @@ else:
 n_permutations, significance, number_of_jobs = 4096, .05, -1
 hierarchical_clustering = True
 n_folds = 5 # with 5 folds (remain 20% as validation set, then interchange to cross validate)
-
-# ==========================================
-# LOADING/SAVING DATA, FIGURE CONFIGURATIONS
-praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
-display_interactive_mode, save_results, save_figures, no_figures = False, True, True, False
-figure_format = '.png'
-just_load_data = False
 
 # =====================
 # VALIDATION PARAMETERS
@@ -81,7 +92,7 @@ times = (delays/sr)
 # MODEL COMPARISON
 montage = mne.channels.make_standard_montage('biosemi128')
 info_mne = mne.create_info(ch_names=montage.ch_names[:], sfreq=sr, ch_types='eeg').set_montage(montage)
-relevant_channels = 12 #None
+relevant_channels = None#12
 
 # ============
 # PLOTS LABELS

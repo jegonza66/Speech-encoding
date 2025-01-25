@@ -376,7 +376,56 @@ def shifted_matrix(
     # Return the shifted matrix reshaped for the final output
     # return shifted_matrix.cpu().numpy()
     return shifted_matrix.reshape(n_samples, n_features * len(delays)).cpu().numpy()
-                
+
+def shifted_matrix_2(
+    features: np.ndarray, 
+    delays: np.ndarray, 
+    use_gpu: bool = True
+) -> np.ndarray:
+    """
+    Computes shifted matrix for a given array of delays, optimized and aligned with original implementation.
+
+    Parameters
+    ----------
+    features : array, shape (n_times, n_features)
+        The time series to delay must be 2D array.
+    delays : np.ndarray
+        Index delays.
+    use_gpu : bool, optional
+        Whether to use GPU for computation (torch, CUDA), by default True.
+
+    Returns
+    -------
+    np.ndarray
+        Concatenated shifted matrix of shape (samples, features * len(delays)).
+    """
+    if features.ndim == 1:
+        features = features.reshape(-1, 1)
+
+    device = torch.device("cuda" if use_gpu and torch.cuda.is_available() else "cpu")
+    features_tensor = torch.tensor(features, dtype=torch.float32, device=device)
+
+    n_samples, n_features = features_tensor.shape
+    n_delays = len(delays)
+
+    # Create design matrix
+    shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float32, device=device)
+
+    for i, delay in enumerate(delays):
+        if delay < 0:
+            # Shift up
+            shifted[:delay, i, :] = features_tensor[-delay:, :]
+        elif delay > 0:
+            # Shift dowm
+            shifted[delay:, i, :] = features_tensor[:-delay, :]
+        else:
+            # Doesnt shift
+            shifted[:, i, :] = features_tensor
+
+    # Reshpe to match desire output
+    shifted_matrix = shifted.permute(0, 2, 1).reshape(n_samples, n_features * n_delays)
+    return shifted_matrix.cpu().numpy()
+      
 def butter_filter(
     data:np.ndarray, 
     frequencies:float, 
