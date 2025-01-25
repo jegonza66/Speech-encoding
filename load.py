@@ -619,7 +619,7 @@ class Trial_channel:
         shimmer = shimmer[:min(len(shimmer), len(envelope))].reshape(-1,1)
         return jitter, shimmer
     
-    def f_phonemes_phonet(
+    def f_phones_phonet( # TODO CAMBAIR EN TODOS LADOS ESTO SON FONOS NO FONEMAS
         self, 
         envelope:np.ndarray, 
         kind:str='Phonemes-Discrete-Phonet'
@@ -701,6 +701,88 @@ class Trial_channel:
             for i, tagg in enumerate(phonemes_onset):
                 if tagg!=0:
                     phonemes[i, phonet_labels.index(tagg)] = 1
+        return phonemes
+    
+    def f_phonemes_phonet(
+        self, 
+        envelope:np.ndarray, 
+        kind:str='Phonemes-Discrete-Phonet'
+        )->np.ndarray:
+        """
+        It makes a time-match matrix between the phonemes and the envelope using Phonet implementation. The values and shape of given matrix depend on kind.
+
+        Parameters
+        ----------
+        envelope : np.ndarray
+            Envelope of the audio signal using Hilbert transform
+        kind : str, optional
+           Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
+            ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
+
+        Returns
+        -------
+        np.ndarray
+            if kind.startswith('Phonemes-Envelope'):
+                Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhonemes_labels(in order)
+            elif kind.startswith('Phonemes-Discrete'):
+                Also a matrix but it has 1s and 0s instead of envelope amplitude.
+            elif kind.startswith('Phonemes-Onset'):
+                In this case the value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
+            
+        Raises
+        ------
+        SyntaxError
+            Whether the input value of 'kind' is passed correctly. It must be a one of:
+            ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet'].
+        """
+        # Get phonet phoneme labels
+        # phonet_labels = [el if el!='<p:>' else '' for el in exp_info.ph_labels_phonet]
+        phonet_labels = exp_info.phonemes_phonet
+
+        # Check if given kind is a permited input value
+        allowed_kind = ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
+        if kind not in allowed_kind:
+            raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
+
+        # Extract phones
+        phones_obj = Phoenemes(audio_file=self.wav_fname)
+        _,  sec_phones = phones_obj.compute_phonemes() 
+        
+        # Relabel silences
+        # sec_phonemes = [phon if phon!='<p:>' else '' for phon in sec_phonemes]
+
+        # Match features length
+        difference = len(sec_phones) - len(envelope)
+
+        if difference > 0:
+            sec_phones = sec_phones[:-difference]
+        elif difference < 0:
+            # In this case, silences are appended
+            for i in range(np.abs(difference)):
+                sec_phones.append('<p:>')
+        
+        # Make empty array of phonemes
+        phonemes = np.zeros(shape=(len(sec_phones), len(phonet_labels)))
+        
+        # Match phoneme with kind
+        if kind.startswith('Phonemes-Envelope'):
+            for i, tagg in enumerate(sec_phones):
+                phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = envelope[i]
+        elif kind.startswith('Phonemes-Discrete'):
+            for i, tagg in enumerate(sec_phones):
+                phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1
+        elif kind.startswith('Phonemes-Onset'):
+            # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
+            phonemes_onset = [sec_phones[0]]
+            for i in range(1, len(sec_phones)):
+                if sec_phones[i] == sec_phones[i-1]:
+                    phonemes_onset.append(0)
+                else:
+                    phonemes_onset.append(sec_phones[i])
+            # Match phoneme with envelope
+            for i, tagg in enumerate(phonemes_onset):
+                if tagg!=0:
+                    phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1
         return phonemes
 
     def f_phonemes(

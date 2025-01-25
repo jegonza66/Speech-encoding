@@ -89,11 +89,15 @@ def define_ticks(
         if ylabel.endswith('Manual'):
             tags = exp_info.ph_labels_man
         elif ylabel.endswith('Phonet'):
-            tags = exp_info.ph_labels_phonet[:-1]
+            tags = exp_info.phonemes_phonet
         else:
             tags = exp_info.ph_labels
         ticks = np.arange(number_of_ticks)
-    
+    elif ylabel.startswith('Phones'):
+        axes.tick_params(axis='both', labelsize='medium')
+        tags = exp_info.ph_labels_phonet[:-1]
+        ticks = np.arange(number_of_ticks)
+        
     # Frecuency correlated features are treated differently
     if ylabel.startswith('Spectrogram'):
         ylabel = 'Frecuency (Hz)'

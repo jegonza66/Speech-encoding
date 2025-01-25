@@ -42,7 +42,7 @@ bands = [
 praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
 display_interactive_mode, save_results, save_figures, no_figures = False, True, True, False
 figure_format = '.png'
-just_load_data = True
+just_load_data = False
 
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
@@ -128,7 +128,7 @@ class Exp_info:
 
         self.ph_labels_man = ['(d)o', 'A', 'AH', 'CH', 'F', 'NY', 'R', 'Y', 'a', 'ap', 'b', 'br', 'c', 'chas', 'd','de', 'e', 'es', 'f', 'g', 'h', 'i', 'k', 'l', 'lg', 'm', 'n', 'ns', 'o', 'p', 'r', 's','si', 't', 'u', 'v', 'x', 'y']
         self.ph_labels_phonet = ['B', 'D', 'F', 'G', 'N', 'T', 'a', 'b', 'd', 'e', 'f', 'i', 'j', 'jj', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 'rr', 's', 't', 'tS', 'u', 'w', 'x', 'z', 'Z', 'g', 'S', 'J', 'L', 'sil', '<p:>']
-        self.ph_labels_phonet_ordered = ['B', 'D', 'F', 'G', 'N', 'T', 'a', 'b', 'd', 'e', 'f', 'i', 'j', 'jj', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 'rr', 's', 't', 'tS', 'u', 'w', 'x', 'z', 'Z', 'g', 'S', 'J', 'L', 'sil', '<p:>']
+        
         self.phones_to_phonemes = {
             'a' : '/a/',
             'e' : '/e/',
@@ -167,6 +167,7 @@ class Exp_info:
             'jj': '/x/',
             'J' : '/x/'
             }
+        self.phonemes_phonet = [phoneme for phoneme in np.unique(list(self.phones_to_phonemes.values()))]
         
         self.mistakes = ['Articulatory', 'Lexical', 'Discursive']
         self.control = ['Articulatory', 'Lexical', 'Discursive']
