@@ -19,6 +19,90 @@ import matplotlib.pylab as pylab
 pylab.rcParams.update(params)
 plt.style.use([plt.style.available[23]])
 
+# # =====
+# # Phonological
+# PhonologicalPath = "saves/preprocessed_data/External/tmin-0.2_tmax0.6/Phonological/Sesion21.pkl"
+# NumberOfTicks = 18
+
+# phonological = load_pickle(path=PhonologicalPath)[0][:9168]
+# WindowLeft, WindowRight = 0, len(phonological)/config.sr
+
+# time_phonological = np.arange(0, len(phonological)/config.sr, 1/config.sr)
+# window_phonological = (WindowLeft <= time_phonological) & (time_phonological <= WindowRight)
+
+# tags = list(config.Exp_info().phonological_labels.keys())
+# ticks = np.arange(0, NumberOfTicks, 1)+.5
+
+# fig = plt.figure(
+#     tight_layout=True,
+#     figsize=(8, 6)
+#     )
+# im = plt.imshow(
+#     phonological.T,
+#     aspect='auto',  # Ajusta el aspecto
+#     extent=[WindowLeft, WindowRight, 0, NumberOfTicks],  # Ajusta los límites de los ejes
+#     origin='lower',  # Ajusta el origen
+#     cmap='RdBu'  # Ajusta el mapa de colores
+#     )
+# plt.colorbar(
+#     im,
+#     label='Amplitud (U.A)'
+#     )
+
+# plt.yticks(
+#     ticks=ticks, 
+#     labels=tags
+#     )
+# plt.xlabel('Tiempo (s)')
+# plt.ylabel('Características fonológicas')  
+# fig.savefig(
+#     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_phonological.svg',
+#     transparent=True
+#     )
+# # fig.show()
+
+# # =====
+# # Mfccs
+# MfccsPath = "saves/preprocessed_data/External/tmin-0.2_tmax0.6/Mfccs/Sesion21.pkl"
+# NumberOfTicks = 16
+
+# mfccs = load_pickle(path=MfccsPath)[0][:9168]
+# WindowLeft, WindowRight = 0, len(mfccs)/config.sr
+
+# time_mfccs = np.arange(0, len(mfccs)/config.sr, 1/config.sr)
+# window_mfccs = (WindowLeft <= time_mfccs) & (time_mfccs <= WindowRight)
+
+# tags = [f'M{i}' for i in np.arange(1, NumberOfTicks, 2)]
+# ticks = np.arange(0, NumberOfTicks, 2)+.5
+
+# fig = plt.figure(
+#     tight_layout=True,
+#     figsize=(6, 5)
+#     )
+# im = plt.imshow(
+#     mfccs.T,
+#     aspect='auto',  # Ajusta el aspecto
+#     extent=[WindowLeft, WindowRight, 0, NumberOfTicks],  # Ajusta los límites de los ejes
+#     origin='lower',  # Ajusta el origen
+#     cmap='RdBu'  # Ajusta el mapa de colores
+#     )
+# plt.colorbar(
+#     im,
+#     label='Amplitud (U.A)'
+#     )
+
+# plt.yticks(
+#     ticks=ticks, 
+#     labels=tags
+#     )
+# plt.xlabel('Tiempo (s)')
+# plt.ylabel('Frecuencia (Hz)')  
+# fig.savefig(
+#     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_mfccs.svg',
+#     transparent=True
+#     )
+# # fig.show()
+
 # =============
 # Espectrograma
 SpectrogramPath = "saves/preprocessed_data/External/tmin-0.2_tmax0.6/Spectrogram/Sesion21.pkl"
@@ -36,8 +120,10 @@ bands_center = librosa.mel_frequencies(
     fmax=8000
     )[1:-1]
 
-tags = [int(bands_center[i]) for i in np.arange(1, len(bands_center)+1, 2)]
-ticks = np.arange(0, NumberOfTicks, 2)
+# tags = [int(bands_center[i]) for i in np.arange(1, len(bands_center)+1, 2)]
+# ticks = np.arange(0, NumberOfTicks, 2)+.5
+tags = [int(bands_center[i]) for i in np.arange(0, len(bands_center))]
+ticks = np.arange(0, NumberOfTicks)+.5
 
 fig = plt.figure(
     tight_layout=True,

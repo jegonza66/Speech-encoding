@@ -392,11 +392,13 @@ class Trial_channel:
         
         # Calculates the mel frequencies spectrogram giving the desire sampling (match the EEG)
         sample_window = int(self.audio_sr/self.sr)
-        S = librosa.feature.melspectrogram(y=wav,
-                                           sr=self.audio_sr, 
-                                           n_fft=sample_window, 
-                                           hop_length=sample_window, 
-                                           n_mels=16)
+        S = librosa.feature.melspectrogram(
+            y=wav,
+            sr=self.audio_sr, 
+            n_fft=sample_window, 
+            hop_length=sample_window, 
+            n_mels=16
+            )
         # Transform to dB using normalization to 1
         S_DB = librosa.power_to_db(S=S, ref=np.max)
         
