@@ -70,8 +70,7 @@ class TorchMtrf:
         self.shuffle = shuffle
         self.validation = validation
         self.use_gpu = use_gpu
-        if use_gpu:
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     def fit(
         self, 
@@ -107,8 +106,7 @@ class TorchMtrf:
         design_matrix = shifted_matrix_2(
                     stims, 
                     delays=config.delays, 
-                    use_gpu=False
-                    # use_gpu=self.use_gpu
+                    use_gpu=self.use_gpu
                     )
         n_samples, n_featuresbyn_delays = design_matrix.shape
         n_features = n_featuresbyn_delays // len(config.delays)

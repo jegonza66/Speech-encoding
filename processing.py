@@ -53,7 +53,7 @@ class Standarize():
             else:
                 return torch.tensor(data).cuda()
         else:
-            return torch.tensor(data)
+            return data
 
     def fit_standarize_train(
         self, 
@@ -75,16 +75,21 @@ class Standarize():
         train_data = self._to_device(train_data)
         
         # Fix mean and standard deviation with train data
-        self.mean = train_data.mean(dim=self.axis)
-        self.std = train_data.std(dim=self.axis)
+        if isinstance(train_data, torch.Tensor):
+            self.mean = train_data.mean(dim=self.axis)
+            self.std = train_data.std(dim=self.axis)
+        else:
+            self.mean = train_data.mean(axis=self.axis)
+            self.std = train_data.std(axis=self.axis)   
 
         # Standardize data
         train_data -= self.mean
         train_data /= (self.std + 1e-8)  # Adding epsilon to avoid division by zero
-        if self.by_gpu:
+        
+        if isinstance(train_data, torch.Tensor):
             return train_data.float()
         else:
-            return train_data.cpu().numpy().astype(np.float32)  # Return as numpy for compatibility
+            return train_data
 
     def fit_standarize_test(
         self, 
@@ -107,10 +112,11 @@ class Standarize():
         # Standardize with mean and standard deviation of train
         test_data -= self.mean
         test_data /= (self.std + 1e-8)
-        if self.by_gpu:
+        
+        if isinstance(test_data, torch.Tensor):
             return test_data.float()
         else:
-            return test_data.cpu().numpy().astype(np.float32)  # Return as numpy for compatibility
+            return test_data
 
     def standarize_data(
         self,
@@ -131,13 +137,18 @@ class Standarize():
         """
         data = self._to_device(data)
         
-        data -= data.mean(dim=self.axis)
-        data /= data.std(dim=self.axis)
-        if self.by_gpu:
+        if isinstance(data, torch.Tensor):
+            data -= data.mean(dim=self.axis)
+            data /= data.std(dim=self.axis)
+        else:
+            data -= data.mean(axis=self.axis)
+            data /= data.std(axis=self.axis)
+            
+        if isinstance(data, torch.Tensor):
             return data.float()
         else:
-            return data.cpu().numpy().astype(np.float32)  # Return as numpy for compatibility
-
+            return data
+    
 class Normalize():
     def __init__(
         self, 
@@ -178,7 +189,7 @@ class Normalize():
         torch.Tensor
             Data moved to GPU if by_gpu is True.
         """
-        if self.by_gpu:
+        if self.by_gpu and torch.cuda.is_available():
             if isinstance(data, torch.Tensor):
                 if data.is_cuda:
                     return data.float()
@@ -187,7 +198,7 @@ class Normalize():
             else:
                 return torch.tensor(data).cuda()
         else:
-            return torch.tensor(data)
+            return data
 
     def fit_normalize_train(
         self, 
@@ -209,17 +220,24 @@ class Normalize():
         train_data = self._to_device(train_data)
         
         # Remove offset by minimum
-        self.min = train_data.min(dim=self.axis)[0]
+        if isinstance(train_data, torch.Tensor):
+            self.min = train_data.min(dim=self.axis)[0]
+        else:
+            self.min = train_data.min(axis=self.axis)
         train_data -= self.min
 
         # Normalize by maximum
-        self.max = train_data.max(dim=self.axis)[0]
+        if isinstance(train_data, torch.Tensor):
+            self.max = train_data.max(dim=self.axis)[0]
+        else:
+            self.max = train_data.max(axis=self.axis)
+            
         train_data = train_data / (self.max + 1e-8)  # Adding epsilon to avoid division by zero
-
-        if self.by_gpu:
+        
+        if isinstance(train_data, torch.Tensor):
             return train_data.float()
         else:
-            return train_data.cpu().numpy().astype(np.float32)  # Return as numpy for compatibility
+            return train_data
 
     def fit_normalize_test(
         self, 
@@ -242,10 +260,11 @@ class Normalize():
         
         test_data -= self.min
         test_data = test_data / (self.max + 1e-8)
-        if self.by_gpu:
+        
+        if isinstance(test_data, torch.Tensor):
             return test_data.float()
         else:
-            return test_data.cpu().numpy().astype(np.float32)  # Return as numpy for compatibility
+            return test_data
 
     def normalize_data(
         self, 
@@ -269,17 +288,21 @@ class Normalize():
         """
         data = self._to_device(data)
         
-        data -= data.min(dim=self.axis)[0]
-        data /= data.max(dim=self.axis)[0]
+        if isinstance(data, torch.Tensor):
+            data -= data.min(dim=self.axis)[0]
+            data /= data.max(dim=self.axis)[0]
+        else:
+            data -= data.min(axis=self.axis)
+            data /= data.max(axis=self.axis)
         
         if kind == '2':
             data *= 2
             data -= 1
-            
-        if self.by_gpu:
+        
+        if isinstance(data, torch.Tensor):
             return data.float()
         else:
-            return data.cpu().numpy().astype(np.float32)  # Return as numpy for compatibility
+            return data
 
     def fit_normalize_percent(
         self, 
@@ -317,10 +340,10 @@ class Normalize():
         # Normalize data
         data = data / (max_data_n + 1e-8)  # Adding epsilon to avoid division by zero
         
-        if self.by_gpu:
+        if isinstance(data, torch.Tensor):
             return data.float()
         else:
-            return data.cpu().numpy().astype(np.float32)  # Return as numpy for compatibility
+            return data
 
 def shifted_matrix(
     features:np.ndarray, 

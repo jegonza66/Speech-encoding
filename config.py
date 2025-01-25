@@ -3,15 +3,15 @@ import numpy as np, mne
 # ==========================================
 # SESSIONS, STIMULI, SITUATION AND EEG BANDS
 sesiones = [
-            # 21, 
-            # 22, 
-            # 23, 
+            21, 
+            22, 
+            23, 
             24, 
-            # 25, 
-            # 26, 
-            # 27, 
-            # 29, 
-            # 30
+            25, 
+            26, 
+            27, 
+            29, 
+            30
             ]
 stimuli = [
         # 'Envelope',
@@ -42,18 +42,19 @@ bands = [
 praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
 display_interactive_mode, save_results, save_figures, no_figures = False, True, True, False
 figure_format = '.png'
-just_load_data = False
+just_load_data = True
 
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
-statistical_test, perform_tfce, model = True, True, 'mtrf'
+model = 'mtrf'
 estimator = 'ridge_torch' # ridge, ridge_torch or time_delaying_ridge
+statistical_test, perform_tfce, use_gpu = False, False, False
 stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
+
 if estimator=='ridge':
 	model = 'mtrf_ridge'
 elif estimator == 'ridge_torch':
     model = 'mtrf_ridge_torch'
-    use_gpu = True
 else:
     model = 'mtrf'
     
