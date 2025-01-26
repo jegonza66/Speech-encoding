@@ -20,6 +20,7 @@ stimuli = [
         # 'Mfccs',
         # 'Phonological',
         'Phonemes-Discrete-Phonet',
+        # 'Phones-Discrete-Phonet',
         # 'Wav2vec2'
         ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situations = [
@@ -42,7 +43,7 @@ bands = [
 praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
 display_interactive_mode, save_results, save_figures, no_figures = False, True, True, False
 figure_format = '.png'
-just_load_data = False
+just_load_data = True
 
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
@@ -138,8 +139,8 @@ class Exp_info:
             'w' : '/u/',
             'u' : '/u/',
             'l' : '/l/',
-            'r' : r'/\textfishhookr/',
-            'rr': 'r',
+            'r' : '/ɾ/',
+            'rr': '/r/',
             't' : '/t/',
             'd' : '/d/',
             'D' : '/d/',
@@ -151,8 +152,8 @@ class Exp_info:
             'k' : '/k/',
             'g' : '/g/',
             'G' : '/g/',
-            'tS': r'/t\textesh/',
-            'T' : r'/t\textesh/',
+            'tS': '/tʃ/',
+            'T' : '/tʃ/',
             'f' : '/f/',
             'F' : '/f/',
             's' : '/s/',
@@ -162,7 +163,7 @@ class Exp_info:
             'p' : '/p/',
             'b' : '/b/',
             'B' : '/b/',
-            'L' : r'/\textturny/',
+            'L' : '/ʎ/',
             'x' : '/x/',
             'jj': '/x/',
             'J' : '/x/'

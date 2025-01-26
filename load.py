@@ -652,17 +652,16 @@ class Trial_channel:
             ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet'].
         """
         # Remove silences, since it won't be used in prediction (when silence occurs, all phoneme are 0)
-        phonet_labels = Exp_info().phonemes_phonet
+        phonet_labels = exp_info.phonemes_phonet.copy()
         phonet_labels.remove('/sil/')
 
         # Check if given kind is a permited input value
-        kind = 'Phonemes-Discrete-Phonet'
         allowed_kind = ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
         if kind not in allowed_kind:
             raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
         
         # Extract phonemes
-        phones_obj = Phones(audio_file=wav_file)
+        phones_obj = Phones(audio_file=self.wav_fname)
         time,  sec_phones = phones_obj.compute_phones() #9167
         
         # Match features length
@@ -682,11 +681,11 @@ class Trial_channel:
         if kind.startswith('Phonemes-Envelope'):
             for i, tagg in enumerate(sec_phones):
                 if (tagg!='<p:>') and (tagg!='sil'):
-                    phonemes[i, phonet_labels.index(Exp_info().phones_to_phonemes[tagg])] = envelope[i]
+                    phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = envelope[i]
         elif kind.startswith('Phonemes-Discrete'):
             for i, tagg in enumerate(sec_phones):
                 if (tagg!='<p:>') and (tagg!='sil'):
-                    phonemes[i, phonet_labels.index(Exp_info().phones_to_phonemes[tagg])] = 1
+                    phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1
         elif kind.startswith('Phonemes-Onset'):
             # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
             phonemes_onset = [sec_phones[0]]
@@ -698,92 +697,10 @@ class Trial_channel:
             # Match phoneme with envelope
             for i, tagg in enumerate(phonemes_onset):
                 if (tagg!='<p:>') and (tagg!='sil') and (tagg!=0):
-                    phonemes[i, phonet_labels.index(Exp_info().phones_to_phonemes[tagg])] = 1
+                    phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1
         return phonemes
     
-    # def f_phones_phonet( # TODO CAMBAIR EN TODOS LADOS ESTO SON FONOS NO FONEMAS
-    #     self, 
-    #     envelope:np.ndarray, 
-    #     kind:str='Phones-Discrete-Phonet'
-    #     )->np.ndarray:
-    #     """
-    #     It makes a time-match matrix between the phones and the envelope using Phonet implementation. The values and shape of given matrix depend on kind.
-
-    #     Parameters
-    #     ----------
-    #     envelope : np.ndarray
-    #         Envelope of the audio signal using Hilbert transform
-    #     kind : str, optional
-    #        Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
-    #         ['Phones-Envelope-Phonet', 'Phones-Discrete-Phonet', 'Phones-Onset-Phonet']
-
-    #     Returns
-    #     -------
-    #     np.ndarray
-    #         if kind.startswith('Phones-Envelope'):
-    #             Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhones_labels(in order)
-    #         elif kind.startswith('Phones-Discrete'):
-    #             Also a matrix but it has 1s and 0s instead of envelope amplitude.
-    #         elif kind.startswith('Phones-Onset'):
-    #             In this case the value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
-            
-    #     Raises
-    #     ------
-    #     SyntaxError
-    #         Whether the input value of 'kind' is passed correctly. It must be a one of:
-    #         ['Phones-Envelope-Phonet', 'Phones-Discrete-Phonet', 'Phones-Onset-Phonet'].
-    #     """
-    #     # Get phonet phoneme labels
-    #     phonet_labels = Exp_info().ph_labels_phonet
-    #     phonet_labels.remove('<p:>')
-    #     phonet_labels.remove('sil')
-
-    #     # Check if given kind is a permited input value
-    #     allowed_kind = ['Phones-Envelope-Phonet', 'Phones-Discrete-Phonet', 'Phones-Onset-Phonet']
-    #     if kind not in allowed_kind:
-    #         raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phones are: {allowed_kind}")
-
-    #     # Extract phones
-    #     phones_obj = Phones(audio_file=self.wav_fname)
-    #     _,  sec_phones = phones_obj.compute_phones() 
-
-    #     # Match features length
-    #     difference = len(sec_phones) - len(envelope)
-
-    #     if difference > 0:
-    #         sec_phones = sec_phones[:-difference]
-    #     elif difference < 0:
-    #         # In this case, silences are appended
-    #         for i in range(np.abs(difference)):
-    #             sec_phones.append('<p:>')
-        
-    #     # Make empty array of phones
-    #     phones = np.zeros(shape=(len(sec_phones), len(phonet_labels)))
-        
-    #     # Match phoneme with kind
-    #     if kind.startswith('Phones-Envelope'):
-    #         for i, tagg in enumerate(sec_phones):
-    #             if (tagg!='<p:>') and (tagg!='sil'):
-    #                 phones[i, phonet_labels.index(tagg)] = envelope[i]
-    #     elif kind.startswith('Phones-Discrete'):
-    #         for i, tagg in enumerate(sec_phones):
-    #             if (tagg!='<p:>') and (tagg!='sil'):
-    #                 phones[i, phonet_labels.index(tagg)] = 1
-    #     elif kind.startswith('Phones-Onset'):
-    #         # Makes a list giving only first ocurrences of phones (also ordered by sample) 
-    #         phones_onset = [sec_phones[0]]
-    #         for i in range(1, len(sec_phones)):
-    #             if sec_phones[i] == sec_phones[i-1]:
-    #                 phones_onset.append(0)
-    #             else:
-    #                 phones_onset.append(sec_phones[i])
-    #         # Match phoneme with envelope
-    #         for i, tagg in enumerate(phones_onset):
-    #             if (tagg!='<p:>') and (tagg!='sil') and (tagg!=0):
-    #                 phones[i, phonet_labels.index(tagg)] = 1
-    #     return phones
-    
-    def f_phones_phonet( # TODO CAMBAIR POR LA FUNCIÓN DE ARRIBA QUE EXCLUYE BIEN LOS SILENCIOS
+    def f_phones_phonet( # TODO CAMBAIR EN TODOS LADOS ESTO SON FONOS NO FONEMAS
         self, 
         envelope:np.ndarray, 
         kind:str='Phones-Discrete-Phonet'
@@ -816,7 +733,7 @@ class Trial_channel:
             ['Phones-Envelope-Phonet', 'Phones-Discrete-Phonet', 'Phones-Onset-Phonet'].
         """
         # Get phonet phoneme labels
-        phonet_labels = Exp_info().ph_labels_phonet
+        phonet_labels = exp_info.ph_labels_phonet.copy()
         phonet_labels.remove('<p:>')
         phonet_labels.remove('sil')
 
@@ -845,10 +762,12 @@ class Trial_channel:
         # Match phoneme with kind
         if kind.startswith('Phones-Envelope'):
             for i, tagg in enumerate(sec_phones):
-                phones[i, phonet_labels.index(tagg)] = envelope[i]
+                if (tagg!='<p:>') and (tagg!='sil'):
+                    phones[i, phonet_labels.index(tagg)] = envelope[i]
         elif kind.startswith('Phones-Discrete'):
             for i, tagg in enumerate(sec_phones):
-                phones[i, phonet_labels.index(tagg)] = 1
+                if (tagg!='<p:>') and (tagg!='sil'):
+                    phones[i, phonet_labels.index(tagg)] = 1
         elif kind.startswith('Phones-Onset'):
             # Makes a list giving only first ocurrences of phones (also ordered by sample) 
             phones_onset = [sec_phones[0]]
@@ -859,9 +778,87 @@ class Trial_channel:
                     phones_onset.append(sec_phones[i])
             # Match phoneme with envelope
             for i, tagg in enumerate(phones_onset):
-                if tagg!=0:
+                if (tagg!='<p:>') and (tagg!='sil') and (tagg!=0):
                     phones[i, phonet_labels.index(tagg)] = 1
         return phones
+    
+    # def f_phones_phonet( # TODO CAMBAIR POR LA FUNCIÓN DE ARRIBA QUE EXCLUYE BIEN LOS SILENCIOS
+    #     self, 
+    #     envelope:np.ndarray, 
+    #     kind:str='Phones-Discrete-Phonet'
+    #     )->np.ndarray:
+    #     """
+    #     It makes a time-match matrix between the phones and the envelope using Phonet implementation. The values and shape of given matrix depend on kind.
+
+    #     Parameters
+    #     ----------
+    #     envelope : np.ndarray
+    #         Envelope of the audio signal using Hilbert transform
+    #     kind : str, optional
+    #        Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
+    #         ['Phones-Envelope-Phonet', 'Phones-Discrete-Phonet', 'Phones-Onset-Phonet']
+
+    #     Returns
+    #     -------
+    #     np.ndarray
+    #         if kind.startswith('Phones-Envelope'):
+    #             Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhones_labels(in order)
+    #         elif kind.startswith('Phones-Discrete'):
+    #             Also a matrix but it has 1s and 0s instead of envelope amplitude.
+    #         elif kind.startswith('Phones-Onset'):
+    #             In this case the value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
+            
+    #     Raises
+    #     ------
+    #     SyntaxError
+    #         Whether the input value of 'kind' is passed correctly. It must be a one of:
+    #         ['Phones-Envelope-Phonet', 'Phones-Discrete-Phonet', 'Phones-Onset-Phonet'].
+    #     """
+    #     # Get phonet phoneme labels
+    #     phonet_labels = [el if el!= 'sil' else '<p:>' for el in exp_info.ph_labels_phonet.copy()]
+
+    #     # Check if given kind is a permited input value
+    #     allowed_kind = ['Phones-Envelope-Phonet', 'Phones-Discrete-Phonet', 'Phones-Onset-Phonet']
+    #     if kind not in allowed_kind:
+    #         raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phones are: {allowed_kind}")
+
+    #     # Extract phones
+    #     phones_obj = Phones(audio_file=self.wav_fname)
+    #     _,  sec_phones = phones_obj.compute_phones() 
+
+    #     # Match features length
+    #     difference = len(sec_phones) - len(envelope)
+
+    #     if difference > 0:
+    #         sec_phones = sec_phones[:-difference]
+    #     elif difference < 0:
+    #         # In this case, silences are appended
+    #         for i in range(np.abs(difference)):
+    #             sec_phones.append('<p:>')
+        
+    #     # Make empty array of phones
+    #     phones = np.zeros(shape=(len(sec_phones), len(phonet_labels)))
+        
+    #     # Match phoneme with kind
+    #     if kind.startswith('Phones-Envelope'):
+    #         for i, tagg in enumerate(sec_phones):
+    #             phones[i, phonet_labels.index(tagg)] = envelope[i]
+    #     elif kind.startswith('Phones-Discrete'):
+    #         for i, tagg in enumerate(sec_phones):
+    #             phones[i, phonet_labels.index(tagg)] = 1
+    #     elif kind.startswith('Phones-Onset'):
+    #         # Makes a list giving only first ocurrences of phones (also ordered by sample) 
+    #         phones_onset = [sec_phones[0]]
+    #         for i in range(1, len(sec_phones)):
+    #             if sec_phones[i] == sec_phones[i-1]:
+    #                 phones_onset.append(0)
+    #             else:
+    #                 phones_onset.append(sec_phones[i])
+    #         # Match phoneme with envelope
+    #         for i, tagg in enumerate(phones_onset):
+    #             if tagg!=0:
+    #                 phones[i, phonet_labels.index(tagg)] = 1
+    #     return phones
 
     def f_phonemes(
         self, 
@@ -1524,11 +1521,11 @@ class Sesion_class:
 
         # Save results
         for key in sujeto_1:
-            # Drops silences phoneme column
-            if key.startswith('Phonemes'):
-                # Remove silence column, the last one by construction
-                sujeto_1[key] = np.delete(arr=sujeto_1[key], obj=-1, axis=1)
-                sujeto_2[key] = np.delete(arr=sujeto_2[key], obj=-1, axis=1)
+            # # Drops silences phoneme column
+            # if key.startswith('Phonemes'):
+            #     # Remove silence column, the last one by construction
+            #     sujeto_1[key] = np.delete(arr=sujeto_1[key], obj=-1, axis=1)
+            #     sujeto_2[key] = np.delete(arr=sujeto_2[key], obj=-1, axis=1)
 
             # Save preprocesed data
             os.makedirs(self.export_paths[key], exist_ok=True)
