@@ -1506,24 +1506,42 @@ def correlation_matrix_subjects(
     for i_feat, (feat, n_feat) in enumerate(zip(stimuli, n_feats)):
         # Make slicing to get corresponding features of given feat
         index_slice = sum(n_feats[:i_feat]),  sum(n_feats[:i_feat]) + n_feat
-        weights_across_features = average_weights_subjects[:,:,index_slice[0]:index_slice[1],:].mean(axis=2)
+        
+        # Take average across features
+        weights_across_features = average_weights_subjects[:,:,index_slice[0]:index_slice[1],:].mean(axis=2) # nsubjects, nchans, ndelays
+        
+        # Take average across subjects
         mean_across_subjects = weights_across_features.mean(axis=0) # nchans, ndelays
 
-        # To store correlation matrix of each channel
-        correlation_matrices_of_each_channel = np.zeros(shape=(n_chan, n_subjects+1, n_subjects+1)) 
-        weights_across_features_plus_mean = np.concatenate((weights_across_features, mean_across_subjects.reshape(1, n_chan, n_delays)), axis=0)
+        # To store correlation matrix of each channel, it has an extra dimension to correlate against whole average
+        correlation_matrices_of_each_channel = np.zeros(
+            shape=(n_chan, n_subjects+1, n_subjects+1)
+            ) 
+        
+        # Add mean of all subjects to the weights
+        weights_across_features_plus_mean = np.concatenate(
+            (weights_across_features, 
+             mean_across_subjects.reshape(1, n_chan, n_delays) # to match weight_across_features shape
+             ),
+            axis=0
+            )
+        
+        # For each channel, correlation across time delays is computed to get a matrix of n_subjects+1 x n_subjects+1
         for channel in range(n_chan):
-            matrix = weights_across_features_plus_mean[:,channel,:] 
+            matrix = weights_across_features_plus_mean[:,channel,:] # nsubjects+1, ndelays
             correlation_matrices_of_each_channel[channel] = np.corrcoef(matrix)
 
-        # Take average across all channels
+        # Take average across all channels and exclude whole average
         correlation_matrix = correlation_matrices_of_each_channel.mean(axis=0)[:-1, :-1]
+        
+        # Now get the vector of correlations of channels vs whole average, excluding whole vs whole
         correlation_of_channel_vs_average = correlation_matrices_of_each_channel.mean(axis=0)[-1][:-1]
 
-        # Change diagonal for values of last row. 
+        # Change diagonal for values with correlations of channels vs whole average. By doing so, it's very unlinkely to find a 1 in the diagonal.
         for i in range(n_subjects):
             correlation_matrix[i, i] = correlation_of_channel_vs_average[i]
 
+        # Get a list of subjects
         subject_names = np.arange(1, n_subjects+1).tolist()
 
         # Make mask for lower triangle of correlation matrix (this is a symmetric matrix)
