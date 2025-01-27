@@ -97,7 +97,7 @@ def define_ticks(
         ticks = np.arange(number_of_ticks)
     elif ylabel.startswith('Phones'):
         axes.tick_params(axis='both', labelsize='medium')
-        tags = exp_info.ph_labels_phonet[:-1]
+        tags = exp_info.ph_labels_phonet
         tags.remove('sil')
         tags.remove('<p:>')
         ticks = np.arange(number_of_ticks)
