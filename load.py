@@ -1643,7 +1643,7 @@ class Sesion_class:
         speaker_labels = np.where(speaker_labels==0, 4, speaker_labels)        
 
         # Computes shifted matrix
-        shifted_matrix_speaker_labels = processing.shifted_matrix(features=speaker_labels, delays=self.delays, use_gpu=False).astype(float)
+        shifted_matrix_speaker_labels = processing.shifted_matrix_2(features=speaker_labels, delays=self.delays, use_gpu=config.use_gpu).astype(float)
 
         # Make the appropiate label
         if self.situation.endswith('BS'):
