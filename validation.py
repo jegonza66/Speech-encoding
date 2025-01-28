@@ -5,6 +5,7 @@ from datetime import datetime
 # Specific libraries
 from sklearn.model_selection import KFold
 from joblib import Parallel, delayed
+from tqdm import tqdm 
 
 # Modules
 from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
@@ -86,7 +87,7 @@ for situation in config.situations:
                     correlations_std = np.zeros(len(config.alphas_swept))
                     
                     # Make sweep
-                    for i_alpha, alpha in enumerate(config.alphas_swept):
+                    for i_alpha, alpha in tqdm(enumerate(config.alphas_swept), total=len(config.alphas_swept), desc='Sweeping progress'):
                         weights_per_fold = np.zeros((config.n_folds, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float16)
                         correlation_per_channel = np.zeros((config.n_folds, info['nchan']))
                         rmse_per_channel = np.zeros((config.n_folds, info['nchan']))
@@ -120,8 +121,8 @@ for situation in config.situations:
                         # Calculate mean correlation and std
                         correlations[i_alpha] = np.nan_to_num(np.nanmean(correlation_per_channel))
                         correlations_std[i_alpha] = np.nan_to_num(np.nanstd(correlation_per_channel))
-                        print(f'\r·················· Sweeping progress  {int((i_alpha + 1) * 100 / config.steps)}% ··················', end='')
-                    print('\n')
+                        # print(f'\r·················· Sweeping progress  {int((i_alpha + 1) * 100 / config.steps)}% ··················', end='')
+                    # print('\n')
                     
                     # Find all indexes where the relative difference between the correlation and its maximum is within corr_limit_percent
                     relative_difference = abs((correlations.max() - correlations)/correlations.max())

@@ -1,6 +1,9 @@
 # Standard libraries
 import numpy as np, os
 
+# Specific libraries
+from tqdm import tqdm
+    
 # Modules
 from mtrf_models import ReceptiveFieldAdaptation, TorchMtrf
 from processing import block_bootstrap
@@ -216,8 +219,8 @@ def simulation_mtrf(
     # Define the iterations array
     iterations = np.arange(n_iterations)
     
-    # Whethet to perform parallel computation
-    for i in iterations:
+    # Whether to perform parallel computation
+    for i in tqdm(iterations, desc='Performing permutations'):
         _, fold, null_weights[fold, i], null_correlation[fold, i], null_errors[fold, i] = fold_model(
                                                                                         fold=fold, 
                                                                                         alpha=alpha, 
@@ -234,8 +237,8 @@ def simulation_mtrf(
                                                                                         subject=None, 
                                                                                         iteration=i
                                                                                         )
-        if (n_iterations>=10) and (i in iterations[::int(n_iterations/10)]):
-            print("\t\t\rProgress {}%".format(int((i + 1) * 100 / n_iterations)), end='')
-        elif n_iterations<10:
-            print("\t\t\rProgress {}%".format(int((i + 1) * 100 / n_iterations)), end='')
+        # if (n_iterations>=10) and (i in iterations[::int(n_iterations/10)]):
+        #     print("\t\t\rProgress {}%".format(int((i + 1) * 100 / n_iterations)), end='')
+        # elif n_iterations<10:
+        #     print("\t\t\rProgress {}%".format(int((i + 1) * 100 / n_iterations)), end='')
     return null_weights, null_correlation, null_errors
