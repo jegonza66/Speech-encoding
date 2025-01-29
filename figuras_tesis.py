@@ -26,7 +26,9 @@ pylab.rcParams.update(params)
 
 rc('text', usetex=True)
 # rc('text.latex', preamble=r'\usepackage{subscript}')
-plt.style.use([plt.style.available[23]])
+import scienceplots
+import matplotlib.pyplot as plt 
+plt.style.use(['science'])
 
 # =============
 # EJEMPLOS TFCE
@@ -38,7 +40,8 @@ _, ph_pvalue_tfce = load_pickle(path=PhonemesTfcePath)
 fig, axes = plt.subplots(
     nrows=1,
     ncols=2,
-    figsize=(8, 8)
+    figsize=(14, 6),
+    tight_layout=True
     )
 
 # Spectrogram
@@ -48,7 +51,7 @@ NumberOfFeats = 16
 sp_pvalue_tfce[sp_pvalue_tfce>config.significance] = 1
 sp_pvalue_tfce = -np.log10(sp_pvalue_tfce)
 
-im_sp = axes[1].pcolormesh(
+im_sp = axes[0].pcolormesh(
     config.times*1e3, # x
     np.arange(NumberOfFeats), # y
     sp_pvalue_tfce.T, # z
@@ -57,8 +60,10 @@ im_sp = axes[1].pcolormesh(
     )
 
 bands_center = librosa.mel_frequencies(n_mels=NumberOfFeats+2, fmin=62, fmax=8000)[1:-1]
-tags = [int(bands_center[i]) for i in np.arange(0, len(bands_center), 2)]
-ticks = np.arange(0, NumberOfFeats, 2)
+# tags = [int(bands_center[i]) for i in np.arange(1, len(bands_center)+1, 1)]
+# tags = [int(bands_center[i]) for i in np.arange(1, len(bands_center)+1, 2)]
+tags = [int(bands_center[i]) for i in np.arange(0, len(bands_center))]
+ticks = np.arange(0, NumberOfFeats, 1)
 
 axes[0].set(
     xlabel='Tiempo (ms)', 
@@ -72,7 +77,7 @@ fig.colorbar(
     aspect=15, 
     shrink=1, 
     mappable=im_sp,
-    axes=axes[0]
+    ax=axes[0]
     )
 
 # Phonemes
@@ -97,11 +102,11 @@ imph = axes[1].pcolormesh(
     shading='auto',
     cmap='inferno'
     )
-tags = config.Exp_info().phonemes_phonet
-tags.remove('/sil/')
-axes.set(
+tags = ['/a/', '/b/', '/d/', '/e/', '/f/', '/g/', '/i/', '/k/', '/l/', '/m/', '/n/', '/o/', '/p/', '/r/', '/s/', '/t/', '/tS/', '/u/', '/x/', '/R/', '/L/']
+ticks = np.arange(0, NumberOfTicks, 1)#+.5
+axes[1].set(
     xlabel='Tiempo (ms)', 
-    ylabel='Fonemas', 
+    # ylabel='Fonemas', 
     yticks=np.arange(0, NumberOfFeats, 1),
     yticklabels=tags
     )
@@ -112,9 +117,12 @@ fig.colorbar(
     aspect=15, 
     shrink=1, 
     mappable=imph,
-    axes=axes[1]
+    ax=axes[1]
     )
-fig.show()
+fig.savefig(
+    f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/ejemplo_TFCE.svg',
+    )
+# fig.show()
 # # =============================
 # # DIAGRAMA  DE MATRIZ DE DISEÑO
 # channel = 0
@@ -689,11 +697,11 @@ plt.yticks(
     )
 plt.xlabel('Tiempo (s)')
 plt.ylabel('Fonemas')  
-fig.savefig(
-    f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_phonemes.svg',
-    transparent=True,
-    )
-# fig.show()
+# fig.savefig(
+#     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_phonemes.svg',
+#     transparent=True,
+#     )
+fig.show()
 
 # # =====
 # # Phonological
@@ -737,47 +745,47 @@ fig.savefig(
 #     )
 # # fig.show()
 
-# =====
-# Mfccs
-MfccsPath = "saves/preprocessed_data/External/tmin-0.2_tmax0.6/Mfccs/Sesion21.pkl"
-NumberOfTicks = 16
+# # =====
+# # Mfccs
+# MfccsPath = "saves/preprocessed_data/External/tmin-0.2_tmax0.6/Mfccs/Sesion21.pkl"
+# NumberOfTicks = 16
 
-mfccs = load_pickle(path=MfccsPath)[0][:9168]
-WindowLeft, WindowRight = 0, len(mfccs)/config.sr
+# mfccs = load_pickle(path=MfccsPath)[0][:9168]
+# WindowLeft, WindowRight = 0, len(mfccs)/config.sr
 
-time_mfccs = np.arange(0, len(mfccs)/config.sr, 1/config.sr)
-window_mfccs = (WindowLeft <= time_mfccs) & (time_mfccs <= WindowRight)
+# time_mfccs = np.arange(0, len(mfccs)/config.sr, 1/config.sr)
+# window_mfccs = (WindowLeft <= time_mfccs) & (time_mfccs <= WindowRight)
 
-tags = [f'M{i}' for i in np.arange(1, NumberOfTicks, 2)]
-ticks = np.arange(0, NumberOfTicks, 2)+.5
+# tags = [f'M{i}' for i in np.arange(1, NumberOfTicks, 2)]
+# ticks = np.arange(0, NumberOfTicks, 2)+.5
 
-fig = plt.figure(
-    tight_layout=True,
-    figsize=(6, 5)
-    )
-im = plt.imshow(
-    mfccs.T,
-    aspect='auto',  # Ajusta el aspecto
-    extent=[WindowLeft, WindowRight, 0, NumberOfTicks],  # Ajusta los límites de los ejes
-    origin='lower',  # Ajusta el origen
-    cmap='RdBu'  # Ajusta el mapa de colores
-    )
-plt.colorbar(
-    im,
-    label='Amplitud (U.A)'
-    )
+# fig = plt.figure(
+#     tight_layout=True,
+#     figsize=(6, 5)
+#     )
+# im = plt.imshow(
+#     mfccs.T,
+#     aspect='auto',  # Ajusta el aspecto
+#     extent=[WindowLeft, WindowRight, 0, NumberOfTicks],  # Ajusta los límites de los ejes
+#     origin='lower',  # Ajusta el origen
+#     cmap='RdBu'  # Ajusta el mapa de colores
+#     )
+# plt.colorbar(
+#     im,
+#     label='Amplitud (U.A)'
+#     )
 
-plt.yticks(
-    ticks=ticks, 
-    labels=tags
-    )
-plt.xlabel('Tiempo (s)')
-plt.ylabel('Coeficientes Mel')  
-fig.savefig(
-    f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_mfccs.svg',
-    transparent=True
-    )
-# fig.show()
+# plt.yticks(
+#     ticks=ticks, 
+#     labels=tags
+#     )
+# plt.xlabel('Tiempo (s)')
+# plt.ylabel('Coeficientes Mel')  
+# fig.savefig(
+#     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_mfccs.svg',
+#     transparent=True
+#     )
+# # fig.show()
 
 # # =============
 # # Espectrograma
@@ -873,8 +881,8 @@ fig.savefig(
 #     )
 # # fig.show()
 
-# # ===============================
-# # Envlovente de la señal de audio
+# ===============================
+# Envlovente de la señal de audio
 # WavPath = 'Datos/wavs/S21/s21.objects.01.channel1.wav'
 # WindowLeft, WindowRight, EegSr = 32, 34, 128
 
@@ -913,11 +921,11 @@ fig.savefig(
 # plt.yticks([])
 # plt.xlabel('Tiempo (s)')
 # plt.ylabel('Amplitud (U.A)')  
-# fig.savefig(
-#     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_envolvente.svg',
-#     transparent=True
-#     )
-# # fig.show()
+# # fig.savefig(
+# #     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_envolvente.svg',
+# #     transparent=True
+# #     )
+# fig.show()
 
 # # =======================================================
 # # Ejemplo EEG y PSD (power spectral density) de un sujeto
