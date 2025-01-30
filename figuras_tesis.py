@@ -26,7 +26,9 @@ pylab.rcParams.update(params)
 
 rc('text', usetex=True)
 # rc('text.latex', preamble=r'\usepackage{subscript}')
-plt.style.use([plt.style.available[23]])
+import scienceplots
+import matplotlib.pyplot as plt 
+plt.style.use(['science'])
 
 # ===============================
 # EJEMPLO PRUEBA DE PERMUTACIONES
@@ -1131,47 +1133,47 @@ fig.show()
 #     )
 # # fig.show()
 
-# =====
-# Mfccs
-MfccsPath = "saves/preprocessed_data/External/tmin-0.2_tmax0.6/Mfccs/Sesion21.pkl"
-NumberOfTicks = 16
+# # =====
+# # Mfccs
+# MfccsPath = "saves/preprocessed_data/External/tmin-0.2_tmax0.6/Mfccs/Sesion21.pkl"
+# NumberOfTicks = 16
 
-mfccs = load_pickle(path=MfccsPath)[0][:9168]
-WindowLeft, WindowRight = 0, len(mfccs)/config.sr
+# mfccs = load_pickle(path=MfccsPath)[0][:9168]
+# WindowLeft, WindowRight = 0, len(mfccs)/config.sr
 
-time_mfccs = np.arange(0, len(mfccs)/config.sr, 1/config.sr)
-window_mfccs = (WindowLeft <= time_mfccs) & (time_mfccs <= WindowRight)
+# time_mfccs = np.arange(0, len(mfccs)/config.sr, 1/config.sr)
+# window_mfccs = (WindowLeft <= time_mfccs) & (time_mfccs <= WindowRight)
 
-tags = [f'M{i}' for i in np.arange(1, NumberOfTicks, 2)]
-ticks = np.arange(0, NumberOfTicks, 2)+.5
+# tags = [f'M{i}' for i in np.arange(1, NumberOfTicks, 2)]
+# ticks = np.arange(0, NumberOfTicks, 2)+.5
 
-fig = plt.figure(
-    tight_layout=True,
-    figsize=(6, 5)
-    )
-im = plt.imshow(
-    mfccs.T,
-    aspect='auto',  # Ajusta el aspecto
-    extent=[WindowLeft, WindowRight, 0, NumberOfTicks],  # Ajusta los límites de los ejes
-    origin='lower',  # Ajusta el origen
-    cmap='RdBu'  # Ajusta el mapa de colores
-    )
-plt.colorbar(
-    im,
-    label='Amplitud (U.A)'
-    )
+# fig = plt.figure(
+#     tight_layout=True,
+#     figsize=(6, 5)
+#     )
+# im = plt.imshow(
+#     mfccs.T,
+#     aspect='auto',  # Ajusta el aspecto
+#     extent=[WindowLeft, WindowRight, 0, NumberOfTicks],  # Ajusta los límites de los ejes
+#     origin='lower',  # Ajusta el origen
+#     cmap='RdBu'  # Ajusta el mapa de colores
+#     )
+# plt.colorbar(
+#     im,
+#     label='Amplitud (U.A)'
+#     )
 
-plt.yticks(
-    ticks=ticks, 
-    labels=tags
-    )
-plt.xlabel('Tiempo (s)')
-plt.ylabel('Coeficientes Mel')  
-fig.savefig(
-    f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_mfccs.svg',
-    transparent=True
-    )
-# fig.show()
+# plt.yticks(
+#     ticks=ticks, 
+#     labels=tags
+#     )
+# plt.xlabel('Tiempo (s)')
+# plt.ylabel('Coeficientes Mel')  
+# fig.savefig(
+#     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_mfccs.svg',
+#     transparent=True
+#     )
+# # fig.show()
 
 # # =============
 # # Espectrograma
@@ -1267,8 +1269,8 @@ fig.savefig(
 #     )
 # # fig.show()
 
-# # ===============================
-# # Envlovente de la señal de audio
+# ===============================
+# Envlovente de la señal de audio
 # WavPath = 'Datos/wavs/S21/s21.objects.01.channel1.wav'
 # WindowLeft, WindowRight, EegSr = 32, 34, 128
 
@@ -1307,11 +1309,11 @@ fig.savefig(
 # plt.yticks([])
 # plt.xlabel('Tiempo (s)')
 # plt.ylabel('Amplitud (U.A)')  
-# fig.savefig(
-#     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_envolvente.svg',
-#     transparent=True
-#     )
-# # fig.show()
+# # fig.savefig(
+# #     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_envolvente.svg',
+# #     transparent=True
+# #     )
+# fig.show()
 
 # # =======================================================
 # # Ejemplo EEG y PSD (power spectral density) de un sujeto
