@@ -66,8 +66,6 @@ sujeto_1, sujeto_2, samples_info = load_data(
                                 )
 eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
 
-if config.just_load_data:
-    continue
 
 # Load stimuli by subject (i.e: concatenated stimuli features)
 stims_sujeto_1 = np.hstack([sujeto_1[stimulus] for stimulus in stim.split('_')])
@@ -83,6 +81,8 @@ topo_pvalues_corr_per_fold = np.zeros((config.n_folds, info['nchan']))
 topo_pvalues_rmse_per_fold = np.zeros((config.n_folds, info['nchan']))
 proba_correlation_per_channel = np.ones((config.n_folds, info['nchan']))
 proba_rmse_per_channel = np.ones((config.n_folds, info['nchan']))
+eeg, stims, relevant_indexes= eeg_sujeto_1, stims_sujeto_1, relevant_indexes_1,
+
 print(f'\n\t······  Running model for Subject {sujeto}\n')
 if config.set_alpha is None:
     try:
@@ -107,12 +107,13 @@ for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)
                         train_indexes=train_indexes,
                         test_indexes=test_indexes,
                         validation=False,
-                        statistical_test=config.statistical_test,
+                        statistical_test=True,
                         path_null=path_null,
                         session=sesion,
-                        subject=sujeto,                              
+                        subject=sujeto                              
                         )
                     )
+
 for output_k in k_models_output:
     fold, weights, correlation_matrix, root_mean_square_error = output_k[:4]
     weights_per_fold[fold] = weights
@@ -172,16 +173,20 @@ fig, ax = plt.subplots(
 ax.plot(
     average_correlation, 
     '.', 
-    color='black', 
+    color='C0', 
+    markersize=5,
     label="Correlación media entre particiones"
     )
 
 if len(corr_good_channel_indexes): 
     ax.plot(
         corr_good_channel_indexes, 
-        average_correlation[corr_good_channel_indexes], 
-        'o', 
-        color='orange', 
+        # average_correlation[corr_good_channel_indexes]+.1,
+        np.full(shape=corr_good_channel_indexes.shape, fill_value=.3), 
+        '*', 
+        color='black', 
+        fillstyle='none',
+        markersize=5,
         label="Valores significativos"
         )
 
@@ -191,25 +196,31 @@ ax.fill_between(
     y1=correlation_per_channel.min(axis=0), # min across all folds
     y2=correlation_per_channel.max(axis=0), 
     alpha=0.5,
-    label='Distribucion de la correlación'
+    label='Distribucion de la correlación',
+    color='C0'
     )
 ax.fill_between(
     x=channels, 
     y1=null_correlation_per_channel_min,
     y2=null_correlation_per_channel_max, 
     alpha=0.5,
-    label='Distribución nula de correlación'
+    label='Distribución nula de correlación',
+    color='orange'
     )
 
 # Graph properties
 ax.grid(visible=True)
 ax.set(
     xlim=[-1, 129],
-    xlabel='Canales',
+    xlabel='Canales de EEG',
     ylabel='Correlación'
     )
-ax.legend(loc="lower right")
-fig.show()
+ax.legend(loc=(.1,.15))
+fig.savefig(
+    'C:/Users/User/Documents/tesis_escrita/imagenes/metodos/prueba_permutaciones.svg',
+    transparent=True
+    )
+# fig.show()
 
 # # ===================
 # # EJEMPLOS VALIDACIÓN
