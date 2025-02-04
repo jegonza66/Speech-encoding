@@ -28,188 +28,236 @@ rc('text', usetex=True)
 # rc('text.latex', preamble=r'\usepackage{subscript}')
 import scienceplots
 import matplotlib.pyplot as plt 
+from matplotlib_venn import venn3, venn2  # venn3_circles
+
 plt.style.use(['science'])
 
-# ===============================
-# EJEMPLO PRUEBA DE PERMUTACIONES
-from sklearn.model_selection import KFold
-from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
-from model_implementations import fold_model
-from processing import tfce 
-from load import load_data
-import config, plot
+# ===========================
+# EJEMPLO DE DIAGRAMA DE VENN
+# fig = plt.figure(
+#     figsize=(4,4),
+#     layout='tight'
+#     )
 
-situation, band, stim, sesion, sujeto = 'External', 'Theta', 'Pitch-Log-Raw', 24, 1
-preprocessed_data_path = f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
-path_null = f'saves/{config.model}/{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-path_validation = f'saves/{config.model}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
-average_weights_subjects = []
-average_correlation_subjects = []
-average_rmse_subjects = []
-pvalues_corr_subjects = []
-pvalues_rmse_subjects = []
-repeated_good_correlation_channels_subjects = []
-repeated_good_rmse_channels_subjects = []
-print(f'\n------->\tStart of session {sesion}\n')
-
-# Load data by subject, EEG and info
-sujeto_1, sujeto_2, samples_info = load_data(
-                                sesion=sesion,
-                                stim=stim,
-                                band=band,
-                                sr=config.sr,
-                                delays=config.delays,
-                                preprocessed_data_path=preprocessed_data_path,
-                                praat_executable_path=config.praat_executable_path,
-                                situation=situation
-                                )
-eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
-
-if config.just_load_data:
-    continue
-
-# Load stimuli by subject (i.e: concatenated stimuli features)
-stims_sujeto_1 = np.hstack([sujeto_1[stimulus] for stimulus in stim.split('_')])
-stims_sujeto_2 = np.hstack([sujeto_2[stimulus] for stimulus in stim.split('_')])
-n_feats = [sujeto_1[stimulus].shape[1] for stimulus in stim.split('_')]
-delayed_length_per_stimuli = [n_feat*len(config.delays) for n_feat in n_feats]
-relevant_indexes_1 = samples_info['keep_indexes1'].copy()
-relevant_indexes_2 = samples_info['keep_indexes2'].copy()
-weights_per_fold = np.zeros((config.n_folds, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float16)
-correlation_per_channel = np.zeros((config.n_folds, info['nchan']))
-rmse_per_channel = np.zeros((config.n_folds, info['nchan']))
-topo_pvalues_corr_per_fold = np.zeros((config.n_folds, info['nchan']))
-topo_pvalues_rmse_per_fold = np.zeros((config.n_folds, info['nchan']))
-proba_correlation_per_channel = np.ones((config.n_folds, info['nchan']))
-proba_rmse_per_channel = np.ones((config.n_folds, info['nchan']))
-print(f'\n\t······  Running model for Subject {sujeto}\n')
-if config.set_alpha is None:
-    try:
-        alphas = load_pickle(path=alphas_path)
-        alpha = alphas[sesion][sujeto]
-    except:
-        alpha = config.default_alpha
-else:
-    alpha = config.set_alpha
-kf_test = KFold(config.n_folds, shuffle=False)
-relevant_eeg = eeg[relevant_indexes]
-k_models_output = []
-for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
-    print(f'\n\t······  [{fold+1}/{config.n_folds}]')
-    k_models_output.append(
-                    fold_model(
-                        fold=fold,
-                        alpha=np.float32(alpha),#TODO adapt inside
-                        stims=stims,
-                        eeg=eeg,
-                        relevant_indexes=relevant_indexes,
-                        train_indexes=train_indexes,
-                        test_indexes=test_indexes,
-                        validation=False,
-                        statistical_test=config.statistical_test,
-                        path_null=path_null,
-                        session=sesion,
-                        subject=sujeto,                              
-                        )
-                    )
-for output_k in k_models_output:
-    fold, weights, correlation_matrix, root_mean_square_error = output_k[:4]
-    weights_per_fold[fold] = weights
-    correlation_per_channel[fold] = correlation_matrix
-    rmse_per_channel[fold] = root_mean_square_error 
-    p_corr, p_rmse, null_correlation_per_channel = output_k[4:]
-    proba_correlation_per_channel[fold][p_corr < config.significance_threshold] = p_corr[p_corr < config.significance_threshold]
-    proba_rmse_per_channel[fold][p_rmse < config.significance_threshold] = p_rmse[p_rmse < config.significance_threshold]
-    topo_pvalues_corr_per_fold[fold] = p_corr
-    topo_pvalues_rmse_per_fold[fold] = p_rmse
-print(f'\n\t······  Run model\n')
-for k, weight in enumerate(weights_per_fold):
-    if (weight==0).all():
-        weights_per_fold[k] = np.full(shape=weight.shape, fill_value=np.nan)
-        print(
-            f'\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>\n'
-            f'\t\tFold {k+1}/{config.n_folds} weights are empty\n'
-            f'\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>'
-            )
-average_weights = np.nanmean(weights_per_fold, axis=0) # info['nchan'], np.sum(n_feats), len(delays)
-average_weights = np.nan_to_num(average_weights)
-average_correlation = np.nanmean(correlation_per_channel, axis=0)
-average_correlation = np.nan_to_num(average_correlation)
-average_rmse = rmse_per_channel.mean(axis=0)
-corr_good_channel_indexes = []
-rmse_good_channel_indexes = []
-repeated_good_correlation_channels = np.zeros(info['nchan'])
-repeated_good_rmse_channels = np.zeros(info['nchan'])
-# Find good indexes by checking where all folds (at the same time) are significant
-try:
-    corr_good_channel_indexes, = np.where(
-                                np.all((proba_correlation_per_channel < 1), axis=0)
-                                )
-    rmse_good_channel_indexes, = np.where(
-                                np.all((proba_rmse_per_channel < 1), axis=0)
-                                )
-except:
-    corr_good_channel_indexes = []
-    rmse_good_channel_indexes = []
-    print('No significant channels found')   
-
-# Saves passing channels by subject
-repeated_good_correlation_channels[corr_good_channel_indexes] += 1 # binary array with ones where significant
-repeated_good_rmse_channels[rmse_good_channel_indexes] += 1
-average_correlation = correlation_per_channel.mean(axis=0)
-channels = np.arange(len(average_correlation))
-null_correlation_per_channel_min = null_correlation_per_channel.min(axis=1).min(axis=0)
-null_correlation_per_channel_max = null_correlation_per_channel.max(axis=1).max(axis=0) 
-
-# Create figure and title
-fig, ax = plt.subplots(
-    nrows=1, 
-    ncols=1, 
-    figsize=(6, 4), 
+# # Make plot
+# venn2(
+#     subsets=(.3,.1,.1), # left area diagran, right area diagram, shared area <--> (10, 01, 11)
+#     set_labels=('Atributo 1', 'Atributo 2'),
+#     set_colors=('C0', 'C1'), 
+#     alpha=0.45
+#     )
+# # Save figure
+# fig.savefig(
+#     'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/ejemplo_venn2.svg',
+#     transparent=True
+#     )
+# # fig.show()
+fig = plt.figure(
+    figsize=(4,4),
     layout='tight'
     )
-ax.plot(
-    average_correlation, 
-    '.', 
-    color='black', 
-    label="Correlación media entre particiones"
-    )
 
-if len(corr_good_channel_indexes): 
-    ax.plot(
-        corr_good_channel_indexes, 
-        average_correlation[corr_good_channel_indexes], 
-        'o', 
-        color='orange', 
-        label="Valores significativos"
-        )
-
-# Add shadow between min and max
-ax.fill_between(
-    x=channels, 
-    y1=correlation_per_channel.min(axis=0), # min across all folds
-    y2=correlation_per_channel.max(axis=0), 
-    alpha=0.5,
-    label='Distribucion de la correlación'
+# Make plot
+venn3(
+    subsets=(.3,
+             .1,
+             .3,
+             .12,
+             .1,
+             .1,
+             .13), # the order should be(100, 010, 110, 001, 101, 011, 111)
+    set_labels=('Atributo 1', 'Atributo 2', 'Atributo 3'),
+    set_colors=('C0', 'C1', 'C2'), 
+    alpha=0.45
     )
-ax.fill_between(
-    x=channels, 
-    y1=null_correlation_per_channel_min,
-    y2=null_correlation_per_channel_max, 
-    alpha=0.5,
-    label='Distribución nula de correlación'
+# Save figure
+fig.savefig(
+    'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/ejemplo_venn3.svg',
+    transparent=True
     )
-
-# Graph properties
-ax.grid(visible=True)
-ax.set(
-    xlim=[-1, 129],
-    xlabel='Canales',
-    ylabel='Correlación'
-    )
-ax.legend(loc="lower right")
 fig.show()
+
+
+# # ===============================
+# # EJEMPLO PRUEBA DE PERMUTACIONES
+# from sklearn.model_selection import KFold
+# from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
+# from model_implementations import fold_model
+# from processing import tfce 
+# from load import load_data
+# import config, plot
+
+# situation, band, stim, sesion, sujeto = 'External', 'Theta', 'Pitch-Log-Raw', 24, 1
+# preprocessed_data_path = f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
+# path_null = f'saves/{config.model}/{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+# path_validation = f'saves/{config.model}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+# alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
+# average_weights_subjects = []
+# average_correlation_subjects = []
+# average_rmse_subjects = []
+# pvalues_corr_subjects = []
+# pvalues_rmse_subjects = []
+# repeated_good_correlation_channels_subjects = []
+# repeated_good_rmse_channels_subjects = []
+# print(f'\n------->\tStart of session {sesion}\n')
+
+# # Load data by subject, EEG and info
+# sujeto_1, sujeto_2, samples_info = load_data(
+#                                 sesion=sesion,
+#                                 stim=stim,
+#                                 band=band,
+#                                 sr=config.sr,
+#                                 delays=config.delays,
+#                                 preprocessed_data_path=preprocessed_data_path,
+#                                 praat_executable_path=config.praat_executable_path,
+#                                 situation=situation
+#                                 )
+# eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
+
+# if config.just_load_data:
+#     continue
+
+# # Load stimuli by subject (i.e: concatenated stimuli features)
+# stims_sujeto_1 = np.hstack([sujeto_1[stimulus] for stimulus in stim.split('_')])
+# stims_sujeto_2 = np.hstack([sujeto_2[stimulus] for stimulus in stim.split('_')])
+# n_feats = [sujeto_1[stimulus].shape[1] for stimulus in stim.split('_')]
+# delayed_length_per_stimuli = [n_feat*len(config.delays) for n_feat in n_feats]
+# relevant_indexes_1 = samples_info['keep_indexes1'].copy()
+# relevant_indexes_2 = samples_info['keep_indexes2'].copy()
+# weights_per_fold = np.zeros((config.n_folds, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float16)
+# correlation_per_channel = np.zeros((config.n_folds, info['nchan']))
+# rmse_per_channel = np.zeros((config.n_folds, info['nchan']))
+# topo_pvalues_corr_per_fold = np.zeros((config.n_folds, info['nchan']))
+# topo_pvalues_rmse_per_fold = np.zeros((config.n_folds, info['nchan']))
+# proba_correlation_per_channel = np.ones((config.n_folds, info['nchan']))
+# proba_rmse_per_channel = np.ones((config.n_folds, info['nchan']))
+# print(f'\n\t······  Running model for Subject {sujeto}\n')
+# if config.set_alpha is None:
+#     try:
+#         alphas = load_pickle(path=alphas_path)
+#         alpha = alphas[sesion][sujeto]
+#     except:
+#         alpha = config.default_alpha
+# else:
+#     alpha = config.set_alpha
+# kf_test = KFold(config.n_folds, shuffle=False)
+# relevant_eeg = eeg[relevant_indexes]
+# k_models_output = []
+# for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
+#     print(f'\n\t······  [{fold+1}/{config.n_folds}]')
+#     k_models_output.append(
+#                     fold_model(
+#                         fold=fold,
+#                         alpha=np.float32(alpha),#TODO adapt inside
+#                         stims=stims,
+#                         eeg=eeg,
+#                         relevant_indexes=relevant_indexes,
+#                         train_indexes=train_indexes,
+#                         test_indexes=test_indexes,
+#                         validation=False,
+#                         statistical_test=config.statistical_test,
+#                         path_null=path_null,
+#                         session=sesion,
+#                         subject=sujeto,                              
+#                         )
+#                     )
+# for output_k in k_models_output:
+#     fold, weights, correlation_matrix, root_mean_square_error = output_k[:4]
+#     weights_per_fold[fold] = weights
+#     correlation_per_channel[fold] = correlation_matrix
+#     rmse_per_channel[fold] = root_mean_square_error 
+#     p_corr, p_rmse, null_correlation_per_channel = output_k[4:]
+#     proba_correlation_per_channel[fold][p_corr < config.significance_threshold] = p_corr[p_corr < config.significance_threshold]
+#     proba_rmse_per_channel[fold][p_rmse < config.significance_threshold] = p_rmse[p_rmse < config.significance_threshold]
+#     topo_pvalues_corr_per_fold[fold] = p_corr
+#     topo_pvalues_rmse_per_fold[fold] = p_rmse
+# print(f'\n\t······  Run model\n')
+# for k, weight in enumerate(weights_per_fold):
+#     if (weight==0).all():
+#         weights_per_fold[k] = np.full(shape=weight.shape, fill_value=np.nan)
+#         print(
+#             f'\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>\n'
+#             f'\t\tFold {k+1}/{config.n_folds} weights are empty\n'
+#             f'\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>'
+#             )
+# average_weights = np.nanmean(weights_per_fold, axis=0) # info['nchan'], np.sum(n_feats), len(delays)
+# average_weights = np.nan_to_num(average_weights)
+# average_correlation = np.nanmean(correlation_per_channel, axis=0)
+# average_correlation = np.nan_to_num(average_correlation)
+# average_rmse = rmse_per_channel.mean(axis=0)
+# corr_good_channel_indexes = []
+# rmse_good_channel_indexes = []
+# repeated_good_correlation_channels = np.zeros(info['nchan'])
+# repeated_good_rmse_channels = np.zeros(info['nchan'])
+# # Find good indexes by checking where all folds (at the same time) are significant
+# try:
+#     corr_good_channel_indexes, = np.where(
+#                                 np.all((proba_correlation_per_channel < 1), axis=0)
+#                                 )
+#     rmse_good_channel_indexes, = np.where(
+#                                 np.all((proba_rmse_per_channel < 1), axis=0)
+#                                 )
+# except:
+#     corr_good_channel_indexes = []
+#     rmse_good_channel_indexes = []
+#     print('No significant channels found')   
+
+# # Saves passing channels by subject
+# repeated_good_correlation_channels[corr_good_channel_indexes] += 1 # binary array with ones where significant
+# repeated_good_rmse_channels[rmse_good_channel_indexes] += 1
+# average_correlation = correlation_per_channel.mean(axis=0)
+# channels = np.arange(len(average_correlation))
+# null_correlation_per_channel_min = null_correlation_per_channel.min(axis=1).min(axis=0)
+# null_correlation_per_channel_max = null_correlation_per_channel.max(axis=1).max(axis=0) 
+
+# # Create figure and title
+# fig, ax = plt.subplots(
+#     nrows=1, 
+#     ncols=1, 
+#     figsize=(6, 4), 
+#     layout='tight'
+#     )
+# ax.plot(
+#     average_correlation, 
+#     '.', 
+#     color='black', 
+#     label="Correlación media entre particiones"
+#     )
+
+# if len(corr_good_channel_indexes): 
+#     ax.plot(
+#         corr_good_channel_indexes, 
+#         average_correlation[corr_good_channel_indexes], 
+#         'o', 
+#         color='orange', 
+#         label="Valores significativos"
+#         )
+
+# # Add shadow between min and max
+# ax.fill_between(
+#     x=channels, 
+#     y1=correlation_per_channel.min(axis=0), # min across all folds
+#     y2=correlation_per_channel.max(axis=0), 
+#     alpha=0.5,
+#     label='Distribucion de la correlación'
+#     )
+# ax.fill_between(
+#     x=channels, 
+#     y1=null_correlation_per_channel_min,
+#     y2=null_correlation_per_channel_max, 
+#     alpha=0.5,
+#     label='Distribución nula de correlación'
+#     )
+
+# # Graph properties
+# ax.grid(visible=True)
+# ax.set(
+#     xlim=[-1, 129],
+#     xlabel='Canales',
+#     ylabel='Correlación'
+#     )
+# ax.legend(loc="lower right")
+# fig.show()
 
 # # ===================
 # # EJEMPLOS VALIDACIÓN
