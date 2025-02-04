@@ -4,7 +4,6 @@ from datetime import datetime
 
 # Specific libraries
 from sklearn.model_selection import KFold
-from joblib import Parallel, delayed
 from tqdm import tqdm 
 
 # Modules
@@ -81,8 +80,6 @@ for situation in config.situations:
                     print(f'\n\n\t······  Running model for Subject {subject}\n')
 
                     # Take some metrics for each alpha
-                    standarized_betas = np.zeros(len(config.alphas_swept))
-                    errors = np.zeros(len(config.alphas_swept))
                     correlations = np.zeros(len(config.alphas_swept))
                     correlations_std = np.zeros(len(config.alphas_swept))
                     
