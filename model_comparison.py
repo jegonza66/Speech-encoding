@@ -172,7 +172,11 @@ for band in bands:
         variance_explained_by_2 = variance_12 - variance_1 #01
         
         # Get list with areas
-        areas = [variance_explained_by_1, variance_explained_by_2, variance_intersection_12] # note that the sum gives shared model
+        areas = [ #(10, 01, 11)
+            variance_explained_by_1, 
+            variance_explained_by_2,
+            variance_intersection_12
+            ] # note that the sum gives shared model
         areas = [0 if area<0 else area.round(3) for area in areas]
         
         # Create figure and title
@@ -232,9 +236,15 @@ for band in bands:
         # Explained by one, two, three and full shared model but not by subshared models
         variance_int_complement_submodels = variance_123 + variance_1 + variance_2 + variance_3 - variance_12 - variance_13 - variance_23 #111
 
-        areas = [variance_shared_with_1, variance_shared_with_2, variance_shared_with_3, \
-                 variance_shared_with_12, variance_shared_with_13, variance_shared_with_23,\
-                 variance_int_complement_submodels] 
+        areas = [ # the order should be(100, 010, 110, 001, 101, 011, 111)
+            variance_shared_with_1, 
+            variance_shared_with_2, 
+            variance_shared_with_12, 
+            variance_shared_with_3,
+            variance_shared_with_13, 
+            variance_shared_with_23,
+            variance_int_complement_submodels
+            ] 
         areas = [0 if area<0 else area.round(3) for area in areas] # note that the sum gives shared model variance_123
 
         # Create figure and title
