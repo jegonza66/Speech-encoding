@@ -136,7 +136,7 @@ path_venn_diagrams = os.path.join(path_figures,'venn_diagrams')
 
 # Relevant parameters
 bands = ['Theta']
-stimuli = ['Spectrogram', 'Mfccs']
+stimuli = ['Phonemes-Discrete-Phonet', 'Envelope']
 
 # Arrange shared stimuli
 stimuli = sorted(stimuli)
@@ -148,6 +148,7 @@ mean_correlations = {}
 # Iterate over bands
 for band in bands:
     for stim in all_stimuli:
+        stim='Envelope'
         # Get average correlation of each stimulus
         data = load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects']
         if config.relevant_channels:
