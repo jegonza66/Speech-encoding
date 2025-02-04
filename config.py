@@ -14,12 +14,13 @@ sesiones = [
             30
             ]
 stimuli = [
+        # 'Spectrogram_Mfccs',
         # 'Envelope',
         # 'Pitch-Log-Raw',
         # 'Spectrogram',
-        # 'Mfccs',
+        'Mfccs',
         # 'Phonological',
-        'Phonemes-Discrete-Phonet',
+        # 'Phonemes-Discrete-Phonet',
         # 'Phones-Discrete-Phonet',
         # 'Wav2vec2'
         ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
@@ -43,13 +44,13 @@ bands = [
 praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
 display_interactive_mode, save_results, save_figures, no_figures = False, True, True, False
 figure_format = '.png'
-just_load_data = True
+just_load_data = False
 
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
 model = 'mtrf'
 estimator = 'ridge_torch' # ridge, ridge_torch or time_delaying_ridge
-statistical_test, perform_tfce, use_gpu = False, False, False
+statistical_test, perform_tfce, use_gpu = True, True, True
 stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 
 if estimator=='ridge':
