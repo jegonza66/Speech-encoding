@@ -95,7 +95,7 @@ times = (delays/sr)
 # MODEL COMPARISON
 montage = mne.channels.make_standard_montage('biosemi128')
 info_mne = mne.create_info(ch_names=montage.ch_names[:], sfreq=sr, ch_types='eeg').set_montage(montage)
-relevant_channels = None#12
+relevant_channels = 12#None#12
 
 # ============
 # PLOTS LABELS
@@ -169,7 +169,8 @@ class Exp_info:
             'jj': '/x/',
             'J' : '/x/'
             }
-        self.phonemes_phonet = [phoneme for phoneme in np.unique(list(self.phones_to_phonemes.values()))]
+        # self.phonemes_phonet = [phoneme for phoneme in np.unique(list(self.phones_to_phonemes.values()))]
+        self.phonemes_phonet  = ['/a/', '/b/', '/d/', '/e/', '/f/', '/g/', '/i/', '/k/', '/l/', '/m/', '/n/', '/o/', '/p/', '/r/', '/s/', '/t/', '/tS/', '/u/', '/x/', '/R/', '/L/','/sil/']
         
         self.mistakes = ['Articulatory', 'Lexical', 'Discursive']
         self.control = ['Articulatory', 'Lexical', 'Discursive']
