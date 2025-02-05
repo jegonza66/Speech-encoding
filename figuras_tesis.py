@@ -32,8 +32,8 @@ from matplotlib_venn import venn3, venn2  # venn3_circles
 
 plt.style.use(['science'])
 
-# ===========================
-# EJEMPLO DE DIAGRAMA DE VENN
+# # ===========================
+# # EJEMPLO DE DIAGRAMA DE VENN
 # fig = plt.figure(
 #     figsize=(4,4),
 #     layout='tight'
@@ -52,30 +52,30 @@ plt.style.use(['science'])
 #     transparent=True
 #     )
 # # fig.show()
-fig = plt.figure(
-    figsize=(4,4),
-    layout='tight'
-    )
+# fig = plt.figure(
+#     figsize=(4,4),
+#     layout='tight'
+#     )
 
-# Make plot
-venn3(
-    subsets=(.3,
-             .1,
-             .3,
-             .12,
-             .1,
-             .1,
-             .13), # the order should be(100, 010, 110, 001, 101, 011, 111)
-    set_labels=('Atributo 1', 'Atributo 2', 'Atributo 3'),
-    set_colors=('C0', 'C1', 'C2'), 
-    alpha=0.45
-    )
-# Save figure
-fig.savefig(
-    'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/ejemplo_venn3.svg',
-    transparent=True
-    )
-fig.show()
+# # Make plot
+# venn3(
+#     subsets=(.3,
+#              .1,
+#              .3,
+#              .12,
+#              .1,
+#              .1,
+#              .13), # the order should be(100, 010, 110, 001, 101, 011, 111)
+#     set_labels=('Atributo 1', 'Atributo 2', 'Atributo 3'),
+#     set_colors=('C0', 'C1', 'C2'), 
+#     alpha=0.45
+#     )
+# # Save figure
+# fig.savefig(
+#     'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/ejemplo_venn3.svg',
+#     transparent=True
+#     )
+# # fig.show()
 
 
 # # ===============================
@@ -1080,7 +1080,7 @@ fig.show()
 #     )
 # plt.colorbar(
 #     im,
-#     label='Amplitud'
+#     label='Amplitud (U.A)'
 #     )
 
 # plt.yticks(
@@ -1095,7 +1095,7 @@ fig.show()
 #     )
 # # fig.show()
 
-# # =====
+# # ========
 # # Phonemes
 # PhonemesPath = "saves/preprocessed_data/External/tmin-0.2_tmax0.6/Phonemes-Discrete-Phonet/Sesion21.pkl"
 # NumberOfTicks = 21
@@ -1124,7 +1124,7 @@ fig.show()
 #     )
 # plt.colorbar(
 #     im,
-#     label='Amplitud'
+#     label='Amplitud (U.A)'
 #     )
 
 # plt.yticks(
