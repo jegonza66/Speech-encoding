@@ -77,7 +77,6 @@ fig.savefig(
     )
 fig.show()
 
-
 # # ===============================
 # # EJEMPLO PRUEBA DE PERMUTACIONES
 # from sklearn.model_selection import KFold
@@ -112,18 +111,13 @@ fig.show()
 #                                 praat_executable_path=config.praat_executable_path,
 #                                 situation=situation
 #                                 )
-# eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
-
-# if config.just_load_data:
-#     continue
+# eeg, info = sujeto_1['EEG'], sujeto_1['info']
 
 # # Load stimuli by subject (i.e: concatenated stimuli features)
-# stims_sujeto_1 = np.hstack([sujeto_1[stimulus] for stimulus in stim.split('_')])
-# stims_sujeto_2 = np.hstack([sujeto_2[stimulus] for stimulus in stim.split('_')])
+# stims = np.hstack([sujeto_1[stimulus] for stimulus in stim.split('_')])
 # n_feats = [sujeto_1[stimulus].shape[1] for stimulus in stim.split('_')]
 # delayed_length_per_stimuli = [n_feat*len(config.delays) for n_feat in n_feats]
-# relevant_indexes_1 = samples_info['keep_indexes1'].copy()
-# relevant_indexes_2 = samples_info['keep_indexes2'].copy()
+# relevant_indexes = samples_info['keep_indexes1'].copy()
 # weights_per_fold = np.zeros((config.n_folds, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float16)
 # correlation_per_channel = np.zeros((config.n_folds, info['nchan']))
 # rmse_per_channel = np.zeros((config.n_folds, info['nchan']))
@@ -217,47 +211,63 @@ fig.show()
 #     figsize=(6, 4), 
 #     layout='tight'
 #     )
-# ax.plot(
-#     average_correlation, 
-#     '.', 
+# ax.scatter(
+#     corr_good_channel_indexes, 
+#     .28*np.ones(shape=len(corr_good_channel_indexes)), 
+#     marker='*', 
+#     s=15,
 #     color='black', 
-#     label="Correlación media entre particiones"
+#     label="Valores significativos"
 #     )
 
-# if len(corr_good_channel_indexes): 
-#     ax.plot(
-#         corr_good_channel_indexes, 
-#         average_correlation[corr_good_channel_indexes], 
-#         'o', 
-#         color='orange', 
-#         label="Valores significativos"
-#         )
+# ax.fill_between(
+#     x=channels, 
+#     y1=null_correlation_per_channel_min,
+#     y2=null_correlation_per_channel_max, 
+#     alpha=.5,
+#     label='Distribución nula',
+#     color='orange'
+#     )
 
+# ax.fill_between(
+#     x=channels, 
+#     y1=np.percentile(null_correlation_per_channel.min(axis=0), 50-25, axis=0),
+#     y2=np.percentile(null_correlation_per_channel.min(axis=0), 50+25, axis=0), 
+#     alpha=.8,
+#     # label=r'50 \% de la distribución nula',
+#     color='orange'
+#     )
 # # Add shadow between min and max
 # ax.fill_between(
 #     x=channels, 
 #     y1=correlation_per_channel.min(axis=0), # min across all folds
 #     y2=correlation_per_channel.max(axis=0), 
-#     alpha=0.5,
-#     label='Distribucion de la correlación'
+#     alpha=.5,
+#     label='Distribucion de la correlación',
+#     color='C0'
 #     )
-# ax.fill_between(
-#     x=channels, 
-#     y1=null_correlation_per_channel_min,
-#     y2=null_correlation_per_channel_max, 
-#     alpha=0.5,
-#     label='Distribución nula de correlación'
+# ax.scatter(
+#     channels,
+#     average_correlation, 
+#     s=5,
+#     color='C0', 
+#     alpha=1,
+#     label="Correlación media entre particiones"
 #     )
 
 # # Graph properties
 # ax.grid(visible=True)
 # ax.set(
 #     xlim=[-1, 129],
-#     xlabel='Canales',
+#     xlabel='Canales de EEG',
 #     ylabel='Correlación'
 #     )
-# ax.legend(loc="lower right")
-# fig.show()
+# ax.legend(loc=(.2,.2))
+# fig.savefig(
+#     'C:/Users/User/Documents/tesis_escrita/imagenes/metodos/prueba_permutaciones.svg', # 'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/prueba_permutaciones.svg',
+#     transparent=True
+#     )
+# # fig.show()
 
 # # ===================
 # # EJEMPLOS VALIDACIÓN
