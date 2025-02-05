@@ -71,6 +71,7 @@ for situation in config.situations:
 
                 # Run model for each subject
                 for sujeto, eeg, stims, relevant_indexes in zip((1, 2), (eeg_sujeto_1, eeg_sujeto_2), (stims_sujeto_1, stims_sujeto_2), (relevant_indexes_1, relevant_indexes_2)):
+                # for sujeto, eeg, stims, relevant_indexes in zip([2], [eeg_sujeto_2], [stims_sujeto_2], [relevant_indexes_2]):
                     print(f'\n\t······  Running permutations for Subject {sujeto}\n')
                     
                     # Set alpha for specific subject
