@@ -426,28 +426,56 @@ def shifted_matrix_2(
         features = features.reshape(-1, 1)
 
     device = torch.device("cuda" if use_gpu and torch.cuda.is_available() else "cpu")
-    features_tensor = torch.tensor(features, dtype=torch.float32, device=device)
+    try:
+        features_tensor = torch.tensor(features, dtype=torch.float32, device=device)
 
-    n_samples, n_features = features_tensor.shape
-    n_delays = len(delays)
+        n_samples, n_features = features_tensor.shape
+        n_delays = len(delays)
 
-    # Create design matrix
-    shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float32, device=device)
+        # Create design matrix
+        shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float32, device=device)
 
-    for i, delay in enumerate(delays):
-        if delay < 0:
-            # Shift up
-            shifted[:delay, i, :] = features_tensor[-delay:, :]
-        elif delay > 0:
-            # Shift dowm
-            shifted[delay:, i, :] = features_tensor[:-delay, :]
-        else:
-            # Doesnt shift
-            shifted[:, i, :] = features_tensor
+        for i, delay in enumerate(delays):
+            if delay < 0:
+                # Shift up
+                shifted[:delay, i, :] = features_tensor[-delay:, :]
+            elif delay > 0:
+                # Shift dowm
+                shifted[delay:, i, :] = features_tensor[:-delay, :]
+            else:
+                # Doesnt shift
+                shifted[:, i, :] = features_tensor
 
-    # Reshpe to match desire output
-    shifted_matrix = shifted.permute(0, 2, 1).reshape(n_samples, n_features * n_delays)
-    return shifted_matrix.cpu().numpy()
+        # Reshpe to match desire output
+        shifted_matrix = shifted.permute(0, 2, 1).reshape(n_samples, n_features * n_delays)
+        return shifted_matrix.cpu().numpy()
+    except Exception as e:
+        # Fallback to CPU computation in case of memory issues
+        print(f"CUDA out of memory: switching to CPU for computation.\n Following error occured: {e}.")
+        
+        device = torch.device("cpu")
+        features_tensor = torch.tensor(features, dtype=torch.float32, device=device)
+
+        n_samples, n_features = features_tensor.shape
+        n_delays = len(delays)
+
+        # Create design matrix
+        shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float32, device=device)
+
+        for i, delay in enumerate(delays):
+            if delay < 0:
+                # Shift up
+                shifted[:delay, i, :] = features_tensor[-delay:, :]
+            elif delay > 0:
+                # Shift dowm
+                shifted[delay:, i, :] = features_tensor[:-delay, :]
+            else:
+                # Doesnt shift
+                shifted[:, i, :] = features_tensor
+
+        # Reshpe to match desire output
+        shifted_matrix = shifted.permute(0, 2, 1).reshape(n_samples, n_features * n_delays)
+        return shifted_matrix.cpu().numpy()
       
 def butter_filter(
     data:np.ndarray, 
