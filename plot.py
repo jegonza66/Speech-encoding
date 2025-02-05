@@ -1413,7 +1413,6 @@ def average_regression_weights(
         else:
             fig, ax = plt.subplots(nrows=1, ncols=1, layout='tight')
             fig.suptitle(f'{feat}')
-            
             # Create evoked response as graph of weights averaged across all feats and subjects 
             weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1)
             evoked = mne.EvokedArray(data=weights, info=info)

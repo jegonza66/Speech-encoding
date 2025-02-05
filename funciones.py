@@ -259,9 +259,10 @@ def get_maximum_correlation_channels(
     montage = mne.channels.make_standard_montage('biosemi128')
     channel_names = montage.ch_names
 
-    # List of all left and right channels
+    # List of all left and right channels in the front of the fead
     all_channels_right = ['B27','B28','B29','B30','B31','B32','C1','C2','C3','C4','C5','C6','C7','C8','C9','C10','C11','C12','C13','C14','C15','C16']
     all_channels_left = ['D1','D2','D3','D4','D5','D6','D7','D8','D9','D10','D11','D12','D13','C24','C25','C26','C27','C28','C29','C30','C31','C32']
+    # montage.plot(show_names=all_channels_right+all_channels_left)    
     
     if lateralization:
         # Get right and left channels that are used in this experiment
@@ -291,7 +292,7 @@ def get_maximum_correlation_channels(
         ordered_chs = [ch for ch in channel_names if ch in all_channels]
         corr = average_correlation_across_subject[[ch in all_channels for ch in channel_names]]
 
-        # Now get relevant indexes, sorted by correlation
+        # Sort channels according to mean correlations
         sorted_chs = [x for _, x in sorted(zip(corr, ordered_chs))]
 
         # Get most correlated channels for lateralization

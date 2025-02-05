@@ -404,7 +404,7 @@ def shifted_matrix_2(
     features: np.ndarray, 
     delays: np.ndarray, 
     use_gpu: bool = True
-) -> np.ndarray:
+    ) -> np.ndarray:
     """
     Computes shifted matrix for a given array of delays, optimized and aligned with original implementation.
 
