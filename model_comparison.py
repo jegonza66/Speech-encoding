@@ -41,93 +41,93 @@ correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlat
 mtrf_path = os.path.normpath(f'saves/{config.model}/{situation}/weights//stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
 preprocesed_data_path = os.path.normpath(f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/') 
 
-# ================================================================================
-# CONVEX HULL:  it contrasts the correlation of each part against the joint model.
-# ================================================================================
-path_convex_hull = os.path.join(path_figures,'convex_hull')
+# # ================================================================================
+# # CONVEX HULL:  it contrasts the correlation of each part against the joint model.
+# # ================================================================================
+# path_convex_hull = os.path.join(path_figures,'convex_hull')
 
-# Relevant parameters
-bands = ['Theta']
-stims = 'Deltas_Spectrogram_Phonological'
-stims = '_'.join(sorted(stims.split('_'))) 
-substims = stims.split('_')
-avg_corr, good_ch = {}, {}
+# # Relevant parameters
+# bands = ['Theta']
+# stims = 'Deltas_Spectrogram_Phonological'
+# stims = '_'.join(sorted(stims.split('_'))) 
+# substims = stims.split('_')
+# avg_corr, good_ch = {}, {}
 
-# Iterate over bands
-for band in bands:
-    # Fill dictionaries with data
-    for stim in substims + [stims]:
-        data = load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))
-        if config.relevant_channels:
-            filter_relevant_channels_filter = get_maximum_correlation_channels(data['average_correlation_subjects'].mean(axis=0), number_of_lat_channels=config.relevant_channels)
-            good_ch[stim] = data['repeated_good_correlation_channels_subjects'][:,filter_relevant_channels_filter].ravel()
-            avg_corr[stim] = data['average_correlation_subjects'][:,filter_relevant_channels_filter].ravel()
-        else:
-            good_ch[stim] = data['repeated_good_correlation_channels_subjects'].ravel()
-            avg_corr[stim] = data['average_correlation_subjects'].ravel()
+# # Iterate over bands
+# for band in bands:
+#     # Fill dictionaries with data
+#     for stim in substims + [stims]:
+#         data = load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))
+#         if config.relevant_channels:
+#             filter_relevant_channels_filter = get_maximum_correlation_channels(data['average_correlation_subjects'].mean(axis=0), number_of_lat_channels=config.relevant_channels)
+#             good_ch[stim] = data['repeated_good_correlation_channels_subjects'][:,filter_relevant_channels_filter].ravel()
+#             avg_corr[stim] = data['average_correlation_subjects'][:,filter_relevant_channels_filter].ravel()
+#         else:
+#             good_ch[stim] = data['repeated_good_correlation_channels_subjects'].ravel()
+#             avg_corr[stim] = data['average_correlation_subjects'].ravel()
 
-    # Make plot
-    plt.ioff()
-    plt.figure(layout='tight')
-    plt.title(band)
+#     # Make plot
+#     plt.ioff()
+#     plt.figure(layout='tight')
+#     plt.title(band)
 
-    for i, stim in enumerate(substims):
-        # Identify Hull (la cáscara de los datos, i.e, el borde)
-        stim_points = np.array([avg_corr[stims], avg_corr[stim]]).transpose()
-        stim_hull = ConvexHull(stim_points)
+#     for i, stim in enumerate(substims):
+#         # Identify Hull (la cáscara de los datos, i.e, el borde)
+#         stim_points = np.array([avg_corr[stims], avg_corr[stim]]).transpose()
+#         stim_hull = ConvexHull(stim_points)
 
-        # Plot good channels for each stim
-        plt.plot(
-            avg_corr[stims][good_ch[stim] != 0], 
-            avg_corr[stim][good_ch[stim] != 0], 
-            '.', 
-            color=f'C{i}',
-            label=stim, 
-            ms=2.5
-            )
+#         # Plot good channels for each stim
+#         plt.plot(
+#             avg_corr[stims][good_ch[stim] != 0], 
+#             avg_corr[stim][good_ch[stim] != 0], 
+#             '.', 
+#             color=f'C{i}',
+#             label=stim, 
+#             ms=2.5
+#             )
 
-        # Plot bad channels for each stim
-        plt.plot(
-            avg_corr[stims][good_ch[stim] == 0], 
-            avg_corr[stim][good_ch[stim] == 0], 
-            '.', 
-            color='grey',
-            alpha=0.5, 
-            label='Failed permutation test', 
-            markersize=2
-            )
-        plt.fill(
-            stim_points[stim_hull.vertices, 0], 
-            stim_points[stim_hull.vertices, 1], 
-            color=f'C{i}',
-            alpha=0.3, 
-            linewidth=0
-            )
+#         # Plot bad channels for each stim
+#         plt.plot(
+#             avg_corr[stims][good_ch[stim] == 0], 
+#             avg_corr[stim][good_ch[stim] == 0], 
+#             '.', 
+#             color='grey',
+#             alpha=0.5, 
+#             label='Failed permutation test', 
+#             markersize=2
+#             )
+#         plt.fill(
+#             stim_points[stim_hull.vertices, 0], 
+#             stim_points[stim_hull.vertices, 1], 
+#             color=f'C{i}',
+#             alpha=0.3, 
+#             linewidth=0
+#             )
 
-    # Get limits
-    xlimit, ylimit = plt.xlim(), plt.ylim()
-    plt.plot([xlimit[0], 0.7], [xlimit[0], 0.7], 'k--', zorder=0)
-    plt.hlines(0, xlimit[0], xlimit[1], color='grey', linestyle='dashed')
-    plt.vlines(0, ylimit[0], ylimit[1], color='grey', linestyle='dashed')
+#     # Get limits
+#     xlimit, ylimit = plt.xlim(), plt.ylim()
+#     plt.plot([xlimit[0], 0.7], [xlimit[0], 0.7], 'k--', zorder=0)
+#     plt.hlines(0, xlimit[0], xlimit[1], color='grey', linestyle='dashed')
+#     plt.vlines(0, ylimit[0], ylimit[1], color='grey', linestyle='dashed')
     
-    plt.ylabel('Individual model (r)')
-    plt.xlabel('Full model (r)')
+#     plt.ylabel('Individual model (r)')
+#     plt.xlabel('Full model (r)')
 
-    # Legend
-    handles, labels = plt.gca().get_legend_handles_labels()
-    by_label = dict(zip(labels, handles))
-    plt.legend(by_label.values(), by_label.keys(), markerscale=3)
+#     # Legend
+#     handles, labels = plt.gca().get_legend_handles_labels()
+#     by_label = dict(zip(labels, handles))
+#     plt.legend(by_label.values(), by_label.keys(), markerscale=3)
 
-    # Save
-    if config.save_figures:
-        fname = f'relevant_channels_{config.relevant_channels}_{stims}' if config.relevant_channels else f'{stims}'
-        save_figure(
-                cwd=current_working_directory,
-                save_path=os.path.join(path_convex_hull, f'{band}'),
-                file_name=fname, 
-                fig=fig
-                )
-    plt.close()
+#     # Save
+#     if config.save_figures:
+#         fname = f'relevant_channels_{config.relevant_channels}_{stims}' if config.relevant_channels else f'{stims}'
+#         save_figure(
+#                 cwd=current_working_directory,
+#                 save_path=os.path.join(path_convex_hull, f'{band}'),
+#                 file_name=fname, 
+#                 fig=fig
+#                 )
+#     plt.close()
 
 # =========================================================================================================
 # VENN DIAGRAMS: it makes diagrams explaining correlation of each part of a shared model (upto 3 features).
@@ -136,7 +136,7 @@ path_venn_diagrams = os.path.join(path_figures,'venn_diagrams')
 
 # Relevant parameters
 bands = ['Theta']
-stimuli = ['Phonemes-Discrete-Phonet', 'Envelope']
+stimuli = ['Spectrogram','Mfccs']
 
 # Arrange shared stimuli
 stimuli = sorted(stimuli)
@@ -148,7 +148,6 @@ mean_correlations = {}
 # Iterate over bands
 for band in bands:
     for stim in all_stimuli:
-        stim='Envelope'
         # Get average correlation of each stimulus
         data = load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects']
         if config.relevant_channels:
