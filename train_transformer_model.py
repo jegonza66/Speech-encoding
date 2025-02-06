@@ -165,18 +165,25 @@ from pydub import AudioSegment
 # from pydub.utils import which
 
 # Configurar las variables de entorno directamente
-os.environ["FFMPEG_BINARY"] = r"C:\repos\Speech-encoding\ffmpeg-7.1-full_build\bin\ffmpeg.exe"
-os.environ["FFPROBE_BINARY"] = r"C:\repos\Speech-encoding\ffmpeg-7.1-full_build\bin\ffprobe.exe"
-os.environ["PATH"] += os.pathsep + r"C:\repos\Speech-encoding\ffmpeg-7.1-full_build\bin"
+# os.environ["FFMPEG_BINARY"] = r"C:\repos\Speech-encoding\ffmpeg-7.1-full_build\bin\ffmpeg.exe"
+# os.environ["FFPROBE_BINARY"] = r"C:\repos\Speech-encoding\ffmpeg-7.1-full_build\bin\ffprobe.exe"
+# os.environ["PATH"] += os.pathsep + r"C:\repos\Speech-encoding\ffmpeg-7.1-full_build\bin"
+os.environ["FFMPEG_BINARY"] = r"C:\Users\User\Downloads\programas_descargados_por_octavio\ffmpeg-7.1-full_build\bin\ffmpeg.exe"
+os.environ["FFPROBE_BINARY"] = r"C:\Users\User\Downloads\programas_descargados_por_octavio\ffmpeg-7.1-full_build\bin\ffprobe.exe"
+os.environ["PATH"] += os.pathsep + r"C:\Users\User\Downloads\programas_descargados_por_octavio\ffmpeg-7.1-full_build\bin"
 
 # # Confirmar que pydub encuentra los binarios
 # print(f"FFmpeg encontrado en: {which('ffmpeg')}")
 # print(f"FFprobe encontrado en: {which('ffprobe')}")
 
 # # Cargar el archivo MP3
-audio = AudioSegment.from_file(r"C:\Users\jocta\Downloads\prueba.mp3", format="mp3")
+# audio = AudioSegment.from_file(r"C:\Users\jocta\Downloads\prueba.mp3", format="mp3")
+
+audio = AudioSegment.from_file(r"C:/Users/User/Downloads/prueba.mp3", format="mp3")
 audio = audio.set_frame_rate(int(16e3)).set_channels(1)
-audio.export(r"C:\Users\jocta\Downloads\prueba.wav", format="wav")
+# audio.export(r"C:\Users\jocta\Downloads\prueba.wav", format="wav")
+audio.export(r"C:/Users/User/Downloads/prueba.wav", format="wav")
+
 
 # # Exportar el archivo a formato WAV
 # audio.export(r"C:\Users\jocta\Downloads\prueba.wav", format="wav")
