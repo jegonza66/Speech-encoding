@@ -1,50 +1,34 @@
 # Standard libraries
 import matplotlib.pyplot as plt, numpy as np, os, mne, pandas as pd, seaborn as sn
+from matplotlib.lines import Line2D
 from tqdm import tqdm
 
 # Specific libraries
 from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score, confusion_matrix, precision_score, recall_score, f1_score
-from sklearn.decomposition import PCA
-from scipy.spatial.distance import pdist, squareform
-from scipy.stats import mode
-from sklearn.manifold import MDS
-from sklearn.cluster import KMeans
-from scipy.optimize import linear_sum_assignment
 from sklearn.metrics import confusion_matrix
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
+from sklearn.manifold import MDS
 
-import matplotlib.pylab as pylab# Default size is 10 pts, the scalings (10pts*scale) are: #'xx-small':0.579,'x-small':0.694,'s # mall':0.833,'medium':1.0,'large':1.200,'x-large':1.440,'xx-large':1.728,None:1.0}
-from matplotlib.lines import Line2D
-pylab.rcParams.update(
-    {
-    'legend.fontsize': 'xx-large',
-    'legend.title_fontsize': 'xx-large',
-    'figure.figsize': (8, 6),
-    'figure.titlesize': 'xx-large',
-    'axes.labelsize': 'xx-large',
-    'axes.titlesize':'xx-large',
-    'xtick.labelsize':'x-large',
-    'ytick.labelsize':'x-large'
-    }
-    )
+from scipy.spatial.distance import pdist, squareform
+from scipy.optimize import linear_sum_assignment
+from scipy.stats import mode
 
 # Modules
 from funciones import load_pickle, get_maximum_correlation_channels
 import config, plot 
-
-# Whether to use or not just relevant channels
-number_of_clusters = 2 # Consonants and vocals
-
-# Number of k-means runs
-nruns = 200
-
-rolling_window = .1 # 50 ms it will be a little more due to fixed sample rate
-
 
 # Relevant paths
 situation, band = config.situations[0], config.bands[0]
 figures_path = os.path.normpath(f'figures/{config.model}/{situation}/sensitivity_speech_latency/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
 correlation_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonemes-Discrete-Phonet.pkl')
 mtrfs_path = os.path.normpath(f'saves/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonemes-Discrete-Phonet/total_weights_per_subject.pkl')
+
+# Hyper parameters
+NUMBER_OF_CLUSTERS = 2 
+KMEANS_NRUNS = 200
+ROLLING_WINDOW_SECONDS = .095 # 100 ms it will be a little more due to fixed sample rate .09 da god
+SIGNIFICANCE = .05
 
 # Read data n_subj, n_chans, n_feats, n_delays
 average_weights_subjects = load_pickle( 
@@ -55,13 +39,11 @@ average_correlation_across_subject = load_pickle(
                                 )['average_correlation_subjects'].mean(axis=0)
 
 # Take average across all subjects, then select specific channels and apply average across all the selection
-# filter_best_chans = get_maximum_correlation_channels(average_correlation_across_subject=average_correlation_across_subject, number_of_lat_channels=config.relevant_channels)
-filter_best_chans = [True for i in range(128)]
+filter_best_chans = get_maximum_correlation_channels(average_correlation_across_subject=average_correlation_across_subject, number_of_lat_channels=config.relevant_channels)
 average_weights = average_weights_subjects.mean(axis=0)[filter_best_chans].mean(axis=0) # n_feats, n_delays
 
 # Classify labels for categorization
-exp_info = config.Exp_info()
-phonemes = exp_info.phonemes_phonet.copy()
+phonemes = config.Exp_info().phonemes_phonet.copy()
 phonemes.remove('/sil/')
 
 group = ['/a/', '/e/', '/i/','/o/', '/u/',\
@@ -69,9 +51,6 @@ group = ['/a/', '/e/', '/i/','/o/', '/u/',\
 
 consonants = [phonemes.index(ph) for ph in phonemes if ph not in group]
 vowels = [phonemes.index(vowel) for vowel in group]
-# semivowels = [phonemes.index(semivowel) for semivowel in list(np.unique(list(config.semivowels.values())))]
-# dipthongs = [phonemes.index(dip) for dip in list(np.unique(list(config.dipthongs.values())))]
-# consonants = [phonemes.index(conso) for conso in list(np.unique(list(config.consonants.values())))]
 
 keys_to_phonemes_labels = {}
 for i in range(len(phonemes)):
@@ -100,50 +79,53 @@ for j in np.arange(len(phonemes)):
     #     manual_labels.append(3)   
 
 # Take rolling windows 
-sample_window = int(rolling_window*config.sr)
+sample_window = int((ROLLING_WINDOW_SECONDS*config.sr))
+step = sample_window/config.sr    
+rolling_windows_centers = ( config.times[:-(sample_window-1)] + step / 2 ) * 1e3
 rolling_windows  = np.lib.stride_tricks.sliding_window_view(x = config.delays, window_shape=sample_window)
+
 rolling_windows_lalor = [(.05<=config.times)&((config.times)<=.1), (.1<=config.times)&((config.times)<=.15), (.15<=config.times)&((config.times)<=.2)]
 rolling_windows_lalor = [np.where(window)[0].tolist() if len(np.where(window)[0].tolist())==6 else np.where(window)[0].tolist()[:-1] for window in rolling_windows_lalor]
 
 # Empty arrays for metrics
 f_scores = np.zeros(shape=len(rolling_windows))
-f_scores_random = np.zeros((len(rolling_windows), nruns*10))
+f_scores_random = np.zeros((len(rolling_windows), KMEANS_NRUNS*10))
 f_scores_significance = np.zeros(shape=len(rolling_windows))
 
 nmis = np.zeros(shape=len(rolling_windows))
-nmis_random = np.zeros((len(rolling_windows), nruns*10))
+nmis_random = np.zeros((len(rolling_windows), KMEANS_NRUNS*10))
 nmis_significance = np.zeros(shape=len(rolling_windows))
 
 aris = np.zeros(shape=len(rolling_windows))
 aris_significance = np.zeros(shape=len(rolling_windows))
-aris_random = np.zeros((len(rolling_windows), nruns*10))
+aris_random = np.zeros((len(rolling_windows), KMEANS_NRUNS*10))
 
 dataframes = []
 
 for k, window in tqdm(enumerate(rolling_windows),total=len(rolling_windows)):
-
     # Use multidimensional scaling (MDS) to convert distances into features 
     mds = MDS(
         n_components=average_weights.shape[0], 
-        # dissimilarity='precomputed', 
-        dissimilarity='euclidean',
+        dissimilarity='precomputed', 
+        # dissimilarity='euclidean',
         random_state=i,
         normalized_stress='auto'
         )
 
-    # correlation_matrix = np.corrcoef(average_weights[:, window])
-    # dissimilarity_matrix = 1 - correlation_matrix
+    correlation_matrix = np.corrcoef(average_weights[:, window])
+    correlation_matrix[np.isnan(correlation_matrix)]=0
+    dissimilarity_matrix = 1 - correlation_matrix
 
-    features = mds.fit_transform(average_weights[:, window])
-    # features = mds.fit_transform(dissimilarity_matrix)
+    # features = mds.fit_transform(average_weights[:, window])
+    features = mds.fit_transform(dissimilarity_matrix)
 
     # Initialize k-means labels
-    kmeans_labels = np.zeros(shape=(nruns, average_weights.shape[0]), dtype=int)
+    kmeans_labels = np.zeros(shape=(KMEANS_NRUNS, average_weights.shape[0]), dtype=int)
     
     # Apply KMeans on the derived feature space
-    for i in range(nruns):
+    for i in range(KMEANS_NRUNS):
         kmeans = KMeans(
-                n_clusters=2, #consonants and no consonantes
+                n_clusters=NUMBER_OF_CLUSTERS, #consonants and no consonantes
                 random_state=i,
                 n_init='auto'
                 )
@@ -180,22 +162,19 @@ for k, window in tqdm(enumerate(rolling_windows),total=len(rolling_windows)):
     aris[k] = adjusted_rand_score(manual_labels, kmeans_labels)
 
     # Add random permutation to make benchmark
-    random_clusters = np.zeros(shape=(nruns*10, average_weights.shape[0]), dtype=int)
-    for p in range(nruns*10):
+    random_clusters = np.zeros(shape=(KMEANS_NRUNS*10, average_weights.shape[0]), dtype=int)
+    for p in range(KMEANS_NRUNS*10):
         random_cluster = np.random.randint(0, 2, size=len(manual_labels))
         f_scores_random[k, p] = f1_score(manual_labels, random_cluster, average='weighted')
         aris_random[k, p] = adjusted_rand_score(manual_labels, random_cluster)
         nmis_random[k, p] = normalized_mutual_info_score(manual_labels, random_cluster)
 
-    pval_f = (sum(f_scores_random[k]>f_scores[k]) + 1)/(nruns*10 + 1)
-    pval_a = (sum(aris_random[k]>aris[k]) + 1)/(nruns*10 + 1)
-    pval_n = (sum(nmis_random[k]>nmis[k]) + 1)/(nruns*10 + 1)
-    f_scores_significance[k] = pval_f<.05 
-    aris_significance[k] = pval_a<.05
-    nmis_significance[k] = pval_n<.05
-
-step = sample_window/config.sr    
-average_windows = (config.times[:-(sample_window-1)]+step/2)*1e3
+    pval_f = (sum(f_scores_random[k]>f_scores[k]) + 1)/(KMEANS_NRUNS*10 + 1)
+    pval_a = (sum(aris_random[k]>aris[k]) + 1)/(KMEANS_NRUNS*10 + 1)
+    pval_n = (sum(nmis_random[k]>nmis[k]) + 1)/(KMEANS_NRUNS*10 + 1)
+    f_scores_significance[k] = pval_f<SIGNIFICANCE 
+    aris_significance[k] = pval_a<SIGNIFICANCE
+    nmis_significance[k] = pval_n<SIGNIFICANCE
 
 for metric_label, metric, metric_random, metric_significance, col in zip(['F-score', 'Aris', 'Nmis'], [f_scores, aris, nmis],[f_scores_random, aris_random, nmis_random], [f_scores_significance, aris_significance, nmis_significance], ['C0', 'C1', 'C2']):
     fig, ax = plt.subplots(
@@ -206,10 +185,10 @@ for metric_label, metric, metric_random, metric_significance, col in zip(['F-sco
         figsize=(8,6)
         )
 
-    ax.scatter(average_windows, metric, zorder=1, s=6, color=col)
-    ax.plot(average_windows, metric, zorder=1, color=col)
+    ax.scatter(rolling_windows_centers, metric, zorder=1, s=6, color=col)
+    ax.plot(rolling_windows_centers, metric, zorder=1, color=col)
     ax.fill_between(
-        x=average_windows, 
+        x=rolling_windows_centers, 
         y1=metric_random.min(axis=1), # min across all permutations
         y2=metric_random.max(axis=1), 
         alpha=0.1,
@@ -218,7 +197,7 @@ for metric_label, metric, metric_random, metric_significance, col in zip(['F-sco
         zorder=1
         )
     ax.plot(
-        average_windows, 
+        rolling_windows_centers, 
         metric_random.mean(axis=1),
         color=col,
         alpha=.4,
@@ -227,7 +206,7 @@ for metric_label, metric, metric_random, metric_significance, col in zip(['F-sco
     )
     
     ax.fill_between(
-        x=average_windows, 
+        x=rolling_windows_centers, 
         y1=np.percentile(metric_random, 50-25, axis=1), # min across all permutations
         y2=np.percentile(metric_random, 50+25, axis=1),
         alpha=0.2,
@@ -236,7 +215,7 @@ for metric_label, metric, metric_random, metric_significance, col in zip(['F-sco
         zorder=1
         )
     ax.plot(
-        average_windows[metric_significance==1].flatten(),
+        rolling_windows_centers[metric_significance==1].flatten(),
         max(metric)*1.25*np.ones(shape=int(np.sum(metric_significance))),
         '*',
         color='black',
@@ -244,7 +223,7 @@ for metric_label, metric, metric_random, metric_significance, col in zip(['F-sco
         )
     
     ax.axvline(
-        x=average_windows[metric==max(metric)][np.argmin(np.abs(average_windows[metric==max(metric)] - np.mean(average_windows[metric==max(metric)])))], 
+        x=rolling_windows_centers[metric==max(metric)][np.argmin(np.abs(rolling_windows_centers[metric==max(metric)] - np.mean(rolling_windows_centers[metric==max(metric)])))], 
         color='black', linestyle='--', linewidth=2, 
         label=f'{1e3*round(np.mean(rolling_windows[metric==max(metric)]/config.sr),2)} ms'
         )
@@ -260,6 +239,8 @@ for metric_label, metric, metric_random, metric_significance, col in zip(['F-sco
 # if window.tolist() in rolling_windows_lalor:
 # if window in rolling_windows_lalor:    
 selected_window = np.argmax(f_scores)
+selected_window_time = rolling_windows_centers[selected_window]+sample_window/2
+
 # for p in range(41):
 #     selected_window=p
 plt.figure(figsize=(8, 6))
@@ -270,7 +251,7 @@ legend_handles = [Line2D([0], [0], color=color_labels[name], lw=4, label=name) f
 plt.ticklabel_format(style='scientific', axis='x', scilimits=(0, 0))
 plt.ticklabel_format(style='scientific', axis='y', scilimits=(0, 0))
 plt.legend(handles=legend_handles, title="Categorías")
-plt.title(f'Consonantes vs. No consonantes - F-score: {round(f_scores[selected_window],2)}', fontsize=16)
+plt.title(f'Center time: {selected_window_time:.1f} ms- F-score: {f_scores[selected_window]:.2f}', fontsize=16)
 plt.xlabel('MDS 1 (U.A)')
 plt.ylabel('MDS 2 (U.A)')
 plt.grid(True)
