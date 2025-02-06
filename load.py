@@ -20,10 +20,10 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 mne.set_log_level(verbose='CRITICAL')
 exp_info = config.Exp_info()
 
-wav2vec2model = "openai/whisper-base"
-# wav2vec2model = "openai/whisper-tiny"
-# wav2vec2model = "facebook/wav2vec2-large-xlsr-53-distilled"
-# wav2vec2model = "facebook/wav2vec2-base"
+TRANSFORMER_MODEL = "openai/whisper-base"
+# TRANSFORMER_MODEL = "openai/whisper-tiny"
+# TRANSFORMER_MODEL = "facebook/wav2vec2-large-xlsr-53-distilled"
+# TRANSFORMER_MODEL = "facebook/wav2vec2-base"
 
 class Trial_channel:
     def __init__(
@@ -431,16 +431,15 @@ class Trial_channel:
         wav = wav.astype("float")
         
         # Get name of folder
-        modelfname = f'wav2vec2_weights_{wav2vec2model.split("wav2vec2-")[1]}' if 'wav2vec2' in wav2vec2model else f'whisper_weights_{wav2vec2model.split("whisper-")[1]}'
+        modelfname = f'wav2vec2_weights_{TRANSFORMER_MODEL.split("wav2vec2-")[1]}' if 'wav2vec2' in TRANSFORMER_MODEL else f'whisper_weights_{TRANSFORMER_MODEL.split("whisper-")[1]}'
 
         # Loads model and proccesor
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=UserWarning, message="Passing `gradient_checkpointing` to a config initialization is deprecated")
             # processor = Wav2Vec2Processor.from_pretrained(wac2vec2model, cache_dir=f'saves/preprocessed_Data/{modelfname}')
             # model = Wav2Vec2Model.from_pretrained(wac2vec2model, cache_dir=f'saves/preprocessed_Data/{modelfname}')
-            processor = WhisperProcessor.from_pretrained(wav2vec2model, cache_dir=f'saves/preprocessed_Data/{modelfname}')
-            model = WhisperModel.from_pretrained(wav2vec2model, cache_dir=f'saves/preprocessed_Data/{modelfname}')
-            
+            processor = WhisperProcessor.from_pretrained(TRANSFORMER_MODEL, cache_dir=f'saves/preprocessed_Data/{modelfname}')
+            model = WhisperModel.from_pretrained(TRANSFORMER_MODEL, cache_dir=f'saves/preprocessed_Data/{modelfname}')
     
         # Preprocessing
         input_values = processor(

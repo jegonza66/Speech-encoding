@@ -1,10 +1,7 @@
-import torch, numpy as np, scipy.io.wavfile as wavfile
-
-import warnings
-import time
-from tqdm import tqdm
-from scipy import signal as sgn
+import torch, numpy as np, scipy.io.wavfile as wavfile, time, warnings
 from sklearn.decomposition import PCA
+from scipy import signal as sgn
+from tqdm import tqdm
 
 # from transformers import Wav2Vec2Model, Wav2Vec2Processor
 from transformers import WhisperProcessor, WhisperModel
@@ -13,6 +10,7 @@ from transformers import WhisperProcessor, WhisperModel
 wav2vec2model = "openai/whisper-tiny"
 # wav2vec2model = "facebook/wav2vec2-large-xlsr-53-distilled"
 # wav2vec2model = "facebook/wav2vec2-base"
+
 modelfname = f'wav2vec2_weights_{wav2vec2model.split("wav2vec2-")[1]}' if 'wav2vec2' in wav2vec2model else f'whisper_weights_{wav2vec2model.split("whisper-")[1]}'
 
 # Cargar modelo y procesador
