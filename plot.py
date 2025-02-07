@@ -1057,7 +1057,7 @@ def channel_wise_correlation_topomap(
 
     # Calculate correlation betweem subjects
     for channel in range(n_chan):
-        matrix = average_weights[:,channel,:] # TODO HAVE ONE MORE DIMENSION
+        matrix = average_weights[:,channel,:] 
         correlation_matrices[channel] = np.corrcoef(matrix)
 
     # Correlacion por canal
@@ -1211,7 +1211,7 @@ def channel_weights(
                 times * 1000, 
                 np.arange(number_of_ticks), 
                 weights, 
-                cmap='RdBu', 
+                cmap='RdBu_r', 
                 shading='auto',
                 vmin=weights.min(),
                 vmax=weights.max()
@@ -1392,7 +1392,7 @@ def average_regression_weights(
                     times * 1000, 
                     np.arange(number_of_ticks), 
                     feat_weights, 
-                    cmap='RdBu', 
+                    cmap='RdBu_r', 
                     shading='auto',
                     vmin=feat_weights.min(),
                     vmax=feat_weights.max()
@@ -1703,7 +1703,7 @@ def plot_pvalue_tfce(
                 times*1e3, 
                 np.arange(number_of_ticks), 
                 feat_weights, 
-                cmap='RdBu', 
+                cmap='RdBu_r', 
                 shading='auto',
                 vmin=feat_weights.min(),
                 vmax=feat_weights.max()
@@ -1857,7 +1857,7 @@ def plot_pvalue_tfce(
 #             im = ax[0].pcolormesh(times*1000,
 #                                    np.arange(n_feat), 
 #                                    weights, 
-#                                    cmap='RdBu',
+#                                    cmap='RdBu_r',
 #                                    shading='auto')
 
 #             # Set figure configuration
@@ -2346,7 +2346,7 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
 #     im = axs[0].pcolormesh(times * 1000, 
 #                            np.arange(average_weights_subjects.shape[2]), 
 #                            spectrogram_weights_bands, 
-#                            cmap='RdBu',
+#                            cmap='RdBu_r',
 #                            vmin=spectrogram_weights_bands.min(), 
 #                            vmax=spectrogram_weights_bands.max(),
 #                            shading='auto')
