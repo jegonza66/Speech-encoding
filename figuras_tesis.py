@@ -1,14 +1,22 @@
-import mne, matplotlib.pyplot as plt, numpy as np, os, pandas as pd
-from matplotlib.ticker import ScalarFormatter
-import matplotlib.pylab as pylab
+import numpy as np, os, pandas as pd
 
-from matplotlib import rc
 from scipy.io import wavfile
-from scipy import signal as sgn
+from scipy import signal
 import librosa
+import mne
 
+from matplotlib.collections import PathCollection
+from matplotlib.ticker import ScalarFormatter
+from matplotlib_venn import venn3, venn2
+import matplotlib.gridspec as gridspec
+import matplotlib.pylab as pylab
+import matplotlib.pyplot as plt 
+from matplotlib import rc
+import scienceplots
 
+from processing import clustering_by_correlation
 from funciones import load_pickle
+from plot import define_ticks
 import config
 
 params = {
@@ -21,16 +29,167 @@ params = {
         'xtick.labelsize':16,
         'ytick.labelsize':16
         }
-
 pylab.rcParams.update(params)
-
 rc('text', usetex=True)
-# rc('text.latex', preamble=r'\usepackage{subscript}')
-import scienceplots
-import matplotlib.pyplot as plt 
-from matplotlib_venn import venn3, venn2  # venn3_circles
-
 plt.style.use(['science'])
+
+# ===============================================================
+# PESOS + TOPOMAPS CORR + SIMILARITY + MATRIZ: THETA: SPECTROGRAM
+path_correlations = 'saves/mtrf_ridge_torch/External/correlations/tmin-0.2_tmax0.6/Theta/Spectrogram.pkl'
+path_mtrfs = 'saves/mtrf_ridge_torch/External/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/Theta/Spectrogram/total_weights_per_subject.pkl'
+
+correlations = load_pickle(path=path_correlations)
+average_correlation_subjects, singificant_channels_subjects = correlations['average_correlation_subjects'], correlations['repeated_good_correlation_channels_subjects']
+# average_correlation_subjects = np.where((singificant_channels_subjects==1), average_correlation_subjects, np.nan)
+# np.nanmean(average_correlation_subjects, axis=0).mean()
+average_weights_subjects = load_pickle(path=path_mtrfs)['average_weights_subjects'][:, :, :, :] # (18, 128, 1, 104)
+
+# Crear una figura
+fig = plt.figure(figsize=(9, 8))
+
+# Definir la cuadrícula usando GridSpec
+# 2 filas y 2 columnas, con la segunda columna dividida en dos partes en la primera fila
+gs = gridspec.GridSpec(
+    nrows=2, 
+    ncols=2, 
+    width_ratios=[1, 1.2], 
+    height_ratios=[1, 2]
+    )
+
+# Primer gráfico en la primera columna (comparte el eje x con el segundo gráfico)
+ax1 = plt.subplot(gs[0, 0])
+weights = average_weights_subjects.mean(axis=0).mean(axis=1)
+evoked = mne.EvokedArray(data=weights, info=config.info_mne)
+evoked.shift_time(config.times[0], relative=True)
+evoked_plot = evoked.plot(
+    scalings={'eeg':1}, 
+    zorder='std', 
+    time_unit='ms',
+    show=False, 
+    spatial_colors=True, 
+    # unit=False, 
+    units='mTRFs (U.A)',
+    axes=ax1,
+    gfp=False
+    )
+# Eliminar la etiqueta "Nave"
+for text in evoked_plot.axes[0].texts:
+    if "ave" in text.get_text():
+        text.set_visible(False)  # Ocultar el texto
+ax1.plot(
+    config.times*1e3, #ms
+    evoked._data.mean(axis=0), 
+    'black', 
+    label='Valor medio', 
+    zorder=130, 
+    linewidth=2
+    )
+
+# Extraer los colores de los canales
+colors = [line.get_color() for line in ax1.get_lines()[:len(evoked.ch_names)]]
+
+# Eliminar el esquema de la cabeza original
+for ax in fig.axes:
+    # Verificar si el eje contiene un objeto de tipo "PathCollection" (los puntos de los canales)
+    for artist in ax.get_children():
+        if isinstance(artist, PathCollection):
+            ax.remove()  # Eliminar el eje que contiene el esquema de la cabeza original
+            break
+
+# Obtener las posiciones de los sensores en 2D
+montage = evoked.info.get_montage()
+pos = montage.get_positions()['ch_pos']  # Diccionario con las posiciones de los canales
+
+# Crear un eje adicional para la cabecita sin sensores
+ax_head_outline = fig.add_axes([0.31, 0.76, 0.12, 0.12])  # [x, y, width, height]
+
+# Graficar solo el contorno de la cabeza (sin sensores)
+mne.viz.plot_topomap(
+    np.zeros(len(evoked.ch_names)),  # Datos ficticios (todos ceros)
+    evoked.info,
+    axes=ax_head_outline,
+    show=False,
+    sensors=False,  # No graficar los sensores
+    outlines='head'  # Graficar solo el contorno de la cabeza
+)
+ax_head_outline.set_aspect('equal')  # Mantener la proporción de aspecto
+ax_head_outline.axis('off')  # Ocultar los ejes
+
+# Crear un eje adicional para graficar los sensores
+ax_head = fig.add_axes([0.32, 0.762, 0.1, 0.1])  # [x, y, width, height]
+
+# Convertir las posiciones a un array 2D (x, y)
+pos_2d = np.array([pos[ch][:2] for ch in evoked.ch_names])  # Solo tomamos las coordenadas x e y
+ax_head.scatter(pos_2d[:, 0], pos_2d[:, 1], c=colors, s=18)  # s es el tamaño de los puntos
+ax_head.set_aspect('equal')  # Mantener la proporción de aspecto
+ax_head.axis('off')  # Ocultar los ejes
+
+ax1.grid(visible=True)
+ax1.set(xlabel='', xticklabels=[], title='EEG (128 canales)')
+ax1.tick_params(axis='x', which='both', labelbottom=False)
+ax1.legend(loc=(.41,.1))
+
+# Segundo gráfico en la primera columna (comparte el eje x con el primer gráfico)
+ax2 = plt.subplot(gs[1, 0], sharex=ax1)
+feat_weights = average_weights_subjects.mean(axis=0).mean(axis=0)
+im = ax2.pcolormesh(
+    config.times * 1e3, 
+    np.arange(feat_weights.shape[0]), 
+    feat_weights, 
+    cmap='RdBu', 
+    shading='auto',
+    vmin=feat_weights.min(),
+    vmax=np.abs(feat_weights).max()
+    )
+
+# Set figure configuration
+bands_center = librosa.mel_frequencies(n_mels=feat_weights.shape[0]+2, fmin=0, fmax=16000/2)[1:-1]
+# tags = [int(bands_center[i]) for i in np.arange(0, len(bands_center), 2)]
+tags = [int(bands_center[i]) for i in np.arange(len(bands_center))]
+ticks = np.arange(feat_weights.shape[0])
+ax2.set(
+    xlabel='Tiempo (ms)',
+    xticks=[-200, -100, 0, 100, 200, 300, 400, 500, 600],
+    xticklabels=[-200, -100, 0, 100, 200, 300, 400, 500, 600], 
+    ylabel='Frecuencia (Hz)', 
+    yticks=ticks, 
+    yticklabels=tags
+    )
+
+# Configure colorbar
+fig.colorbar(
+    im, 
+    ax=ax2, 
+    orientation='horizontal', 
+    shrink=1, 
+    label='Amplitude (U.A)', 
+    fraction=.05,
+    aspect=50
+    )
+
+# Dividir la primera fila de la segunda columna en dos partes HORIZONTALES
+# Usar GridSpecFromSubplotSpec para dividir la celda (0, 1) en 2 columnas
+gs_sub = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gs[0, 1], wspace=0.4)
+
+# Tercer gráfico en la primera subcolumna de la segunda columna (primera fila)
+ax3 = plt.subplot(gs_sub[0])
+ax3.plot(np.random.rand(10), label='Gráfico 3', color='green')
+ax3.axis('off')  # Desactivar ejes
+ax3.legend()
+
+# Cuarto gráfico en la segunda subcolumna de la segunda columna (primera fila)
+ax4 = plt.subplot(gs_sub[1])
+ax4.plot(np.random.rand(10), label='Gráfico 4', color='red')
+ax4.axis('off')  # Desactivar ejes
+ax4.legend()
+
+# Quinto gráfico en la segunda columna (segunda fila)
+ax5 = plt.subplot(gs[1, 1])
+ax5.plot(np.random.rand(10), label='Gráfico 5', color='purple')
+ax5.axis('off')  # Desactivar ejes
+ax5.legend()
+
+fig.show()
 
 # # ===========================
 # # EJEMPLO DE DIAGRAMA DE VENN
@@ -492,33 +651,35 @@ plt.style.use(['science'])
 # fig, axes = plt.subplots(
 #     nrows=1,
 #     ncols=2,
-#     figsize=(8, 8)
+#     figsize=(14, 6)
 #     )
 
 # # Spectrogram
 # NumberOfFeats = 16
 
 # # Mask and transformation
-# sp_pvalue_tfce[sp_pvalue_tfce>config.significance] = 1
-# sp_pvalue_tfce = -np.log10(sp_pvalue_tfce)
+# pvals_for_graph = sp_pvalue_tfce.copy()
+# pvals_for_graph[sp_pvalue_tfce>config.significance] = 1
+# pvals_for_graph = -np.log10(pvals_for_graph)
 
-# im_sp = axes[1].pcolormesh(
+# im_sp = axes[0].pcolormesh(
 #     config.times*1e3, # x
-#     np.arange(NumberOfFeats), # y
-#     sp_pvalue_tfce.T, # z
+#     np.arange(pvals_for_graph.shape[1]), # y
+#     pvals_for_graph.T, # z
 #     shading='auto',
 #     cmap='inferno'
 #     )
 
-# bands_center = librosa.mel_frequencies(n_mels=NumberOfFeats+2, fmin=62, fmax=8000)[1:-1]
-# tags = [int(bands_center[i]) for i in np.arange(0, len(bands_center), 2)]
-# ticks = np.arange(0, NumberOfFeats, 2)
+# bands_center = librosa.mel_frequencies(n_mels=NumberOfFeats+2, fmin=0, fmax=8000)[1:-1]
+# tags = [int(bands_center[i]) for i in np.arange(0, len(bands_center))]
+# ticks = np.arange(0, NumberOfFeats)
 
-# axes[1].set(
+# axes[0].set(
 #     xlabel='Tiempo (ms)', 
 #     ylabel='Frecuencia (Hz)', 
 #     yticks=ticks, 
-#     yticklabels=tags
+#     yticklabels=tags,
+#     # xticklabels=[-200,0,200,400,600]
 #     )
 # fig.colorbar( 
 #     orientation='vertical', 
@@ -526,7 +687,7 @@ plt.style.use(['science'])
 #     aspect=15, 
 #     shrink=1, 
 #     mappable=im_sp,
-#     axes=axes[0]
+#     ax=axes[0]
 #     )
 
 # # Phonemes
@@ -553,7 +714,7 @@ plt.style.use(['science'])
 #     )
 # tags = config.Exp_info().phonemes_phonet
 # tags.remove('/sil/')
-# axes.set(
+# axes[1].set(
 #     xlabel='Tiempo (ms)', 
 #     ylabel='Fonemas', 
 #     yticks=np.arange(0, NumberOfFeats, 1),
@@ -566,9 +727,13 @@ plt.style.use(['science'])
 #     aspect=15, 
 #     shrink=1, 
 #     mappable=imph,
-#     axes=axes[1]
+#     ax=axes[1]
 #     )
-# fig.show()
+# fig.savefig(
+#     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/ejemplo_TFCE.svg',
+#     transparent=True
+#     )
+# # fig.show()
 # # =============================
 # # DIAGRAMA  DE MATRIZ DE DISEÑO
 # channel = 0
@@ -935,7 +1100,7 @@ plt.style.use(['science'])
 
 # sr, audio = wavfile.read(WavPath)
 # window_size, stride = int(sr/EegSr), int(sr/EegSr)
-# envelope = np.abs(sgn.hilbert(audio))
+# envelope = np.abs(signal.hilbert(audio))
 # envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)])
 # # audio = np.array([np.mean(audio[i:i+WindowSize]) for i in range(0, len(audio), Stride) if i+window_size<=len(audio)])
 # # sr = EegSr
@@ -1246,10 +1411,9 @@ plt.style.use(['science'])
 
 # bands_center = librosa.mel_frequencies(
 #     n_mels=NumberOfTicks+2, 
-#     fmin=62, 
+#     fmin=0, 
 #     fmax=8000
 #     )[1:-1]
-
 # # tags = [int(bands_center[i]) for i in np.arange(1, len(bands_center)+1, 2)]
 # # ticks = np.arange(0, NumberOfTicks, 2)+.5
 # tags = [int(bands_center[i]) for i in np.arange(0, len(bands_center))]
@@ -1334,7 +1498,7 @@ plt.style.use(['science'])
 
 # sr, audio = wavfile.read(WavPath)
 # window_size, stride = int(sr/EegSr), int(sr/EegSr)
-# envelope = np.abs(sgn.hilbert(audio))
+# envelope = np.abs(signal.hilbert(audio))
 # envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)])
 # # audio = np.array([np.mean(audio[i:i+WindowSize]) for i in range(0, len(audio), Stride) if i+window_size<=len(audio)])
 # # sr = EegSr

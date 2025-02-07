@@ -105,7 +105,7 @@ def define_ticks(
     # Frecuency correlated features are treated differently
     if ylabel.startswith('Spectrogram'):
         ylabel = 'Frecuency (Hz)'
-        bands_center = librosa.mel_frequencies(n_mels=number_of_ticks+2, fmin=62, fmax=8000)[1:-1]
+        bands_center = librosa.mel_frequencies(n_mels=number_of_ticks+2, fmin=0, fmax=16000/2)[1:-1]
         tags = [int(bands_center[i]) for i in np.arange(0, len(bands_center), 2)]
         ticks = np.arange(0, number_of_ticks, 2)
     elif ylabel.startswith('Mfccs') or ylabel.startswith('Deltas'):
@@ -1213,8 +1213,8 @@ def channel_weights(
                 weights, 
                 cmap='RdBu', 
                 shading='auto',
-                vmin=-np.abs(weights).max(),
-                vmax=np.abs(weights).max()
+                vmin=weights.min(),
+                vmax=weights.max()
                 )
             # Configure axis
             define_ticks(axes=ax[0, i_feat], number_of_ticks=number_of_ticks, ylabel=feat, xlabel='Time (ms)', title=feat, order=order, zeros_index=null_indexes)
@@ -1394,8 +1394,8 @@ def average_regression_weights(
                     feat_weights, 
                     cmap='RdBu', 
                     shading='auto',
-                    vmin=-np.abs(feat_weights).max(),
-                    vmax=np.abs(feat_weights).max()
+                    vmin=feat_weights.min(),
+                    vmax=feat_weights.max()
                     )
 
             # Set figure configuration
@@ -1705,8 +1705,8 @@ def plot_pvalue_tfce(
                 feat_weights, 
                 cmap='RdBu', 
                 shading='auto',
-                vmin=-np.abs(feat_weights).max(),
-                vmax=np.abs(feat_weights).max()
+                vmin=feat_weights.min(),
+                vmax=feat_weights.max()
                 )
 
             # Set figure configuration
@@ -2347,7 +2347,7 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
 #                            np.arange(average_weights_subjects.shape[2]), 
 #                            spectrogram_weights_bands, 
 #                            cmap='RdBu',
-#                            vmin=-spectrogram_weights_bands.max(), 
+#                            vmin=spectrogram_weights_bands.min(), 
 #                            vmax=spectrogram_weights_bands.max(),
 #                            shading='auto')
         

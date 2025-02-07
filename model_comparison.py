@@ -309,7 +309,8 @@ for band in bands:
 path_correlation_matrix_topo = os.path.join(path_figures,'correlation_matrix_topo')
 
 # Relevant parameters
-bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
+# bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
+bands = ['Theta']
 stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Mfccs', 'Phonemes-Discrete-Phonet', 'Phonological'] 
 n_stims, n_bands = len(stimuli), len(bands)
 
