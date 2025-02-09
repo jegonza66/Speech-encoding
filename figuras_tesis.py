@@ -26,13 +26,14 @@ params = {
         'figure.figsize': (10, 5),
         'figure.titlesize': 20,
         'axes.labelsize': 16,
-        'axes.titlesize': 18,
+        'axes.titlesize': 16,
         'xtick.labelsize':16,
         'ytick.labelsize':16
         }
 pylab.rcParams.update(params)
 rc('text', usetex=True)
 plt.style.use(['science'])
+
 
 # # ===============================================================
 # # PESOS + TOPOMAPS CORR + SIMILARITY + MATRIZ: THETA: SPECTROGRAM
@@ -47,7 +48,7 @@ plt.style.use(['science'])
 
 # # Crear una figura
 # fig = plt.figure(
-#     figsize=(12, 9),
+#     figsize=(11, 9),
 #     tight_layout=True
 #     )
 
@@ -105,7 +106,7 @@ plt.style.use(['science'])
 # pos = montage.get_positions()['ch_pos']  # Diccionario con las posiciones de los canales
 
 # # Crear un eje adicional para la cabecita sin sensores
-# ax_head_outline = fig.add_axes([.3, 0.831, 0.12, 0.12])  # [x, y, width, height]
+# ax_head_outline = fig.add_axes([.3, 0.84, 0.11, 0.11])  # [x, y, width, height]
 
 # # Graficar solo el contorno de la cabeza (sin sensores)
 # mne.viz.plot_topomap(
@@ -120,7 +121,7 @@ plt.style.use(['science'])
 # ax_head_outline.axis('off')  # Ocultar los ejes
 
 # # Crear un eje adicional para graficar los sensores
-# ax_head = fig.add_axes([.31, 0.833, 0.1, 0.1])  # [x, y, width, height]
+# ax_head = fig.add_axes([.31, 0.842, 0.09, 0.09])  # [x, y, width, height]
 
 # # Convertir las posiciones a un array 2D (x, y)
 # pos_2d = np.array([pos[ch][:2] for ch in evoked.ch_names])  # Solo tomamos las coordenadas x e y
@@ -131,7 +132,8 @@ plt.style.use(['science'])
 # ax1.grid(visible=True)
 # ax1.set(xlabel='', xticklabels=[], title='EEG (128 canales)')
 # ax1.tick_params(axis='x', which='both', labelbottom=False)
-# ax1.legend(loc=(.55,.17))
+# ax1.legend(loc=(.5,.19))
+# ax1.text(-.1, 1.1, 'a)', transform=ax1.transAxes, fontsize=18, va='top', ha='right')
 
 # # Segundo gráfico en la primera columna (comparte el eje x con el primer gráfico)
 # ax2 = plt.subplot(gs[1, 0], sharex=ax1)
@@ -167,9 +169,10 @@ plt.style.use(['science'])
 #     orientation='horizontal', 
 #     shrink=1, 
 #     label='Amplitud (U.A)', 
-#     fraction=.05,
-#     aspect=50
+#     fraction=.075,
+#     aspect=20
 #     )
+# ax2.text(-.1, 1.1, 'b)', transform=ax2.transAxes, fontsize=18, va='top', ha='right')
 
 # # Dividir la primera fila de la segunda columna en dos partes HORIZONTALES
 # # Usar GridSpecFromSubplotSpec para dividir la celda (0, 1) en 2 columnas
@@ -190,7 +193,8 @@ plt.style.use(['science'])
 # fig.colorbar(
 #         im[0],
 #         ax=ax3, 
-#         shrink=0.85,
+#         fraction=.075,
+#         aspect=20,
 #         # label='Correlación',
 #         orientation='horizontal',
 #         boundaries=np.linspace(mean_average_correlation.min().round(decimals=3), mean_average_correlation.max().round(decimals=3), 100),
@@ -198,6 +202,7 @@ plt.style.use(['science'])
 #         )
 # ax3.axis('off')  # Desactivar ejes
 # ax3.set(title=r'Correlación: $('+ f'{mean_average_correlation.mean():.2f}\pm{mean_average_correlation.std():.2f}'+r')$')
+# ax3.text(-.17, 1.15, 'c)', transform=ax3.transAxes, fontsize=18, va='top', ha='right')
 
 # # Cuarto gráfico en la segunda subcolumna de la segunda columna (primera fila)
 # ax4 = plt.subplot(gs_sub[1])
@@ -231,7 +236,8 @@ plt.style.use(['science'])
 # fig.colorbar(
 #     im[0], 
 #     ax=ax4, 
-#     shrink=0.85, 
+#     fraction=.075,
+#     aspect=20,
 #     orientation='horizontal', 
 #     boundaries=np.linspace(absolute_correlation_per_channel.min().round(decimals=3), absolute_correlation_per_channel.max().round(decimals=3), 100),
 #     ticks=np.linspace(absolute_correlation_per_channel.min(), absolute_correlation_per_channel.max(), 3).round(decimals=2)
@@ -241,6 +247,7 @@ plt.style.use(['science'])
 #     # )
 # ax4.set(title=r'Similaridad: $('+ f'{absolute_correlation_per_channel.mean():.2f}\pm{absolute_correlation_per_channel.std():.2f}'+r')$')
 # ax4.axis('off')  # Desactivar ejes
+# ax4.text(-.17, 1.15, 'd)', transform=ax4.transAxes, fontsize=18, va='top', ha='right')
 
 # # Quinto gráfico en la segunda columna (segunda fila)
 # ax5 = plt.subplot(gs[1, 1])
@@ -298,21 +305,23 @@ plt.style.use(['science'])
 #     annot_kws={"size": 10},
 #     cbar=False
 #     )
-# ax5.set_yticklabels(['Media'] + subject_names[1:], rotation=35)
+# ax5.set_yticks(ax5.get_xticks())
+# ax5.set_yticklabels(['Media'] + subject_names[1:], rotation=10)
 # ax5.set_xticklabels(subject_names[:-1] + ['Media'], rotation=35)
 # cbar = fig.colorbar(
 #     ax5.collections[0],  # Usamos la primera colección mappable del heatmap
 #     orientation="horizontal",
 #     ax=ax5,
-#     fraction=.05,
-#     aspect=50,
+#     fraction=.075,
+#     aspect=20,
 #     label='Correlación'
 #     )
-# fig.savefig(
-#     'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/espectrograma_completo.svg',
-#     transparent=True
-#     )
-# # fig.show()
+# ax5.text(-.06, 1.1, 'e)', transform=ax5.transAxes, fontsize=18, va='top', ha='right')
+# # fig.savefig(
+# #     'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/espectrograma_completo.svg',
+# #     transparent=True
+# #     )
+# fig.show()
 
 # # ===========================
 # # EJEMPLO DE DIAGRAMA DE VENN
