@@ -47,7 +47,7 @@ phonemes = config.Exp_info().phonemes_phonet.copy()
 phonemes.remove('/sil/')
 
 group = ['/a/', '/e/', '/i/','/o/', '/u/',\
-        '/m/', '/l/','/R/', '/p/', '/b/']
+        '/g/', '/m/', '/l/','/R/', '/p/', '/b/']
 
 consonants = [phonemes.index(ph) for ph in phonemes if ph not in group]
 vowels = [phonemes.index(vowel) for vowel in group]
