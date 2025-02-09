@@ -1213,8 +1213,8 @@ def channel_weights(
                 weights, 
                 cmap='RdBu_r', 
                 shading='auto',
-                vmin=weights.min(),
-                vmax=weights.max()
+                vmin=-np.abs(weights).max(),
+                vmax=np.abs(weights).max()
                 )
             # Configure axis
             define_ticks(axes=ax[0, i_feat], number_of_ticks=number_of_ticks, ylabel=feat, xlabel='Time (ms)', title=feat, order=order, zeros_index=null_indexes)
@@ -1394,8 +1394,8 @@ def average_regression_weights(
                     feat_weights, 
                     cmap='RdBu_r', 
                     shading='auto',
-                    vmin=feat_weights.min(),
-                    vmax=feat_weights.max()
+                    vmin=-np.abs(feat_weights).max(),
+                    vmax=np.abs(feat_weights).max()
                     )
 
             # Set figure configuration
@@ -1705,8 +1705,8 @@ def plot_pvalue_tfce(
                 feat_weights, 
                 cmap='RdBu_r', 
                 shading='auto',
-                vmin=feat_weights.min(),
-                vmax=feat_weights.max()
+                vmin=-np.abs(feat_weights).max(),
+                vmax=np.abs(feat_weights).max()
                 )
 
             # Set figure configuration
