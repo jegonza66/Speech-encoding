@@ -1660,72 +1660,97 @@ plt.style.use(['science'])
 # #     )
 # fig.show()
 
-# # =======================================================
-# # Ejemplo EEG y PSD (power spectral density) de un sujeto
-# sesion, sujeto = 21, 2
-# RawEegPath = f'Datos/EEG/S{sesion}/s{sesion}-{sujeto}-Trial1-Deci-Filter-Trim-ICA-Pruned.set'
-# # EegPath = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/EEG/All/Causal/Sesion21.pkl'
+# =======================================================
+# Ejemplo EEG y PSD (power spectral density) de un sujeto
+sesion, sujeto = 21, 2
+RawEegPath = f'Datos/EEG/S{sesion}/s{sesion}-{sujeto}-Trial1-Deci-Filter-Trim-ICA-Pruned.set'
+# EegPath = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/EEG/All/Causal/Sesion21.pkl'
 
-# raw = mne.io.read_raw_eeglab(
-#         RawEegPath, 
-#         preload=True,
-#         verbose='CRITICAL'
-#         )
-# # raw = raw.filter(l_freq=.1, h_freq=40)
-# raw.plot(
-#     scalings=dict(eeg=2e-5)
-# )
+raw = mne.io.read_raw_eeglab(
+        RawEegPath, 
+        preload=True,
+        verbose='CRITICAL',
+        )
+# raw = raw.filter(l_freq=.1, h_freq=40)
+# raw.resample(sfreq=128)
+raw.plot(
+    scalings=dict(eeg=2e-5)
+)
 
-# psds_welch_mean, freqs_mean = mne.time_frequency.psd_array_welch(
-#     raw._data, 
-#     sfreq=128, 
-#     fmin=0.1, 
-#     fmax=90)
-
-# fig, ax = plt.subplots()
-# for i, psd in enumerate(psds_welch_mean):
-#     ax.plot(freqs_mean, psd, alpha=.5) 
-
-# ax.set_xlabel('Frequency [Hz]')
-# ax.set_xlim(0,40)
-# # ax.set_ylim(0,1)
-# # ax.set_xticks(freqs_mean[::5])
-# # ax.set_xticklabels(freqs_mean[::5])
-# ax.grid()
-# fig.show()
+from processing import subsample
 
 
-# # eeg = load_pickle(path=EegPath)[0]
-# # raw = mne.io.RawArray(data=eeg.T*1e-6, info=raw_raw.info)
-# spectrum = raw.compute_psd(
-#     method='welch',
-#     fmin=.1, 
-#     fmax=40, 
-#     # n_fft=1096,       # Aumenta el tamaño de la FFT para mayor resolución
-#     # n_overlap=125 # Mayor solapamiento para suavizar el espectro
-#     )
+fmin, fmax = 0, 40
 
-# fig, axes = plt.subplots(
-#     nrows=1,
-#     ncols=1,
-#     figsize=(10, 4),
-#     # tight_layout=True
-#     )
+fig, ax = plt.subplots()
+eeg = raw.get_data().T*1e6  # paso a array y tiro la primer columna de tiempo
+eeg = subsample(x=eeg, step=int(raw.info.get("sfreq")/ 128))
+psds_welch_mean, freqs_mean = mne.time_frequency.psd_array_welch(
+        eeg.T, 
+        128, 
+        fmin, 
+        fmax
+        )
+evoked = mne.EvokedArray(psds_welch_mean, config.info_mne)
+evoked.times = freqs_mean
+evoked.plot(
+        scalings=dict(eeg=1, grad=1, mag=1), 
+        zorder='std', 
+        time_unit='s',
+        show=False, 
+        spatial_colors=True, 
+        unit=False, 
+        units='w', 
+        axes=ax
+        )
+ax.set_xlabel('Frequency [Hz]')
+ax.grid()
+fig.show()
 
-# spectrum.plot(
-#     dB=False,
-#     spatial_colors=True,
-#     sphere=.14,
-#     axes=axes
-#     )
-# axes.set(
-#     title='PSD (Power Spectral Density)',
-#     ylabel='U.A',
-#     xlabel='Frecuencia (Hz)',
-#     ylim=(-1,20),
+
+
+
+
+
+
+
+
+
+
+
+
+# eeg = load_pickle(path=EegPath)[0]
+# raw = mne.io.RawArray(data=eeg.T*1e-6, info=raw_raw.info)
+spectrum = raw.compute_psd(
+    method='welch',
+    fmin=.1, 
+    fmax=40, 
+    
+    # n_fft=1096,       # Aumenta el tamaño de la FFT para mayor resolución
+    # n_overlap=125 # Mayor solapamiento para suavizar el espectro
+    )
+
+fig, axes = plt.subplots(
+    nrows=1,
+    ncols=1,
+    figsize=(10, 4),
+    # tight_layout=True
+    )
+
+spectrum.plot(
+    dB=False,
+    spatial_colors=True,
+    sphere=.14,
+    axes=axes
+    )
+axes.set(
+    title='PSD (Power Spectral Density)',
+    ylabel='U.A',
+    xlabel='Frecuencia (Hz)',
+    ylim=(-1,20),
 #     xlim=(0,40)
-# )
-# fig.show()
+)
+fig.show()
 
 # # =================================
 # # Tarea comportamental: EEG y audio
