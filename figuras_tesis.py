@@ -37,6 +37,47 @@ pylab.rcParams.update(params)
 rc('text', usetex=True)
 plt.style.use(['science'])
 
+# ====================================
+# PERFIL ESPECTRAL DE GRUPOS FONEMICOS
+phonemes = config.Exp_info().phonemes_phonet.copy()
+phonemes.remove('/sil/')
+
+cons_ph = ['/k/', '/f/', '/t/', '/s/', '/x/', '/tS/']
+voc_ph = ['/a/', '/e/', '/i/', '/o/', '/u/', '/l/', '/m/', '/b/', '/R/']
+
+consonants = [phonemes.index(ph) for ph in phonemes if ph in cons_ph]
+vowels = [phonemes.index(vowel) for vowel in voc_ph]
+
+# Filter just wanted groups and relabel groups
+consonants_ordered = []
+vowels_ordered = []
+for k, i in enumerate(sorted(consonants+vowels)):
+    if i in consonants:
+      consonants_ordered.append(k)  
+    elif i in vowels:
+        vowels_ordered.append(k)  
+
+average_weights = average_weights[sorted(consonants+vowels)]
+phonemes = [phonemes[i] for i in sorted(consonants+vowels)]
+
+
+wav = wavfile.read(self.wav_fname)[1]
+wav = wav.astype("float")
+
+# Calculates the mel frequencies spectrogram giving the desire sampling (match the EEG)
+sample_window = int(self.audio_sr/self.sr)
+S = librosa.feature.melspectrogram(
+    y=wav,
+    sr=self.audio_sr, 
+    n_fft=sample_window, 
+    hop_length=sample_window, 
+    n_mels=16
+    )
+# Transform to dB using normalization to 1
+S_DB = librosa.power_to_db(S=S, ref=np.max)
+
+return S_DB.T
+
 # # ==========================================
 # # MATRIZ CORRELACIONES Y SIMILARIDAD CABEZAS
 # situation = 'External'
