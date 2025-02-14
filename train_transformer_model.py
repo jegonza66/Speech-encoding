@@ -146,18 +146,31 @@ print(f"Features obtenidos: {features_16d.shape}")  # Debería ser [1, 1500, 16]
 # dataset_uba = pd.DataFrame(data=dataset_uba)
 # print(total_length/3600)        
 
+corpus_path = 'Datos/datos_fine_tune/cv-corpus-20.0-2024-12-06/es/'
 
-# metadata = pd.read_csv('Datos/validated.tsv', sep='\t')
-# metadata_rioplatense = metadata[metadata['accent']=='rioplatense']
-# metadata_rioplatense.shape[0]/metadata.shape[0]
+tsv_files = [f for f in os.listdir(corpus_path) if f.endswith('.tsv')]
 
-# total_database_length = 0
-# for i, item in tqdm.tqdm(metadata_rioplatense.iterrows()):
-#     file, sentence = item['path'], item['sentence']
-#     audio, sr = librosa.load(os.path.join('Datos/clips', file))
-#     total_database_length += len(audio.astype('float'))/sr
 
-# print(total_database_length/3600)        
+metadata = pd.read_csv(os.path.join(corpus_path, 'validated.tsv'), sep='\t', dtype=str)
+metadata_rioplatense = metadata[metadata['accents']=='rioplatense']
+metadata_rioplatense.shape[0]/metadata.shape[0]
+
+filtered_acc = [acc for acc in metadata['accents'].unique() if ('Argentina' in str(acc)) or ('Uruguay' in str(acc))]
+metadata_rioplatense = metadata.copy()
+metadata_rioplatense[metadata_rioplatense["accents"].isin(filtered_acc)]
+
+total_database_length = 0
+items_not_found = []
+for i, item in tqdm.tqdm(metadata_rioplatense.iterrows()):
+    try:
+        file, sentence = item['path'], item['sentence']
+        audio, sr = librosa.load(os.path.join(corpus_path, 'clips', file))
+        total_database_length += len(audio.astype('float'))/sr
+    except FileNotFoundError as err:
+        print(err)
+        items_not_found.append(item)
+
+print(total_database_length/3600)        
 # =====================
 # CONVERTIR .mp3 a .wav
 import os
