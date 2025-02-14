@@ -8,10 +8,13 @@ import mne
 from matplotlib.collections import PathCollection
 from matplotlib.ticker import ScalarFormatter
 from matplotlib_venn import venn3, venn2
+from matplotlib.colors import Normalize
 import matplotlib.gridspec as gridspec
 import matplotlib.pylab as pylab
 import matplotlib.pyplot as plt 
-from matplotlib import rc
+import matplotlib.text as mtext
+from matplotlib import rc, cm
+
 import seaborn as sns
 import scienceplots
 
@@ -33,6 +36,488 @@ params = {
 pylab.rcParams.update(params)
 rc('text', usetex=True)
 plt.style.use(['science'])
+
+# ====================================
+# PERFIL ESPECTRAL DE GRUPOS FONEMICOS
+phonemes = config.Exp_info().phonemes_phonet.copy()
+phonemes.remove('/sil/')
+
+cons_ph = ['/k/', '/f/', '/t/', '/s/', '/x/', '/tS/']
+voc_ph = ['/a/', '/e/', '/i/', '/o/', '/u/', '/l/', '/m/', '/b/', '/R/']
+
+consonants = [phonemes.index(ph) for ph in phonemes if ph in cons_ph]
+vowels = [phonemes.index(vowel) for vowel in voc_ph]
+
+# Filter just wanted groups and relabel groups
+consonants_ordered = []
+vowels_ordered = []
+for k, i in enumerate(sorted(consonants+vowels)):
+    if i in consonants:
+      consonants_ordered.append(k)  
+    elif i in vowels:
+        vowels_ordered.append(k)  
+
+average_weights = average_weights[sorted(consonants+vowels)]
+phonemes = [phonemes[i] for i in sorted(consonants+vowels)]
+
+
+wav = wavfile.read(self.wav_fname)[1]
+wav = wav.astype("float")
+
+# Calculates the mel frequencies spectrogram giving the desire sampling (match the EEG)
+sample_window = int(self.audio_sr/self.sr)
+S = librosa.feature.melspectrogram(
+    y=wav,
+    sr=self.audio_sr, 
+    n_fft=sample_window, 
+    hop_length=sample_window, 
+    n_mels=16
+    )
+# Transform to dB using normalization to 1
+S_DB = librosa.power_to_db(S=S, ref=np.max)
+
+return S_DB.T
+
+# # ==========================================
+# # MATRIZ CORRELACIONES Y SIMILARIDAD CABEZAS
+# situation = 'External'
+# correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+# mtrf_path = os.path.normpath(f'saves/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
+# bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
+# stimuli = ['Pitch-Log-Raw', 'Envelope', 'Mfccs', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
+
+# # Cálculo de correlaciones (como en tu código)
+# correlations = {
+#     (stim, band): load_pickle(path=os.path.join(correlations_path, band, stim + '.pkl'))['average_correlation_subjects'].mean(axis=0)
+#     for stim in stimuli for band in bands
+# }
+# minimum_cor = min([corr.min() for corr in correlations.values()])
+# maximum_cor = max([corr.max() for corr in correlations.values()])
+# normalizer_c = Normalize(vmin=np.round(minimum_cor, 2), vmax=np.round(maximum_cor, 2))
+# im_c = cm.ScalarMappable(norm=normalizer_c, cmap='Reds')
+
+# n_stims, n_bands = len(stimuli), len(bands)
+
+# # Get mean correlations across subjects and total max and min
+# correlations = {(stim,band):load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
+# minimum_cor, maximum_cor = min([correlation.min() for correlation in correlations.values()]), max([correlation.max() for correlation in correlations.values()])
+
+# # Create figure and title
+# fig, axes = plt.subplots(
+#         figsize=(8,8), 
+#         nrows=n_bands, 
+#         ncols=n_stims, 
+#         layout="constrained"
+#         )
+
+# # Configure axis
+# for ax, col in zip(axes[:,0], stimuli):
+#     if col=='Phonemes-Discrete-Phonet':
+#         col = 'Fonemas'
+#         ax.set_ylabel(col, rotation=90)
+#     elif col=='Pitch-Log-Raw':
+#         col = 'Tono de voz'
+#         ax.set_ylabel(col, rotation=90)
+#     elif col=='Envelope':
+#         col = 'Envolvente'
+#         ax.set_ylabel(col, rotation=90)
+#     elif col=='Phonological':
+#         col = 'C. Fonológicas'
+#         ax.set_ylabel(col, rotation=90)
+#     elif col=='Spectrogram':
+#         col = 'Espectrograma'
+#         ax.set_ylabel(col, rotation=90)
+#     elif col=='Mfccs':
+#         col = 'C. Mel'
+#         ax.set_ylabel(col, rotation=90)
+#     else:
+#         ax.set_ylabel(col, rotation=90)
+# for ax, band in zip(axes[0], bands):
+#     if band=='Beta1':
+#         band=r'Beta$_1$'
+    
+#     if band=='Beta2':
+#         band=r'Beta$_2$'
+    
+#     if band=='All':
+#         band='Ancha'
+#     ax.set_title(band)
+
+# # Build scale
+# normalizer = Normalize(vmin=np.round(minimum_cor,2), vmax=np.round(maximum_cor,2))
+# im = cm.ScalarMappable(norm=normalizer, cmap='Reds')
+
+# # Iterate over bands
+# for j, band in enumerate(bands):
+#     for i, stim in enumerate(stimuli):
+#         # Get average correlation of each stimulus across subjects
+#         average_correlation = correlations[(stim,band)]
+
+#         # Plot topomap        
+#         mne.viz.plot_topomap(
+#                 data=average_correlation, 
+#                 pos=config.info_mne, 
+#                 axes=axes[i, j], 
+#                 show=False, 
+#                 sphere=0.07, 
+#                 cmap='Reds', 
+#                 # vlim=(minimum_cor, maximum_cor),
+#                 cnorm=normalizer
+#                 )
+
+# # Make colorbar
+# cbar = fig.colorbar(im, ax=axes.ravel().tolist())
+# cbar.ax.tick_params(labelsize=15)
+# # fig.savefig(
+# #     'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/matriz_corr_externa.svg',
+# #     transparent=True
+# #     )
+# fig.show()
+
+# # =========================
+# # PESOS FONEMAS POR GRUPOS
+# path_mtrfs = 'saves/mtrf_ridge_torch/External/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/Theta/Phonemes-Discrete-Phonet/total_weights_per_subject.pkl'
+# average_weights_subjects = load_pickle(path=path_mtrfs)['average_weights_subjects'][:, :, :, :] # (18, 128, 1, 104)
+# seleccion = [2, 5, 10, 20, 19, 17, 6, 3, 0, 11, 8, 9, 1, 12]
+# average_weights_subjects_1 = average_weights_subjects[:,:, seleccion, :]
+# average_weights_subjects_2 = average_weights_subjects[:,:, [ph for ph in np.arange(21) if ph not in seleccion], :]
+
+# fig = plt.figure(
+#     figsize=(12, 7),
+#     tight_layout=True
+#     )
+
+# # Definir la cuadrícula usando GridSpec
+# # 2 filas y 2 columnas, con la segunda columna dividida en dos partes en la primera fila
+# gs = gridspec.GridSpec(
+#     nrows=2, 
+#     ncols=2, 
+#     width_ratios=[1, 1], 
+#     height_ratios=[1, 2]
+#     )
+
+# # Primer gráfico en la primera columna (comparte el eje x con el segundo gráfico)
+# ax1 = plt.subplot(gs[0, 0])
+# weights_1 = average_weights_subjects_1.mean(axis=0).mean(axis=1)
+# evoked = mne.EvokedArray(data=weights_1, info=config.info_mne)
+# evoked.shift_time(config.times[0], relative=True)
+# evoked_plot = evoked.plot(
+#     scalings={'eeg':1}, 
+#     zorder='std', 
+#     time_unit='ms',
+#     show=False, 
+#     spatial_colors=True, 
+#     # unit=False, 
+#     units='mTRFs (U.A)',
+#     axes=ax1,
+#     gfp=False
+#     )
+# # Eliminar la etiqueta "Nave"
+# for text in evoked_plot.axes[0].texts:
+#     if "ave" in text.get_text():
+#         text.set_visible(False)  # Ocultar el texto
+# ax1.plot(
+#     config.times*1e3, #ms
+#     evoked._data.mean(axis=0), 
+#     'black', 
+#     label='Valor medio', 
+#     zorder=130, 
+#     linewidth=2
+#     )
+
+# # Extraer los colores de los canales
+# colors = [line.get_color() for line in ax1.get_lines()[:len(evoked.ch_names)]]
+
+# # # Eliminar el esquema de la cabeza original
+# # for ax in fig.axes:
+# #     # Verificar si el eje contiene un objeto de tipo "PathCollection" (los puntos de los canales)
+# #     for artist in ax.get_children():
+# #         if isinstance(artist, PathCollection):
+# #             ax.remove()  # Eliminar el eje que contiene el esquema de la cabeza original
+# #             break
+
+
+# ax1.grid(visible=True)
+# ax1.set(xlabel='', xticklabels=[], title='EEG (128 canales)')
+# ax1.tick_params(axis='x', which='both', labelbottom=False)
+# ax1.legend(loc=(.5,.1))
+# ax1.text(-.1, 1.1, 'a)', transform=ax1.transAxes, fontsize=18, va='top', ha='right')
+
+# # Segundo gráfico en la primera columna (comparte el eje x con el primer gráfico)
+# ax2 = plt.subplot(gs[1, 0], sharex=ax1)
+
+# feat_weights_1 = average_weights_subjects_1.mean(axis=0).mean(axis=0)
+# order, null_indexes = clustering_by_correlation(weights=feat_weights_1)
+# feat_weights_1 = feat_weights_1[order]
+
+# im = ax2.pcolormesh(
+#     config.times * 1e3, 
+#     np.arange(feat_weights_1.shape[0]), 
+#     feat_weights_1, 
+#     cmap='RdBu_r', 
+#     shading='auto',
+#     vmin=-np.abs(feat_weights_1).max(),
+#     vmax=np.abs(feat_weights_1).max()
+#     )
+
+# # Set figure configuration
+# tags = config.Exp_info().phonemes_phonet
+# tags.remove('/sil/')
+# order_old = [13, 16, 18, 14, 15,  4,  7,  2,  5, 10, 20, 19, 17,  6,  3,  0, 11, 8,  9,  1, 12]
+# tags = [tags[i] for i in order_old]
+
+# tags_1 = tags[-14:]
+# tags_2 = tags[:-14]
+# ticks = np.arange(feat_weights_1.shape[0])
+
+# ax2.set(
+#     xlabel='Tiempo (ms)',
+#     xticks=[-200, -100, 0, 100, 200, 300, 400, 500, 600],
+#     xticklabels=[-200, -100, 0, 100, 200, 300, 400, 500, 600], 
+#     ylabel='Grupo de fonemas 1', 
+#     yticks=ticks, 
+#     yticklabels=tags_1
+#     )
+
+# # Configure colorbar
+# fig.colorbar(
+#     im, 
+#     ax=ax2, 
+#     orientation='horizontal', 
+#     shrink=1, 
+#     label='Amplitud (U.A)', 
+#     fraction=.075,
+#     aspect=20
+#     )
+# ax2.text(-.1, 1.1, 'b)', transform=ax2.transAxes, fontsize=18, va='top', ha='right')
+
+# for ax in fig.axes:
+#     if ax.get_subplotspec() == gs[0, 1]:
+#         ax.remove()
+        
+# ax3 = plt.subplot(gs[0, 1], sharey=ax1)
+# weights_2 = average_weights_subjects_2.mean(axis=0).mean(axis=1)
+# evoked_2 = mne.EvokedArray(data=weights_2, info=config.info_mne)
+# evoked_2.shift_time(config.times[0], relative=True)
+# evoked_plot_2 = evoked_2.plot(
+#     scalings={'eeg':1}, 
+#     zorder='std', 
+#     time_unit='ms',
+#     show=False, 
+#     spatial_colors=True, 
+#     # unit=False, 
+#     units='mTRFs (U.A)',
+#     axes=ax3,
+#     gfp=False
+#     )
+
+
+# ax3.plot(
+#     config.times*1e3, #ms
+#     evoked_2._data.mean(axis=0), 
+#     'black', 
+#     label='Valor medio', 
+#     zorder=130, 
+#     linewidth=2
+#     )
+
+# # Extraer los colores de los canales
+# colors = [line.get_color() for line in ax3.get_lines()[:len(evoked_2.ch_names)]]
+
+# # Eliminar el esquema de la cabeza original
+# for ax in fig.axes:
+#     # Verificar si el eje contiene un objeto de tipo "PathCollection" (los puntos de los canales)
+#     for artist in ax.get_children():
+#         if isinstance(artist, PathCollection):
+#             ax.remove()  # Eliminar el eje que contiene el esquema de la cabeza original
+#             break
+
+# # Obtener las posiciones de los sensores en 2D
+# montage = evoked.info.get_montage()
+# pos = montage.get_positions()['ch_pos']  # Diccionario con las posiciones de los canales
+
+# # Crear un eje adicional para la cabecita sin sensores
+# ax_head_outline = fig.add_axes([.33, 0.82, 0.11, 0.11])  # [x, y, width, height]
+
+# # Graficar solo el contorno de la cabeza (sin sensores)
+# mne.viz.plot_topomap(
+#     np.zeros(len(evoked.ch_names)),  # Datos ficticios (todos ceros)
+#     evoked.info,
+#     axes=ax_head_outline,
+#     show=False,
+#     sensors=False,  # No graficar los sensores
+#     outlines='head'  # Graficar solo el contorno de la cabeza
+# )
+# ax_head_outline.set_aspect('equal')  # Mantener la proporción de aspecto
+# ax_head_outline.axis('off')  # Ocultar los ejes
+
+# # Crear un eje adicional para graficar los sensores
+# ax_head = fig.add_axes([.34, 0.822, 0.09, 0.09])  # [x, y, width, height]
+
+# # Convertir las posiciones a un array 2D (x, y)
+# pos_2d = np.array([pos[ch][:2] for ch in evoked.ch_names])  # Solo tomamos las coordenadas x e y
+# ax_head.scatter(pos_2d[:, 0], pos_2d[:, 1], c=colors, s=18)  # s es el tamaño de los puntos
+# ax_head.set_aspect('equal')  # Mantener la proporción de aspecto
+# ax_head.axis('off')  # Ocultar los ejes
+
+# # Obtener las posiciones de los sensores en 2D
+# montage = evoked_2.info.get_montage()
+# pos = montage.get_positions()['ch_pos']  # Diccionario con las posiciones de los canales
+
+# # Crear un eje adicional para la cabecita sin sensores
+# ax_head_outline_2 = fig.add_axes([.75, 0.82, 0.11, 0.11])  # [x, y, width, height]
+
+# # Graficar solo el contorno de la cabeza (sin sensores)
+# mne.viz.plot_topomap(
+#     np.zeros(len(evoked_2.ch_names)),  # Datos ficticios (todos ceros)
+#     evoked_2.info,
+#     axes=ax_head_outline_2,
+#     show=False,
+#     sensors=False,  # No graficar los sensores
+#     outlines='head'  # Graficar solo el contorno de la cabeza
+# )
+# ax_head_outline_2.set_aspect('equal')  # Mantener la proporción de aspecto
+# ax_head_outline_2.axis('off')  # Ocultar los ejes
+
+# # Crear un eje adicional para graficar los sensores
+# ax_head_2 = fig.add_axes([.76, 0.822, 0.09, 0.09])  # [x, y, width, height]
+
+# # Convertir las posiciones a un array 2D (x, y)
+# pos_2d = np.array([pos[ch][:2] for ch in evoked_2.ch_names])  # Solo tomamos las coordenadas x e y
+# ax_head_2.scatter(pos_2d[:, 0], pos_2d[:, 1], c=colors, s=18)  # s es el tamaño de los puntos
+# ax_head_2.set_aspect('equal')  # Mantener la proporción de aspecto
+# ax_head_2.axis('off')  # Ocultar los ejes
+
+# ax3.grid(visible=True)
+# ax3.set(xlabel='', xticklabels=[], ylabel='', yticklabels=['','','','',''], title='EEG (128 canales)')
+# ax1.set(ylabel='mTRFs', yticks=[-0.01 , -0.005,  0.   ,  0.005,  0.01 ], yticklabels=[-0.01 , -0.005,  0.   ,  0.005,  0.01 ])
+# ax3.tick_params(axis='x', which='both', labelbottom=False)
+# ax3.tick_params(axis='y', labelleft=False)
+# ax3.legend(loc=(.57,.1))
+# ax3.text(-.1, 1.1, 'c)', transform=ax3.transAxes, fontsize=18, va='top', ha='right')
+
+
+# # Segundo gráfico en la primera columna (comparte el eje x con el primer gráfico)
+# ax4 = plt.subplot(gs[1, 1], sharex=ax3)
+
+# feat_weights_2 = average_weights_subjects_2.mean(axis=0).mean(axis=0)
+# order, null_indexes = clustering_by_correlation(weights=feat_weights_2)
+# feat_weights_2 = feat_weights_2[order]
+
+# im = ax4.pcolormesh(
+#     config.times * 1e3, 
+#     np.arange(feat_weights_2.shape[0]), 
+#     feat_weights_2, 
+#     cmap='RdBu_r', 
+#     shading='auto',
+#     vmin=-np.abs(feat_weights_2).max(),
+#     vmax=np.abs(feat_weights_2).max()
+#     )
+
+# # Set figure configuration
+# ticks = np.arange(feat_weights_2.shape[0])
+
+
+# ax4.set(
+#     xlabel='Tiempo (ms)',
+#     xticks=[-200, -100, 0, 100, 200, 300, 400, 500, 600],
+#     xticklabels=[-200, -100, 0, 100, 200, 300, 400, 500, 600], 
+#     ylabel='Grupo de fonemas 2', 
+#     yticks=ticks, 
+#     yticklabels=tags_2
+#     )
+
+# # Configure colorbar
+# fig.colorbar(
+#     im, 
+#     ax=ax4, 
+#     orientation='horizontal', 
+#     shrink=1, 
+#     label='Amplitud (U.A)', 
+#     fraction=.075,
+#     aspect=20
+#     )
+# ax4.text(-.1, 1.1, 'd)', transform=ax4.transAxes, fontsize=18, va='top', ha='right')
+
+# # Eliminar la etiqueta "Nave"
+# for txt in fig.findobj(mtext.Text):
+#     if "ave" in txt.get_text():
+#          txt.remove()
+# # fig.savefig(
+# #     'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/fonemas_grupos.svg',
+# #     transparent=True
+# #     )
+# fig.show()
+
+# # ==============
+# # STACK DE PESOS
+# stimuli = [
+#     'Envelope',
+#     'Pitch-Log-Raw',
+#     'Spectrogram',
+#     'Mfccs',
+#     'Phonemes-Discrete-Phonet',
+#     'Phonological'
+#     ]
+# bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
+
+# fig, axes = plt.subplots(
+#     nrows=len(stimuli),
+#     ncols=len(bands), 
+#     figsize=(len(bands)*1.5, len(stimuli)*1.5),
+#     tight_layout=True,
+#     sharex=True,
+#     sharey='row'
+#     )
+
+# for j, band in enumerate(bands):
+#     for i, stimulus in enumerate(stimuli):
+#         path_mtrfs = f'saves/mtrf_ridge_torch/External/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/{band}/{stimulus}/total_weights_per_subject.pkl'
+#         weights = load_pickle(
+#             path=path_mtrfs
+#             )['average_weights_subjects'].mean(axis=0).mean(axis=1)
+#         evoked = mne.EvokedArray(data=weights, info=config.info_mne)
+#         evoked.shift_time(config.times[0], relative=True)
+#         axes[i, j].plot(
+#             config.times*1e3,
+#             evoked._data.mean(axis=0), 
+#             'black', 
+#             label='Valor medio', 
+#             zorder=130, 
+#             linewidth=2
+#             )
+#         axes[i, j].grid(visible=True)
+#         if band=='Theta':
+#             axes[i, j].set_ylim(evoked._data.mean(axis=0).min(), evoked._data.mean(axis=0).max())
+
+# for ax, col in zip(axes[:,0], stimuli):
+#     if col=='Phonemes-Discrete-Phonet':
+#         col = 'Fonemas'
+#         ax.set_ylabel(col, rotation=90)
+#     elif col=='Pitch-Log-Raw':
+#         col = 'Tono de voz'
+#         ax.set_ylabel(col, rotation=90)
+#     elif col=='Envelope':
+#         col = 'Envolvente'
+#         ax.set_ylabel(col, rotation=90)
+#     elif col=='Phonological':
+#         col = 'C. Fonológicas'
+#         ax.set_ylabel(col, rotation=90)
+#     elif col=='Spectrogram':
+#         col = 'Espectrograma'
+#         ax.set_ylabel(col, rotation=90)
+#     elif col=='Mfccs':
+#         col = 'Coef. Mel'
+#         ax.set_ylabel(col, rotation=90)
+
+# for ax, band in zip(axes[0], bands):
+#     ax.set_title(band)
+
+# for ax in axes[-1]:
+#     ax.set_xlabel('Tiempo (ms)')
+        
+# fig.show()   
+
 
 # # ================================================================
 # # PESOS + TOPOMAPS CORR + SIMILARITY + MATRIZ: THETA: PHONOLOGICAL
@@ -2851,54 +3336,52 @@ plt.style.use(['science'])
 # #     )
 # fig.show()
 
-# =======================================================
-# Ejemplo EEG y PSD (power spectral density) de un sujeto
-sesion, sujeto = 21, 2
-RawEegPath = f'Datos/EEG/S{sesion}/s{sesion}-{sujeto}-Trial1-Deci-Filter-Trim-ICA-Pruned.set'
-# EegPath = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/EEG/All/Causal/Sesion21.pkl'
+# # =======================================================
+# # Ejemplo EEG y PSD (power spectral density) de un sujeto
+# sesion, sujeto = 21, 2
+# RawEegPath = f'Datos/EEG/S{sesion}/s{sesion}-{sujeto}-Trial1-Deci-Filter-Trim-ICA-Pruned.set'
+# # EegPath = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/EEG/All/Causal/Sesion21.pkl'
 
-raw = mne.io.read_raw_eeglab(
-        RawEegPath, 
-        preload=True,
-        verbose='CRITICAL',
-        )
-# raw = raw.filter(l_freq=.1, h_freq=40)
-# raw.resample(sfreq=128)
-raw.plot(
-    scalings=dict(eeg=2e-5)
-)
+# raw = mne.io.read_raw_eeglab(
+#         RawEegPath, 
+#         preload=True,
+#         verbose='CRITICAL',
+#         )
+# # raw = raw.filter(l_freq=.1, h_freq=40)
+# # raw.resample(sfreq=128)
+# raw.plot(
+#     scalings=dict(eeg=2e-5)
+# )
 
-from processing import subsample
-
-
-fmin, fmax = 0, 40
-
-fig, ax = plt.subplots()
-eeg = raw.get_data().T*1e6  # paso a array y tiro la primer columna de tiempo
-eeg = subsample(x=eeg, step=int(raw.info.get("sfreq")/ 128))
-psds_welch_mean, freqs_mean = mne.time_frequency.psd_array_welch(
-        eeg.T, 
-        128, 
-        fmin, 
-        fmax
-        )
-evoked = mne.EvokedArray(psds_welch_mean, config.info_mne)
-evoked.times = freqs_mean
-evoked.plot(
-        scalings=dict(eeg=1, grad=1, mag=1), 
-        zorder='std', 
-        time_unit='s',
-        show=False, 
-        spatial_colors=True, 
-        unit=False, 
-        units='w', 
-        axes=ax
-        )
-ax.set_xlabel('Frequency [Hz]')
-ax.grid()
-fig.show()
+# from processing import subsample
 
 
+# fmin, fmax = 0, 40
+
+# fig, ax = plt.subplots()
+# eeg = raw.get_data().T*1e6  # paso a array y tiro la primer columna de tiempo
+# eeg = subsample(x=eeg, step=int(raw.info.get("sfreq")/ 128))
+# psds_welch_mean, freqs_mean = mne.time_frequency.psd_array_welch(
+#         eeg.T, 
+#         128, 
+#         fmin, 
+#         fmax
+#         )
+# evoked = mne.EvokedArray(psds_welch_mean, config.info_mne)
+# evoked.times = freqs_mean
+# evoked.plot(
+#         scalings=dict(eeg=1, grad=1, mag=1), 
+#         zorder='std', 
+#         time_unit='s',
+#         show=False, 
+#         spatial_colors=True, 
+#         unit=False, 
+#         units='w', 
+#         axes=ax
+#         )
+# ax.set_xlabel('Frequency [Hz]')
+# ax.grid()
+# fig.show()
 
 
 
@@ -2910,38 +3393,40 @@ fig.show()
 
 
 
-# eeg = load_pickle(path=EegPath)[0]
-# raw = mne.io.RawArray(data=eeg.T*1e-6, info=raw_raw.info)
-spectrum = raw.compute_psd(
-    method='welch',
-    fmin=.1, 
-    fmax=40, 
+
+
+# # eeg = load_pickle(path=EegPath)[0]
+# # raw = mne.io.RawArray(data=eeg.T*1e-6, info=raw_raw.info)
+# spectrum = raw.compute_psd(
+#     method='welch',
+#     fmin=.1, 
+#     fmax=40, 
     
-    # n_fft=1096,       # Aumenta el tamaño de la FFT para mayor resolución
-    # n_overlap=125 # Mayor solapamiento para suavizar el espectro
-    )
+#     # n_fft=1096,       # Aumenta el tamaño de la FFT para mayor resolución
+#     # n_overlap=125 # Mayor solapamiento para suavizar el espectro
+#     )
 
-fig, axes = plt.subplots(
-    nrows=1,
-    ncols=1,
-    figsize=(10, 4),
-    # tight_layout=True
-    )
+# fig, axes = plt.subplots(
+#     nrows=1,
+#     ncols=1,
+#     figsize=(10, 4),
+#     # tight_layout=True
+#     )
 
-spectrum.plot(
-    dB=False,
-    spatial_colors=True,
-    sphere=.14,
-    axes=axes
-    )
-axes.set(
-    title='PSD (Power Spectral Density)',
-    ylabel='U.A',
-    xlabel='Frecuencia (Hz)',
-    ylim=(-1,20),
-#     xlim=(0,40)
-)
-fig.show()
+# spectrum.plot(
+#     dB=False,
+#     spatial_colors=True,
+#     sphere=.14,
+#     axes=axes
+#     )
+# axes.set(
+#     title='PSD (Power Spectral Density)',
+#     ylabel='U.A',
+#     xlabel='Frecuencia (Hz)',
+#     ylim=(-1,20),
+# #     xlim=(0,40)
+# )
+# fig.show()
 
 # # =================================
 # # Tarea comportamental: EEG y audio
