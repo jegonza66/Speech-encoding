@@ -14,11 +14,21 @@ sesiones = [
             30
             ]
 stimuli = [
+    'Mistakes-Separated_Control-Separated',
         # 'Spectrogram_Mfccs',
+        # 'Envelope_Pitch-Log-Raw',
+        # 'Envelope_Spectrogram',
+        # 'Pitch-Log-Raw_Spectrogram',
+        # 'Envelope_Pitch-Log-Raw_Spectrogram',
+        # 'Phonemes-Discrete-Phonet_Spectrogram',
+        # 'Phonological_Spectrogram',
+        # 'Phonological_Phonemes-Discrete-Phonet',
+        # 'Phonological_Phonemes-Discrete-Phonet_Spectrogram',
+        # 'Phones-Discrete-Phonet_Phonemes-Discrete-Phonet',
         # 'Envelope',
         # 'Pitch-Log-Raw',
         # 'Spectrogram',
-        'Mfccs',
+        # 'Mfccs',
         # 'Phonological',
         # 'Phonemes-Discrete-Phonet',
         # 'Phones-Discrete-Phonet',
@@ -50,7 +60,7 @@ just_load_data = False
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
 model = 'mtrf'
 estimator = 'ridge_torch' # ridge, ridge_torch or time_delaying_ridge
-statistical_test, perform_tfce, use_gpu = True, True, True
+statistical_test, perform_tfce, use_gpu = False, False, True
 stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 
 if estimator=='ridge':
