@@ -398,7 +398,7 @@ average_weights = average_weights_subjects.mean(axis=0)[filter_best_chans].mean(
 # Classify labels for categorization
 phonological = list(config.Exp_info().phonological_labels).copy()
 
-group1_labels = ['labial ', 'lateral', 'open', 'vocalic', 'back', 'voice', 'nasal']
+group1_labels = ['labial', 'lateral', 'open', 'vocalic', 'back', 'voice', 'nasal']
 group2_labels = ['dental', 'consonantal', 'pause', 'velar', 'flap', 'close', 'strident', 'continuant']
 
 group1 = [phonological.index(ph) for ph in phonological if ph in group1_labels]
@@ -618,7 +618,7 @@ axes[1].legend(handles=legend_handles, title="Categorías", loc=(.57,.74))
 axes[1].set_title(f'Ventana temporal: {selected_window_time:.1f} ms - F-score: {f_scores[selected_window]:.2f} - ARI: {aris[selected_window]:.2f}'.replace('.',','), fontsize=16)
 axes[1].set_xlabel('MDS 1 (U.A)')
 axes[1].set_ylabel('MDS 2 (U.A)')
-axes[1].set_xlim(axes[1].get_xlim()[0]-.4, axes[1].get_xlim()[-1]+.001)
+axes[1].set_xlim(axes[1].get_xlim()[0]-.9, axes[1].get_xlim()[-1]+.001)
 # axes[1].set_ylim(axes[1].get_ylim()[0]-.005, axes[1].get_ylim()[-1]+.005)
 axes[1].grid(True, alpha=.7)
 
