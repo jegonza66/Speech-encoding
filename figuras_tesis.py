@@ -138,11 +138,11 @@ for i, band in enumerate(bands):
                 for ch in groups_x[l]:
                     right_group.append(ch)
         z[i,j] = average_correlation[right_group].mean()-average_correlation[left_group].mean()
-        stat, p_val = mannwhitneyu(average_correlation[right_group], average_correlation[left_group], alternative='two-sided')
+        stat, p_val = wilcoxon(average_correlation[right_group][::-1], average_correlation[left_group], alternative='two-sided')
         z_pv[i,j] = p_val
         
 # # Supongamos que 'corr_left' y 'corr_right' son los arrays de correlaciones para cada grupo.
-# stat, p_val = mannwhitneyu(average_correlation[right_group], average_correlation[left_group], alternative='two-sided')
+# stat, p_val = wilcoxon(average_correlation[right_group], average_correlation[left_group], alternative='two-sided')
 
 # axes[1].set_title('Lateralization: right(G[0-3])-left(G[7-10])')
 axes[1].set_title('Lateralización: diferencia de correlación')
@@ -179,7 +179,7 @@ fig.show()
 # HEATMAP CENTRALIZATION
 fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10,4), constrained_layout='True')
 axes[0].set_title(
-        'Correlation: Phonemes-Theta',
+        'Correlación por grupos de electrodos',
         y=1.05, 
         verticalalignment="top"
         )
@@ -211,6 +211,8 @@ mne.viz.plot_sensors(
 # handles = [mpatches.Patch(color=colour, label=f'G{i}') for i, colour in enumerate(colors)]
 # axes[0].legend(handles=handles, loc='lower right', frameon=True, fontsize=10)
 z = np.zeros(shape=(len(bands),len(stimuli)))
+z_pv = np.zeros(shape=(len(bands),len(stimuli)))
+
 for i, band in enumerate(bands):
     for j, stim in enumerate(stimuli):
         average_correlation = correlations[(stim,band)]
@@ -223,6 +225,8 @@ for i, band in enumerate(bands):
                 for ch in groups_x[l]:
                     sides_group.append(ch)
         z[i,j] = average_correlation[sides_group].mean()-average_correlation[center_group].mean()
+        stat, p_val = wilcoxon(average_correlation[sides_group], average_correlation[center_group], alternative='two-sided')
+        z_pv[i,j] = p_val
 axes[1].set_title('Centralization: correlation difference')
 im = axes[1].imshow(
             z, 
@@ -230,6 +234,18 @@ im = axes[1].imshow(
             vmax=z.max(),
             cmap='plasma'
             )
+for i in range(z_pv.shape[0]):
+    for j in range(z_pv.shape[1]):
+        p_val = z_pv[i, j]
+        if p_val < 0.01:
+            annot = '**'
+        elif p_val < 0.05:
+            annot = '*'
+        else:
+            annot = ''
+        if annot:
+            axes[1].text(j, i, annot, ha='center', va='center', color='black', fontsize=20, fontweight='bold')
+
 axes[1].set_xticks(np.arange(len(stimuli)))
 axes[1].set_xticklabels([stim.split('-')[0] if stim!='Pitch-Log-Raw' else 'Pitch-Log' for stim in stimuli], minor=False, fontsize=12, rotation=35)
 axes[1].set_yticks(np.arange(len(bands)))
@@ -4569,11 +4585,8 @@ fig.show()
 # time_spectrogram = np.arange(0, len(spectrogram)/config.sr, 1/config.sr)
 # window_spectrogram = (WindowLeft <= time_spectrogram) & (time_spectrogram <= WindowRight)
 
-# bands_center = librosa.mel_frequencies(
-#     n_mels=NumberOfTicks+2, 
-#     fmin=0, 
-#     fmax=8000
-#     )[1:-1]
+# bands_center = librosa.mel_frequencies(n_mels=16+2, fmin=0, fmax=8000)[1:-1]
+
 # # tags = [int(bands_center[i]) for i in np.arange(1, len(bands_center)+1, 2)]
 # # ticks = np.arange(0, NumberOfTicks, 2)+.5
 # tags = [int(bands_center[i]) for i in np.arange(0, len(bands_center))]
