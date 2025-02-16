@@ -126,6 +126,30 @@ class TorchMtrf:
         y_test = y_temp[self.test_indexes]
         del design_matrix, y_temp
         
+        # # Construct design matrix and transform for GPU computation
+        # design_matrix = shifted_matrix_2(
+        #             stims, 
+        #             delays=config.delays, 
+        #             use_gpu=self.use_gpu
+        #             )
+        # n_samples, n_featuresbyn_delays = design_matrix.shape
+        # n_features = n_featuresbyn_delays // len(config.delays)
+
+        # # Get relevant indexes and transform to GPU
+        # X_temp = design_matrix[self.relevant_indexes]
+        # del design_matrix
+        # X_temp = torch.tensor(X_temp).to(self.device)
+        # y_temp = torch.tensor(eeg[self.relevant_indexes]).to(self.device)
+        # del stims, eeg
+        
+        # # Separate into training and testing
+
+        # X_train = X_temp[self.train_indexes]
+        # y_train = y_temp[self.train_indexes]
+        # X_pred = X_temp[self.test_indexes]
+        # y_test = y_temp[self.test_indexes]
+        # del X_temp, y_temp
+        
         if not self.validation:
             # Shuffle the data if required for random permutations
             if self.shuffle:
