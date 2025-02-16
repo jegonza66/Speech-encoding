@@ -106,25 +106,25 @@ class TorchMtrf:
         design_matrix = shifted_matrix_2(
                     stims, 
                     delays=config.delays, 
-                    use_gpu=self.use_gpu
+                    use_gpu=self.use_gpu,
+                    indices_to_keep=self.relevant_indexes
                     )
+        
         n_samples, n_featuresbyn_delays = design_matrix.shape
         n_features = n_featuresbyn_delays // len(config.delays)
 
         # Get relevant indexes and transform to GPU
-        X_temp = design_matrix[self.relevant_indexes]
-        del design_matrix
-        X_temp = torch.tensor(X_temp).to(self.device)
+        design_matrix = torch.tensor(design_matrix).to(self.device)
         y_temp = torch.tensor(eeg[self.relevant_indexes]).to(self.device)
         del stims, eeg
         
         # Separate into training and testing
 
-        X_train = X_temp[self.train_indexes]
+        X_train = design_matrix[self.train_indexes]
         y_train = y_temp[self.train_indexes]
-        X_pred = X_temp[self.test_indexes]
+        X_pred = design_matrix[self.test_indexes]
         y_test = y_temp[self.test_indexes]
-        del X_temp, y_temp
+        del design_matrix, y_temp
         
         if not self.validation:
             # Shuffle the data if required for random permutations
@@ -746,7 +746,7 @@ class TimeDelayingRidgeRegression(TimeDelayingRidge):
             If the input arrays have inconsistent numbers of samples.
         """
         # Get relevant indexes
-        X_r, y_r= X[self.relevant_indexes], y[self.relevant_indexes] # relevant_samples relevant_samples, features*delays, antes relevant_samples, [epochs,features], delays
+        X_r, y_r = X[self.relevant_indexes], y[self.relevant_indexes] # relevant_samples relevant_samples, features*delays, antes relevant_samples, [epochs,features], delays
         del X, y
 
         if self.validation:
