@@ -1,16 +1,18 @@
 import numpy as np, os, pandas as pd
 
 from scipy.stats import mannwhitneyu, wilcoxon
+from scipy.optimize import curve_fit
 from scipy.io import wavfile
 from scipy import signal
 import librosa
 import mne
 
+from matplotlib.colors import Normalize, ListedColormap, LinearSegmentedColormap
 from matplotlib.collections import PathCollection
 from matplotlib.ticker import ScalarFormatter
 from matplotlib_venn import venn3, venn2
-from matplotlib.colors import Normalize
 import matplotlib.gridspec as gridspec
+from scipy.spatial import ConvexHull
 import matplotlib.pylab as pylab
 from matplotlib import colormaps
 import matplotlib.pyplot as plt 
@@ -25,7 +27,7 @@ from processing import clustering_by_correlation
 from plot import define_ticks
 import config
 
-params = {
+pylab.rcParams.update({
         'legend.fontsize': 16,
         'legend.title_fontsize': 16,
         'figure.figsize': (10, 5),
@@ -35,286 +37,593 @@ params = {
         'xtick.labelsize':16,
         'ytick.labelsize':16
         }
-pylab.rcParams.update(params)
+        )
 rc('text', usetex=True)
 plt.style.use(['science'])
 
-
-# ===================================================================================================================
-# TOPOGRAPHIC DISTRIBUTION HEATMAPS: make heatmaps with topographic information across features, situations and bands
-# ===================================================================================================================
+# ======================
+# CONVEX HULL
 situation='External'
 correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
 
-# Relevant parameters
-bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
-stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological'] # 'Envelope_Phonemes-Discrete-Manual'
-n_stims, n_bands = len(stimuli), len(bands)
+bands = ['Theta']
+stims = 'Spectrogram_Phonological'
+stims = '_'.join(sorted(stims.split('_'))) 
+substims = stims.split('_')
+avg_corr, good_ch = {}, {}
 
-# Get mean correlations across subjects and total max and min
-correlations = {(stim,band):load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
-minimum_cor, maximum_cor = min([correlation.min() for correlation in correlations.values()]), max([correlation.max() for correlation in correlations.values()])
-
-# Get groups to make average correlations
-n_groups_x, n_groups_y = 12, 12
-posicion_x = np.array([config.montage._get_ch_pos()[ch][0] for ch in config.montage._get_ch_pos()])
-posicion_y = np.array([config.montage._get_ch_pos()[ch][1] for ch in config.montage._get_ch_pos()])
-bins_x = np.linspace(posicion_x.min(), posicion_x.max(), n_groups_x)
-bins_y = np.linspace(posicion_y.min(), posicion_y.max(), n_groups_y)
-groups_x, groups_y = [], []
-for i in range(1, n_groups_y):
-    group_y = []
-    for ch in config.montage._get_ch_pos():
-        y_value = config.montage._get_ch_pos()[ch][1]
-        if bins_y[i-1]<=y_value<=bins_y[i]:
-            group_y.append(config.info_mne.ch_names.index(ch))
-    groups_y.append(group_y)
-for i in range(1, n_groups_x):
-    group_x = []
-    for ch in config.montage._get_ch_pos():
-        x_value = config.montage._get_ch_pos()[ch][0]
-        y_value = config.montage._get_ch_pos()[ch][1]
-        if (bins_x[i-1]<=x_value<=bins_x[i]) and (y_value>=0) :
-            group_x.append(config.info_mne.ch_names.index(ch))
-    groups_x.append(group_x)
-# # Para ver si está balanceado
-# plt.figure()
-# plt.title('bins_x')
-# plt.hist(posicion_x, bins_x)
-# plt.grid(visible=True)
-# plt.yticks(ticks=np.arange(0,20))
-# plt.show(block=False)
-# plt.figure()
-# plt.title('bins_y')
-# plt.hist(posicion_y, bins_y)
-# plt.grid(visible=True)
-# plt.yticks(ticks=np.arange(0,20))
-# plt.show(block=False)
-
-# =======================
-# HEATMAP LATERALIZATION
-fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10,4), constrained_layout='True')
-axes[0].set_title('Correlación por grupos de electrodos',
-                   y=1.05, 
-                   verticalalignment="top")
-axes[0].grid(visible=True)
-axes[0].set_axisbelow(True)
-# axes[0].scatter(np.arange(n_groups_y-1), [correlations[('Phonological','Theta')][group].mean() for group in groups_y], color='black')
-cmap = colormaps['plasma']
-colors = cmap(np.linspace(0, 1, len(groups_x)))
-for i, corr, c in zip(np.arange(n_groups_x-1), [correlations[('Phonological','Alpha')][group].mean() for group in groups_x], colors):
-    axes[0].scatter(i, corr, color=c)
-axes[0].set_xticks(np.arange(n_groups_x-1))
-axes[0].set_xticklabels([f'G{i}'for i in np.arange(n_groups_x-1)])
-axes[0].set_xlabel('Grupos de electrodos', fontsize=15)
-axes[0].set_ylabel('Correlación promedio', fontsize=15)
-subax = axes[0].inset_axes([.05,.07,.6,.6])
-mne.viz.plot_sensors(
-        info=config.info_mne,
-        show_names=False,
-        block=False,
-        pointsize=35,
-        cmap='plasma',
-        axes=subax,
-        ch_groups=groups_x,
-        linewidth=0
-        )
-# Create a legend
-# cmap = colormaps['plasma']
-# colors = cmap(np.linspace(0, 1, len(groups_x)))
-# handles = [mpatches.Patch(color=colour, label=f'G{i}') for i, colour in enumerate(colors)]
-# axes[0].legend(handles=handles, loc='lower right', frameon=True, fontsize=10)
-z = np.zeros(shape=(len(bands),len(stimuli)))
-z_pv = np.zeros(shape=(len(bands),len(stimuli)))
-for i, band in enumerate(bands):
-    for j, stim in enumerate(stimuli):
-        average_correlation = correlations[(stim,band)]
-        left_group, right_group = [], []
-        for l in range(n_groups_x-1):
-            if l<4:
-                for ch in groups_x[l]:
-                    left_group.append(ch)
-            elif l>6:
-                for ch in groups_x[l]:
-                    right_group.append(ch)
-        z[i,j] = average_correlation[right_group].mean()-average_correlation[left_group].mean()
-        stat, p_val = wilcoxon(average_correlation[right_group][::-1], average_correlation[left_group], alternative='two-sided')
-        z_pv[i,j] = p_val
-        
-# # Supongamos que 'corr_left' y 'corr_right' son los arrays de correlaciones para cada grupo.
-# stat, p_val = wilcoxon(average_correlation[right_group], average_correlation[left_group], alternative='two-sided')
-
-# axes[1].set_title('Lateralization: right(G[0-3])-left(G[7-10])')
-axes[1].set_title('Lateralización: diferencia de correlación')
-im = axes[1].imshow(
-            z, 
-            vmin=z.min(), 
-            vmax=z.max(),
-            cmap='plasma'
-            )
-for i in range(z_pv.shape[0]):
-    for j in range(z_pv.shape[1]):
-        p_val = z_pv[i, j]
-        if p_val < 0.01:
-            annot = '**'
-        elif p_val < 0.05:
-            annot = '*'
+# Iterate over bands
+for band in bands:
+    # Fill dictionaries with data
+    for stim in substims + [stims]:
+        data = load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))
+        if config.relevant_channels:
+            filter_relevant_channels_filter = get_maximum_correlation_channels(data['average_correlation_subjects'].mean(axis=0), number_of_lat_channels=config.relevant_channels)
+            good_ch[stim] = data['repeated_good_correlation_channels_subjects'][:,filter_relevant_channels_filter].ravel()
+            avg_corr[stim] = data['average_correlation_subjects'][:,filter_relevant_channels_filter].ravel()
         else:
-            annot = ''
-        if annot:
-            axes[1].text(j, i, annot, ha='center', va='center', color='black', fontsize=20, fontweight='bold')
+            good_ch[stim] = data['repeated_good_correlation_channels_subjects'].ravel()
+            avg_corr[stim] = data['average_correlation_subjects'].ravel()
 
-
-axes[1].set_xticks(np.arange(len(stimuli)))
-axes[1].set_xticklabels(['Tono de voz', 'Envolvente', 'Espectrograma', 'Fonemas', 'C. Fonológicas'], minor=False, fontsize=12, rotation=35)
-axes[1].set_yticks(np.arange(len(bands)))
-axes[1].set_yticklabels(['Delta', 'Theta', 'Alpha', r'Beta$_1$', r'Beta$_2$', 'Ancha'], minor=False, fontsize=12)
-# axes[1].xaxis.tick_top()
-cbar = fig.colorbar(im, ax=axes[1])
-cbar.ax.tick_params(labelsize=15)
-fig.show()
-
-
-# ======================
-# HEATMAP CENTRALIZATION
-fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10,4), constrained_layout='True')
-axes[0].set_title(
-        'Correlación por grupos de electrodos',
-        y=1.05, 
-        verticalalignment="top"
+    # Make plot
+    plt.figure(
+        figsize=(8,8),
+        layout='tight'
         )
-axes[0].grid(visible=True)
-axes[0].set_axisbelow(True)
-# axes[0].scatter(np.arange(n_groups_y-1), [correlations[('Phonemes-Discrete-Phonet','Theta')][group].mean() for group in groups_y], color='black')
-cmap = colormaps['turbo']
-colors = cmap(np.linspace(0, 1, len(groups_x)))
-for i, corr, c in zip(np.arange(n_groups_x-1), [correlations[('Phonemes-Discrete-Phonet','Theta')][group].mean() for group in groups_x], colors):
-    axes[0].scatter(i, corr, color=c)
-axes[0].set_xticks(np.arange(n_groups_x-1))
-axes[0].set_xticklabels([f'G{i}'for i in np.arange(n_groups_x-1)])
-axes[0].set_xlabel('Channel group selection', fontsize=15)
-axes[0].set_ylabel('Average correlation', fontsize=15)
-subax = axes[0].inset_axes([.02,.07,.45,.45])
-mne.viz.plot_sensors(
-        info=config.info_mne,
-        show_names=False,
-        block=False,
-        pointsize=20,
-        cmap='turbo',
-        axes=subax,
-        ch_groups=groups_x, 
-        linewidth=0
-        )
-# # Create a legend
-# cmap = colormaps['plasma']
-# colors = cmap(np.linspace(0, 1, len(groups_x)))
-# handles = [mpatches.Patch(color=colour, label=f'G{i}') for i, colour in enumerate(colors)]
-# axes[0].legend(handles=handles, loc='lower right', frameon=True, fontsize=10)
-z = np.zeros(shape=(len(bands),len(stimuli)))
-z_pv = np.zeros(shape=(len(bands),len(stimuli)))
+    plt.title(band)
 
-for i, band in enumerate(bands):
-    for j, stim in enumerate(stimuli):
-        average_correlation = correlations[(stim,band)]
-        sides_group, center_group = [], []
-        for l in range(n_groups_x-1):
-            if 4<=l<=6:
-                for ch in groups_x[l]:
-                    center_group.append(ch)
-            else:
-                for ch in groups_x[l]:
-                    sides_group.append(ch)
-        z[i,j] = average_correlation[sides_group].mean()-average_correlation[center_group].mean()
-        stat, p_val = wilcoxon(average_correlation[sides_group], average_correlation[center_group], alternative='two-sided')
-        z_pv[i,j] = p_val
-axes[1].set_title('Centralization: correlation difference')
-im = axes[1].imshow(
-            z, 
-            vmin=z.min(), 
-            vmax=z.max(),
-            cmap='plasma'
+    for i, stim in enumerate(substims):
+        # Identify Hull (la cáscara de los datos, i.e, el borde)
+        stim_points = np.array([avg_corr[stims], avg_corr[stim]]).transpose()
+        stim_hull = ConvexHull(stim_points)
+
+        # Plot good channels for each stim
+        plt.plot(
+            avg_corr[stims][good_ch[stim] != 0], 
+            avg_corr[stim][good_ch[stim] != 0], 
+            '.', 
+            color=f'C{i}',
+            label=stim, 
+            ms=2.5
             )
-for i in range(z_pv.shape[0]):
-    for j in range(z_pv.shape[1]):
-        p_val = z_pv[i, j]
-        if p_val < 0.01:
-            annot = '**'
-        elif p_val < 0.05:
-            annot = '*'
-        else:
-            annot = ''
-        if annot:
-            axes[1].text(j, i, annot, ha='center', va='center', color='black', fontsize=20, fontweight='bold')
 
-axes[1].set_xticks(np.arange(len(stimuli)))
-axes[1].set_xticklabels([stim.split('-')[0] if stim!='Pitch-Log-Raw' else 'Pitch-Log' for stim in stimuli], minor=False, fontsize=12, rotation=35)
-axes[1].set_yticks(np.arange(len(bands)))
-axes[1].set_yticklabels(bands, minor=False, fontsize=12)
-# axes[1].xaxis.tick_top()
-cbar = fig.colorbar(im, ax=axes[1])
-cbar.ax.tick_params(labelsize=12)
-fig.show()
+        # Plot bad channels for each stim
+        plt.plot(
+            avg_corr[stims][good_ch[stim] == 0], 
+            avg_corr[stim][good_ch[stim] == 0], 
+            '.', 
+            color='grey',
+            alpha=0.5, 
+            label='Failed permutation test', 
+            markersize=2
+            )
+        plt.fill(
+            stim_points[stim_hull.vertices, 0], 
+            stim_points[stim_hull.vertices, 1], 
+            color=f'C{i}',
+            alpha=0.3, 
+            linewidth=0
+            )
 
-# ==========================
-# HEATMAP ANTERIOR-POSTERIOR
-fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10,4), constrained_layout='True')
-axes[0].set_title(
-        'Correlation: Phonological-Theta',
-        y=1.05, 
-        verticalalignment="top"
-        )
-axes[0].grid(visible=True)
-axes[0].set_axisbelow(True)
-# axes[0].scatter(np.arange(n_groups_y-1), [correlations[('Phonological','Theta')][group].mean() for group in groups_y], color='black')
-cmap = colormaps['cividis']
-colors = cmap(np.linspace(0, 1, len(groups_y)))
-for i, corr, c in zip(np.arange(n_groups_y-1), [correlations[('Phonological','Theta')][group].mean() for group in groups_y], colors):
-    axes[0].scatter(i, corr, color=c)
-axes[0].set_xticks(np.arange(n_groups_y-1))
-axes[0].set_xticklabels([f'G{i}'for i in np.arange(n_groups_y-1)])
-axes[0].set_xlabel('Channel group selection', fontsize=15)
-axes[0].set_ylabel('Average correlation', fontsize=15)
-subax = axes[0].inset_axes([.35,.1,.7,.7])
-mne.viz.plot_sensors(
-        info=config.info_mne,
-        show_names=False,
-        block=False,
-        pointsize=35,
-        cmap='cividis',
-        axes=subax,
-        ch_groups=groups_y, 
-        linewidth=0
-        )
-# # Create a legend
+    # Get limits
+    xlimit, ylimit = plt.xlim(), plt.ylim()
+    plt.plot([xlimit[0], 0.7], [xlimit[0], 0.7], 'k--', zorder=0)
+    plt.hlines(0, xlimit[0], xlimit[1], color='grey', linestyle='dashed')
+    plt.vlines(0, ylimit[0], ylimit[1], color='grey', linestyle='dashed')
+    
+    plt.ylabel('Individual model (r)')
+    plt.xlabel('Full model (r)')
+
+    # Legend
+    handles, labels = plt.gca().get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    plt.legend(by_label.values(), by_label.keys(), markerscale=3)
+    plt.show()
+
+    # Save
+    if config.save_figures:
+        fname = f'relevant_channels_{config.relevant_channels}_{stims}' if config.relevant_channels else f'{stims}'
+        save_figure(
+                cwd=current_working_directory,
+                save_path=os.path.join(path_convex_hull, f'{band}'),
+                file_name=fname, 
+                fig=fig
+                )
+    plt.close()
+
+
+
+
+
+
+
+# # ===================================================================================================================
+# # TOPOGRAPHIC DISTRIBUTION HEATMAPS: make heatmaps with topographic information across features, situations and bands
+# # ===================================================================================================================
+# situation = 'External'
+# correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+
+# # Relevant parameters
+# bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
+# stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological'] # 'Envelope_Phonemes-Discrete-Manual'
+# n_stims, n_bands = len(stimuli), len(bands)
+
+# # Get mean correlations across subjects and total max and min
+# correlations = {(stim,band):load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects'] for stim in stimuli for band in bands}
+# good_chs = {(stim,band):load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['repeated_good_correlation_channels_subjects'] for stim in stimuli for band in bands}
+
+# # TODO REVISAR
+# minimum_cor, maximum_cor = min([correlation.min() for correlation in correlations.values()]), max([correlation.max() for correlation in correlations.values()])
+
+# # Get groups to make average correlations
+# n_groups_x, n_groups_y = 12, 12
+# posicion_x = np.array([config.montage._get_ch_pos()[ch][0] for ch in config.montage._get_ch_pos()])
+# posicion_y = np.array([config.montage._get_ch_pos()[ch][1] for ch in config.montage._get_ch_pos()])
+# bins_x = np.linspace(posicion_x.min(), posicion_x.max(), n_groups_x)
+# bins_y = np.linspace(posicion_y.min(), posicion_y.max(), n_groups_y)
+# groups_x, groups_y = [], []
+# for i in range(1, n_groups_y):
+#     group_y = []
+#     for ch in config.montage._get_ch_pos():
+#         y_value = config.montage._get_ch_pos()[ch][1]
+#         if bins_y[i-1]<=y_value<=bins_y[i]:
+#             group_y.append(config.info_mne.ch_names.index(ch))
+#     groups_y.append(group_y)
+    
+# for i in range(1, n_groups_x):
+#     group_x = []
+#     for ch in config.montage._get_ch_pos():
+#         x_value = config.montage._get_ch_pos()[ch][0]
+#         y_value = config.montage._get_ch_pos()[ch][1]
+#         if (bins_x[i-1]<=x_value<=bins_x[i]) and (y_value>=0) :
+#             group_x.append(config.info_mne.ch_names.index(ch))
+#     groups_x.append(group_x)
+    
+# # # Para ver si está balanceado
+# # plt.figure()
+# # plt.title('bins_x')
+# # plt.hist(posicion_x, bins_x)
+# # plt.grid(visible=True)
+# # plt.yticks(ticks=np.arange(0,20))
+# # plt.show(block=False)
+# # plt.figure()
+# # plt.title('bins_y')
+# # plt.hist(posicion_y, bins_y)
+# # plt.grid(visible=True)
+# # plt.yticks(ticks=np.arange(0,20))
+# # plt.show(block=False)
+
+# # =======================
+# # HEATMAP LATERALIZATION
+# from statannot import add_stat_annotation
+# fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(11, 4), constrained_layout='True')
+# upper_channels = np.concatenate(groups_y[4:]).tolist() 
+
+# # left_channels = np.concatenate(groups_x[:4]).tolist()
+# # right_channels = np.concatenate(groups_x[7:]).tolist()
+
+# # left_channels = ['C32', 'C31', 'C30', 'C29', 'C28', 'C27', 'C26', 'C25', 'C24', 'D7', 'D6',\
+# #     'D5', 'D4', 'D3', 'D2', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13']
+# # right_channels = ['C10', 'C9', 'C8', 'C16', 'C15', 'C14', 'C13', 'C12', 'C11', 'C7', 'C6',\
+# #     'C5', 'C4', 'C3', 'C2', 'B27', 'B28', 'B29', 'B30', 'B31','B32']
+# left_channels = ['C32', 'C31', 'C30', 'D7', 'D6',\
+#     'D5', 'D4', 'D3', 'D8', 'D9', 'D10', 'D11']
+# right_channels = ['C10', 'C9', 'C8', 'C7', 'C6',\
+#     'C5', 'C4', 'C3', 'B27', 'B28', 'B29', 'B30']
+# # left_channels = ['C32', 'C31', 'C30', 'D7', 'D6',\
+# #     'D5', 'D8', 'D9', 'D10', 'D11']
+# # right_channels = ['C10', 'C9', 'C8', 'C7', 'C6',\
+# #     'C5', 'B27', 'B28', 'B29', 'B30']
+
+# left_channels = [config.info_mne['ch_names'].index(ch) for ch in left_channels]
+# right_channels = [config.info_mne['ch_names'].index(ch) for ch in right_channels]
+# left_channels = [ch for ch in left_channels if ch in upper_channels]
+# right_channels = [ch for ch in right_channels if ch in upper_channels]
+
+# # number_of_channels = 21
+# # left_corrs = sorted(average_corr[left_channels])[-number_of_channels:]
+# # right_corrs = sorted(average_corr[right_channels])[-number_of_channels:]
+# # left_chs = [average_corr.tolist().index(corr) for corr in left_corrs]
+# # right_chs = [average_corr.tolist().index(corr) for corr in right_corrs]
+
+# average_corr = correlations[('Phonological','Theta')].mean(axis=0)
+
+# cmap = colormaps['magma']
+# colors = cmap(np.linspace(0, 1, len(groups_x)))
+# custom_cmap = ListedColormap([colors[2], colors[-2]])
+
+# axes[0].set_title('Selección de grupos')
+# mne.viz.plot_sensors(
+#         info=config.info_mne,
+#         show_names=False,
+#         block=False,
+#         pointsize=35,
+#         cmap=custom_cmap,
+#         axes=axes[0],
+#         ch_groups=[left_channels, right_channels],
+#         linewidth=0, 
+#         show=False
+#         )
+# # mne.viz.plot_sensors(
+# #         info=config.info_mne,
+# #         show_names=True,
+# #         block=False,
+# #         pointsize=35,
+# #         cmap=custom_cmap,
+# #         # axes=axes[0],
+# #         # ch_groups=[left_channels, right_channels],
+# #         linewidth=0, 
+# #         show=True
+# #         )
+
+# axes[0].text(
+#             -.076, -.02, 'Izquierda', color=colors[2],
+#             verticalalignment="center", horizontalalignment="left", fontsize=13
+#         )
+# axes[0].text(
+#             .026, -.02, 'Derecha', color=colors[-2],
+#             verticalalignment="center", horizontalalignment="left", fontsize=13
+#         )
+
+# axes[1].set_title('C. Fonológicas - Theta',
+#                    y=1.05, 
+#                    verticalalignment="top")
+# axes[1].grid(visible=True)
+# axes[1].set_axisbelow(True)
+
+# data_plot = {'Izquierda':correlations[('Phonological','Theta')][:, left_channels].mean(axis=0), 
+#              'Derecha':correlations[('Phonological','Theta')][:, right_channels].mean(axis=0)}
+# data_plot = pd.DataFrame(data=data_plot)
+
+# # Ahora usamos Seaborn para crear el violin plot
+# sns.boxplot(
+#     data=data_plot,
+#     # x='Grupos de electrodos',
+#     # y='Correlación',
+#     palette={'Izquierda':colors[2], 'Derecha':colors[-2]},
+#     ax=axes[1],
+# )
+# add_stat_annotation(
+#                     ax=axes[1], 
+#                     data=data_plot, 
+#                     box_pairs=[('Izquierda', 'Derecha')],
+#                     test='Wilcoxon', 
+#                     text_format='star', 
+#                     loc='inside', 
+#                     fontsize='xx-large', 
+#                     verbose=0
+#                     )
+
+# for patch in axes[1].artists:
+#     r, g, b, alpha = patch.get_facecolor()
+#     patch.set_facecolor((r, g, b, .8))
+# sns.swarmplot(data=data_plot, color=".25", ax=axes[1])
+
+# # # Move the legend
+# axes[1].grid(visible=True)
+# axes[1].set_xticks([0, 1])
+# axes[1].set_xticklabels(['Izquierda', 'Derecha'])
+# axes[1].set_ylim([0.42, 0.455])
+# # axes[1].set_yticks(np.linspace(correlations[('Phonological', 'Theta')].min(), correlations[('Phonological', 'Theta')].max(), 5))
+
+# axes[1].grid(False)
+
+# # axes[1].set_xlabel('Grupos de electrodos', fontsize=15)
+# axes[1].set_ylabel('Correlación promedio', fontsize=15)
+# axes[1].tick_params(which='minor', bottom=False, left=True, right=True, top=False)
+
+# z = np.zeros(shape=(len(bands),len(stimuli)))
+# z_pv = np.zeros(shape=(len(bands),len(stimuli)))
+# for i, band in enumerate(bands):
+#     for j, stim in enumerate(stimuli):
+#         average_correlation = correlations[(stim,band)]
+#         # left_corrs = sorted(average_correlation.mean(axis=0)[left_channels])[-number_of_channels:]
+#         # right_corrs = sorted(average_correlation.mean(axis=0)[right_channels])[-number_of_channels:]
+#         # left_chs = [average_correlation.mean(axis=0).tolist().index(corr) for corr in left_corrs]
+#         # right_chs = [average_correlation.mean(axis=0).tolist().index(corr) for corr in right_corrs]
+
+#         z[i,j] = average_correlation[:, right_channels].mean()-average_correlation[:, left_channels].mean()
+#         stat, p_val = wilcoxon(average_correlation[:, right_channels].mean(axis=0), average_correlation[:, left_channels].mean(axis=0), alternative='two-sided')
+#         # stat, p_val = wilcoxon(average_correlation[:, right_channels], average_correlation[:, left_channels], alternative='two-sided')
+#         z_pv[i,j] = p_val
+
+# # axes[2].set_title('Lateralization: right(G[0-3])-left(G[7-10])')
+# axes[2].set_title('Lateralización: diferencia de correlación', x=.65)
+# im = axes[2].imshow(
+#             z, 
+#             vmin=z.min(), 
+#             vmax=z.max(),
+#             cmap='magma'
+#             )
+# for i in range(z_pv.shape[0]):
+#     for j in range(z_pv.shape[1]):
+#         p_val = z_pv[i, j]
+#         if p_val < 0.005:
+#             annot = '***'    
+#         elif p_val < 0.01:
+#             annot = '**'
+#         elif p_val < 0.05:
+#             annot = '*'
+#         else:
+#             annot = ''
+#         if annot:
+#             if z[i,j]<-.003:
+#                 axes[2].text(j, i, annot, ha='center', va='center', color='white', fontsize=20, fontweight='bold')
+#             else:
+#                 axes[2].text(j, i, annot, ha='center', va='center', color='black', fontsize=20, fontweight='bold')
+
+# axes[2].set_xticks(np.arange(len(stimuli)))
+# axes[2].set_xticklabels(['Tono de voz', 'Envolvente', 'Espectrograma', 'Fonemas', 'C. Fonológicas'], minor=False, fontsize=12, rotation=35)
+# axes[2].set_yticks(np.arange(len(bands)))
+# axes[2].set_yticklabels(['Delta', 'Theta', 'Alpha', r'Beta$_1$', r'Beta$_2$', 'Ancha'], minor=False, fontsize=12)
+# axes[2].minorticks_off()
+
+# fig.text(.025, 1, 'a)', fontsize=18, va='top', ha='right')
+# fig.text(.33, 1, 'b)', fontsize=18, va='top', ha='right')
+# fig.text(.62, 1, 'c)', fontsize=18, va='top', ha='right')
+# cbar = fig.colorbar(im, ax=axes[2])
+# # fig.savefig(
+# #     'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/distribucion_lateralizacion.svg',
+# #     transparent=False
+# #     )
+# fig.show()
+
+# # ======================
+# # HEATMAP CENTRALIZATION
+# fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(11,4), constrained_layout='True')
+# cmap = colormaps['turbo']
+# colors = cmap(np.linspace(0, 1, len(groups_x)))
+# cmap_gr = colormaps['magma']
+# colors_gr = cmap_gr(np.linspace(0, 1, len(groups_x)))
+
+# axes[0].set_title('Selección de grupos')
+# mne.viz.plot_sensors(
+#         info=config.info_mne,
+#         show_names=False,
+#         block=False,
+#         pointsize=35,
+#         cmap='turbo',
+#         axes=axes[0],
+#         ch_groups=groups_x,
+#         linewidth=0, 
+#         show=False
+#         )
+# # Obtener coordenadas de los sensores en el eje Y
+# x_start = -0.086
+# x_end = 0.086
+
+# # Definir coordenadas de la flecha
+# ylim = axes[0].get_ylim()
+# y_arrow = ylim[0] + 0 * (ylim[1] - ylim[0])  # Un poco a la derecha del borde
+
+# # Dibujar la flecha
+# axes[0].annotate(
+#     "",  # Sin texto
+#     xy=(x_end, y_arrow), xytext=(x_start, y_arrow),
+#     arrowprops=dict(arrowstyle="->", linewidth=2, color="black"),
+#     annotation_clip=False  # Para que se vea si está fuera de los límites
+# )
+
+# # Definir etiquetas en los valores exactos de y_start y y_end
+# x_positions = np.linspace(x_start-.02, x_end, 11)  # 11 valores, incluyendo los extremos
+
+# for i, x in enumerate(x_positions):
+#     if i in [4,5,6]:
+#         axes[0].text(
+#             x, y_arrow-0.02, f"G{i}", color=colors[i],
+#             verticalalignment="center", horizontalalignment="left", fontsize=13
+#         )
+#     else:
+#         axes[0].text(
+#             x, y_arrow-0.02, f"G{i}", color=colors[i],
+#             verticalalignment="center", horizontalalignment="left", fontsize=13
+#         )
+# # axes[0].text(
+# #             np.mean(x_positions)-.01, y_arrow-0.04, f"Centro", color=colors_gr[0],
+# #             verticalalignment="center", horizontalalignment="left", fontsize=13
+# #         )
+# # axes[0].text(
+# #             x_positions[-1]-.045, y_arrow-0.04, f"Costados", color=colors_gr[-2],
+# #             verticalalignment="center", horizontalalignment="left", fontsize=13
+# #         )
+# # axes[0].text(
+# #             x_positions[0]+.01, y_arrow-0.04, f"Costados", color=colors_gr[-2],
+# #             verticalalignment="center", horizontalalignment="left", fontsize=13
+# #         )
+
+# axes[1].set_title('Fonemas - Theta',
+#                    y=1.05, 
+#                    verticalalignment="top")
+# axes[1].grid(visible=True)
+# axes[1].set_axisbelow(True)
+
+# data_plot = {'Grupos de electrodos':[], 'Correlación':[]}
+# for i, group in enumerate(groups_x):
+#     corr_group = correlations[('Phonemes-Discrete-Phonet','Theta')][:, group].mean(axis=1)
+#     for corr in corr_group:
+#         data_plot['Grupos de electrodos'].append(f'G{i}')
+#         data_plot['Correlación'].append(corr)
+
+# # Ahora usamos Seaborn para crear el violin plot
+# sns.boxplot(
+#     data=data_plot,
+#     x='Grupos de electrodos',
+#     y='Correlación',
+#     palette={f'G{k}': colors[k] for k in range(len(groups_x))},
+#     ax=axes[1],
+# )
+# # Move the legend
+# axes[1].grid(visible=True)
+# axes[1].set_xticks(np.arange(n_groups_x-1))
+# axes[1].set_xticklabels([f'{i}'for i in np.arange(n_groups_x-1)])
+# xticks = axes[1].get_xticklabels()
+# for l, label in enumerate(xticks):
+#     if l in [4,5,6]:
+#         label.set_color(colors_gr[0])
+#     else:
+#         label.set_color(colors_gr[-2])
+# axes[1].set_yticks(np.linspace(correlations[('Phonemes-Discrete-Phonet','Theta')].min(), correlations[('Phonemes-Discrete-Phonet','Theta')].max(), 5).round(3))
+# axes[1].grid(False)
+
+# axes[1].set_xlabel('Grupos de electrodos', fontsize=15)
+# axes[1].set_ylabel('Correlación promedio', fontsize=15)
+# axes[1].tick_params(which='minor', bottom=False, left=True, right=True, top=False)
+
+# z = np.zeros(shape=(len(bands),len(stimuli)))
+# z_pv = np.zeros(shape=(len(bands),len(stimuli)))
+# for i, band in enumerate(bands):
+#     for j, stim in enumerate(stimuli):
+#         average_correlation = correlations[(stim,band)]
+#         sides_group, center_group = [], []
+#         for l in range(n_groups_x-1):
+#             if 4<=l<=6:
+#                 for ch in groups_x[l]:
+#                     center_group.append(ch)
+#             else:
+#                 for ch in groups_x[l]:
+#                     sides_group.append(ch)
+#         z[i,j] = average_correlation[:, sides_group].mean()-average_correlation[:, center_group].mean()
+#         stat, p_val = wilcoxon(average_correlation[:, sides_group].mean(axis=1), average_correlation[:, center_group].mean(axis=1), alternative='two-sided')
+#         z_pv[i,j] = p_val
+
+# # axes[2].set_title('Lateralization: right(G[0-3])-left(G[7-10])')
+# axes[2].set_title('Centralización: diferencia de correlación', x=.65)
+# im = axes[2].imshow(
+#             z, 
+#             vmin=z.min(), 
+#             vmax=z.max(),
+#             cmap='magma'
+#             )
+# for i in range(z_pv.shape[0]):
+#     for j in range(z_pv.shape[1]):
+#         p_val = z_pv[i, j]
+#         if p_val < 0.005:
+#             annot = '***'
+#         elif p_val < 0.01:
+#             annot = '**'
+#         elif p_val < 0.05:
+#             annot = '*'
+#         else:
+#             annot = ''
+#         if annot:
+#             if z[i,j]<-.002:
+#                 axes[2].text(j, i, annot, ha='center', va='center', color='white', fontsize=20, fontweight='bold')
+#             else:
+#                 axes[2].text(j, i, annot, ha='center', va='center', color='black', fontsize=20, fontweight='bold')
+
+# axes[2].set_xticks(np.arange(len(stimuli)))
+# axes[2].set_xticklabels(['Tono de voz', 'Envolvente', 'Espectrograma', 'Fonemas', 'C. Fonológicas'], minor=False, fontsize=12, rotation=35)
+# axes[2].set_yticks(np.arange(len(bands)))
+# axes[2].set_yticklabels(['Delta', 'Theta', 'Alpha', r'Beta$_1$', r'Beta$_2$', 'Ancha'], minor=False, fontsize=12)
+# axes[2].minorticks_off()
+
+# # axes[2].xaxis.tick_top()
+# cbar = fig.colorbar(im, 
+#                     ax=axes[2])
+# cbar.ax.set(yticks=[-.006,  0.   ,  0.006,  0.009], yticklabels=[-.006,  0.   ,  0.006,  0.009])
+# # cbar.ax.tick_params(labelsize=15)
+# fig.text(.025, 1, 'a)', fontsize=18, va='top', ha='right')
+# fig.text(.33, 1, 'b)', fontsize=18, va='top', ha='right')
+# fig.text(.62, 1, 'c)', fontsize=18, va='top', ha='right')
+# fig.savefig(
+#     'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/distribucion_centralizacion.svg',
+#     transparent=False
+#     )
+# fig.show()
+
+# # ==========================
+# # HEATMAP ANTERIOR-POSTERIOR
+# fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(11,4), constrained_layout='True')
+# axes[0].set_title('Selección de grupos')
+# im = mne.viz.plot_sensors(
+#         info=config.info_mne,
+#         show_names=False,
+#         block=False,
+#         pointsize=35,
+#         cmap='cividis',
+#         axes=axes[0],
+#         ch_groups=groups_y,
+#         linewidth=0, 
+#         show=False
+#         )
 # cmap = colormaps['cividis']
 # colors = cmap(np.linspace(0, 1, len(groups_y)))
-# handles = [mpatches.Patch(color=colour, label=f'G{i}') for i, colour in enumerate(colors)]
-# axes[0].legend(handles=handles, loc='lower right', frameon=True, fontsize=10)
-z = np.zeros(shape=(len(bands),len(stimuli)))
-for i, band in enumerate(bands):
-    for j, stim in enumerate(stimuli):
-        average_correlation = correlations[(stim,band)]
-        z[i,j] = np.corrcoef([average_correlation[group].mean() for group in groups_y], np.arange(n_groups_y-1))[1,0]
 
-axes[1].set_title('Pearson correlation')
-im = axes[1].imshow(
-            z, 
-            vmin=-1, 
-            vmax=1,
-            cmap='plasma'
-            )
-axes[1].set_xticks(np.arange(len(stimuli)))
-axes[1].set_xticklabels([stim.split('-')[0] if stim!='Pitch-Log-Raw' else 'Pitch-Log' for stim in stimuli], minor=False, fontsize=12, rotation=35)
-axes[1].set_yticks(np.arange(len(bands)))
-axes[1].set_yticklabels(bands, minor=False, fontsize=12)
-# axes[1].xaxis.tick_top()
+# # Obtener coordenadas de los sensores en el eje Y
+# y_start = -0.076
+# y_end = 0.076
 
-cbar = fig.colorbar(im, ax=axes[1])
-cbar.ax.tick_params(labelsize=15)
+# # Definir coordenadas de la flecha
+# xlim = axes[0].get_xlim()
+# x_arrow = xlim[0] + 0 * (xlim[1] - xlim[0])  # Un poco a la derecha del borde
 
-fig.show()
+# # Dibujar la flecha
+# axes[0].annotate(
+#     "",  # Sin texto
+#     xy=(x_arrow, y_end), xytext=(x_arrow, y_start),
+#     arrowprops=dict(arrowstyle="->", linewidth=2, color="black"),
+#     annotation_clip=False  # Para que se vea si está fuera de los límites
+# )
 
+# # Definir etiquetas en los valores exactos de y_start y y_end
+# y_positions = np.linspace(y_start, y_end, 11)  # 11 valores, incluyendo los extremos
 
+# for i, y in enumerate(y_positions):
+#     axes[0].text(
+#         x_arrow - 0.025, y, f"G{i}", color=colors[i],
+#         verticalalignment="center", horizontalalignment="left", fontsize=14
+#     )
+# axes[1].set_title('C. Fonológicas - Alpha',
+#                    y=1.05, 
+#                    verticalalignment="top")
+# axes[1].grid(visible=True)
+# axes[1].set_axisbelow(True)
+
+# for i, (group, color) in enumerate(zip(groups_y, colors)):
+#     corr_group = correlations[('Phonological','Alpha')][:, group].mean()
+#     axes[1].scatter(i, corr_group, color=color, s=35)
+
+# # # Move the legend
+# axes[1].grid(visible=True)
+# axes[1].set_xticks(np.arange(n_groups_y-1))
+# axes[1].set_xticklabels([f'{i}'for i in np.arange(n_groups_y-1)])
+# # axes[1].set_yticks(np.linspace(correlations[('Phonological', 'Alpha')].min(), correlations[('Phonological', 'Alpha')].max(), 5))
+# axes[1].grid(visible=True)
+
+# axes[1].set_xlabel('Grupos de electrodos', fontsize=15)
+# axes[1].set_ylabel('Correlación promedio', fontsize=15)
+# axes[1].tick_params(which='minor', bottom=False, left=True, right=True, top=False)
+
+# z = np.zeros(shape=(len(bands),len(stimuli)))
+# for i, band in enumerate(bands):
+#     for j, stim in enumerate(stimuli):
+#         average_correlation = correlations[(stim,band)]
+#         z[i,j] = np.corrcoef([average_correlation[:, group].mean() for group in groups_y], np.arange(n_groups_y-1))[1,0]
+
+# # axes[2].set_title('Lateralization: right(G[0-3])-left(G[7-10])')
+# axes[2].set_title('Correlación de Pearson')
+# im = axes[2].imshow(
+#             z, 
+#             vmin=z.min(), 
+#             vmax=z.max(),
+#             cmap='magma'
+#             )
+# axes[2].set_xticks(np.arange(len(stimuli)))
+# axes[2].set_xticklabels(['Tono de voz', 'Envolvente', 'Espectrograma', 'Fonemas', 'C. Fonológicas'], minor=False, fontsize=12, rotation=35)
+# axes[2].set_yticks(np.arange(len(bands)))
+# axes[2].set_yticklabels(['Delta', 'Theta', 'Alpha', r'Beta$_1$', r'Beta$_2$', 'Ancha'], minor=False, fontsize=12)
+# axes[2].minorticks_off()
+
+# cbar = fig.colorbar(im, ax=axes[2])
+# # cbar.ax.tick_params(labelsize=15)
+# fig.text(.05, 1, 'a)', fontsize=18, va='top', ha='right')
+# fig.text(.35, 1, 'b)', fontsize=18, va='top', ha='right')
+# fig.text(.68, 1, 'c)', fontsize=18, va='top', ha='right')
+# fig.savefig(
+#     'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/distribucion_anterior_posterior.svg',
+#     transparent=False
+#     )
+# fig.show()
 
 # # =================
 # # DIAGRAMAS DE VENN
@@ -507,7 +816,7 @@ fig.show()
 # # Save figure
 # fig.savefig(
 #     'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/modelos_conjuntos_externa.svg',
-#     transparent=True
+#     transparent=False
 #     )
 # fig.show()
 
@@ -835,7 +1144,7 @@ fig.show()
 
 # # fig.savefig(
 # #     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/perfiles_grupos.svg',
-# #     transparent=True
+# #     transparent=False
 # #     )
 # fig.show()
 
@@ -931,7 +1240,7 @@ fig.show()
 # cbar.ax.tick_params(labelsize=15)
 # # fig.savefig(
 # #     'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/matriz_corr_externa.svg',
-# #     transparent=True
+# #     transparent=False
 # #     )
 # fig.show()
 
@@ -1210,7 +1519,7 @@ fig.show()
 #          txt.remove()
 # fig.savefig(
 #     'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/fonologicas_grupos.svg',
-#     transparent=True
+#     transparent=False
 #     )
 # fig.show()
 
@@ -1490,7 +1799,7 @@ fig.show()
 #          txt.remove()
 # fig.savefig(
 #     'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/fonemas_grupos.svg',
-#     transparent=True
+#     transparent=False
 #     )
 # fig.show()
 
@@ -1775,7 +2084,7 @@ fig.show()
 
 # fig.savefig(
 #     'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/tonodevoz_completo.svg',
-#     transparent=True
+#     transparent=False
 #     )
 # fig.show()
 
@@ -1991,7 +2300,7 @@ fig.show()
 
 # fig.savefig(
 #     'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/envolvente_completo.svg',
-#     transparent=True
+#     transparent=False
 #     )
 # fig.show()
 
@@ -2264,7 +2573,7 @@ fig.show()
 # ax5.text(-.06, 1.1, 'e)', transform=ax5.transAxes, fontsize=18, va='top', ha='right')
 # # fig.savefig(
 # #     'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/fonologicas_completo.svg',
-# #     transparent=True
+# #     transparent=False
 # #     )
 # fig.show()
 
@@ -2547,7 +2856,7 @@ ax5.text(-.06, 1.1, 'e)', transform=ax5.transAxes, fontsize=18, va='top', ha='ri
 
 # fig.savefig(
 #     'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/fonos_completo.svg',
-#     transparent=True
+#     transparent=False
 #     )
 fig.show()
 
@@ -2822,7 +3131,7 @@ fig.show()
 # ax5.text(-.06, 1.1, 'e)', transform=ax5.transAxes, fontsize=18, va='top', ha='right')
 # # fig.savefig(
 # #     'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/fonemas_completo.svg',
-# #     transparent=True
+# #     transparent=False
 # #     )
 # fig.show()
 
@@ -3078,7 +3387,7 @@ fig.colorbar(
 ax5.text(-.06, 1.1, 'e)', transform=ax5.transAxes, fontsize=18, va='top', ha='right')
 # fig.savefig(
 #     'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/mfccs_completo.svg',
-#     transparent=True
+#     transparent=False
 #     )
 fig.show()
 
@@ -3337,7 +3646,7 @@ fig.show()
 # ax5.text(-.06, 1.1, 'e)', transform=ax5.transAxes, fontsize=18, va='top', ha='right')
 # # fig.savefig(
 # #     'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/espectrograma_completo.svg',
-# #     transparent=True
+# #     transparent=False
 # #     )
 # fig.show()
 
@@ -3358,7 +3667,7 @@ fig.show()
 # # Save figure
 # fig.savefig(
 #     'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/ejemplo_venn2.svg',
-#     transparent=True
+#     transparent=False
 #     )
 # # fig.show()
 # fig = plt.figure(
@@ -3382,7 +3691,7 @@ fig.show()
 # # Save figure
 # fig.savefig(
 #     'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/ejemplo_venn3.svg',
-#     transparent=True
+#     transparent=False
 #     )
 # # fig.show()
 
@@ -3574,7 +3883,7 @@ fig.show()
 # ax.legend(loc=(.2,.2))
 # fig.savefig(
 #     'C:/Users/User/Documents/tesis_escrita/imagenes/metodos/prueba_permutaciones.svg', # 'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/prueba_permutaciones.svg',
-#     transparent=True
+#     transparent=False
 #     )
 # # fig.show()
 
@@ -3787,7 +4096,7 @@ fig.show()
 # axes[1].legend(loc='upper right', fontsize=14)
 # fig.savefig(
 #     'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/validacion.svg',
-#     transparent=True
+#     transparent=False
 #     )
 # # fig.show()
             
@@ -3881,7 +4190,7 @@ fig.show()
 #     )
 # fig.savefig(
 #     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/ejemplo_TFCE.svg',
-#     transparent=True
+#     transparent=False
 #     )
 # # fig.show()
 # # =============================
@@ -4154,7 +4463,7 @@ fig.show()
 # axes[2].set_ylim(-1, 1.5)
 # fig.savefig(
 #     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/diagrama_matriz_diseño.png',
-#     transparent=True,
+#     transparent=False,
 #     dpi=600
 #     )
 # # fig.show()
@@ -4239,7 +4548,7 @@ fig.show()
 # ax.set_yticks([])
 # fig.savefig(
 #     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/diagrama_matriz_diseño2.png',
-#     transparent=True,
+#     transparent=False,
 #     dpi=600
 #     )
 
@@ -4275,7 +4584,7 @@ fig.show()
 # plt.axis('off')
 # fig.savefig(
 #     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_envolvente_diagrama1.png',
-#     transparent=True
+#     transparent=False
 #     )
 # fig = plt.figure(
 #     tight_layout=True,
@@ -4290,7 +4599,7 @@ fig.show()
 # plt.axis('off')
 # fig.savefig(
 #     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_envolvente_diagrama2.png',
-#     transparent=True
+#     transparent=False
 #     )
 # fig.show()
 
@@ -4315,7 +4624,7 @@ fig.show()
 # # fig.show()
 # fig.savefig(
 #     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_envolvente_diagrama3.png',
-#     transparent=True
+#     transparent=False
 #     )
 
 # # Get average weights across subjects
@@ -4365,15 +4674,16 @@ fig.show()
 # # fig.show()
 # fig.savefig(
 #     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_envolvente_diagrama4.png',
-#     transparent=True
+#     transparent=False
 #     )
+
 # # =====
 # # Phones
 # PhonesPath = "saves/preprocessed_data/External/tmin-0.2_tmax0.6/Phones-Discrete-Phonet/Sesion21.pkl"
 # NumberOfTicks = 34
 
 # phones = load_pickle(path=PhonesPath)[0][:9168]
-# WindowLeft, WindowRight = 0, len(phones)/config.sr
+# WindowLeft, WindowRight = 30,40 #0, len(phones)/config.sr
 
 # time_phones = np.arange(0, len(phones)/config.sr, 1/config.sr)
 # window_phones = (WindowLeft <= time_phones) & (time_phones <= WindowRight)
@@ -4401,13 +4711,14 @@ fig.show()
 #     aspect='auto',  # Ajusta el aspecto
 #     extent=[WindowLeft, WindowRight, 0, NumberOfTicks],  # Ajusta los límites de los ejes
 #     origin='lower',  # Ajusta el origen
-#     cmap='Greens',  # Ajusta el mapa de colores
+#     cmap=ListedColormap(["white", "gray"]),  # Ajusta el mapa de colores
 #     vmin=phones.min(),
 #     vmax=phones.max()
 #     )
+
 # cbar = plt.colorbar(
 #     im,
-#     label='Amplitud (U.A)'
+#     label='Ocurrencias'
 #     )
 # ticks_b = [0, 1]
 # cbar.set_ticks(ticks_b)
@@ -4419,7 +4730,7 @@ fig.show()
 # plt.ylabel('Fonos')  
 # # fig.savefig(
 # #     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_phones.svg',
-# #     transparent=True,
+# #     transparent=False,
 # #     )
 # fig.show()
 
@@ -4429,7 +4740,7 @@ fig.show()
 # NumberOfTicks = 21
 
 # phonemes = load_pickle(path=PhonemesPath)[0][:9168]
-# WindowLeft, WindowRight = 0, len(phonemes)/config.sr
+# WindowLeft, WindowRight = 30, 40 #3, len(phonemes)/config.sr
 
 # time_phonemes = np.arange(0, len(phonemes)/config.sr, 1/config.sr)
 # window_phonemes = (WindowLeft <= time_phonemes) & (time_phonemes <= WindowRight)
@@ -4448,13 +4759,13 @@ fig.show()
 #     aspect='auto',  # Ajusta el aspecto
 #     extent=[WindowLeft, WindowRight, 0, NumberOfTicks],  # Ajusta los límites de los ejes
 #     origin='lower',  # Ajusta el origen
-#     cmap='Greens',  # Ajusta el mapa de colores
+#     cmap=ListedColormap(["white", "gray"]),  # Ajusta el mapa de colores
 #     vmin=phonemes.min(),
 #     vmax=phonemes.max()
 #     )
 # cbar = plt.colorbar(
 #     im,
-#     label='Amplitud (U.A)'
+#     label='Ocurrencias'
 #     )
 # ticks_b = [0, 1]#phonological.min(), phonological.max()
 # cbar.set_ticks(ticks_b)
@@ -4467,63 +4778,70 @@ fig.show()
 # plt.ylabel('Fonemas')  
 # # fig.savefig(
 # #     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_phonemes.svg',
-# #     transparent=True,
+# #     transparent=False,
 # #     )
 # fig.show()
 
 # # =====
 # # Phonological
 # PhonologicalPath = "saves/preprocessed_data/External/tmin-0.2_tmax0.6/Phonological/Sesion21.pkl"
-# NumberOfTicks = 18
+# NumberOfTicks = 16
 
 # phonological = load_pickle(path=PhonologicalPath)[0][:9168]
-# WindowLeft, WindowRight = 0, len(phonological)/config.sr
+# WindowLeft, WindowRight = 30, 40 #0, len(phonological)/config.sr
 
 # time_phonological = np.arange(0, len(phonological)/config.sr, 1/config.sr)
 # window_phonological = (WindowLeft <= time_phonological) & (time_phonological <= WindowRight)
 
 # tags = list(config.Exp_info().phonological_labels.keys())
-# ticks = np.arange(0, NumberOfTicks, 1)+.5
+# tags.remove('trill')
+# tags.remove('pause')
+# ticks = np.arange(0, NumberOfTicks, 1)
 
 # fig = plt.figure(
 #     tight_layout=True,
 #     figsize=(8, 6)
 #     )
+# # phonological.T[17] = np.zeros(9168)
+# # phonological.T[11] = np.zeros(9168)
+# phonological = phonological[:, [i for i in np.arange(18) if i not in [11, 17]]]
+
+# norm = TwoSlopeNorm(vmin=phonological.min(), vcenter=0, vmax=phonological.max())
 # # im = plt.imshow(
 # #     phonological.T,
-# #     aspect='auto',  # Ajusta el aspecto
-# #     extent=[WindowLeft, WindowRight, 0, NumberOfTicks],  # Ajusta los límites de los ejes
-# #     origin='lower',  # Ajusta el origen
-# #     cmap='RdBu_r'  # Ajusta el mapa de colores
-# #     )
-# # plt.colorbar(
-# #     im,
-# #     label='Amplitud (U.A)'
-# #     )
-# norm = TwoSlopeNorm(vmin=phonological.min(), vcenter=0, vmax=phonological.max())
-# im = plt.imshow(
-#     phonological.T,
-#     aspect='auto',
-#     extent=[WindowLeft, WindowRight, 0, NumberOfTicks],
-#     origin='lower',
-#     cmap='RdBu_r',
+# #     aspect='auto',
+# #     extent=[WindowLeft, WindowRight, 0, NumberOfTicks],
+# #     origin='lower',
+# #     cmap='RdBu_r',
+# #     norm=norm
+# # )
+# im = plt.pcolormesh(
+#     time_phonological, 
+#     np.arange(16), 
+#     phonological.T, 
+#     cmap='RdBu_r',#LinearSegmentedColormap.from_list("custom_cmap", ["white", "gray"]),  # Ajusta el mapa de colores
+#     shading='auto',
 #     norm=norm
-# )
+#     # vmin=mfccs.min(),
+#     # vmax=mfccs.max()
+#     )
+
 # cbar = plt.colorbar(
 #     im,
-#     label='Amplitud (U.A)'
+#     label='PLLR'
 #     )
-# ticks_b = [-4, -2, 0, 2, 4, 6, 8]#phonological.min(), phonological.max()
-# cbar.set_ticks(ticks_b)
+# # ticks_b = [-8, -4, -2, 0, 2, 4, 6, 8]#phonological.min(), phonological.max()
+# # cbar.set_ticks(ticks_b)
 # plt.yticks(
 #     ticks=ticks, 
 #     labels=tags
 #     )
+# plt.xlim(WindowLeft, WindowRight)
 # plt.xlabel('Tiempo (s)')
 # plt.ylabel('Características fonológicas')  
 # # fig.savefig(
 # #     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_phonological.svg',
-# #     transparent=True
+# #     transparent=False
 # #     )
 # fig.show()
 
@@ -4534,27 +4852,38 @@ fig.show()
 # NumberOfTicks = 16
 
 # mfccs = load_pickle(path=MfccsPath)[0][:9168]
-# WindowLeft, WindowRight = 0, len(mfccs)/config.sr
+# WindowLeft, WindowRight = 30, 40#0, len(mfccs)/config.sr
 
 # time_mfccs = np.arange(0, len(mfccs)/config.sr, 1/config.sr)
 # window_mfccs = (WindowLeft <= time_mfccs) & (time_mfccs <= WindowRight)
 
 # tags = [f'M{i}' for i in np.arange(1, NumberOfTicks, 2)]
-# ticks = np.arange(0, NumberOfTicks, 2)+.5
+# ticks = np.arange(0, NumberOfTicks, 2)
 
 # fig = plt.figure(
 #     tight_layout=True,
 #     figsize=(6, 5)
 #     )
+# # im = plt.imshow(
+# #     mfccs.T,
+# #     aspect='auto',
+# #     extent=[WindowLeft, WindowRight, 0, NumberOfTicks],
+# #     origin='lower',
+# #     cmap='RdBu_r',
+# #     norm=norm
+# # )
 # norm = TwoSlopeNorm(vmin=mfccs.min(), vcenter=0, vmax=mfccs.max())
-# im = plt.imshow(
-#     mfccs.T,
-#     aspect='auto',
-#     extent=[WindowLeft, WindowRight, 0, NumberOfTicks],
-#     origin='lower',
-#     cmap='RdBu_r',
+# im = plt.pcolormesh(
+#     time_mfccs, 
+#     np.arange(16), 
+#     mfccs.T, 
+#     cmap='RdBu_r',#LinearSegmentedColormap.from_list("custom_cmap", ["white", "gray"]),  # Ajusta el mapa de colores
+#     shading='auto',
 #     norm=norm
-# )
+#     # vmin=mfccs.min(),
+#     # vmax=mfccs.max()
+#     )
+
 # cbar = plt.colorbar(
 #     im,
 #     label='Amplitud (U.A)'
@@ -4568,9 +4897,10 @@ fig.show()
 #     )
 # plt.xlabel('Tiempo (s)')
 # plt.ylabel('Coeficientes Mel')  
+# plt.xlim(WindowLeft, WindowRight)
 # # fig.savefig(
 # #     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_mfccs.svg',
-# #     transparent=True
+# #     transparent=False
 # #     )
 # fig.show()
 
@@ -4590,18 +4920,19 @@ fig.show()
 # # tags = [int(bands_center[i]) for i in np.arange(1, len(bands_center)+1, 2)]
 # # ticks = np.arange(0, NumberOfTicks, 2)+.5
 # tags = [int(bands_center[i]) for i in np.arange(0, len(bands_center))]
-# ticks = np.arange(0, NumberOfTicks)+.5
+# ticks = np.arange(0, NumberOfTicks)
 
 # fig = plt.figure(
 #     tight_layout=True,
 #     figsize=(6, 5)
 #     )
-# im = plt.imshow(
-#     spectrogram.T,
-#     aspect='auto',  # Ajusta el aspecto
-#     extent=[WindowLeft, WindowRight, 0, 16],  # Ajusta los límites de los ejes
-#     origin='lower',  # Ajusta el origen
-#     cmap='Greens',  # Ajusta el mapa de colores
+
+# im = plt.pcolormesh(
+#     np.arange(0, len(spectrogram)/config.sr, 1/config.sr)* 1e3, 
+#     np.arange(16), 
+#     spectrogram.T, 
+#     cmap=LinearSegmentedColormap.from_list("custom_cmap", ["white", "gray"]),  # Ajusta el mapa de colores
+#     shading='auto',
 #     vmin=spectrogram.min(),
 #     vmax=spectrogram.max()
 #     )
@@ -4618,8 +4949,9 @@ fig.show()
 # plt.xlabel('Tiempo (s)')
 # plt.ylabel('Frecuencia (Hz)')  
 # # fig.savefig(
-# #     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_espectrograma.svg',
-# #     transparent=True
+# #     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_espectrograma.png',
+# #     dpi=600
+# #     # transparent=False
 # #     )
 # fig.show()
 
@@ -4663,7 +4995,7 @@ fig.show()
 # plt.ylabel('Amplitud (U.A)')  
 # fig.savefig(
 #     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_tono.svg',
-#     transparent=True
+#     transparent=False
 #     )
 # # fig.show()
 
@@ -4709,7 +5041,7 @@ fig.show()
 # plt.ylabel('Amplitud (U.A)')  
 # # fig.savefig(
 # #     f'C:/Users/jocta/Documents/tesis_escrita/imagenes/metodos/sample_envolvente.svg',
-# #     transparent=True
+# #     transparent=False
 # #     )
 # fig.show()
 
@@ -4851,7 +5183,7 @@ fig.show()
 #         )
 #     # fig.savefig(
 #     #     f'G:/My Drive/tesis_licenciatura/figuras/UBA_GAMES_s{sujeto}.png', 
-#     #     transparent=True, 
+#     #     transparent=False, 
 #     #     dpi=600
 #     #     )
 #     fig.show()
