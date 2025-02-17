@@ -21,7 +21,7 @@ stimuli = [
         # 'Pitch-Log-Raw_Spectrogram',
         # 'Envelope_Pitch-Log-Raw_Spectrogram',
         # 'Phonemes-Discrete-Phonet_Spectrogram',
-        # 'Phonological_Spectrogram',
+        # 'Phonological_Spectrogram', # HASTA ACA
         # 'Phonological_Phonemes-Discrete-Phonet',
         # 'Phonological_Phonemes-Discrete-Phonet_Spectrogram',
         # 'Phones-Discrete-Phonet_Phonemes-Discrete-Phonet',
@@ -29,25 +29,26 @@ stimuli = [
         # 'Pitch-Log-Raw',
         # 'Spectrogram',
         # 'Mfccs',
-        # 'Phonological',
-        'Phonemes-Phonet',
+        'Phonological',
+        # 'Phonemes-Phonet',
+        # 'Phones-Phonet',
         # 'Phonemes-Discrete-Phonet',
         # 'Phones-Discrete-Phonet',
         # 'Wav2vec2'
         ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situations = [
         'External', 
-        # 'Internal', 
-        # 'External_BS',
-        # 'Internal_BS'
+        'Internal', 
+        'External_BS',
+        'Internal_BS'
         ] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
 bands = [
-        # 'Delta', 
+        'Delta', 
         'Theta', 
-        # 'Alpha', 
-        # 'Beta1', 
-        # 'Beta2',
-        # 'All'
+        'Alpha', 
+        'Beta1', 
+        'Beta2',
+        'All'
         ] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
 
 # ==========================================

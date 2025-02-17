@@ -74,7 +74,7 @@ def define_ticks(
 
     if ylabel.startswith('Phonological'):
         axes.tick_params(axis='both', labelsize='medium') 
-        tags = list(exp_info.phonological_labels) 
+        tags = [t for t in list(exp_info.phonological_labels) if t not in ['pause', 'trill']]
         ticks = np.arange(number_of_ticks)
     elif ylabel.startswith('Mistakes'):
         tags = list(exp_info.mistakes)
