@@ -74,12 +74,12 @@ class Phones(Phonet):
         pred_mat_phon_seq = np.concatenate(pred_mat_phon, axis=0)
         
         if PLLR:
-            probabilities = pred_mat_phon_seq[:int(len(signal)/(self.time_shift*fs)-1)]
+            probabilities = pred_mat_phon_seq[:int(len(signal)/(self.time_shift*fs))]
             return probabilities
         else:
             pred_vec_phon = np.argmax(pred_mat_phon_seq, axis=1)
 
-            nf=int(len(signal)/(self.time_shift*fs)-1)
+            nf=int(len(signal)/(self.time_shift*fs))
             if nf>len(pred_vec_phon):
                 nf=len(pred_vec_phon)
             

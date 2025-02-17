@@ -670,13 +670,10 @@ class Trial_channel:
             if difference > 0:
                 posterior_prob = posterior_prob[:-difference]
             elif difference < 0:
-                # In this case, silences are append with probability 1
+                # Repeat last sample (probably silence)
                 for i in range(np.abs(difference)):
-                    
-                    # Add sample with silence
-                    aux = np.zeros(shape=(1, posterior_prob.shape[1]))
-                    aux[:, phonet_labels_phones.index('sil')] = 1
-                    posterior_prob = np.vstack((posterior_prob, aux))
+                    aux = posterior_prob[-1].copy() 
+                    posterior_prob = np.vstack((posterior_prob, aux.reshape(-1,1).T))
             
             # Map phones to phonemes, making the sum
             posterior_prob_phonemes = np.zeros(shape=(posterior_prob.shape[0], len(phonet_labels_phonemes)))
@@ -692,7 +689,7 @@ class Trial_channel:
                 pllr[:, ph] = np.log10(posterior_prob_phonemes[:, ph]/(1-posterior_prob_phonemes[:, ph]))
             
             # Centralizamos 
-            pllr = pllr - pllr.mean(axis=1, keepdims=True)        
+            pllr = pllr - np.mean(pllr, axis=1, keepdims=True)  
             
             # Removemos silencios
             pllr_without_silence = pllr[:, np.arange(number_of_phonemes) != phonet_labels_phonemes.index('/sil/')]
