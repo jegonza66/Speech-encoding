@@ -33,15 +33,15 @@ class Phones(Phonet):
     
     def compute_phones(
         self,
-        PLLR=False
+        PLLR:bool=False
         )->tuple:
         """
         Compute phones from the audio file.
         
         Parameters
         ----------
-        PLLR : str
-            Whether to return the PLLR (Phoneme Loglikelihood ratio)
+        PLLR : bool
+            Whether to return the PLLR (Phoneme Loglikelihood ratio). By default, True
         
         Returns
         -------
@@ -75,7 +75,7 @@ class Phones(Phonet):
         
         if PLLR:
             probabilities = pred_mat_phon_seq[:int(len(signal)/(self.time_shift*fs)-1)]
-            return probabilites
+            return probabilities
         else:
             pred_vec_phon = np.argmax(pred_mat_phon_seq, axis=1)
 
