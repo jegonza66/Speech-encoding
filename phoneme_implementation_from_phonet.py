@@ -32,10 +32,16 @@ class Phones(Phonet):
         self.time_shift = 1/self.sr
     
     def compute_phones(
-        self
+        self,
+        PLLR=False
         )->tuple:
         """
         Compute phones from the audio file.
+        
+        Parameters
+        ----------
+        PLLR : str
+            Whether to return the PLLR (Phoneme Loglikelihood ratio)
         
         Returns
         -------
@@ -48,8 +54,8 @@ class Phones(Phonet):
             signal, fs = resample_poly(signal, 16000, fs), 16e3
         
         # This method extracts log-Mel-filterbank energies used as inputs of the model
-        feat = self.get_feat(signal, fs)        
-
+        feat = self.get_feat(signal, fs)      
+        
         nf = int(feat.shape[0]/self.len_seq) # len_seq=40 always
 
         # Get features
@@ -66,16 +72,21 @@ class Phones(Phonet):
         # Get phones and times
         pred_mat_phon = np.asarray(self.model_phon.predict(features))
         pred_mat_phon_seq = np.concatenate(pred_mat_phon, axis=0)
-        pred_vec_phon = np.argmax(pred_mat_phon_seq, axis=1)
-
-        nf=int(len(signal)/(self.time_shift*fs)-1)
-        if nf>len(pred_vec_phon):
-            nf=len(pred_vec_phon)
         
-        phones_list = self.number2phoneme(pred_vec_phon[:nf])
-        times = np.arange(nf)*self.time_shift
-        return times, phones_list
-    
+        if PLLR:
+            probabilities = pred_mat_phon_seq[:int(len(signal)/(self.time_shift*fs)-1)]
+            return probabilites
+        else:
+            pred_vec_phon = np.argmax(pred_mat_phon_seq, axis=1)
+
+            nf=int(len(signal)/(self.time_shift*fs)-1)
+            if nf>len(pred_vec_phon):
+                nf=len(pred_vec_phon)
+            
+            phones_list = self.number2phoneme(pred_vec_phon[:nf])
+            times = np.arange(nf)*self.time_shift
+            return times, phones_list
+        
 if __name__=="__main__":
     import scipy.io.wavfile as wavfile
     from scipy import signal as sgn
@@ -109,7 +120,7 @@ if __name__=="__main__":
         raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
 
     phones_obj = Phones(audio_file=wav_file)
-    time,  sec_phones = phones_obj.compute_phones() #9167
+    time,  sec_phones, pred_mat_phon = phones_obj.compute_phones() #9167
     
     # Match features length
     difference = len(sec_phones) - len(envelope)

@@ -632,7 +632,7 @@ class Trial_channel:
             Envelope of the audio signal using Hilbert transform
         kind : str, optional
            Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
-            ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
+            ['Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
 
         Returns
         -------
@@ -648,21 +648,63 @@ class Trial_channel:
         ------
         SyntaxError
             Whether the input value of 'kind' is passed correctly. It must be a one of:
-            ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet'].
+            ['Phonemes-Phonet','Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet'].
         """
-        # Remove silences, since it won't be used in prediction (when silence occurs, all phoneme are 0)
-        phonet_labels = exp_info.phonemes_phonet.copy()
-        phonet_labels.remove('/sil/')
-
         # Check if given kind is a permited input value
-        allowed_kind = ['Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
+        allowed_kind = ['Phonemes-Phonet','Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet']
         if kind not in allowed_kind:
             raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
         
         # Extract phonemes
-        phones_obj = Phones(audio_file=self.wav_fname)
-        time,  sec_phones = phones_obj.compute_phones() #9167
+        if kind=='Phonemes-Phonet':
+            phonet_labels_phonemes = exp_info.phonemes_phonet.copy()
+            phonet_labels_phones = exp_info.ph_labels_phonet.copy()
+            
+            phones_obj = Phones(audio_file=self.wav_fname)
+            posterior_prob = phones_obj.compute_phones(PLLR=True) #9167
+            
+            
+            # Match features length
+            difference = len(posterior_prob) - len(envelope)
+
+            if difference > 0:
+                posterior_prob = posterior_prob[:-difference]
+            elif difference < 0:
+                # In this case, silences are append with probability 1
+                for i in range(np.abs(difference)):
+                    
+                    # Add sample with silence
+                    aux = np.zeros(shape=(1, posterior_prob.shape[1]))
+                    aux[:, phonet_labels_phones.index('sil')] = 1
+                    posterior_prob = np.vstack((posterior_prob, aux))
+            
+            # Map phones to phonemes, making the sum
+            posterior_prob_phonemes = np.zeros(shape=(posterior_prob.shape[0], len(phonet_labels_phonemes)))
+
+            for h, phone in enumerate(phonet_labels_phones):
+                phoneme_index = phonet_labels_phonemes.index(exp_info.phones_to_phonemes[phone])
+                posterior_prob_phonemes[:, phoneme_index] += posterior_prob[:, h]
+            
+            # Calculamos el posterior llr
+            pllr = np.zeros(shape=posterior_prob_phonemes.shape)
+            number_of_phonemes = posterior_prob_phonemes.shape[1]
+            for ph in range(number_of_phonemes):
+                pllr[:, ph] = np.log10(posterior_prob_phonemes[:, ph]/(1-posterior_prob_phonemes[:, ph]))
+            
+            # Centralizamos 
+            pllr = pllr - pllr.mean(axis=1, keepdims=True)        
+            
+            # Removemos silencios
+            pllr_without_silence = pllr[:, np.arange(number_of_phonemes) != phonet_labels_phonemes.index('/sil/')]
+            return pllr_without_silence
+        else:
+            phones_obj = Phones(audio_file=self.wav_fname)
+            time,  sec_phones = phones_obj.compute_phones() #9167
         
+        # Remove silences, since it won't be used in prediction (when silence occurs, all phoneme are 0)
+        phonet_labels = exp_info.phonemes_phonet.copy()
+        phonet_labels.remove('/sil/')
+            
         # Match features length
         difference = len(sec_phones) - len(envelope)
 
@@ -1210,7 +1252,7 @@ class Trial_channel:
             A list containing possible stimuli. Possible input values are: 
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet',
+            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet',
             'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2']
 
         Returns
@@ -1274,7 +1316,7 @@ class Sesion_class:
             Stimuli to use in the analysis, by default 'Envelope'. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 
+            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 
             'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
         band : str
             Neural frequency band. It could be one of:
@@ -1307,7 +1349,7 @@ class Sesion_class:
             If 'stim' is not an allowed stimulus. Allowed stimuli are:
             ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
             'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 
+            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 
             'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
             If 'band' is not an allowed band frequency. Allowed frequencies are:
             ['Delta','Theta', 'Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
@@ -1317,7 +1359,7 @@ class Sesion_class:
         # Check if band, stim and situation parameters where passed with the right syntax
         allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', \
                         'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', \
-                        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
+                        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
         allowed_band_frequencies = ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
         allowed_situationes = ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
         for st in stim.split('_'):
@@ -1382,6 +1424,7 @@ class Sesion_class:
         self.export_paths['Phonemes-Onset'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Onset/')
         self.export_paths['Phonemes-Onset-Manual'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Onset-Manual/')
         self.export_paths['Phonemes-Envelope-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Envelope-Phonet/')
+        self.export_paths['Phonemes-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Phonet/')
         self.export_paths['Phonemes-Discrete-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Discrete-Phonet/')
         self.export_paths['Phonemes-Onset-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Onset-Phonet/')
         self.export_paths['Phonological'] = os.path.join(self.preprocessed_data_path, 'Phonological/')
@@ -1753,7 +1796,7 @@ def load_data(
         Allowed stimuli are: ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 
         'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 
         'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 
+        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 
         'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 
         'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
     band : str
@@ -1790,7 +1833,7 @@ def load_data(
         ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 
         'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 
         'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 
+        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 
         'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 
         'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
         If 'band' is not an allowed band frequency. Allowed ones are:
@@ -1801,7 +1844,7 @@ def load_data(
     # Define allowed stimuli
     allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes',\
                     'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset',\
-                    'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
+                    'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
     allowed_situations = ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
     allowed_bands = ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
 

@@ -14,7 +14,7 @@ sesiones = [
             30
             ]
 stimuli = [
-    'Mistakes-Separated_Control-Separated',
+    # 'Mistakes-Separated_Control-Separated',
         # 'Spectrogram_Mfccs',
         # 'Envelope_Pitch-Log-Raw',
         # 'Envelope_Spectrogram',
@@ -30,6 +30,7 @@ stimuli = [
         # 'Spectrogram',
         # 'Mfccs',
         # 'Phonological',
+        'Phonemes-Phonet',
         # 'Phonemes-Discrete-Phonet',
         # 'Phones-Discrete-Phonet',
         # 'Wav2vec2'
@@ -139,8 +140,9 @@ class Exp_info:
         self.ph_labels = ['CH', 'NY', 'R', 'a', 'b', 'd', 'e', 'f', 'g', 'i', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 's', 't', 'u', 'x', 'y']
 
         self.ph_labels_man = ['(d)o', 'A', 'AH', 'CH', 'F', 'NY', 'R', 'Y', 'a', 'ap', 'b', 'br', 'c', 'chas', 'd','de', 'e', 'es', 'f', 'g', 'h', 'i', 'k', 'l', 'lg', 'm', 'n', 'ns', 'o', 'p', 'r', 's','si', 't', 'u', 'v', 'x', 'y']
-        self.ph_labels_phonet = ['B', 'D', 'F', 'G', 'N', 'T', 'a', 'b', 'd', 'e', 'f', 'i', 'j', 'jj', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 'rr', 's', 't', 'tS', 'u', 'w', 'x', 'z', 'Z', 'g', 'S', 'J', 'L', 'sil', '<p:>']
-        
+        # self.ph_labels_phonet = ['B', 'D', 'F', 'G', 'N', 'T', 'a', 'b', 'd', 'e', 'f', 'i', 'j', 'jj', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 'rr', 's', 't', 'tS', 'u', 'w', 'x', 'z', 'Z', 'g', 'S', 'J', 'L', 'sil', '<p:>']
+        self.ph_labels_phonet = ['<p:>', 'B', 'D', 'F', 'G', 'J', 'L', 'N', 'S', 'T', 'Z', 'a', 'b', 'd', 'e', 'f', 'g', 'i', 'j', 'jj', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 'rr', 's', 'sil', 't', 'tS', 'u', 'w', 'x', 'z']
+
         self.phones_to_phonemes = {
             'a' : '/a/',
             'e' : '/e/',
