@@ -1087,7 +1087,7 @@ class Trial_channel:
         # desire_time = np.linspace(0, envelope.shape[0]/128 + 1/128 , envelope.shape[0])
 
         # Get feature names
-        phon_features_names = [feat for feat in phon_features.columns if feat!='time']
+        phon_features_names = [feat for feat in phon_features.columns if feat not in ['time', 'trill', 'pause']]
         
         phonological_features = []
         for phon_feat in phon_features_names:
