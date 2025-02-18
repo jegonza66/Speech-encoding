@@ -68,81 +68,107 @@ def fold_model(
         Else if statistical_test is False and shuffle is False, returns (fold, weights, correlation_matrix, root_mean_square_error).
         Otherwise (statistical_test False, shuffle True), returns (iteration, fold, weights, correlation_matrix, root_mean_square_error).
     """
-    # Implement mne model
-    if config.model=='mtrf_ridge' or config.model=='mtrf':
-        mtrf = ReceptiveFieldAdaptation(
-            tmin=config.tmin, 
-            tmax=config.tmax, 
-            sample_rate=config.sr, 
-            alpha=alpha, 
-            relevant_indexes=np.array(relevant_indexes),
-            train_indexes=train_indexes, 
-            test_indexes=test_indexes, 
-            stims_preprocess=config.stims_preprocess, 
-            eeg_preprocess=config.eeg_preprocess,
-            fit_intercept=False,
-            # n_jobs=n_jobs, 
-            n_jobs=1,
-            estimator=config.estimator,
-            validation=validation,
-            shuffle=shuffle
-            )
-        # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
-        mtrf.fit(stims, eeg)
-        
-        weights = mtrf.coefs # Coefficients shape n_chans, feats, delays
-
-        # Predict and save
-        predicted, eeg_test = mtrf.predict(stims)
-    else:
+    if shuffle:
         mtrf = TorchMtrf(
-            alpha=alpha, 
-            relevant_indexes=np.array(relevant_indexes),
-            train_indexes=train_indexes, 
-            test_indexes=test_indexes, 
-            stims_preprocess=config.stims_preprocess, 
-            eeg_preprocess=config.eeg_preprocess,
-            fit_intercept=False,
-            validation=validation,
-            shuffle=shuffle, 
-            use_gpu=config.use_gpu,
-            )
-        
+                alpha=alpha, 
+                relevant_indexes=np.array(relevant_indexes),
+                train_indexes=train_indexes, 
+                test_indexes=test_indexes, 
+                stims_preprocess=config.stims_preprocess, 
+                eeg_preprocess=config.eeg_preprocess,
+                fit_intercept=False,
+                validation=validation,
+                shuffle=True, 
+                use_gpu=config.use_gpu,
+                )
+            
         # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
         mtrf.fit(stims, eeg)
         
-        weights = mtrf.coefs # Coefficients shape n_chans, feats, delays
+        weights = mtrf.coefs # n_iterations, n_chans, feats, delays
+        correlation_matrix = mtrf.correlations  # # n_iterations, n_chans
+        root_mean_square_error = mtrf.root_mean_square_error # n_iterations, n_chans
+               
+        return weights, correlation_matrix, root_mean_square_error
+            # return iteration, fold, weights, correlation_matrix, root_mean_square_error
+    else:
+        # Implement mne model
+        if config.model=='mtrf_ridge' or config.model=='mtrf':
+            mtrf = ReceptiveFieldAdaptation(
+                tmin=config.tmin, 
+                tmax=config.tmax, 
+                sample_rate=config.sr, 
+                alpha=alpha, 
+                relevant_indexes=np.array(relevant_indexes),
+                train_indexes=train_indexes, 
+                test_indexes=test_indexes, 
+                stims_preprocess=config.stims_preprocess, 
+                eeg_preprocess=config.eeg_preprocess,
+                fit_intercept=False,
+                n_jobs=1,
+                estimator=config.estimator,
+                validation=validation,
+                shuffle=shuffle
+                )
+            # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
+            mtrf.fit(stims, eeg)
+            
+            weights = mtrf.coefs # Coefficients shape n_chans, feats, delays
 
-        # Predict and save
-        predicted, eeg_test = mtrf.predict()
-    if (predicted==0).all():
-        print(f'\n\t\tFold {fold+1}/{config.n_folds} prediction is null, this may be due to the sparsity of weights. If there are\n\t\ttoo many zeros when making product with selected stimuli, the product may be null.')
+            # Predict and save
+            predicted, eeg_test = mtrf.predict(stims)
+        else:
+            mtrf = TorchMtrf(
+                alpha=alpha, 
+                relevant_indexes=np.array(relevant_indexes),
+                train_indexes=train_indexes, 
+                test_indexes=test_indexes, 
+                stims_preprocess=config.stims_preprocess, 
+                eeg_preprocess=config.eeg_preprocess,
+                fit_intercept=False,
+                validation=validation,
+                shuffle=shuffle, 
+                use_gpu=config.use_gpu,
+                )
+            
+            # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
+            mtrf.fit(stims, eeg)
+            
+            weights = mtrf.coefs # Coefficients shape n_chans, feats, delays
 
-    # Calculates and saves correlation of each channel
-    try:
-        correlation_matrix = np.array([np.corrcoef(eeg_test[:, j], predicted[:, j])[0,1] for j in range(eeg_test.shape[1])])
-    except RuntimeWarning:
-        correlation_matrix = np.zeros(eeg_test.shape[1])
+            # Predict and save
+            predicted, eeg_test = mtrf.predict()
+        if (predicted==0).all():
+            print(f'\n\t\tFold {fold+1}/{config.n_folds} prediction is null, this may be due to the sparsity of weights. If there are\n\t\ttoo many zeros when making product with selected stimuli, the product may be null.')
 
-    # Calculates and saves root mean square error of each channel
-    root_mean_square_error = np.array(np.sqrt(np.power((predicted - eeg_test), 2).mean(0)))
-    
-    # Perform statistical test
-    if statistical_test:
-        # Null Hypothesis (H0): There is no significant relationship between the predicted and actual EEG data. The test statistic (e.g., correlation or RMSE) follows the null distribution.
-        # Alternative Hypothesis (H1): There is a significant relationship between the predicted and actual EEG data. The test statistic follows the alternative distribution.
-        null_data = load_pickle(path=os.path.join(path_null, f'null_metrics_ses_{session}_sub_{subject}_{config.random_permutations}.pkl'))
-        null_correlation_per_channel, null_errors = null_data['null_correlation_per_channel_per_fold'], null_data['null_errors_per_fold']
-        iterations =  null_correlation_per_channel.shape[1]
+        # Calculates and saves correlation of each channel
+        try:
+            correlation_matrix = np.array([np.corrcoef(eeg_test[:, j], predicted[:, j])[0,1] for j in range(eeg_test.shape[1])])
+        except RuntimeWarning:
+            correlation_matrix = np.zeros(eeg_test.shape[1])
 
-        # Correlation and RMSE (n_iterations, n_channels)
-        null_correlation_matrix = null_correlation_per_channel[fold]
-        null_root_mean_square_error = null_errors[fold]
+        # Calculates and saves root mean square error of each channel
+        root_mean_square_error = np.array(np.sqrt(np.power((predicted - eeg_test), 2).mean(0)))
+        
+        # Perform statistical test
+        if statistical_test:
+            # Null Hypothesis (H0): There is no significant relationship between the predicted and actual EEG data. The test statistic (e.g., correlation or RMSE) follows the null distribution.
+            # Alternative Hypothesis (H1): There is a significant relationship between the predicted and actual EEG data. The test statistic follows the alternative distribution.
+            null_data = load_pickle(path=os.path.join(path_null, f'null_metrics_ses_{session}_sub_{subject}_{config.random_permutations}.pkl'))
+            null_correlation_per_channel, null_errors = null_data['null_correlation_per_channel_per_fold'], null_data['null_errors_per_fold']
+            iterations =  null_correlation_per_channel.shape[1]
 
-        # p-values for both tests: probability of getting a value equal or greater than the measured value, given the null hypothesis distribution (P(X>=X_obs|H0))
-        # (null_correlation_matrix > correlation_matrix) is the number of iterations that surpasses the measured values for each channel (n_channels)
-        p_corr = ((null_correlation_matrix > correlation_matrix).sum(axis=0) + 1) / (iterations + 1) # +1 to avoid division by zero, right tail test
-        p_rmse = ((null_root_mean_square_error < root_mean_square_error).sum(axis=0) + 1) / (iterations + 1) # left tail test
+            # Correlation and RMSE (n_iterations, n_channels)
+            null_correlation_matrix = null_correlation_per_channel[fold]
+            null_root_mean_square_error = null_errors[fold]
+
+            # p-values for both tests: probability of getting a value equal or greater than the measured value, given the null hypothesis distribution (P(X>=X_obs|H0))
+            # (null_correlation_matrix > correlation_matrix) is the number of iterations that surpasses the measured values for each channel (n_channels)
+            p_corr = ((null_correlation_matrix > correlation_matrix).sum(axis=0) + 1) / (iterations + 1) # +1 to avoid division by zero, right tail test
+            p_rmse = ((null_root_mean_square_error < root_mean_square_error).sum(axis=0) + 1) / (iterations + 1) # left tail test
+            return fold, weights, correlation_matrix, root_mean_square_error, p_corr, p_rmse, null_correlation_per_channel
+        else:
+            return fold, weights, correlation_matrix, root_mean_square_error
 
         # # Calculate power of the test: probability of measuring H1 when H1 is true. It's usefull to know if the test is sensitive enough
         # significant_corr_count = 0
@@ -167,78 +193,73 @@ def fold_model(
         #     significant_rmse_count += (bootstrap_p_rmse < config.significance_threshold).sum()
         
         # return fold, weights, correlation_matrix, root_mean_square_error, p_corr, p_rmse, significant_corr_count, significant_rmse_count, null_correlation_per_channel
-        return fold, weights, correlation_matrix, root_mean_square_error, p_corr, p_rmse, null_correlation_per_channel
-    else:
-        if shuffle:
-            return iteration, fold, weights, correlation_matrix, root_mean_square_error
-        else:
-            return fold, weights, correlation_matrix, root_mean_square_error
 
-def simulation_mtrf(
-    n_iterations:int,
-    fold:int,
-    stims:np.ndarray, 
-    eeg:np.ndarray,
-    sr:int, 
-    tmin:float, 
-    tmax:float,
-    relevant_indexes:list,
-    alpha:float,
-    train_indexes:np.ndarray,
-    test_indexes:np.ndarray, 
-    stims_preprocess:str,
-    eeg_preprocess:str,
-    null_correlation:np.ndarray, 
-    null_weights:np.ndarray, 
-    null_errors:np.ndarray,
-    )-> tuple:
-    """
-    Perform mTRF simulation by running multiple iterations of the permutation test.
 
-    Parameters:
-        n_iterations (int): Number of iterations to run.
-        fold (int): Current fold number.
-        stims (np.ndarray): Stimuli data.
-        eeg (np.ndarray): EEG data.
-        sr (int): Sample rate.
-        tmin (float): Minimum time.
-        tmax (float): Maximum time.
-        relevant_indexes (list): List of relevant indexes.
-        alpha (float): Regularization parameter.
-        train_indexes (np.ndarray): Training indexes.
-        test_indexes (np.ndarray): Testing indexes.
-        stims_preprocess (str): Preprocessing method for stimuli.
-        eeg_preprocess (str): Preprocessing method for EEG.
-        null_correlation (np.ndarray): Array to store null correlations.
-        null_weights (np.ndarray): Array to store null weights.
-        null_errors (np.ndarray): Array to store null errors.
+# def simulation_mtrf(
+#     n_iterations:int,
+#     fold:int,
+#     stims:np.ndarray, 
+#     eeg:np.ndarray,
+#     sr:int, 
+#     tmin:float, 
+#     tmax:float,
+#     relevant_indexes:list,
+#     alpha:float,
+#     train_indexes:np.ndarray,
+#     test_indexes:np.ndarray, 
+#     stims_preprocess:str,
+#     eeg_preprocess:str,
+#     null_correlation:np.ndarray, 
+#     null_weights:np.ndarray, 
+#     null_errors:np.ndarray,
+#     )-> tuple:
+#     """
+#     Perform mTRF simulation by running multiple iterations of the permutation test.
 
-    Returns:
-        tuple: Updated null_weights, null_correlation, and null_errors.
-    """
-    # Define the iterations array
-    iterations = np.arange(n_iterations)
+#     Parameters:
+#         n_iterations (int): Number of iterations to run.
+#         fold (int): Current fold number.
+#         stims (np.ndarray): Stimuli data.
+#         eeg (np.ndarray): EEG data.
+#         sr (int): Sample rate.
+#         tmin (float): Minimum time.
+#         tmax (float): Maximum time.
+#         relevant_indexes (list): List of relevant indexes.
+#         alpha (float): Regularization parameter.
+#         train_indexes (np.ndarray): Training indexes.
+#         test_indexes (np.ndarray): Testing indexes.
+#         stims_preprocess (str): Preprocessing method for stimuli.
+#         eeg_preprocess (str): Preprocessing method for EEG.
+#         null_correlation (np.ndarray): Array to store null correlations.
+#         null_weights (np.ndarray): Array to store null weights.
+#         null_errors (np.ndarray): Array to store null errors.
+
+#     Returns:
+#         tuple: Updated null_weights, null_correlation, and null_errors.
+#     """
+#     # Define the iterations array
+#     iterations = np.arange(n_iterations)
     
-    # Whether to perform parallel computation
-    for i in tqdm(iterations, desc='Performing permutations'):
-        _, fold, null_weights[fold, i], null_correlation[fold, i], null_errors[fold, i] = fold_model(
-                                                                                        fold=fold, 
-                                                                                        alpha=alpha, 
-                                                                                        stims=stims, 
-                                                                                        eeg=eeg, 
-                                                                                        relevant_indexes=relevant_indexes, 
-                                                                                        train_indexes=train_indexes, 
-                                                                                        test_indexes=test_indexes, 
-                                                                                        validation=False, 
-                                                                                        shuffle=True, 
-                                                                                        statistical_test=False, 
-                                                                                        path_null=None, 
-                                                                                        session=None, 
-                                                                                        subject=None, 
-                                                                                        iteration=i
-                                                                                        )
-        # if (n_iterations>=10) and (i in iterations[::int(n_iterations/10)]):
-        #     print("\t\t\rProgress {}%".format(int((i + 1) * 100 / n_iterations)), end='')
-        # elif n_iterations<10:
-        #     print("\t\t\rProgress {}%".format(int((i + 1) * 100 / n_iterations)), end='')
-    return null_weights, null_correlation, null_errors
+#     # Whether to perform parallel computation
+#     for i in tqdm(iterations, desc='Performing permutations'):
+#         _, fold, null_weights[fold, i], null_correlation[fold, i], null_errors[fold, i] = fold_model(
+#                                                                                         fold=fold, 
+#                                                                                         alpha=alpha, 
+#                                                                                         stims=stims, 
+#                                                                                         eeg=eeg, 
+#                                                                                         relevant_indexes=relevant_indexes, 
+#                                                                                         train_indexes=train_indexes, 
+#                                                                                         test_indexes=test_indexes, 
+#                                                                                         validation=False, 
+#                                                                                         shuffle=True, 
+#                                                                                         statistical_test=False, 
+#                                                                                         path_null=None, 
+#                                                                                         session=None, 
+#                                                                                         subject=None, 
+#                                                                                         iteration=i
+#                                                                                         )
+#         # if (n_iterations>=10) and (i in iterations[::int(n_iterations/10)]):
+#         #     print("\t\t\rProgress {}%".format(int((i + 1) * 100 / n_iterations)), end='')
+#         # elif n_iterations<10:
+#         #     print("\t\t\rProgress {}%".format(int((i + 1) * 100 / n_iterations)), end='')
+#     return null_weights, null_correlation, null_errors

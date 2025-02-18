@@ -94,24 +94,18 @@ for situation in config.situations:
                         print(f'\n\t······  [{fold+1}/{config.n_folds}]')
 
                         # Run permutations 
-                        null_weights_per_fold, null_correlation_per_channel_per_fold, null_errors_per_fold = simulation_mtrf(
-                                                                                                            n_iterations=config.random_permutations,
-                                                                                                            fold=fold,
-                                                                                                            stims=stims,
-                                                                                                            eeg=eeg,
-                                                                                                            sr=config.sr,
-                                                                                                            tmin=config.tmin,
-                                                                                                            tmax=config.tmax,
-                                                                                                            relevant_indexes=relevant_indexes,
-                                                                                                            alpha=np.float32(alpha),
-                                                                                                            train_indexes=train_indexes,
-                                                                                                            test_indexes=test_indexes,
-                                                                                                            stims_preprocess=config.stims_preprocess,
-                                                                                                            eeg_preprocess=config.eeg_preprocess,
-                                                                                                            null_correlation=null_correlation_per_channel_per_fold,
-                                                                                                            null_weights=null_weights_per_fold,
-                                                                                                            null_errors=null_errors_per_fold 
-                                                                                                            )
+                        null_weights_per_fold[fold], null_correlation_per_channel_per_fold[fold], null_errors_per_fold[fold] = fold_model(
+                            fold=fold,
+                            alpha=np.float32(alpha),#TODO adapt inside
+                            stims=stims,
+                            eeg=eeg,
+                            relevant_indexes=relevant_indexes,
+                            train_indexes=train_indexes,
+                            test_indexes=test_indexes,
+                            validation=False,
+                            shuffle=True,
+                            statistical_test=False,
+                            )                        
                     # Save permutations
                     os.makedirs(path_null, exist_ok=True)
                     dump_pickle(

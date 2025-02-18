@@ -25,11 +25,11 @@ stimuli = [
         # 'Phonological_Phonemes-Discrete-Phonet',
         # 'Phonological_Phonemes-Discrete-Phonet_Spectrogram',
         # 'Phones-Discrete-Phonet_Phonemes-Discrete-Phonet',
-        # 'Envelope',
+        'Envelope',
         # 'Pitch-Log-Raw',
         # 'Spectrogram',
         # 'Mfccs',
-        'Phonological',
+        # 'Phonological',
         # 'Phonemes-Phonet',
         # 'Phones-Phonet',
         # 'Phonemes-Discrete-Phonet',
@@ -38,17 +38,17 @@ stimuli = [
         ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situations = [
         'External', 
-        'Internal', 
-        'External_BS',
-        'Internal_BS'
+        # 'Internal', 
+        # 'External_BS',
+        # 'Internal_BS'
         ] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
 bands = [
-        'Delta', 
+        # 'Delta', 
         'Theta', 
-        'Alpha', 
-        'Beta1', 
-        'Beta2',
-        'All'
+        # 'Alpha', 
+        # 'Beta1', 
+        # 'Beta2',
+        # 'All'
         ] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
 
 # ==========================================
