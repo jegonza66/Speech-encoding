@@ -156,40 +156,42 @@ class TorchMtrf:
                 iterations = np.arange(config.random_permutations)
                 self.coefs = np.zeros((config.random_permutations, config.info_mne['nchan'], n_features, len(config.delays)), dtype=np.float16)
                 self.correlations = np.zeros((config.random_permutations, config.info_mne['nchan']))
-                self.root_mean_square_error = np.zeros((config.random_permutations, info['nchan']))
+                self.root_mean_square_error = np.zeros((config.random_permutations, config.info_mne['nchan']))
                 
                 # Shuffle the data, by requierment of random permutations
                 for s in tqdm(iterations, desc='Performing permutations'):
                     indices_p = indices.copy()
-                    X_train_p = X_train.copy()
+                    X_train_p = X_train.clone()
+                    X_pred_p = X_pred.clone()
+                    y_test_p = y_test.clone()
+                    y_train_p = y_train.clone()
+                    
                     np.random.shuffle(indices_p)
                     X_train_p = X_train_p[indices_p]
                     
                     # TODO after first iteration its not neccesary to compute self.y_val
-                    X_train, y_train, X_pred, self.y_test = self.standarize_normalize(
+                    X_train, y_train_p, X_pred_p, y_test_p = self.standarize_normalize(
                                                 X_train=X_train, 
-                                                X_pred=X_pred, 
-                                                y_train=y_train, 
-                                                y_test=y_test
+                                                X_pred=X_pred_p, 
+                                                y_train=y_train_p, 
+                                                y_test=y_test_p
                                                 )
-                    del y_test
                     
-                    # Fit the Ridge model (X^T X + alpha * I) * mtrfs = X^T * y_train 
+                    # Fit the Ridge model (X^T X + alpha * I) * mtrfs = X^T * y_train_p 
                     XTX_reg = X_train.T @ X_train + self.alpha.astype(np.float32) *  torch.eye(X_train.shape[1], device=self.device) # X^T * X + alpha*I
-                    mtrfs = torch.linalg.solve(XTX_reg, X_train.T @ y_train)
+                    mtrfs = torch.linalg.solve(XTX_reg, X_train.T @ y_train_p)
                     
                     # Perform predictions
-                    y_predicted = X_pred @ mtrfs
-                    del X_pred
+                    y_predicted = X_pred_p @ mtrfs
+                    del X_pred_p
 
                     predicted = y_predicted.cpu().detach().numpy()
-                    eeg_test = self.y_test.cpu().detach().numpy()
+                    eeg_test = y_test_p.cpu().detach().numpy()
                     root_mean_square_error = np.array(np.sqrt(np.power((predicted - eeg_test), 2).mean(0)))
                     try:
                         correlation_matrix = np.array([np.corrcoef(eeg_test[:, j], predicted[:, j])[0,1] for j in range(eeg_test.shape[1])])
                     except RuntimeWarning:
                         correlation_matrix = np.zeros(eeg_test.shape[1])
-                    
                     
                     # Store mtrfs and correlation
                     self.correlations[s] = correlation_matrix
