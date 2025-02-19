@@ -4,14 +4,14 @@ import numpy as np, mne
 # SESSIONS, STIMULI, SITUATION AND EEG BANDS
 sesiones = [
             21, 
-            # 22, 
-            # 23, 
-            # 24, 
-            # 25, 
-            # 26, 
-            # 27, 
-            # 29, 
-            # 30
+            22, 
+            23, 
+            24, 
+            25, 
+            26, 
+            27, 
+            29, 
+            30
             ]
 stimuli = [
     # 'Mistakes-Separated_Control-Separated',
@@ -25,13 +25,13 @@ stimuli = [
         # 'Phonological_Phonemes-Discrete-Phonet',
         # 'Phonological_Phonemes-Discrete-Phonet_Spectrogram',
         # 'Phones-Discrete-Phonet_Phonemes-Discrete-Phonet',
-        # 'Envelope',
+        'Envelope',
         # 'Pitch-Log-Raw',
         # 'Spectrogram',
         # 'Mfccs',
         # 'Phonological',
         # 'Phonemes-Phonet',
-        'Phones-Phonet',
+        # 'Phones-Phonet',
         # 'Phonemes-Discrete-Phonet',
         # 'Phones-Discrete-Phonet',
         # 'Wav2vec2'
@@ -56,14 +56,13 @@ bands = [
 praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
 display_interactive_mode, save_results, save_figures, no_figures = False, True, True, False
 figure_format = '.png'
-just_load_data = True
+just_load_data = False
 
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
 model = 'mtrf'
 estimator = 'ridge_torch' # ridge, ridge_torch or time_delaying_ridge
-statistical_test, perform_tfce, use_gpu = False, False, False
-precomputed_design_matrix = True
+statistical_test, perform_tfce, use_gpu = False, False, True
 stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 
 if estimator=='ridge':
