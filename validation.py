@@ -10,6 +10,7 @@ from tqdm import tqdm
 from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
 from model_implementations import fold_model
 from plot import hyperparameter_selection
+from processing import shifted_matrix_2
 from load import load_data
 import config
 
@@ -83,6 +84,22 @@ for situation in config.situations:
                     correlations = np.zeros(len(config.alphas_swept))
                     correlations_std = np.zeros(len(config.alphas_swept))
                     
+                    if config.precomputed_design_matrix:
+                        os.makedirs('temporal', exist_ok=True)
+                        design_matrix = shifted_matrix_2(
+                            stims, 
+                            delays=config.delays, 
+                            use_gpu=config.use_gpu,
+                            indices_to_keep=relevant_indexes
+                            )
+                        precomputed_design_matrix_path = os.path.join('temporal', 'design_matrix.pkl')
+                        dump_pickle(
+                            path=precomputed_design_matrix_path, 
+                            obj=design_matrix, 
+                            rewrite=False, 
+                            verbose=True
+                        )
+                    
                     # Make sweep
                     for i_alpha, alpha in tqdm(enumerate(config.alphas_swept), total=len(config.alphas_swept), desc='Sweeping progress'):
                         weights_per_fold = np.zeros((config.n_folds, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float16)
@@ -106,7 +123,8 @@ for situation in config.situations:
                                             eeg=eeg,
                                             relevant_indexes=relevant_indexes,
                                             train_indexes=train_indexes,
-                                            test_indexes=test_indexes,                              
+                                            test_indexes=test_indexes,  
+                                            # precomputed_design_matrix_path=precomputed_design_matrix_path
                                             ) 
                                             )     
                         # Unpack model outputs  
@@ -118,8 +136,9 @@ for situation in config.situations:
                         # Calculate mean correlation and std
                         correlations[i_alpha] = np.nan_to_num(np.nanmean(correlation_per_channel))
                         correlations_std[i_alpha] = np.nan_to_num(np.nanstd(correlation_per_channel))
-                        # print(f'\r·················· Sweeping progress  {int((i_alpha + 1) * 100 / config.steps)}% ··················', end='')
-                    # print('\n')
+                    
+                    if config.precomputed_design_matrix:
+                        os.remove(precomputed_design_matrix_path) 
                     
                     # Find all indexes where the relative difference between the correlation and its maximum is within corr_limit_percent
                     relative_difference = abs((correlations.max() - correlations)/correlations.max())
