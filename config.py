@@ -56,7 +56,7 @@ bands = [
 praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
 display_interactive_mode, save_results, save_figures, no_figures = False, True, True, False
 figure_format = '.png'
-just_load_data = True
+just_load_data = False
 
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG

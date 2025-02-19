@@ -124,7 +124,7 @@ for situation in config.situations:
                                             relevant_indexes=relevant_indexes,
                                             train_indexes=train_indexes,
                                             test_indexes=test_indexes,  
-                                            # precomputed_design_matrix_path=precomputed_design_matrix_path
+                                            precomputed_design_matrix_path=precomputed_design_matrix_path
                                             ) 
                                             )     
                         # Unpack model outputs  

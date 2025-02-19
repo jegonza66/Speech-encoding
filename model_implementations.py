@@ -24,8 +24,7 @@ def fold_model(
     path_null:str=None, 
     session:int=None, 
     subject:int=None, 
-    iteration:int=0,
-    precomputed_design_matrix_path:str=None
+    iteration:int=0
     ) -> tuple:
     """
     Perform parallel fold model training and evaluation. 
@@ -61,8 +60,7 @@ def fold_model(
         Subject number (default is None).
     iteration : int, optional
         Iteration number for permutations, used when shuffle is True (default is 0).
-    precomputed_design_matrix_path : str, optional
-        Path to precomputed design matrix.
+    
     Returns
     -------
     tuple
@@ -82,7 +80,6 @@ def fold_model(
                 validation=validation,
                 shuffle=True, 
                 use_gpu=config.use_gpu,
-                precomputed_design_matrix_path=precomputed_design_matrix_path
                 )
             
         # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
