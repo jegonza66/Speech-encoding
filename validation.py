@@ -118,7 +118,7 @@ for situation in config.situations:
                         
                         # Calculate mean correlation and std
                         correlations[i_alpha] = np.nan_to_num(np.nanmean(correlation_per_channel))
-                        correlations_std[i_alpha] = np.nan_to_num(np.nanstd(correlation_per_channel)
+                        correlations_std[i_alpha] = np.nan_to_num(np.nanstd(correlation_per_channel))
                     
                     # Find all indexes where the relative difference between the correlation and its maximum is within corr_limit_percent
                     relative_difference = abs((correlations.max() - correlations)/correlations.max())
