@@ -4,14 +4,14 @@ import numpy as np, mne
 # SESSIONS, STIMULI, SITUATION AND EEG BANDS
 sesiones = [
             21, 
-            22, 
-            23, 
-            24, 
-            25, 
-            26, 
-            27, 
-            29, 
-            30
+            # 22, 
+            # 23, 
+            # 24, 
+            # 25, 
+            # 26, 
+            # 27, 
+            # 29, 
+            # 30
             ]
 stimuli = [
     # 'Mistakes-Separated_Control-Separated',
@@ -25,14 +25,14 @@ stimuli = [
         # 'Phonological_Phonemes-Discrete-Phonet',
         # 'Phonological_Phonemes-Discrete-Phonet_Spectrogram',
         # 'Phones-Discrete-Phonet_Phonemes-Discrete-Phonet',
-        'Envelope',
+        # 'Envelope',
         # 'Pitch-Log-Raw',
         # 'Spectrogram',
         # 'Mfccs',
         # 'Phonological',
         # 'Phonemes-Phonet',
         # 'Phones-Phonet',
-        # 'Phonemes-Discrete-Phonet',
+        'Phonemes-Discrete-Phonet',
         # 'Phones-Discrete-Phonet',
         # 'Wav2vec2'
         ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
@@ -63,6 +63,7 @@ just_load_data = False
 model = 'mtrf'
 estimator = 'ridge_torch' # ridge, ridge_torch or time_delaying_ridge
 statistical_test, perform_tfce, use_gpu = False, False, True
+precomputed_design_matrix = True
 stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 
 if estimator=='ridge':
