@@ -63,7 +63,7 @@ just_load_data = False
 model = 'mtrf'
 estimator = 'ridge_torch' # ridge, ridge_torch or time_delaying_ridge
 statistical_test, perform_tfce, use_gpu = False, False, True
-precomputed_design_matrix = True
+precomputed_design_matrix = False
 stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 
 if estimator=='ridge':

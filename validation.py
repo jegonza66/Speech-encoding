@@ -96,9 +96,11 @@ for situation in config.situations:
                         dump_pickle(
                             path=precomputed_design_matrix_path, 
                             obj=design_matrix, 
-                            rewrite=False, 
+                            rewrite=True, 
                             verbose=True
                         )
+                    else:
+                        precomputed_design_matrix_path = None
                     
                     # Make sweep
                     for i_alpha, alpha in tqdm(enumerate(config.alphas_swept), total=len(config.alphas_swept), desc='Sweeping progress'):
@@ -124,7 +126,8 @@ for situation in config.situations:
                                             relevant_indexes=relevant_indexes,
                                             train_indexes=train_indexes,
                                             test_indexes=test_indexes,  
-                                            # precomputed_design_matrix_path=precomputed_design_matrix_path
+                                            validation=True,
+                                            precomputed_design_matrix_path=precomputed_design_matrix_path
                                             ) 
                                             )     
                         # Unpack model outputs  
