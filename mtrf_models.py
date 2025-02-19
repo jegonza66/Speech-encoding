@@ -10,7 +10,6 @@ import torch
 
 # Modules
 from processing import Normalize, Standarize, shifted_matrix, shifted_matrix_2
-from funciones import load_pickle
 import config
 
 class TorchMtrf:
@@ -26,7 +25,6 @@ class TorchMtrf:
         shuffle:bool=False, 
         validation:bool=False,
         use_gpu:bool=True,
-        precomputed_design_matrix_path:str=None
         )->None:
         """
         Initialize the TorchMtrf model, a PyTorch implementation of the TimeDelayingRidge of stimulus to predict EEG.
@@ -53,8 +51,6 @@ class TorchMtrf:
             Whether to perform validation, by default False.
         use_gpu : bool, optional
             Whether to use the GPU (CUDA) for computation, by default True.
-        precomputed_design_matrix_path : str, optional
-            Path to precomputed design matrix, by default None.
 
         Returns
         -------
@@ -73,7 +69,6 @@ class TorchMtrf:
         self.fit_intercept = fit_intercept
         self.shuffle = shuffle
         self.validation = validation
-        self.precomputed_design_matrix_path = precomputed_design_matrix_path
         self.use_gpu = use_gpu
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
@@ -107,18 +102,13 @@ class TorchMtrf:
         ValueError
             If the input data shapes are not compatible with the model.
         """
-        if self.precomputed_design_matrix_path is None:
-            # Construct design matrix and transform for GPU computation
-            design_matrix = shifted_matrix_2(
-                        stims, 
-                        delays=config.delays, 
-                        use_gpu=self.use_gpu,
-                        indices_to_keep=self.relevant_indexes
-                        )
-        else: 
-            design_matrix = load_pickle(
-                path=self.precomputed_design_matrix_path
-            )
+        # Construct design matrix and transform for GPU computation
+        design_matrix = shifted_matrix_2(
+                    stims, 
+                    delays=config.delays, 
+                    use_gpu=self.use_gpu,
+                    indices_to_keep=self.relevant_indexes
+                    )
         
         n_samples, n_featuresbyn_delays = design_matrix.shape
         n_features = n_featuresbyn_delays // len(config.delays)
@@ -127,6 +117,15 @@ class TorchMtrf:
         design_matrix = torch.tensor(design_matrix).to(self.device)
         y_temp = torch.tensor(eeg[self.relevant_indexes]).to(self.device)
         del stims, eeg
+        
+        # Separate into training and testing
+
+        X_train = design_matrix[self.train_indexes]
+        y_train = y_temp[self.train_indexes]
+        X_pred = design_matrix[self.test_indexes]
+        y_test = y_temp[self.test_indexes]
+        del design_matrix, y_temp
+        
         # # Construct design matrix and transform for GPU computation
         # design_matrix = shifted_matrix_2(
         #             stims, 
@@ -161,35 +160,33 @@ class TorchMtrf:
                 
                 # Shuffle the data, by requierment of random permutations
                 for s in tqdm(iterations, desc='Performing permutations'):
-                    # Separate into training and testing
-                    X_train = design_matrix[self.train_indexes]
-                    y_train = y_temp[self.train_indexes]
-                    X_pred = design_matrix[self.test_indexes]
-                    y_test = y_temp[self.test_indexes]
-                    
                     indices_p = indices.copy()
+                    X_train_p = X_train.clone()
+                    X_pred_p = X_pred.clone()
+                    y_test_p = y_test.clone()
+                    y_train_p = y_train.clone()
                     
                     np.random.shuffle(indices_p)
-                    X_train = X_train[indices_p]
+                    X_train_p = X_train_p[indices_p]
                     
                     # TODO after first iteration its not neccesary to compute self.y_val
-                    X_train, y_train, X_pred, y_test = self.standarize_normalize(
+                    X_train, y_train_p, X_pred_p, y_test_p = self.standarize_normalize(
                                                 X_train=X_train, 
-                                                X_pred=X_pred, 
-                                                y_train=y_train, 
-                                                y_test=y_test
+                                                X_pred=X_pred_p, 
+                                                y_train=y_train_p, 
+                                                y_test=y_test_p
                                                 )
                     
-                    # Fit the Ridge model (X^T X + alpha * I) * mtrfs = X^T * y_train 
+                    # Fit the Ridge model (X^T X + alpha * I) * mtrfs = X^T * y_train_p 
                     XTX_reg = X_train.T @ X_train + self.alpha.astype(np.float32) *  torch.eye(X_train.shape[1], device=self.device) # X^T * X + alpha*I
-                    mtrfs = torch.linalg.solve(XTX_reg, X_train.T @ y_train)
+                    mtrfs = torch.linalg.solve(XTX_reg, X_train.T @ y_train_p)
                     
                     # Perform predictions
-                    y_predicted = X_pred @ mtrfs
-                    del X_pred
+                    y_predicted = X_pred_p @ mtrfs
+                    del X_pred_p
 
                     predicted = y_predicted.cpu().detach().numpy()
-                    eeg_test = y_test.cpu().detach().numpy()
+                    eeg_test = y_test_p.cpu().detach().numpy()
                     root_mean_square_error = np.array(np.sqrt(np.power((predicted - eeg_test), 2).mean(0)))
                     try:
                         correlation_matrix = np.array([np.corrcoef(eeg_test[:, j], predicted[:, j])[0,1] for j in range(eeg_test.shape[1])])
@@ -221,13 +218,6 @@ class TorchMtrf:
                 # Store mtrfs
                 self.coefs = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1).cpu().numpy()
         else:
-            # Separate into training and testing
-            X_train = design_matrix[self.train_indexes]
-            y_train = y_temp[self.train_indexes]
-            X_pred = design_matrix[self.test_indexes]
-            y_test = y_temp[self.test_indexes]
-            del design_matrix, y_temp
-            
             # Make split for validation: validation sets, fixing the train percent of data
             train_percent = .8
             self.train_cutoff = int(train_percent * len(self.train_indexes))
