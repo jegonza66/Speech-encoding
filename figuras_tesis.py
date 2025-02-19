@@ -810,432 +810,440 @@ for band in bands:
 #     )
 # fig.show()
 
-# ====================================
-# PERFIL ESPECTRAL DE GRUPOS FONEMICOS # TODO REHACER CON PHONEMES-PHONET y PHONOLOGICAL NUEVO
-phonemes_path = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/Phonemes-Discrete-Phonet'
-spectrogram_path = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/Spectrogram'
+# # ====================================
+# # PERFIL ESPECTRAL DE GRUPOS FONEMICOS # TODO REHACER CON PHONEMES-PHONET y PHONOLOGICAL NUEVO
+# phonemes_path = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/Phonemes-Discrete-Phonet'
+# spectrogram_path = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/Spectrogram'
 
-phonemes = config.Exp_info().phonemes_phonet.copy()
-phonemes.remove('/sil/')
+# phonemes = config.Exp_info().phonemes_phonet.copy()
+# phonemes.remove('/sil/')
 
-group1 = ['/a/', '/e/', '/i/', '/o/', '/u/', '/l/', '/m/', '/b/', '/R/']
-group2 = ['/k/', '/f/', '/t/', '/s/', '/x/', '/tS/']
+# group1 = ['/a/', '/e/', '/i/', '/o/', '/u/', '/l/', '/m/', '/b/', '/R/']
+# group2 = ['/k/', '/f/', '/t/', '/s/', '/x/', '/tS/']
 
-group1_index = [phonemes.index(ph) for ph in group1]
-group2_index = [phonemes.index(ph) for ph in group2]
+# group1_index = [phonemes.index(ph) for ph in group1]
+# group2_index = [phonemes.index(ph) for ph in group2]
 
-sp_group1, sp_group2 = [], []
-for sesion in config.sesiones:
-    ph_fname = os.path.join(phonemes_path, f'Sesion{sesion}.pkl')
-    sp_fname = os.path.join(spectrogram_path, f'Sesion{sesion}.pkl')
-    ph_1, ph_2 = load_pickle(path=ph_fname)
-    sp_1, sp_2 = load_pickle(path=sp_fname)
+# sp_group1, sp_group2 = [], []
+# for sesion in config.sesiones:
+#     ph_fname = os.path.join(phonemes_path, f'Sesion{sesion}.pkl')
+#     sp_fname = os.path.join(spectrogram_path, f'Sesion{sesion}.pkl')
+#     ph_1, ph_2 = load_pickle(path=ph_fname)
+#     sp_1, sp_2 = load_pickle(path=sp_fname)
     
-    sp_group1_ses = [] 
-    sp_group2_ses = []
-    for ph, sp, in zip([ph_1, ph_2], [sp_1, sp_2]):
-        spectrogram_group1 = []
-        for col in ph[:, group1_index].T:
-            spectrogram_group1.append(sp[(col==1)])
+#     sp_group1_ses = [] 
+#     sp_group2_ses = []
+#     for ph, sp, in zip([ph_1, ph_2], [sp_1, sp_2]):
+#         spectrogram_group1 = []
+#         for col in ph[:, group1_index].T:
+#             spectrogram_group1.append(sp[(col==1)])
             
-        max_len_group1 = max([len(sp) for sp in spectrogram_group1])
+#         max_len_group1 = max([len(sp) for sp in spectrogram_group1])
         
-        spectrogram_group1_padded = []
-        for spg in spectrogram_group1:
-            if len(spg)!=max_len_group1:
-                new_sp = np.full(shape=(max_len_group1, 16), fill_value=spg.min())
-                pad = (max_len_group1 - spg.shape[0]) // 2  
-                new_sp[pad:pad + spg.shape[0], :] = spg
-                spectrogram_group1_padded.append(new_sp)
-            else:
-                spectrogram_group1_padded.append(spg)
+#         spectrogram_group1_padded = []
+#         for spg in spectrogram_group1:
+#             if len(spg)!=max_len_group1:
+#                 new_sp = np.full(shape=(max_len_group1, 16), fill_value=spg.min())
+#                 pad = (max_len_group1 - spg.shape[0]) // 2  
+#                 new_sp[pad:pad + spg.shape[0], :] = spg
+#                 spectrogram_group1_padded.append(new_sp)
+#             else:
+#                 spectrogram_group1_padded.append(spg)
                 
-        spectrogram_group2 = []
-        for col in ph[:, group2_index].T:
-            spectrogram_group2.append(sp[(col==1)])
-        max_len_group2 = max([len(sp) for sp in spectrogram_group2])
+#         spectrogram_group2 = []
+#         for col in ph[:, group2_index].T:
+#             spectrogram_group2.append(sp[(col==1)])
+#         max_len_group2 = max([len(sp) for sp in spectrogram_group2])
         
-        spectrogram_group2_padded = []
-        for spg in spectrogram_group2:
-            if len(spg)!=max_len_group2:
-                new_sp = np.full(shape=(max_len_group2, 16), fill_value=spg.min())
-                pad = (max_len_group2 - spg.shape[0]) // 2  
-                new_sp[pad:pad + spg.shape[0], :] = spg
-                spectrogram_group2_padded.append(new_sp)
-            else:
-                spectrogram_group2_padded.append(spg)
+#         spectrogram_group2_padded = []
+#         for spg in spectrogram_group2:
+#             if len(spg)!=max_len_group2:
+#                 new_sp = np.full(shape=(max_len_group2, 16), fill_value=spg.min())
+#                 pad = (max_len_group2 - spg.shape[0]) // 2  
+#                 new_sp[pad:pad + spg.shape[0], :] = spg
+#                 spectrogram_group2_padded.append(new_sp)
+#             else:
+#                 spectrogram_group2_padded.append(spg)
         
-        sp_group1_ses.append(np.stack(spectrogram_group1_padded).mean(axis=0))
-        sp_group2_ses.append(np.stack(spectrogram_group2_padded).mean(axis=0))
-    sp_group1.append(np.stack(spectrogram_group1_padded))
-    sp_group2.append(np.stack(spectrogram_group2_padded))
+#         sp_group1_ses.append(np.stack(spectrogram_group1_padded).mean(axis=0))
+#         sp_group2_ses.append(np.stack(spectrogram_group2_padded).mean(axis=0))
+#     sp_group1.append(np.stack(spectrogram_group1_padded))
+#     sp_group2.append(np.stack(spectrogram_group2_padded))
 
-sp_group1 = [sp_group1[i].mean(axis=0) for i in range(len(config.sesiones))]
-sp_group2 = [sp_group2[i].mean(axis=0) for i in range(len(config.sesiones))]
+# sp_group1 = [sp_group1[i].mean(axis=0) for i in range(len(config.sesiones))]
+# sp_group2 = [sp_group2[i].mean(axis=0) for i in range(len(config.sesiones))]
 
-max_len_group1 = max([len(sp) for sp in sp_group1])
-max_len_group2 = max([len(sp) for sp in sp_group2])
+# max_len_group1 = max([len(sp) for sp in sp_group1])
+# max_len_group2 = max([len(sp) for sp in sp_group2])
 
-sp_group1_padded = []
-for spg in sp_group1:
-    if len(spg)!=max_len_group1:
-        new_sp = np.full(shape=(max_len_group1, 16), fill_value=spg.min())
-        pad = (max_len_group1 - spg.shape[0]) // 2  
-        new_sp[pad:pad + spg.shape[0], :] = spg
-        sp_group1_padded.append(new_sp)
-    else:
-        sp_group1_padded.append(spg)
+# sp_group1_padded = []
+# for spg in sp_group1:
+#     if len(spg)!=max_len_group1:
+#         new_sp = np.full(shape=(max_len_group1, 16), fill_value=spg.min())
+#         pad = (max_len_group1 - spg.shape[0]) // 2  
+#         new_sp[pad:pad + spg.shape[0], :] = spg
+#         sp_group1_padded.append(new_sp)
+#     else:
+#         sp_group1_padded.append(spg)
 
-sp_group2_padded = []
-for spg in sp_group2:
-    if len(spg)!=max_len_group2:
-        new_sp = np.full(shape=(max_len_group2, 16), fill_value=spg.min())
-        pad = (max_len_group2 - spg.shape[0]) // 2  
-        new_sp[pad:pad + spg.shape[0], :] = spg
-        sp_group2_padded.append(new_sp)
-    else:
-        sp_group2_padded.append(spg)
+# sp_group2_padded = []
+# for spg in sp_group2:
+#     if len(spg)!=max_len_group2:
+#         new_sp = np.full(shape=(max_len_group2, 16), fill_value=spg.min())
+#         pad = (max_len_group2 - spg.shape[0]) // 2  
+#         new_sp[pad:pad + spg.shape[0], :] = spg
+#         sp_group2_padded.append(new_sp)
+#     else:
+#         sp_group2_padded.append(spg)
 
-sp_group1, sp_group2 = np.stack(sp_group1_padded).mean(axis=0), np.stack(sp_group2_padded).mean(axis=0)
+# sp_group1, sp_group2 = np.stack(sp_group1_padded).mean(axis=0), np.stack(sp_group2_padded).mean(axis=0)
 
-###########
-phonological_path = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/Phonological'
-spectrogram_path = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/Spectrogram'
+# ###########
+# phonological_path = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/Phonological'
+# spectrogram_path = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/Spectrogram'
 
-phonological = list(config.Exp_info().phonological_labels).copy()
-phonological.remove('trill')
-phonological.remove('pause')
+# phonological = list(config.Exp_info().phonological_labels).copy()
+# phonological.remove('trill')
+# phonological.remove('pause')
 
-group1 = ['labial', 'lateral', 'open', 'vocalic', 'back', 'voice', 'nasal']
-group2 = ['dental', 'consonantal', 'velar', 'flap', 'close', 'strident', 'continuant']
+# group1 = ['labial', 'lateral', 'open', 'vocalic', 'back', 'voice', 'nasal']
+# group2 = ['dental', 'consonantal', 'velar', 'flap', 'close', 'strident', 'continuant']
 
 
-group1_index = [phonological.index(ph) for ph in group1]
-group2_index = [phonological.index(ph) for ph in group2]
+# group1_index = [phonological.index(ph) for ph in group1]
+# group2_index = [phonological.index(ph) for ph in group2]
 
-fsp_group1, fsp_group2 = [], []
-for sesion in config.sesiones:
-    ph_fname = os.path.join(phonological_path, f'Sesion{sesion}.pkl')
-    sp_fname = os.path.join(spectrogram_path, f'Sesion{sesion}.pkl')
-    ph_1, ph_2 = load_pickle(path=ph_fname)
-    sp_1, sp_2 = load_pickle(path=sp_fname)
+# fsp_group1, fsp_group2 = [], []
+# for sesion in config.sesiones:
+#     ph_fname = os.path.join(phonological_path, f'Sesion{sesion}.pkl')
+#     sp_fname = os.path.join(spectrogram_path, f'Sesion{sesion}.pkl')
+#     ph_1, ph_2 = load_pickle(path=ph_fname)
+#     sp_1, sp_2 = load_pickle(path=sp_fname)
     
-    fsp_group1_ses = [] 
-    fsp_group2_ses = []
-    for ph, sp, in zip([ph_1, ph_2], [sp_1, sp_2]):
-        spectrogram_group1 = []
-        ph_nuevo = np.zeros(ph.shape)
-        for i, col in enumerate(np.argmax(ph, axis=1)):
-            ph_nuevo[i, col]=1
-        ph = ph_nuevo
+#     fsp_group1_ses = [] 
+#     fsp_group2_ses = []
+#     for ph, sp, in zip([ph_1, ph_2], [sp_1, sp_2]):
+#         spectrogram_group1 = []
+#         ph_nuevo = np.zeros(ph.shape)
+#         for i, col in enumerate(np.argmax(ph, axis=1)):
+#             ph_nuevo[i, col]=1
+#         ph = ph_nuevo
 
-        for col in ph[:, group1_index].T:
-            spectrogram_group1.append(sp[(col==1)])
+#         for col in ph[:, group1_index].T:
+#             spectrogram_group1.append(sp[(col==1)])
             
-        max_len_group1 = max([len(sp) for sp in spectrogram_group1])
+#         max_len_group1 = max([len(sp) for sp in spectrogram_group1])
         
-        spectrogram_group1_padded = []
-        for spg in spectrogram_group1:
-            if len(spg)!=max_len_group1:
-                new_sp = np.full(shape=(max_len_group1, 16), fill_value=spg.min())
-                pad = (max_len_group1 - spg.shape[0]) // 2  
-                new_sp[pad:pad + spg.shape[0], :] = spg
-                spectrogram_group1_padded.append(new_sp)
-            else:
-                spectrogram_group1_padded.append(spg)
+#         spectrogram_group1_padded = []
+#         for spg in spectrogram_group1:
+#             if len(spg)!=max_len_group1:
+#                 new_sp = np.full(shape=(max_len_group1, 16), fill_value=spg.min())
+#                 pad = (max_len_group1 - spg.shape[0]) // 2  
+#                 new_sp[pad:pad + spg.shape[0], :] = spg
+#                 spectrogram_group1_padded.append(new_sp)
+#             else:
+#                 spectrogram_group1_padded.append(spg)
                 
-        spectrogram_group2 = []
-        for col in ph[:, group2_index].T:
-            spectrogram_group2.append(sp[(col==1)])
-        max_len_group2 = max([len(sp) for sp in spectrogram_group2])
+#         spectrogram_group2 = []
+#         for col in ph[:, group2_index].T:
+#             spectrogram_group2.append(sp[(col==1)])
+#         max_len_group2 = max([len(sp) for sp in spectrogram_group2])
         
-        spectrogram_group2_padded = []
-        for spg in spectrogram_group2:
-            if len(spg)!=max_len_group2:
-                new_sp = np.full(shape=(max_len_group2, 16), fill_value=spg.min())
-                pad = (max_len_group2 - spg.shape[0]) // 2  
-                new_sp[pad:pad + spg.shape[0], :] = spg
-                spectrogram_group2_padded.append(new_sp)
-            else:
-                spectrogram_group2_padded.append(spg)
+#         spectrogram_group2_padded = []
+#         for spg in spectrogram_group2:
+#             if len(spg)!=max_len_group2:
+#                 new_sp = np.full(shape=(max_len_group2, 16), fill_value=spg.min())
+#                 pad = (max_len_group2 - spg.shape[0]) // 2  
+#                 new_sp[pad:pad + spg.shape[0], :] = spg
+#                 spectrogram_group2_padded.append(new_sp)
+#             else:
+#                 spectrogram_group2_padded.append(spg)
         
-        fsp_group1_ses.append(np.stack(spectrogram_group1_padded).mean(axis=0))
-        fsp_group2_ses.append(np.stack(spectrogram_group2_padded).mean(axis=0))
-    fsp_group1.append(np.stack(spectrogram_group1_padded))
-    fsp_group2.append(np.stack(spectrogram_group2_padded))
+#         fsp_group1_ses.append(np.stack(spectrogram_group1_padded).mean(axis=0))
+#         fsp_group2_ses.append(np.stack(spectrogram_group2_padded).mean(axis=0))
+#     fsp_group1.append(np.stack(spectrogram_group1_padded))
+#     fsp_group2.append(np.stack(spectrogram_group2_padded))
 
-fsp_group1 = [fsp_group1[i].mean(axis=0) for i in range(len(config.sesiones))]
-fsp_group2 = [fsp_group2[i].mean(axis=0) for i in range(len(config.sesiones))]
+# fsp_group1 = [fsp_group1[i].mean(axis=0) for i in range(len(config.sesiones))]
+# fsp_group2 = [fsp_group2[i].mean(axis=0) for i in range(len(config.sesiones))]
 
-max_len_group1 = max([len(sp) for sp in fsp_group1])
-max_len_group2 = max([len(sp) for sp in fsp_group2])
+# max_len_group1 = max([len(sp) for sp in fsp_group1])
+# max_len_group2 = max([len(sp) for sp in fsp_group2])
 
-fsp_group1_padded = []
-for spg in fsp_group1:
-    if len(spg)!=max_len_group1:
-        new_sp = np.full(shape=(max_len_group1, 16), fill_value=spg.min())
-        pad = (max_len_group1 - spg.shape[0]) // 2  
-        new_sp[pad:pad + spg.shape[0], :] = spg
-        fsp_group1_padded.append(new_sp)
-    else:
-        fsp_group1_padded.append(spg)
+# fsp_group1_padded = []
+# for spg in fsp_group1:
+#     if len(spg)!=max_len_group1:
+#         new_sp = np.full(shape=(max_len_group1, 16), fill_value=spg.min())
+#         pad = (max_len_group1 - spg.shape[0]) // 2  
+#         new_sp[pad:pad + spg.shape[0], :] = spg
+#         fsp_group1_padded.append(new_sp)
+#     else:
+#         fsp_group1_padded.append(spg)
 
-fsp_group2_padded = []
-for spg in fsp_group2:
-    if len(spg)!=max_len_group2:
-        new_sp = np.full(shape=(max_len_group2, 16), fill_value=spg.min())
-        pad = (max_len_group2 - spg.shape[0]) // 2  
-        new_sp[pad:pad + spg.shape[0], :] = spg
-        fsp_group2_padded.append(new_sp)
-    else:
-        fsp_group2_padded.append(spg)
+# fsp_group2_padded = []
+# for spg in fsp_group2:
+#     if len(spg)!=max_len_group2:
+#         new_sp = np.full(shape=(max_len_group2, 16), fill_value=spg.min())
+#         pad = (max_len_group2 - spg.shape[0]) // 2  
+#         new_sp[pad:pad + spg.shape[0], :] = spg
+#         fsp_group2_padded.append(new_sp)
+#     else:
+#         fsp_group2_padded.append(spg)
 
-fsp_group1, fsp_group2 = np.stack(fsp_group1_padded).mean(axis=0), np.stack(fsp_group2_padded).mean(axis=0)
+# fsp_group1, fsp_group2 = np.stack(fsp_group1_padded).mean(axis=0), np.stack(fsp_group2_padded).mean(axis=0)
 
 
-bands_center = librosa.mel_frequencies(
-    n_mels=16+2, 
-    fmin=0, 
-    fmax=8000
-    )[1:-1]
-# tags = [int(bands_center[i]) for i in np.arange(1, len(bands_center)+1, 2)]
-# ticks = np.arange(0, NumberOfTicks, 2)+.5
-tags = [int(bands_center[i]) for i in np.arange(0, len(bands_center))]
-ticks = np.arange(0, 16)
+# bands_center = librosa.mel_frequencies(
+#     n_mels=16+2, 
+#     fmin=0, 
+#     fmax=8000
+#     )[1:-1]
+# # tags = [int(bands_center[i]) for i in np.arange(1, len(bands_center)+1, 2)]
+# # ticks = np.arange(0, NumberOfTicks, 2)+.5
+# tags = [int(bands_center[i]) for i in np.arange(0, len(bands_center))]
+# ticks = np.arange(0, 16)
 
-fig, axes = plt.subplots(
-    nrows=2,
-    ncols=2,
-    figsize=(10, 8),
-    sharey='row',
-    tight_layout=True
-    )
-im = axes[0, 0].pcolormesh(
-    np.arange(0, len(sp_group1)/config.sr, 1/config.sr)* 1e3, 
-    np.arange(16), 
-    sp_group1.T, 
-    cmap=LinearSegmentedColormap.from_list("custom_cmap", ["white", "gray"]),  # Ajusta el mapa de colores
-    shading='auto',
-    vmin=sp_group1.min(),
-    vmax=sp_group1.max()
-    )
-fig.colorbar(
-    im,
-    label='Amplitud (dB)'
-    )
-axes[0, 0].set_xticks(
-    ticks=[sp_group1.shape[0]//2-2000, sp_group1.shape[0]//2, sp_group1.shape[0]//2+2000],
-    labels=['', '', '']
-    )
-axes[0, 0].set_xlim(sp_group1.shape[0]//2-2000, sp_group1.shape[0]//2+2000)
-axes[0, 0].set_yticks(
-    ticks=ticks, 
-    labels=tags
-    )
-axes[0, 0].set_ylabel('Frecuencia (Hz)')  
-axes[0, 0].set_title('Fonemas (1)')  
-axes[0, 0].text(-.1, 1.1, 'a)', transform=axes[0, 0].transAxes, fontsize=18, va='top', ha='right')
+# fig, axes = plt.subplots(
+#     nrows=2,
+#     ncols=2,
+#     figsize=(10, 8),
+#     sharey='row',
+#     tight_layout=True
+#     )
+# im = axes[0, 0].pcolormesh(
+#     np.arange(sp_group1.shape[0]), 
+#     np.arange(16), 
+#     sp_group1.T, 
+#     cmap=LinearSegmentedColormap.from_list("custom_cmap", ["white", "gray"]),  # Ajusta el mapa de colores
+#     shading='auto',
+#     vmin=sp_group1.min(),
+#     vmax=sp_group1.max()
+#     )
+# # im = axes[0, 0].imshow(
+# #     sp_group1.T,
+# #     aspect='auto',  # Ajusta el aspecto
+# #     # extent=[WindowLeft, WindowRight, 0, 16],  # Ajusta los límites de los ejes
+# #     origin='lower',  # Ajusta el origen
+# #     cmap='Greens',  # Ajusta el mapa de colores
+# #     vmin=sp_group1.min(),
+# #     vmax=sp_group1.max()
+# #     )
 
-im = axes[1, 0].pcolormesh(
-    np.arange(0, len(sp_group2)/config.sr, 1/config.sr)* 1e3, 
-    np.arange(16), 
-    sp_group2.T, 
-    cmap=LinearSegmentedColormap.from_list("custom_cmap", ["white", "gray"]),  # Ajusta el mapa de colores
-    shading='auto',
-    vmin=sp_group2.min(),
-    vmax=sp_group2.max()
-    )
-
-fig.colorbar(
-    im,
-    label='Amplitud (dB)'
-    )
-
-axes[1, 0].set_xticks(
-    ticks=[
-        sp_group2.shape[0]//2-2000, sp_group2.shape[0]//2-1500, sp_group2.shape[0]//2-1000, sp_group2.shape[0]//2-500,\
-        sp_group2.shape[0]//2,\
-        sp_group2.shape[0]//2+500, sp_group2.shape[0]//2+1000, sp_group2.shape[0]//2+1500, sp_group2.shape[0]//2+2000
-        ],
-    labels=[f'-{2000/config.sr:.0f}', f'-{1500/config.sr:.0f}', f'-{1000/config.sr:.0f}', f'-{500/config.sr:.0f}', '0',\
-        f'{500/config.sr:.0f}', f'{1000/config.sr:.0f}', f'{1500/config.sr:.0f}', f'{2000/config.sr:.0f}']
-    )         
-
-axes[1, 0].set_xlim(sp_group2.shape[0]//2-2000, sp_group2.shape[0]//2+2000)
-axes[1, 0].set_yticks(
-    ticks=ticks, 
-    labels=tags
-    )
-axes[1, 0].set_xlabel('Tiempo (s)')
-axes[1, 0].set_ylabel('Frecuencia (Hz)')  
-axes[1, 0].set_title('Fonemas (2)')  
-axes[1, 0].text(-.1, 1.1, 'b)', transform=axes[1, 0].transAxes, fontsize=18, va='top', ha='right')
-
-im = axes[0, 1].pcolormesh(
-    np.arange(0, len(fsp_group1)/config.sr, 1/config.sr)* 1e3, 
-    np.arange(16), 
-    fsp_group1.T, 
-    cmap=LinearSegmentedColormap.from_list("custom_cmap", ["white", "gray"]),  # Ajusta el mapa de colores
-    shading='auto',
-    vmin=fsp_group1.min(),
-    vmax=fsp_group1.max()
-    )
-
-fig.colorbar(
-    im,
-    label='Amplitud (dB)'
-    )
-
-axes[0, 1].set_xticks(
-    ticks=[fsp_group1.shape[0]//2-2000, fsp_group1.shape[0]//2, fsp_group1.shape[0]//2+2000],
-    labels=['', '', '']
-    )
-axes[0, 1].set_xlim(fsp_group1.shape[0]//2-2000, fsp_group1.shape[0]//2+2000)
-axes[0, 1].set_yticks(
-    ticks=ticks, 
-    labels=tags
-    )
-# axes[0, 1].set_ylabel('Frecuencia (Hz)')  
-axes[0, 1].set_title('C. Fonológicas (1)')  
-axes[0, 1].text(-.1, 1.1, 'c)', transform=axes[0, 1].transAxes, fontsize=18, va='top', ha='right')
-
-im = axes[1, 1].pcolormesh(
-    np.arange(0, len(fsp_group2)/config.sr, 1/config.sr)* 1e3, 
-    np.arange(16), 
-    fsp_group2.T, 
-    cmap=LinearSegmentedColormap.from_list("custom_cmap", ["white", "gray"]),  # Ajusta el mapa de colores
-    shading='auto',
-    vmin=fsp_group2.min(),
-    vmax=fsp_group2.max()
-    )
-
-fig.colorbar(
-    im,
-    label='Amplitud (dB)'
-    )
-axes[1, 1].set_xticks(
-    ticks=[
-        fsp_group2.shape[0]//2-2000, fsp_group2.shape[0]//2-1500, fsp_group2.shape[0]//2-1000, fsp_group2.shape[0]//2-500,\
-        fsp_group2.shape[0]//2,\
-        fsp_group2.shape[0]//2+500, fsp_group2.shape[0]//2+1000, fsp_group2.shape[0]//2+1500, fsp_group2.shape[0]//2+2000
-        ],
-    labels=[f'-{2000/config.sr:.0f}', f'-{1500/config.sr:.0f}', f'-{1000/config.sr:.0f}', f'-{500/config.sr:.0f}', '0',\
-        f'{500/config.sr:.0f}', f'{1000/config.sr:.0f}', f'{1500/config.sr:.0f}', f'{2000/config.sr:.0f}']
-    )   
-
-axes[1, 1].set_xlim(fsp_group2.shape[0]//2-2000, fsp_group2.shape[0]//2+2000)
-# axes[1, 1].set_yticks(
+# fig.colorbar(
+#     im,
+#     label='Amplitud (dB)'
+#     )
+# axes[0, 0].set_xticks(
+#     ticks=[sp_group1.shape[0]//2-2000, sp_group1.shape[0]//2, sp_group1.shape[0]//2+2000],
+#     labels=['', '', '']
+#     )
+# axes[0, 0].set_xlim(sp_group1.shape[0]//2-2000, sp_group1.shape[0]//2+2000)
+# axes[0, 0].set_yticks(
 #     ticks=ticks, 
 #     labels=tags
 #     )
-axes[1, 1].set_xlabel('Tiempo (s)')
-# axes[1, 1].set_ylabel('Frecuencia (Hz)')  
-axes[1, 1].set_title('C. Fonológicas (2)')  
-axes[1, 1].text(-.1, 1.1, 'd)', transform=axes[1, 1].transAxes, fontsize=18, va='top', ha='right')
+# axes[0, 0].set_ylabel('Frecuencia (Hz)')  
+# axes[0, 0].set_title('Fonemas (1)')  
+# axes[0, 0].text(-.1, 1.1, 'a)', transform=axes[0, 0].transAxes, fontsize=18, va='top', ha='right')
 
-# fig.savefig(
-#     os.path.join(tesis_path,'resultados', f'perfiles_grupos.{figformat}'),
-#     transparent=False,
-#     dpi=dpi
+# im = axes[1, 0].pcolormesh(
+#     np.arange(sp_group2.shape[0]), 
+#     np.arange(16), 
+#     sp_group2.T, 
+#     cmap=LinearSegmentedColormap.from_list("custom_cmap", ["white", "gray"]),  # Ajusta el mapa de colores
+#     shading='auto',
+#     vmin=sp_group2.min(),
+#     vmax=sp_group2.max()
 #     )
-fig.show()
 
-# ==========================================
-# MATRIZ CORRELACIONES Y SIMILARIDAD CABEZAS # TODO REHACER CON PHONEMES-PHONET y PHONOLOGICAL NUEVO
-situation = 'External'
-correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
-mtrf_path = os.path.normpath(f'saves/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
-bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
-stimuli = ['Pitch-Log-Raw', 'Envelope', 'Mfccs', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
+# fig.colorbar(
+#     im,
+#     label='Amplitud (dB)'
+#     )
 
-# Cálculo de correlaciones (como en tu código)
-correlations = {
-    (stim, band): load_pickle(path=os.path.join(correlations_path, band, stim + '.pkl'))['average_correlation_subjects'].mean(axis=0)
-    for stim in stimuli for band in bands
-}
-minimum_cor = min([corr.min() for corr in correlations.values()])
-maximum_cor = max([corr.max() for corr in correlations.values()])
-normalizer_c = Normalize(vmin=np.round(minimum_cor, 2), vmax=np.round(maximum_cor, 2))
-im_c = cm.ScalarMappable(norm=normalizer_c, cmap='Reds')
+# axes[1, 0].set_xticks(
+#     ticks=[
+#         sp_group2.shape[0]//2-2000, sp_group2.shape[0]//2-1500, sp_group2.shape[0]//2-1000, sp_group2.shape[0]//2-500,\
+#         sp_group2.shape[0]//2,\
+#         sp_group2.shape[0]//2+500, sp_group2.shape[0]//2+1000, sp_group2.shape[0]//2+1500, sp_group2.shape[0]//2+2000
+#         ],
+#     labels=[f'-{2000/config.sr:.0f}', f'-{1500/config.sr:.0f}', f'-{1000/config.sr:.0f}', f'-{500/config.sr:.0f}', '0',\
+#         f'{500/config.sr:.0f}', f'{1000/config.sr:.0f}', f'{1500/config.sr:.0f}', f'{2000/config.sr:.0f}']
+#     )         
 
-n_stims, n_bands = len(stimuli), len(bands)
+# axes[1, 0].set_xlim(sp_group2.shape[0]//2-2000, sp_group2.shape[0]//2+2000)
+# axes[1, 0].set_yticks(
+#     ticks=ticks, 
+#     labels=tags
+#     )
+# axes[1, 0].set_xlabel('Tiempo (s)')
+# axes[1, 0].set_ylabel('Frecuencia (Hz)')  
+# axes[1, 0].set_title('Fonemas (2)')  
+# axes[1, 0].text(-.1, 1.1, 'b)', transform=axes[1, 0].transAxes, fontsize=18, va='top', ha='right')
 
-# Get mean correlations across subjects and total max and min
-correlations = {(stim,band):load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
-minimum_cor, maximum_cor = min([correlation.min() for correlation in correlations.values()]), max([correlation.max() for correlation in correlations.values()])
+# im = axes[0, 1].pcolormesh(
+#     np.arange(fsp_group1.shape[0]), 
+#     np.arange(16), 
+#     fsp_group1.T, 
+#     cmap=LinearSegmentedColormap.from_list("custom_cmap", ["white", "gray"]),  # Ajusta el mapa de colores
+#     shading='auto',
+#     vmin=fsp_group1.min(),
+#     vmax=fsp_group1.max()
+#     )
 
-# Create figure and title
-fig, axes = plt.subplots(
-        figsize=(8,8), 
-        nrows=n_bands, 
-        ncols=n_stims, 
-        layout="constrained"
-        )
+# fig.colorbar(
+#     im,
+#     label='Amplitud (dB)'
+#     )
 
-# Configure axis
-for ax, col in zip(axes[:,0], stimuli):
-    if col=='Phonemes-Discrete-Phonet':
-        col = 'Fonemas'
-        ax.set_ylabel(col, rotation=90)
-    elif col=='Pitch-Log-Raw':
-        col = 'Tono de voz'
-        ax.set_ylabel(col, rotation=90)
-    elif col=='Envelope':
-        col = 'Envolvente'
-        ax.set_ylabel(col, rotation=90)
-    elif col=='Phonological':
-        col = 'C. Fonológicas'
-        ax.set_ylabel(col, rotation=90)
-    elif col=='Spectrogram':
-        col = 'Espectrograma'
-        ax.set_ylabel(col, rotation=90)
-    elif col=='Mfccs':
-        col = 'C. Mel'
-        ax.set_ylabel(col, rotation=90)
-    else:
-        ax.set_ylabel(col, rotation=90)
-for ax, band in zip(axes[0], bands):
-    if band=='Beta1':
-        band=r'Beta$_1$'
+# axes[0, 1].set_xticks(
+#     ticks=[fsp_group1.shape[0]//2-2000, fsp_group1.shape[0]//2, fsp_group1.shape[0]//2+2000],
+#     labels=['', '', '']
+#     )
+# axes[0, 1].set_xlim(fsp_group1.shape[0]//2-2000, fsp_group1.shape[0]//2+2000)
+# axes[0, 1].set_yticks(
+#     ticks=ticks, 
+#     labels=tags
+#     )
+# # axes[0, 1].set_ylabel('Frecuencia (Hz)')  
+# axes[0, 1].set_title('C. Fonológicas (1)')  
+# axes[0, 1].text(-.1, 1.1, 'c)', transform=axes[0, 1].transAxes, fontsize=18, va='top', ha='right')
+# im = axes[1, 1].pcolormesh(
+#     np.arange(fsp_group2.shape[0]), 
+#     np.arange(16), 
+#     fsp_group2.T, 
+#     cmap=LinearSegmentedColormap.from_list("custom_cmap", ["white", "gray"]),  # Ajusta el mapa de colores
+#     shading='auto',
+#     vmin=fsp_group2.min(),
+#     vmax=fsp_group2.max()
+#     )
+# fig.colorbar(
+#     im,
+#     label='Amplitud (dB)'
+#     )
+# axes[1, 1].set_xticks(
+#     ticks=[
+#         fsp_group2.shape[0]//2-2000, fsp_group2.shape[0]//2-1500, fsp_group2.shape[0]//2-1000, fsp_group2.shape[0]//2-500,\
+#         fsp_group2.shape[0]//2,\
+#         fsp_group2.shape[0]//2+500, fsp_group2.shape[0]//2+1000, fsp_group2.shape[0]//2+1500, fsp_group2.shape[0]//2+2000
+#         ],
+#     labels=[f'-{2000/config.sr:.0f}', f'-{1500/config.sr:.0f}', f'-{1000/config.sr:.0f}', f'-{500/config.sr:.0f}', '0',\
+#         f'{500/config.sr:.0f}', f'{1000/config.sr:.0f}', f'{1500/config.sr:.0f}', f'{2000/config.sr:.0f}']
+#     )   
+
+# axes[1, 1].set_xlim(fsp_group2.shape[0]//2-2000, fsp_group2.shape[0]//2+2000)
+# # axes[1, 1].set_yticks(
+# #     ticks=ticks, 
+# #     labels=tags
+# #     )
+# axes[1, 1].set_xlabel('Tiempo (s)')
+# # axes[1, 1].set_ylabel('Frecuencia (Hz)')  
+# axes[1, 1].set_title('C. Fonológicas (2)')  
+# axes[1, 1].text(-.1, 1.1, 'd)', transform=axes[1, 1].transAxes, fontsize=18, va='top', ha='right')
+
+# # fig.savefig(
+# #     os.path.join(tesis_path,'resultados', f'perfiles_grupos.{figformat}'),
+# #     transparent=False,
+# #     dpi=dpi
+# #     )
+# fig.show()
+
+# # ==========================================
+# # MATRIZ CORRELACIONES Y SIMILARIDAD CABEZAS # TODO REHACER CON PHONEMES-PHONET y PHONOLOGICAL NUEVO
+# situation = 'External'
+# correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+# mtrf_path = os.path.normpath(f'saves/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
+# bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
+# stimuli = ['Pitch-Log-Raw', 'Envelope', 'Mfccs', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
+
+# # Cálculo de correlaciones (como en tu código)
+# correlations = {
+#     (stim, band): load_pickle(path=os.path.join(correlations_path, band, stim + '.pkl'))['average_correlation_subjects'].mean(axis=0)
+#     for stim in stimuli for band in bands
+# }
+# minimum_cor = min([corr.min() for corr in correlations.values()])
+# maximum_cor = max([corr.max() for corr in correlations.values()])
+# normalizer_c = Normalize(vmin=np.round(minimum_cor, 2), vmax=np.round(maximum_cor, 2))
+# im_c = cm.ScalarMappable(norm=normalizer_c, cmap='Reds')
+
+# n_stims, n_bands = len(stimuli), len(bands)
+
+# # Get mean correlations across subjects and total max and min
+# correlations = {(stim,band):load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
+# minimum_cor, maximum_cor = min([correlation.min() for correlation in correlations.values()]), max([correlation.max() for correlation in correlations.values()])
+
+# # Create figure and title
+# fig, axes = plt.subplots(
+#         figsize=(8,8), 
+#         nrows=n_bands, 
+#         ncols=n_stims, 
+#         layout="constrained"
+#         )
+
+# # Configure axis
+# for ax, col in zip(axes[:,0], stimuli):
+#     if col=='Phonemes-Discrete-Phonet':
+#         col = 'Fonemas'
+#         ax.set_ylabel(col, rotation=90)
+#     elif col=='Pitch-Log-Raw':
+#         col = 'Tono de voz'
+#         ax.set_ylabel(col, rotation=90)
+#     elif col=='Envelope':
+#         col = 'Envolvente'
+#         ax.set_ylabel(col, rotation=90)
+#     elif col=='Phonological':
+#         col = 'C. Fonológicas'
+#         ax.set_ylabel(col, rotation=90)
+#     elif col=='Spectrogram':
+#         col = 'Espectrograma'
+#         ax.set_ylabel(col, rotation=90)
+#     elif col=='Mfccs':
+#         col = 'C. Mel'
+#         ax.set_ylabel(col, rotation=90)
+#     else:
+#         ax.set_ylabel(col, rotation=90)
+# for ax, band in zip(axes[0], bands):
+#     if band=='Beta1':
+#         band=r'Beta$_1$'
     
-    if band=='Beta2':
-        band=r'Beta$_2$'
+#     if band=='Beta2':
+#         band=r'Beta$_2$'
     
-    if band=='All':
-        band='Ancha'
-    ax.set_title(band)
+#     if band=='All':
+#         band='Ancha'
+#     ax.set_title(band)
 
-# Build scale
-normalizer = Normalize(vmin=np.round(minimum_cor,2), vmax=np.round(maximum_cor,2))
-im = cm.ScalarMappable(norm=normalizer, cmap='Reds')
+# # Build scale
+# normalizer = Normalize(vmin=np.round(minimum_cor,2), vmax=np.round(maximum_cor,2))
+# im = cm.ScalarMappable(norm=normalizer, cmap='Reds')
 
-# Iterate over bands
-for j, band in enumerate(bands):
-    for i, stim in enumerate(stimuli):
-        # Get average correlation of each stimulus across subjects
-        average_correlation = correlations[(stim,band)]
+# # Iterate over bands
+# for j, band in enumerate(bands):
+#     for i, stim in enumerate(stimuli):
+#         # Get average correlation of each stimulus across subjects
+#         average_correlation = correlations[(stim,band)]
 
-        # Plot topomap        
-        mne.viz.plot_topomap(
-                data=average_correlation, 
-                pos=config.info_mne, 
-                axes=axes[i, j], 
-                show=False, 
-                sphere=0.07, 
-                cmap='Reds', 
-                # vlim=(minimum_cor, maximum_cor),
-                cnorm=normalizer
-                )
+#         # Plot topomap        
+#         mne.viz.plot_topomap(
+#                 data=average_correlation, 
+#                 pos=config.info_mne, 
+#                 axes=axes[i, j], 
+#                 show=False, 
+#                 sphere=0.07, 
+#                 cmap='Reds', 
+#                 # vlim=(minimum_cor, maximum_cor),
+#                 cnorm=normalizer
+#                 )
 
-# Make colorbar
-cbar = fig.colorbar(im, ax=axes.ravel().tolist())
-cbar.ax.tick_params(labelsize=15)
-fig.savefig(
-    os.path.join(tesis_path,'resultados', f'matriz_corr_externa.{figformat}'),
-    transparent=False,
-    dpi=dpi
-    )
-fig.show()
+# # Make colorbar
+# cbar = fig.colorbar(im, ax=axes.ravel().tolist())
+# cbar.ax.tick_params(labelsize=15)
+# # fig.savefig(
+# #     os.path.join(tesis_path,'resultados', f'matriz_corr_externa.{figformat}'),
+# #     transparent=False,
+# #     dpi=dpi
+# #     )
+# fig.show()
 
 # # =========================
 # # PESOS FONOLOG POR GRUPOS # TODO REHACER CON PHONEMES-PHONET y PHONOLOGICAL NUEVO
@@ -3672,7 +3680,7 @@ fig.show()
 #     transparent=False,
 #     dpi=dpi
 #     )
-# # fig.show()
+# fig.show()
 # fig = plt.figure(
 #     figsize=(4,4),
 #     layout='tight'
@@ -3697,414 +3705,414 @@ fig.show()
 #     transparent=False,
 #     dpi=dpi
 #     )
-# # fig.show()
+# fig.show()
 
-# # ===============================
-# # EJEMPLO PRUEBA DE PERMUTACIONES
-# from sklearn.model_selection import KFold
-# from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
-# from model_implementations import fold_model
-# from processing import tfce 
-# from load import load_data
-# import config, plot
+# ===============================
+# EJEMPLO PRUEBA DE PERMUTACIONES
+from sklearn.model_selection import KFold
+from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
+from model_implementations import fold_model
+from processing import tfce 
+from load import load_data
+import config, plot
 
-# situation, band, stim, sesion, sujeto = 'External', 'Theta', 'Pitch-Log-Raw', 24, 1
-# preprocessed_data_path = f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
-# path_null = f'saves/{config.model}/{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-# path_validation = f'saves/{config.model}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-# alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
-# average_weights_subjects = []
-# average_correlation_subjects = []
-# average_rmse_subjects = []
-# pvalues_corr_subjects = []
-# pvalues_rmse_subjects = []
-# repeated_good_correlation_channels_subjects = []
-# repeated_good_rmse_channels_subjects = []
-# print(f'\n------->\tStart of session {sesion}\n')
+situation, band, stim, sesion, sujeto = 'External', 'Theta', 'Pitch-Log-Raw', 24, 1
+preprocessed_data_path = f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
+path_null = f'saves/{config.model}/{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+path_validation = f'saves/{config.model}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
+average_weights_subjects = []
+average_correlation_subjects = []
+average_rmse_subjects = []
+pvalues_corr_subjects = []
+pvalues_rmse_subjects = []
+repeated_good_correlation_channels_subjects = []
+repeated_good_rmse_channels_subjects = []
+print(f'\n------->\tStart of session {sesion}\n')
 
-# # Load data by subject, EEG and info
-# sujeto_1, sujeto_2, samples_info = load_data(
-#                                 sesion=sesion,
-#                                 stim=stim,
-#                                 band=band,
-#                                 sr=config.sr,
-#                                 delays=config.delays,
-#                                 preprocessed_data_path=preprocessed_data_path,
-#                                 praat_executable_path=config.praat_executable_path,
-#                                 situation=situation
-#                                 )
-# eeg, info = sujeto_1['EEG'], sujeto_1['info']
+# Load data by subject, EEG and info
+sujeto_1, sujeto_2, samples_info = load_data(
+                                sesion=sesion,
+                                stim=stim,
+                                band=band,
+                                sr=config.sr,
+                                delays=config.delays,
+                                preprocessed_data_path=preprocessed_data_path,
+                                praat_executable_path=config.praat_executable_path,
+                                situation=situation
+                                )
+eeg, info = sujeto_1['EEG'], sujeto_1['info']
 
-# # Load stimuli by subject (i.e: concatenated stimuli features)
-# stims = np.hstack([sujeto_1[stimulus] for stimulus in stim.split('_')])
-# n_feats = [sujeto_1[stimulus].shape[1] for stimulus in stim.split('_')]
-# delayed_length_per_stimuli = [n_feat*len(config.delays) for n_feat in n_feats]
-# relevant_indexes = samples_info['keep_indexes1'].copy()
-# weights_per_fold = np.zeros((config.n_folds, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float16)
-# correlation_per_channel = np.zeros((config.n_folds, info['nchan']))
-# rmse_per_channel = np.zeros((config.n_folds, info['nchan']))
-# topo_pvalues_corr_per_fold = np.zeros((config.n_folds, info['nchan']))
-# topo_pvalues_rmse_per_fold = np.zeros((config.n_folds, info['nchan']))
-# proba_correlation_per_channel = np.ones((config.n_folds, info['nchan']))
-# proba_rmse_per_channel = np.ones((config.n_folds, info['nchan']))
-# print(f'\n\t······  Running model for Subject {sujeto}\n')
-# if config.set_alpha is None:
-#     try:
-#         alphas = load_pickle(path=alphas_path)
-#         alpha = alphas[sesion][sujeto]
-#     except:
-#         alpha = config.default_alpha
-# else:
-#     alpha = config.set_alpha
-# kf_test = KFold(config.n_folds, shuffle=False)
-# relevant_eeg = eeg[relevant_indexes]
-# k_models_output = []
-# for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
-#     print(f'\n\t······  [{fold+1}/{config.n_folds}]')
-#     k_models_output.append(
-#                     fold_model(
-#                         fold=fold,
-#                         alpha=np.float32(alpha),#TODO adapt inside
-#                         stims=stims,
-#                         eeg=eeg,
-#                         relevant_indexes=relevant_indexes,
-#                         train_indexes=train_indexes,
-#                         test_indexes=test_indexes,
-#                         validation=False,
-#                         statistical_test=config.statistical_test,
-#                         path_null=path_null,
-#                         session=sesion,
-#                         subject=sujeto,                              
-#                         )
-#                     )
-# for output_k in k_models_output:
-#     fold, weights, correlation_matrix, root_mean_square_error = output_k[:4]
-#     weights_per_fold[fold] = weights
-#     correlation_per_channel[fold] = correlation_matrix
-#     rmse_per_channel[fold] = root_mean_square_error 
-#     p_corr, p_rmse, null_correlation_per_channel = output_k[4:]
-#     proba_correlation_per_channel[fold][p_corr < config.significance_threshold] = p_corr[p_corr < config.significance_threshold]
-#     proba_rmse_per_channel[fold][p_rmse < config.significance_threshold] = p_rmse[p_rmse < config.significance_threshold]
-#     topo_pvalues_corr_per_fold[fold] = p_corr
-#     topo_pvalues_rmse_per_fold[fold] = p_rmse
-# print(f'\n\t······  Run model\n')
-# for k, weight in enumerate(weights_per_fold):
-#     if (weight==0).all():
-#         weights_per_fold[k] = np.full(shape=weight.shape, fill_value=np.nan)
-#         print(
-#             f'\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>\n'
-#             f'\t\tFold {k+1}/{config.n_folds} weights are empty\n'
-#             f'\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>'
-#             )
-# average_weights = np.nanmean(weights_per_fold, axis=0) # info['nchan'], np.sum(n_feats), len(delays)
-# average_weights = np.nan_to_num(average_weights)
-# average_correlation = np.nanmean(correlation_per_channel, axis=0)
-# average_correlation = np.nan_to_num(average_correlation)
-# average_rmse = rmse_per_channel.mean(axis=0)
-# corr_good_channel_indexes = []
-# rmse_good_channel_indexes = []
-# repeated_good_correlation_channels = np.zeros(info['nchan'])
-# repeated_good_rmse_channels = np.zeros(info['nchan'])
-# # Find good indexes by checking where all folds (at the same time) are significant
-# try:
-#     corr_good_channel_indexes, = np.where(
-#                                 np.all((proba_correlation_per_channel < 1), axis=0)
-#                                 )
-#     rmse_good_channel_indexes, = np.where(
-#                                 np.all((proba_rmse_per_channel < 1), axis=0)
-#                                 )
-# except:
-#     corr_good_channel_indexes = []
-#     rmse_good_channel_indexes = []
-#     print('No significant channels found')   
+# Load stimuli by subject (i.e: concatenated stimuli features)
+stims = np.hstack([sujeto_1[stimulus] for stimulus in stim.split('_')])
+n_feats = [sujeto_1[stimulus].shape[1] for stimulus in stim.split('_')]
+delayed_length_per_stimuli = [n_feat*len(config.delays) for n_feat in n_feats]
+relevant_indexes = samples_info['keep_indexes1'].copy()
+weights_per_fold = np.zeros((config.n_folds, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float16)
+correlation_per_channel = np.zeros((config.n_folds, info['nchan']))
+rmse_per_channel = np.zeros((config.n_folds, info['nchan']))
+topo_pvalues_corr_per_fold = np.zeros((config.n_folds, info['nchan']))
+topo_pvalues_rmse_per_fold = np.zeros((config.n_folds, info['nchan']))
+proba_correlation_per_channel = np.ones((config.n_folds, info['nchan']))
+proba_rmse_per_channel = np.ones((config.n_folds, info['nchan']))
+print(f'\n\t······  Running model for Subject {sujeto}\n')
+if config.set_alpha is None:
+    try:
+        alphas = load_pickle(path=alphas_path)
+        alpha = alphas[sesion][sujeto]
+    except:
+        alpha = config.default_alpha
+else:
+    alpha = config.set_alpha
+kf_test = KFold(config.n_folds, shuffle=False)
+relevant_eeg = eeg[relevant_indexes]
+k_models_output = []
+for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
+    print(f'\n\t······  [{fold+1}/{config.n_folds}]')
+    k_models_output.append(
+                    fold_model(
+                        fold=fold,
+                        alpha=np.float32(alpha),#TODO adapt inside
+                        stims=stims,
+                        eeg=eeg,
+                        relevant_indexes=relevant_indexes,
+                        train_indexes=train_indexes,
+                        test_indexes=test_indexes,
+                        validation=False,
+                        statistical_test=config.statistical_test,
+                        path_null=path_null,
+                        session=sesion,
+                        subject=sujeto,                              
+                        )
+                    )
+for output_k in k_models_output:
+    fold, weights, correlation_matrix, root_mean_square_error = output_k[:4]
+    weights_per_fold[fold] = weights
+    correlation_per_channel[fold] = correlation_matrix
+    rmse_per_channel[fold] = root_mean_square_error 
+    p_corr, p_rmse, null_correlation_per_channel = output_k[4:]
+    proba_correlation_per_channel[fold][p_corr < config.significance_threshold] = p_corr[p_corr < config.significance_threshold]
+    proba_rmse_per_channel[fold][p_rmse < config.significance_threshold] = p_rmse[p_rmse < config.significance_threshold]
+    topo_pvalues_corr_per_fold[fold] = p_corr
+    topo_pvalues_rmse_per_fold[fold] = p_rmse
+print(f'\n\t······  Run model\n')
+for k, weight in enumerate(weights_per_fold):
+    if (weight==0).all():
+        weights_per_fold[k] = np.full(shape=weight.shape, fill_value=np.nan)
+        print(
+            f'\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>\n'
+            f'\t\tFold {k+1}/{config.n_folds} weights are empty\n'
+            f'\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>'
+            )
+average_weights = np.nanmean(weights_per_fold, axis=0) # info['nchan'], np.sum(n_feats), len(delays)
+average_weights = np.nan_to_num(average_weights)
+average_correlation = np.nanmean(correlation_per_channel, axis=0)
+average_correlation = np.nan_to_num(average_correlation)
+average_rmse = rmse_per_channel.mean(axis=0)
+corr_good_channel_indexes = []
+rmse_good_channel_indexes = []
+repeated_good_correlation_channels = np.zeros(info['nchan'])
+repeated_good_rmse_channels = np.zeros(info['nchan'])
+# Find good indexes by checking where all folds (at the same time) are significant
+try:
+    corr_good_channel_indexes, = np.where(
+                                np.all((proba_correlation_per_channel < 1), axis=0)
+                                )
+    rmse_good_channel_indexes, = np.where(
+                                np.all((proba_rmse_per_channel < 1), axis=0)
+                                )
+except:
+    corr_good_channel_indexes = []
+    rmse_good_channel_indexes = []
+    print('No significant channels found')   
 
-# # Saves passing channels by subject
-# repeated_good_correlation_channels[corr_good_channel_indexes] += 1 # binary array with ones where significant
-# repeated_good_rmse_channels[rmse_good_channel_indexes] += 1
-# average_correlation = correlation_per_channel.mean(axis=0)
-# channels = np.arange(len(average_correlation))
-# null_correlation_per_channel_min = null_correlation_per_channel.min(axis=1).min(axis=0)
-# null_correlation_per_channel_max = null_correlation_per_channel.max(axis=1).max(axis=0) 
+# Saves passing channels by subject
+repeated_good_correlation_channels[corr_good_channel_indexes] += 1 # binary array with ones where significant
+repeated_good_rmse_channels[rmse_good_channel_indexes] += 1
+average_correlation = correlation_per_channel.mean(axis=0)
+channels = np.arange(len(average_correlation))
+null_correlation_per_channel_min = null_correlation_per_channel.min(axis=1).min(axis=0)
+null_correlation_per_channel_max = null_correlation_per_channel.max(axis=1).max(axis=0) 
 
-# # Create figure and title
-# fig, ax = plt.subplots(
-#     nrows=1, 
-#     ncols=1, 
-#     figsize=(6, 4), 
-#     layout='tight'
-#     )
-# ax.scatter(
-#     corr_good_channel_indexes, 
-#     .28*np.ones(shape=len(corr_good_channel_indexes)), 
-#     marker='*', 
-#     s=15,
-#     color='black', 
-#     label="Valores significativos"
-#     )
+# Create figure and title
+fig, ax = plt.subplots(
+    nrows=1, 
+    ncols=1, 
+    figsize=(6, 4), 
+    layout='tight'
+    )
+ax.scatter(
+    corr_good_channel_indexes, 
+    .28*np.ones(shape=len(corr_good_channel_indexes)), 
+    marker='*', 
+    s=15,
+    color='black', 
+    label="Valores significativos"
+    )
 
-# ax.fill_between(
-#     x=channels, 
-#     y1=null_correlation_per_channel_min,
-#     y2=null_correlation_per_channel_max, 
-#     alpha=.5,
-#     label='Distribución nula',
-#     color='orange'
-#     )
+ax.fill_between(
+    x=channels, 
+    y1=null_correlation_per_channel_min,
+    y2=null_correlation_per_channel_max, 
+    alpha=.5,
+    label='Distribución nula',
+    color='orange'
+    )
 
-# ax.fill_between(
-#     x=channels, 
-#     y1=np.percentile(null_correlation_per_channel.min(axis=0), 50-25, axis=0),
-#     y2=np.percentile(null_correlation_per_channel.min(axis=0), 50+25, axis=0), 
-#     alpha=.8,
-#     # label=r'50 \% de la distribución nula',
-#     color='orange'
-#     )
-# # Add shadow between min and max
-# ax.fill_between(
-#     x=channels, 
-#     y1=correlation_per_channel.min(axis=0), # min across all folds
-#     y2=correlation_per_channel.max(axis=0), 
-#     alpha=.5,
-#     label='Distribucion de la correlación',
-#     color='C0'
-#     )
-# ax.scatter(
-#     channels,
-#     average_correlation, 
-#     s=5,
-#     color='C0', 
-#     alpha=1,
-#     label="Correlación media entre particiones"
-#     )
+ax.fill_between(
+    x=channels, 
+    y1=np.percentile(null_correlation_per_channel.min(axis=0), 50-25, axis=0),
+    y2=np.percentile(null_correlation_per_channel.min(axis=0), 50+25, axis=0), 
+    alpha=.8,
+    # label=r'50 \% de la distribución nula',
+    color='orange'
+    )
+# Add shadow between min and max
+ax.fill_between(
+    x=channels, 
+    y1=correlation_per_channel.min(axis=0), # min across all folds
+    y2=correlation_per_channel.max(axis=0), 
+    alpha=.5,
+    label='Distribucion de la correlación',
+    color='C0'
+    )
+ax.scatter(
+    channels,
+    average_correlation, 
+    s=5,
+    color='C0', 
+    alpha=1,
+    label="Correlación media entre particiones"
+    )
 
-# # Graph properties
-# ax.grid(visible=True)
-# ax.set(
-#     xlim=[-1, 129],
-#     xlabel='Canales de EEG',
-#     ylabel='Correlación'
-#     )
-# ax.legend(loc=(.2,.2))
-# fig.savefig(
-#     os.path.join(tesis_path,'metodos', f'prueba_permutaciones.{figformat}'),
-#     transparent=False,
-#     dpi=dpi
-#     )
-# # fig.show()
+# Graph properties
+ax.grid(visible=True)
+ax.set(
+    xlim=[-1, 129],
+    xlabel='Canales de EEG',
+    ylabel='Correlación'
+    )
+ax.legend(loc=(.2,.2))
+fig.savefig(
+    os.path.join(tesis_path,'metodos', f'prueba_permutaciones.{figformat}'),
+    transparent=False,
+    dpi=dpi
+    )
+fig.show()
 
-# # ===================
-# # EJEMPLOS VALIDACIÓN
-# from load import load_data
-# from tqdm import tqdm 
-# from model_implementations import fold_model
-# from sklearn.model_selection import KFold
+# ===================
+# EJEMPLOS VALIDACIÓN
+from load import load_data
+from tqdm import tqdm 
+from model_implementations import fold_model
+from sklearn.model_selection import KFold
 
-# situation, band, sesion = 'External', 'Theta', 21
-# preprocessed_data_path = os.path.normpath(f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/')
+situation, band, sesion = 'External', 'Theta', 21
+preprocessed_data_path = os.path.normpath(f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/')
 
-# correlations_T, correlations_std_T, alpha_subject_T = [],[],[]
-# for stim in ['Envelope', 'Spectrogram']:
-#     sujeto_1, sujeto_2, samples_info = load_data(
-#                                                 sesion=sesion,
-#                                                 stim=stim,
-#                                                 band=band,
-#                                                 sr=config.sr,
-#                                                 delays=config.delays,
-#                                                 preprocessed_data_path=preprocessed_data_path,
-#                                                 praat_executable_path=config.praat_executable_path,
-#                                                 situation=situation
-#                                                 )
-#     eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
-#     stims_sujeto_1 = np.hstack([sujeto_1[stimulus] for stimulus in stim.split('_')]) 
-#     stims_sujeto_2 = np.hstack([sujeto_2[stimulus] for stimulus in stim.split('_')])
-#     n_feats = [sujeto_1[stimulus].shape[1] for stimulus in stim.split('_')]
-#     delayed_length_per_stimuli = [n_feat*len(config.delays) for n_feat in n_feats]
-#     relevant_indexes_1 = samples_info['keep_indexes1'].copy()
-#     relevant_indexes_2 = samples_info['keep_indexes2'].copy()
-#     subject, eeg, stims, relevant_indexes = 1, eeg_sujeto_1, stims_sujeto_1, relevant_indexes_1
-#     print(f'\n\n\t······  Running model for Subject {subject}\n')
-#     correlations = np.zeros(len(config.alphas_swept))
-#     correlations_std = np.zeros(len(config.alphas_swept))
+correlations_T, correlations_std_T, alpha_subject_T = [],[],[]
+for stim in ['Envelope', 'Spectrogram']:
+    sujeto_1, sujeto_2, samples_info = load_data(
+                                                sesion=sesion,
+                                                stim=stim,
+                                                band=band,
+                                                sr=config.sr,
+                                                delays=config.delays,
+                                                preprocessed_data_path=preprocessed_data_path,
+                                                praat_executable_path=config.praat_executable_path,
+                                                situation=situation
+                                                )
+    eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
+    stims_sujeto_1 = np.hstack([sujeto_1[stimulus] for stimulus in stim.split('_')]) 
+    stims_sujeto_2 = np.hstack([sujeto_2[stimulus] for stimulus in stim.split('_')])
+    n_feats = [sujeto_1[stimulus].shape[1] for stimulus in stim.split('_')]
+    delayed_length_per_stimuli = [n_feat*len(config.delays) for n_feat in n_feats]
+    relevant_indexes_1 = samples_info['keep_indexes1'].copy()
+    relevant_indexes_2 = samples_info['keep_indexes2'].copy()
+    subject, eeg, stims, relevant_indexes = 1, eeg_sujeto_1, stims_sujeto_1, relevant_indexes_1
+    print(f'\n\n\t······  Running model for Subject {subject}\n')
+    correlations = np.zeros(len(config.alphas_swept))
+    correlations_std = np.zeros(len(config.alphas_swept))
 
-#     # Make sweep
-#     for i_alpha, alpha in tqdm(enumerate(config.alphas_swept), total=len(config.alphas_swept), desc='Sweeping progress'):
-#         weights_per_fold = np.zeros((config.n_folds, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float16)
-#         correlation_per_channel = np.zeros((config.n_folds, info['nchan']))
-#         kf_test = KFold(config.n_folds, shuffle=False)
-#         relevant_eeg = eeg[relevant_indexes]
-#         k_models_output = []
-#         for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
-#             k_models_output.append(
-#                             fold_model(
-#                             fold=fold,
-#                             alpha=alpha,
-#                             stims=stims,
-#                             eeg=eeg,
-#                             relevant_indexes=relevant_indexes,
-#                             train_indexes=train_indexes,
-#                             test_indexes=test_indexes,                              
-#                             ) 
-#                             )     
-#         for fold, weights, correlation_matrix, root_mean_square_error in k_models_output:
-#             weights_per_fold[fold] = weights
-#             correlation_per_channel[fold] = correlation_matrix
-#         correlations[i_alpha] = np.nan_to_num(np.nanmean(correlation_per_channel))
-#         correlations_std[i_alpha] = np.nan_to_num(np.nanstd(correlation_per_channel))
+    # Make sweep
+    for i_alpha, alpha in tqdm(enumerate(config.alphas_swept), total=len(config.alphas_swept), desc='Sweeping progress'):
+        weights_per_fold = np.zeros((config.n_folds, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float16)
+        correlation_per_channel = np.zeros((config.n_folds, info['nchan']))
+        kf_test = KFold(config.n_folds, shuffle=False)
+        relevant_eeg = eeg[relevant_indexes]
+        k_models_output = []
+        for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
+            k_models_output.append(
+                            fold_model(
+                            fold=fold,
+                            alpha=alpha,
+                            stims=stims,
+                            eeg=eeg,
+                            relevant_indexes=relevant_indexes,
+                            train_indexes=train_indexes,
+                            test_indexes=test_indexes,                              
+                            ) 
+                            )     
+        for fold, weights, correlation_matrix, root_mean_square_error in k_models_output:
+            weights_per_fold[fold] = weights
+            correlation_per_channel[fold] = correlation_matrix
+        correlations[i_alpha] = np.nan_to_num(np.nanmean(correlation_per_channel))
+        correlations_std[i_alpha] = np.nan_to_num(np.nanstd(correlation_per_channel))
 
-#     # Find all indexes where the relative difference between the correlation and its maximum is within corr_limit_percent
-#     relative_difference = abs((correlations.max() - correlations)/correlations.max())
-#     good_indexes_range = np.where(relative_difference < config.val_correlation_limit_percentage)[0]
+    # Find all indexes where the relative difference between the correlation and its maximum is within corr_limit_percent
+    relative_difference = abs((correlations.max() - correlations)/correlations.max())
+    good_indexes_range = np.where(relative_difference < config.val_correlation_limit_percentage)[0]
 
-#     # Get the very last one, because the greater the alpha, the smoothest the signal gets
-#     alpha_subject = config.alphas_swept[int(good_indexes_range[-1])]
-#     correlations_T.append(correlations)
-#     correlations_std_T.append(correlations_std)
-#     alpha_subject_T.append(alpha_subject)
+    # Get the very last one, because the greater the alpha, the smoothest the signal gets
+    alpha_subject = config.alphas_swept[int(good_indexes_range[-1])]
+    correlations_T.append(correlations)
+    correlations_std_T.append(correlations_std)
+    alpha_subject_T.append(alpha_subject)
 
-# # Create figure and plot
-# fig, axes = plt.subplots(
-#     nrows=1,
-#     ncols=2,
-#     figsize=(12,4), 
-#     tight_layout=True,
-#     sharey=True
-#     )
+# Create figure and plot
+fig, axes = plt.subplots(
+    nrows=1,
+    ncols=2,
+    figsize=(12,4), 
+    tight_layout=True,
+    sharey=True
+    )
 
-# # Plot alphas vs correlations as dots with errorbars
-# axes[0].plot(
-#     config.alphas_swept, 
-#     correlations_T[1], 
-#     'o--'
-#     )
-# axes[0].errorbar(
-#     config.alphas_swept, 
-#     correlations_T[1], 
-#     yerr=correlations_std_T[1]/np.sqrt(5), 
-#     fmt='none', 
-#     ecolor='black',
-#     elinewidth=0.5, 
-#     capsize=0.5
-#     )
+# Plot alphas vs correlations as dots with errorbars
+axes[0].plot(
+    config.alphas_swept, 
+    correlations_T[1], 
+    'o--'
+    )
+axes[0].errorbar(
+    config.alphas_swept, 
+    correlations_T[1], 
+    yerr=correlations_std_T[1]/np.sqrt(5), 
+    fmt='none', 
+    ecolor='black',
+    elinewidth=0.5, 
+    capsize=0.5
+    )
 
-# # Make vlines for maximum correlation and selected alpha
-# axes[0].vlines(
-#     config.alphas_swept[correlations_T[1].argmax()], 
-#     # axes[0].get_ylim()[0], 
-#     # axes[0].get_ylim()[1],
-#     0,
-#     1, 
-#     linestyle='dashed',
-#     color='black', 
-#     linewidth=1.5, 
-#     label='Máxima correlación'
-#     )
+# Make vlines for maximum correlation and selected alpha
+axes[0].vlines(
+    config.alphas_swept[correlations_T[1].argmax()], 
+    # axes[0].get_ylim()[0], 
+    # axes[0].get_ylim()[1],
+    0,
+    1, 
+    linestyle='dashed',
+    color='black', 
+    linewidth=1.5, 
+    label='Máxima correlación'
+    )
 
-# # Find relevant range within correlation_limit_percentage
-# relative_difference = abs((correlations_T[1].max() - correlations_T[1])/correlations_T[1].max())
-# good_indexes_range = np.where(relative_difference < config.val_correlation_limit_percentage)[0]    
+# Find relevant range within correlation_limit_percentage
+relative_difference = abs((correlations_T[1].max() - correlations_T[1])/correlations_T[1].max())
+good_indexes_range = np.where(relative_difference < config.val_correlation_limit_percentage)[0]    
 
-# # Make green box of range within config.val_correlation_limit_percentage
-# if good_indexes_range.size > 1:
-#     axes[0].axvspan(
-#         config.alphas_swept[good_indexes_range[0]], config.alphas_swept[good_indexes_range[-1]], 
-#         alpha=0.2, 
-#         color='orange',
-#         label=f'{100-int(config.val_correlation_limit_percentage*100)}'+r'\% de la máxima'
-#         )
-# axes[0].vlines(
-#     alpha_subject_T[1], 
-#     # axes[0].get_ylim()[0], 
-#     # axes[0].get_ylim()[1],
-#     0,
-#     1, 
-#     color='red', 
-#     alpha=.8,
-#     linewidth=1.5, 
-#     label=f'Valor seleccionado'
-#     )
-# # Axes parameters
-# axes[0].set(
-#     title='Espectrograma', 
-#     xlabel=r'Parámetro de regularización $\alpha$', 
-#     ylabel='Correlación promedio', 
-#     xscale='log', 
-#     xlim=([config.alphas_swept[0], config.alphas_swept[-1]]),
-#     ylim=(0.2,0.6),
-#     yticks=np.arange(.25,.6,.05)
-#     )
-# axes[0].grid(visible=True)
-# axes[0].legend(loc='best', fontsize=14)
+# Make green box of range within config.val_correlation_limit_percentage
+if good_indexes_range.size > 1:
+    axes[0].axvspan(
+        config.alphas_swept[good_indexes_range[0]], config.alphas_swept[good_indexes_range[-1]], 
+        alpha=0.2, 
+        color='orange',
+        label=f'{100-int(config.val_correlation_limit_percentage*100)}'+r'\% de la máxima'
+        )
+axes[0].vlines(
+    alpha_subject_T[1], 
+    # axes[0].get_ylim()[0], 
+    # axes[0].get_ylim()[1],
+    0,
+    1, 
+    color='red', 
+    alpha=.8,
+    linewidth=1.5, 
+    label=f'Valor seleccionado'
+    )
+# Axes parameters
+axes[0].set(
+    title='Espectrograma', 
+    xlabel=r'Parámetro de regularización $\alpha$', 
+    ylabel='Correlación promedio', 
+    xscale='log', 
+    xlim=([config.alphas_swept[0], config.alphas_swept[-1]]),
+    ylim=(0.2,0.6),
+    yticks=np.arange(.25,.6,.05)
+    )
+axes[0].grid(visible=True)
+axes[0].legend(loc='best', fontsize=14)
 
-# # Plot alphas vs correlations as dots with errorbars
-# axes[1].plot(
-#     config.alphas_swept, 
-#     correlations_T[0], 
-#     'o--'
-#     )
-# axes[1].errorbar(
-#     config.alphas_swept, 
-#     correlations_T[0], 
-#     yerr=correlations_std_T[0]/np.sqrt(5), 
-#     fmt='none', 
-#     ecolor='black',
-#     elinewidth=0.5, 
-#     capsize=0.5
-#     )
+# Plot alphas vs correlations as dots with errorbars
+axes[1].plot(
+    config.alphas_swept, 
+    correlations_T[0], 
+    'o--'
+    )
+axes[1].errorbar(
+    config.alphas_swept, 
+    correlations_T[0], 
+    yerr=correlations_std_T[0]/np.sqrt(5), 
+    fmt='none', 
+    ecolor='black',
+    elinewidth=0.5, 
+    capsize=0.5
+    )
 
-# # Make vlines for maximum correlation and selected alpha
-# axes[1].vlines(
-#     config.alphas_swept[correlations_T[0].argmax()], 
-#     # axes[1].get_ylim()[0], 
-#     # axes[1].get_ylim()[1], 
-#     0,
-#     1,
-#     linestyle='dashed',
-#     color='black', 
-#     linewidth=1.5, 
-#     label='Máxima correlación'
-#     )
+# Make vlines for maximum correlation and selected alpha
+axes[1].vlines(
+    config.alphas_swept[correlations_T[0].argmax()], 
+    # axes[1].get_ylim()[0], 
+    # axes[1].get_ylim()[1], 
+    0,
+    1,
+    linestyle='dashed',
+    color='black', 
+    linewidth=1.5, 
+    label='Máxima correlación'
+    )
 
-# # Find relevant range within correlation_limit_percentage
-# relative_difference = abs((correlations_T[0].max() - correlations_T[0])/correlations_T[0].max())
-# good_indexes_range = np.where(relative_difference < config.val_correlation_limit_percentage)[0]    
+# Find relevant range within correlation_limit_percentage
+relative_difference = abs((correlations_T[0].max() - correlations_T[0])/correlations_T[0].max())
+good_indexes_range = np.where(relative_difference < config.val_correlation_limit_percentage)[0]    
 
-# # Make green box of range within config.val_correlation_limit_percentage
-# if good_indexes_range.size > 1:
-#     axes[1].axvspan(
-#         config.alphas_swept[good_indexes_range[0]], config.alphas_swept[good_indexes_range[-1]], 
-#         alpha=0.2, 
-#         color='orange',
-#         label=f'{100-int(config.val_correlation_limit_percentage*100)}'+r'\% de la máxima'
-#         )
-# axes[1].vlines(
-#     alpha_subject_T[0], 
-#     # axes[1].get_ylim()[0], 
-#     # axes[1].get_ylim()[1], 
-#     0,
-#     1,
-#     color='red', 
-#     alpha=.8,
-#     linewidth=1.5, 
-#     label=f'Valor seleccionado'
-#     )
+# Make green box of range within config.val_correlation_limit_percentage
+if good_indexes_range.size > 1:
+    axes[1].axvspan(
+        config.alphas_swept[good_indexes_range[0]], config.alphas_swept[good_indexes_range[-1]], 
+        alpha=0.2, 
+        color='orange',
+        label=f'{100-int(config.val_correlation_limit_percentage*100)}'+r'\% de la máxima'
+        )
+axes[1].vlines(
+    alpha_subject_T[0], 
+    # axes[1].get_ylim()[0], 
+    # axes[1].get_ylim()[1], 
+    0,
+    1,
+    color='red', 
+    alpha=.8,
+    linewidth=1.5, 
+    label=f'Valor seleccionado'
+    )
 
-# # Axes parameters
-# axes[1].set(
-#     title='Envolvente', 
-#     xlabel=r'Parámetro de regularización $\alpha$', 
-#     # ylabel='Correlación promedio', 
-#     xscale='log', 
-#     xlim=([config.alphas_swept[0], config.alphas_swept[-1]]),
-#     ylim=(0.2, 0.6)
-#     )
-# axes[1].grid(visible=True)
-# axes[1].legend(loc='upper right', fontsize=14)
-# fig.savefig(
-#     os.path.join(tesis_path,'metodos', f'validacion.{figformat}'),
-#     transparent=False,
-#     dpi=dpi
-#     )
-# # fig.show()
+# Axes parameters
+axes[1].set(
+    title='Envolvente', 
+    xlabel=r'Parámetro de regularización $\alpha$', 
+    # ylabel='Correlación promedio', 
+    xscale='log', 
+    xlim=([config.alphas_swept[0], config.alphas_swept[-1]]),
+    ylim=(0.2, 0.6)
+    )
+axes[1].grid(visible=True)
+axes[1].legend(loc='upper right', fontsize=14)
+fig.savefig(
+    os.path.join(tesis_path,'metodos', f'validacion.{figformat}'),
+    transparent=False,
+    dpi=dpi
+    )
+fig.show()
             
 # # =============
 # # EJEMPLOS TFCE # TODO REHACER CON PHONEMES-PHONET y PHONOLOGICAL NUEVO
