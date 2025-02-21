@@ -125,6 +125,119 @@ for band in bands:
     plt.legend(by_label.values(), by_label.keys(), markerscale=3)
     plt.show()
 
+# # =================================================================
+# # Violin plots par todos los atributos las distintas bandas de frecs
+# situation='External'
+# correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+
+# # Relevant parameters
+# bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
+# stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Mfccs', 'Phones-Discrete-Phonet', 'Phonemes-Discrete-Phonet', 'Phonological']
+# stimulus_tostr = {'Pitch-Log-Raw':'tono', 'Envelope':'envolvente', 'Spectrogram':'espectrograma', 'Mfccs':'mfccs', 'Phones-Discrete-Phonet':'fonos', 'Phonemes-Discrete-Phonet':'fonemas', 'Phonological':'fonologicas'}
+# avg_corr_0 = {stimulus:{} for stimulus in stimuli} 
+# avg_corr_1 = {stimulus:{} for stimulus in stimuli} 
+# p_vals = {stimulus:{} for stimulus in stimuli} 
+# for stimulus in stimuli:
+#     for i, band in enumerate(bands):
+#         data = load_pickle(path=os.path.join(correlations_path, band, stimulus +'.pkl'))
+#         avg_corr_0[stimulus][band] = data['average_correlation_subjects'].mean(axis=0)
+#         avg_corr_1[stimulus][band] = data['average_correlation_subjects'].mean(axis=1)
+#         stat, p_val = wilcoxon(avg_corr_1[stimulus][band], zero_method='wilcox')
+#         p_vals[stimulus][band] = p_val
+        
+        
+# for stimulus in stimuli:        
+#     # Crear figura y GridSpec
+#     fig = plt.figure(
+#         figsize=(10, 6),
+#         tight_layout=True
+#         )
+#     gs = gridspec.GridSpec(2, len(bands), height_ratios=[1, 1])  # Proporción entre violin y topomaps
+
+#     # Crear eje para el violin plot que ocupa toda la primera fila
+#     ax_violin = fig.add_subplot(gs[0, :])  # Ocupar todas las columnas de la primera fila
+#     ax_violin.grid(visible=True)
+#     sns.violinplot(
+#         data=pd.DataFrame(avg_corr_1[stimulus]), 
+#         palette={band: f'C{h}' for h, band in enumerate(bands)}, 
+#         ax=ax_violin
+#     )
+#     # sns.swarmplot(
+#     #     data=pd.DataFrame(avg_corr_1[stimulus]), 
+#     #     color="black", 
+#     #     ax=ax_violin
+#     #     )
+#     sns.stripplot(
+#         data=pd.DataFrame(avg_corr_1[stimulus]),
+#         jitter=.1,  # Sin dispersión horizontal,
+#         size=3,
+#         color='black',
+#         ax=ax_violin
+#         )
+#     ax_violin.set_xticklabels(['Delta', 'Theta', 'Alpha', r'Beta$_1$', r'Beta$_2$', 'Ancha'])
+#     # for f, band in enumerate(bands):
+#     #     # if p_vals[stimulus][band] < 0.001:
+#     #     #     sig = '***'
+#     #     # elif p_vals[stimulus][band] < 0.01:
+#     #     #     sig = '**'
+#     #     # elif p_vals[stimulus][band] < 0.05:
+#     #     #     sig = '*'
+#     #     # else:
+#     #     #     sig = None    
+#     #     sig= ''    
+#     #     if sig:
+#     #         if stimulus in ['Envelope']:
+#     #             ax_violin.text(f, 0.72, sig, ha='center', va='bottom', color='black', fontsize=14)
+#     #         elif stimulus in ['Pitch-Log-Raw']:
+#     #             ax_violin.text(f, 0.65, sig, ha='center', va='bottom', color='black', fontsize=14)
+#     #         else:
+#     #             ax_violin.text(f, 0.9, sig, ha='center', va='bottom', color='black', fontsize=14)
+
+#     if stimulus.startswith('Phon'):
+#         ax_violin.set_yticks([-0.25, 0, 0.3, 0.7,  0.9 ])
+#     elif stimulus in ['Envelope', 'Pitch-Log-Raw']:
+#         ax_violin.set_yticks([-0.2, 0, 0.3, 0.6])
+#     else:
+#         ax_violin.set_yticks([-0.25, 0, 0.3, 0.7,  0.9])
+    
+    
+#     ax_violin.set_xticklabels(['Delta', 'Theta', 'Alpha', r'Beta$_1$', r'Beta$_2$', 'Ancha'])
+#     ax_violin.set_ylabel("Correlación sujetos")
+
+#     # Crear ejes para los topomaps en la segunda fila
+#     axs = [fig.add_subplot(gs[1, i]) for i in range(len(bands))]
+
+#     for i, band in enumerate(bands):
+
+#         # Dibujar topomap
+#         im = mne.viz.plot_topomap(avg_corr_0[stimulus][band].ravel(), 
+#                                 config.info_mne, 
+#                                 axes=axs[i],  
+#                                 show=False, 
+#                                 sphere=0.07,  
+#                                 cmap='Reds',
+#                                 vlim=(avg_corr_0[stimulus][band].min(), avg_corr_0[stimulus][band].max())
+#         )
+
+#         # Agregar colorbar debajo de cada topomap
+#         cbar = plt.colorbar(im[0], ax=axs[i], orientation='horizontal', shrink=0.7)
+#         min = avg_corr_0[stimulus][band].min()
+#         max = avg_corr_0[stimulus][band].max()
+#         mid = (max+min)/2
+#         cbar.set_ticks([min, mid, max])
+#         cbar.set_ticklabels([f'{min:.2f}', f'{mid:.2f}', f'{max:.2f}'])
+#         # if i==0:
+#         #     axs[i].set_ylabel("Correlación canales")
+#     fig.text(0.05, 1, 'a)', fontsize=18, va='top', ha='right')
+#     fig.text(0.05, .47, 'b)', fontsize=18, va='top', ha='right')
+#     fig.text(.025, .25, 'Correlación canales', fontsize=18, rotation=90, va='center', ha='center')
+# #     fig.savefig(
+# #     os.path.join(tesis_path,'resultados', f'violin_correlacion_{stimulus_tostr[stimulus]}.{figformat}'),
+# #     transparent=False,
+# #     dpi=dpi
+# #     )
+#     fig.show()
+ 
 # # ===================================================================================================================
 # # TOPOGRAPHIC DISTRIBUTION HEATMAPS: make heatmaps with topographic information across features, situations and bands 
 # # ===================================================================================================================
@@ -5029,8 +5142,8 @@ for band in bands:
 # #     )
 # fig.show()
 
-# ===============================
-# Envlovente de la señal de audio
+# # ===============================
+# # Envlovente de la señal de audio
 # WavPath = 'Datos/wavs/S21/s21.objects.01.channel1.wav'
 # WindowLeft, WindowRight, EegSr = 32, 34, 128
 
