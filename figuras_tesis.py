@@ -4203,12 +4203,12 @@ for band in bands:
 #     mappable=imph,
 #     ax=axes[1]
 #     )
-# fig.savefig(
-#     os.path.join(tesis_path,'metodos', f'ejemplo_TFCE.{figformat}'),
-#     transparent=False,
-#     dpi=dpi
-#     )
-# # fig.show()
+# # fig.savefig(
+# #     os.path.join(tesis_path,'metodos', f'ejemplo_TFCE.{figformat}'),
+# #     transparent=False,
+# #     dpi=dpi
+# #     )
+# fig.show()
 
 # # =============================
 # # DIAGRAMA  DE MATRIZ DE DISEÑO
@@ -4478,12 +4478,12 @@ for band in bands:
 # axes[2].set_yticks([])
 
 # axes[2].set_ylim(-1, 1.5)
-# fig.savefig(
-#     os.path.join(tesis_path,'metodos', f'diagrama_matriz_diseño.{figformat}'),
-#     transparent=False,
-#     dpi=dpi
-#     )
-# # fig.show()
+# # fig.savefig(
+# #     os.path.join(tesis_path,'metodos', f'diagrama_matriz_diseño.{figformat}'),
+# #     transparent=False,
+# #     dpi=dpi
+# #     )
+# fig.show()
 
 # #### PESOS
 # fig,ax=plt.subplots(
@@ -4563,11 +4563,12 @@ for band in bands:
 # ax.set_xticks([])
 # ax.set_xticklabels([])
 # ax.set_yticks([])
-# fig.savefig(
-#     os.path.join(tesis_path,'metodos', f'diagrama_matriz_diseño2.{figformat}'),
-#     transparent=False,
-#     dpi=dpi
-#     )
+# # fig.savefig(
+# #     os.path.join(tesis_path,'metodos', f'diagrama_matriz_diseño2.{figformat}'),
+# #     transparent=False,
+# #     dpi=dpi
+# #     )
+# fig.show()
 
 # # =======================================
 # # ENVOLVENETE + AUDIO + EEG PARA DIAGRAMA DE PIPELINE
@@ -4599,11 +4600,13 @@ for band in bands:
 #     )
 
 # plt.axis('off')
-# fig.savefig(
-#     os.path.join(tesis_path,'metodos', f'sample_envolvente_diagrama1.{figformat}'),
-#     transparent=False,
-#     dpi=dpi
-#     )
+# # fig.savefig(
+# #     os.path.join(tesis_path,'metodos', f'sample_envolvente_diagrama1.{figformat}'),
+# #     transparent=False,
+# #     dpi=dpi
+# #     )
+# fig.show()
+
 # fig = plt.figure(
 #     tight_layout=True,
 #     figsize=(6, 5)
@@ -4615,11 +4618,11 @@ for band in bands:
 #     linewidth=2
 #     )
 # plt.axis('off')
-# fig.savefig(
-#     os.path.join(tesis_path,'metodos', f'sample_envolvente_diagrama2.{figformat}'),
-#     transparent=False,
-#     dpi=dpi
-#     )
+# # fig.savefig(
+# #     os.path.join(tesis_path,'metodos', f'sample_envolvente_diagrama2.{figformat}'),
+# #     transparent=False,
+# #     dpi=dpi
+# #     )
 # fig.show()
 
 # EegPath = f'Datos/EEG/S21/s21-{1}-Trial13-Deci-Filter-Trim-ICA-Pruned.set'
@@ -4640,12 +4643,12 @@ for band in bands:
 #         color='gray'
 #         )
 # plt.axis('off')
-# # fig.show()
-# fig.savefig(
-#     os.path.join(tesis_path,'metodos', f'sample_envolvente_diagrama3.{figformat}'),
-#     transparent=False,
-#     dpi=dpi
-#     )
+# # fig.savefig(
+# #     os.path.join(tesis_path,'metodos', f'sample_envolvente_diagrama3.{figformat}'),
+# #     transparent=False,
+# #     dpi=dpi
+# #     )
+# fig.show()
 
 # # Get average weights across subjects
 # situation='External'
@@ -4691,12 +4694,12 @@ for band in bands:
 # # Graph properties
 # axes.set_title("")
 # axes.axis('off')
-# # fig.show()
-# fig.savefig(
-#     os.path.join(tesis_path,'metodos', f'sample_envolvente_diagrama4.{figformat}'),
-#     transparent=False,
-#     dpi=dpi
-#     )
+# # fig.savefig(
+# #     os.path.join(tesis_path,'metodos', f'sample_envolvente_diagrama4.{figformat}'),
+# #     transparent=False,
+# #     dpi=dpi
+# #     )
+# fig.show()
 
 # # =====
 # # Phones 
@@ -4897,14 +4900,6 @@ for band in bands:
 #     tight_layout=True,
 #     figsize=(6, 5)
 #     )
-# # im = plt.imshow(
-# #     mfccs.T,
-# #     aspect='auto',
-# #     extent=[WindowLeft, WindowRight, 0, NumberOfTicks],
-# #     origin='lower',
-# #     cmap='RdBu_r',
-# #     norm=norm
-# # )
 # norm = TwoSlopeNorm(vmin=mfccs.min(), vcenter=0, vmax=mfccs.max())
 # im = plt.pcolormesh(
 #     time_mfccs, 
@@ -4913,8 +4908,6 @@ for band in bands:
 #     cmap='RdBu_r',#LinearSegmentedColormap.from_list("custom_cmap", ["white", "gray"]),  # Ajusta el mapa de colores
 #     shading='auto',
 #     norm=norm
-#     # vmin=mfccs.min(),
-#     # vmax=mfccs.max()
 #     )
 
 # cbar = plt.colorbar(
@@ -4944,7 +4937,7 @@ for band in bands:
 # NumberOfTicks = 16
 
 # spectrogram = load_pickle(path=SpectrogramPath)[0][:9168]
-# WindowLeft, WindowRight = 0, len(spectrogram)/config.sr
+# WindowLeft, WindowRight = 30, 40 #0, len(spectrogram)/config.sr
 
 # time_spectrogram = np.arange(0, len(spectrogram)/config.sr, 1/config.sr)
 # window_spectrogram = (WindowLeft <= time_spectrogram) & (time_spectrogram <= WindowRight)
@@ -4962,7 +4955,7 @@ for band in bands:
 #     )
 
 # im = plt.pcolormesh(
-#     np.arange(0, len(spectrogram)/config.sr, 1/config.sr)* 1e3, 
+#     time_spectrogram, 
 #     np.arange(16), 
 #     spectrogram.T, 
 #     cmap=LinearSegmentedColormap.from_list("custom_cmap", ["white", "gray"]),  # Ajusta el mapa de colores
@@ -4982,6 +4975,8 @@ for band in bands:
 #     )
 # plt.xlabel('Tiempo (s)')
 # plt.ylabel('Frecuencia (Hz)')  
+# plt.xlim(WindowLeft, WindowRight)
+
 # # fig.savefig(
 # #     os.path.join(tesis_path,'metodos', f'sample_espectrograma.{figformat}'),
 # #     transparent=False,
@@ -5027,12 +5022,12 @@ for band in bands:
 # plt.yticks([])
 # plt.xlabel('Tiempo (s)')
 # plt.ylabel('Amplitud (U.A)')  
-# fig.savefig(
-#     os.path.join(tesis_path,'metodos', f'sample_tono.{figformat}'),
-#     transparent=False,
-#     dpi=dpi
-#     )
-# # fig.show()
+# # fig.savefig(
+# #     os.path.join(tesis_path,'metodos', f'sample_tono.{figformat}'),
+# #     transparent=False,
+# #     dpi=dpi
+# #     )
+# fig.show()
 
 # ===============================
 # Envlovente de la señal de audio
