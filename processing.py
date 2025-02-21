@@ -748,7 +748,8 @@ def tfce(
         t_tfce, p_tfce = [], []
         for feat in range(total_number_features):
             weights = average_weights_subjects.copy()[:, :, feat, :].swapaxes(1, 2) #---> n_sub, n_delay, n_chans for specific feat
-            t_tfce_feat, clusters, p_tfce_feat, H0 = mne.stats.permutation_cluster_1samp_test(
+            try:
+                t_tfce_feat, clusters, p_tfce_feat, H0 = mne.stats.permutation_cluster_1samp_test(
                                                                                             X=weights,
                                                                                             adjacency=adj_matrix,
                                                                                             n_jobs=n_jobs,
@@ -757,9 +758,13 @@ def tfce(
                                                                                             out_type="mask",
                                                                                             verbose=verbose_tfce
                                                                                             )
+                t_tfce.append(t_tfce_feat)
+                p_tfce.append(p_tfce_feat.reshape(t_tfce_feat.shape))
+            except Exception as err:
+                print(f'Error in feature {feat+1} out of {total_number_features}. The error was: \n{err}')
+                
+                t_tfce_feat, p_tfce_feat = np.ones(weights.shape[1], weights.shape[2]), np.zeros(weights.shape[1], weights.shape[2])
             
-            t_tfce.append(t_tfce_feat)
-            p_tfce.append(p_tfce_feat.reshape(t_tfce_feat.shape))
             print(f'Feature {feat+1} out of {total_number_features}')
         t_tfce, p_tfce = np.stack(t_tfce, axis=0), np.stack(p_tfce, axis=0) 
 
@@ -769,7 +774,7 @@ def tfce(
 
         # Return average across channels
         return t_tfce, p_tfce
-    
+   
 def block_bootstrap(
     data:np.ndarray, 
     block_size:int=104
