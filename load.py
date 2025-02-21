@@ -5,6 +5,7 @@ import numpy as np, pandas as pd, os, warnings, time
 import torch, mne, librosa, opensmile, textgrids, scipy.io.wavfile as wavfile
 # from transformers import Wav2Vec2Model, Wav2Vec2Processor
 from transformers import WhisperProcessor, WhisperModel
+from sklearn.cross_decomposition import CCA
 from sklearn.decomposition import PCA
 
 from phonet.phonet import Phonet# TODO Solve KALDI_ROOT when parsing
@@ -409,7 +410,8 @@ class Trial_channel:
     def f_wav2vec2(
         self,
         envelope:np.ndarray,
-        n_pca:int=15
+        eeg:np.ndarray,
+        n_pca:int=16
         )->np.ndarray:
         """
         Extracts features from an audio file using the Wav2Vec2 model, applies PCA for dimensionality reduction, and returns the reduced features.
@@ -418,6 +420,8 @@ class Trial_channel:
         ----------
         envelope : np.ndarray
             Envelope of the audio signal using Hilbert transform.
+        eeg : np.ndarray
+            Filtered signal of EEG
         n_pca : int
             Number of principal components to retain after applying PCA.
 
@@ -436,11 +440,12 @@ class Trial_channel:
         # Loads model and proccesor
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=UserWarning, message="Passing `gradient_checkpointing` to a config initialization is deprecated")
-            # processor = Wav2Vec2Processor.from_pretrained(wac2vec2model, cache_dir=f'saves/preprocessed_Data/{modelfname}')
-            # model = Wav2Vec2Model.from_pretrained(wac2vec2model, cache_dir=f'saves/preprocessed_Data/{modelfname}')
             processor = WhisperProcessor.from_pretrained(TRANSFORMER_MODEL, cache_dir=f'saves/preprocessed_Data/{modelfname}')
             model = WhisperModel.from_pretrained(TRANSFORMER_MODEL, cache_dir=f'saves/preprocessed_Data/{modelfname}')
-    
+        
+            # processor = Wav2Vec2Processor.from_pretrained(wac2vec2model, cache_dir=f'saves/preprocessed_Data/{modelfname}')
+            # model = Wav2Vec2Model.from_pretrained(wac2vec2model, cache_dir=f'saves/preprocessed_Data/{modelfname}')
+        
         # Preprocessing
         input_values = processor(
                     wav, 
@@ -482,16 +487,25 @@ class Trial_channel:
                                 size=envelope.shape[0],
                                 mode="linear",
                                 align_corners=True
-                                ).squeeze(0).T.detach().numpy()
+                                ).squeeze(0).T.detach().numpy() #(envelope_length, hidden_size)
                                 # ).squeeze(0).T
 
-        # Apply PCA to find 12 principal components
-        pca = PCA(n_components=n_pca)
-        reduced_hidden_states = pca.fit_transform(hidden_states_resampled)
+        # # Apply PCA to find principal components
+        # pca = PCA(n_components=n_pca)
+        # reduced_hidden_states = pca.fit_transform(hidden_states_resampled)
+        # print(f'Portion of variance of whole hidden layer explained by {n_pca} components: {np.sum(pca.explained_variance_ratio_)*100:.2f}%')
+        # return reduced_hidden_states
+       
+        # # Apply PCA to find principal components that maximize correlation between EEG and audio
+        cca = CCA(n_components=n_components)
+        # if eeg.shape[0] < hidden_states_resampled.shape[0]:
+        #     eeg = np.repeat(eeg, hidden_states_resampled.shape[0]//eeg.shape[0], axis=0)
+        if eeg.shape[0]!=hidden_states_resampled.shape[0]:
+            print('ERROR NO MATCHEAN LAS LONGITUDES')
+        else:
+            X_canonical, _ = cca.fit_transform(hidden_states_resampled, eeg)
+        return X_canonical
         
-        print(f'Portion of variance of whole hidden layer explained by {n_pca} components: {np.sum(pca.explained_variance_ratio_)*100:.2f}%')
-        return reduced_hidden_states
-    
     def f_mfccs(
         self, 
         kind:str='Mfccs'
@@ -850,84 +864,6 @@ class Trial_channel:
                 if (tagg!='<p:>') and (tagg!='sil') and (tagg!=0):
                     phones[i, phonet_labels.index(tagg)] = 1
         return phones
-    
-    # def f_phones_phonet(
-    #     self, 
-    #     envelope:np.ndarray, 
-    #     kind:str='Phones-Discrete-Phonet'
-    #     )->np.ndarray:
-    #     """
-    #     It makes a time-match matrix between the phones and the envelope using Phonet implementation. The values and shape of given matrix depend on kind.
-
-    #     Parameters
-    #     ----------
-    #     envelope : np.ndarray
-    #         Envelope of the audio signal using Hilbert transform
-    #     kind : str, optional
-    #        Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
-    #         ['Phones-Envelope-Phonet', 'Phones-Discrete-Phonet', 'Phones-Onset-Phonet']
-
-    #     Returns
-    #     -------
-    #     np.ndarray
-    #         if kind.startswith('Phones-Envelope'):
-    #             Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhones_labels(in order)
-    #         elif kind.startswith('Phones-Discrete'):
-    #             Also a matrix but it has 1s and 0s instead of envelope amplitude.
-    #         elif kind.startswith('Phones-Onset'):
-    #             In this case the value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
-            
-    #     Raises
-    #     ------
-    #     SyntaxError
-    #         Whether the input value of 'kind' is passed correctly. It must be a one of:
-    #         ['Phones-Envelope-Phonet', 'Phones-Discrete-Phonet', 'Phones-Onset-Phonet'].
-    #     """
-    #     # Get phonet phoneme labels
-    #     phonet_labels = [el if el!= 'sil' else '<p:>' for el in exp_info.ph_labels_phonet.copy()]
-
-    #     # Check if given kind is a permited input value
-    #     allowed_kind = ['Phones-Envelope-Phonet', 'Phones-Discrete-Phonet', 'Phones-Onset-Phonet']
-    #     if kind not in allowed_kind:
-    #         raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phones are: {allowed_kind}")
-
-    #     # Extract phones
-    #     phones_obj = Phones(audio_file=self.wav_fname)
-    #     _,  sec_phones = phones_obj.compute_phones() 
-
-    #     # Match features length
-    #     difference = len(sec_phones) - len(envelope)
-
-    #     if difference > 0:
-    #         sec_phones = sec_phones[:-difference]
-    #     elif difference < 0:
-    #         # In this case, silences are appended
-    #         for i in range(np.abs(difference)):
-    #             sec_phones.append('<p:>')
-        
-    #     # Make empty array of phones
-    #     phones = np.zeros(shape=(len(sec_phones), len(phonet_labels)))
-        
-    #     # Match phoneme with kind
-    #     if kind.startswith('Phones-Envelope'):
-    #         for i, tagg in enumerate(sec_phones):
-    #             phones[i, phonet_labels.index(tagg)] = envelope[i]
-    #     elif kind.startswith('Phones-Discrete'):
-    #         for i, tagg in enumerate(sec_phones):
-    #             phones[i, phonet_labels.index(tagg)] = 1
-    #     elif kind.startswith('Phones-Onset'):
-    #         # Makes a list giving only first ocurrences of phones (also ordered by sample) 
-    #         phones_onset = [sec_phones[0]]
-    #         for i in range(1, len(sec_phones)):
-    #             if sec_phones[i] == sec_phones[i-1]:
-    #                 phones_onset.append(0)
-    #             else:
-    #                 phones_onset.append(sec_phones[i])
-    #         # Match phoneme with envelope
-    #         for i, tagg in enumerate(phones_onset):
-    #             if tagg!=0:
-    #                 phones[i, phonet_labels.index(tagg)] = 1
-    #     return phones
 
     def f_phonemes(
         self, 
@@ -1305,7 +1241,7 @@ class Trial_channel:
             if stim.startswith('Control'):
                 channel[stim] = self.f_mistakes_control(envelope=channel['Envelope'], kind=stim)
             if stim=='Wav2vec2':
-                channel[stim] = self.f_wav2vec2(envelope=channel['Envelope'])
+                channel[stim] = self.f_wav2vec2(envelope=channel['Envelope'], EEG=channel['EEG'])
             if stim=='Spectrogram':
                 channel['Spectrogram'] = self.f_spectrogram()
             if stim.startswith('Phonemes'):
