@@ -5,8 +5,11 @@ import numpy as np, pandas as pd, os, warnings, time
 import torch, mne, librosa, opensmile, textgrids, scipy.io.wavfile as wavfile
 # from transformers import Wav2Vec2Model, Wav2Vec2Processor
 from transformers import WhisperProcessor, WhisperModel
+# from sklearn.preprocessing import StandardScaler
 from sklearn.cross_decomposition import CCA
 from sklearn.decomposition import PCA
+
+from scipy.interpolate import interp1d
 
 from phonet.phonet import Phonet# TODO Solve KALDI_ROOT when parsing
 from praatio import pitch_and_intensity
@@ -144,7 +147,7 @@ class Trial_channel:
                 #                 )
             else:
                 eeg = eeg.filter(l_freq=self.l_freq_eeg, h_freq=self.h_freq_eeg)
-        
+                # eeg = eeg.filter(l_freq=4, h_freq=8)
         # # Store dimension mne.raw
         # eeg.resample(sfreq=self.sr)
 
@@ -155,12 +158,18 @@ class Trial_channel:
         # Get mne representation Times x nchannels
         self.eeg = eeg.copy()
         eeg = self.eeg.get_data().T*1e6  # paso a array y tiro la primer columna de tiempo
+        # eeg = eeg.get_data().T*1e6  # paso a array y tiro la primer columna de tiempo
+        
 
         # Downsample
         eeg = processing.subsample(
             x=eeg, 
             step=int(self.eeg.info.get("sfreq")/ self.sr)
             )
+        # eeg = processing.subsample(
+        #     x=eeg, 
+        #     step=4
+        #     )
         return eeg
 
     def f_info(
@@ -411,7 +420,7 @@ class Trial_channel:
         self,
         envelope:np.ndarray,
         eeg:np.ndarray,
-        n_pca:int=16
+        n_components:int=16
         )->np.ndarray:
         """
         Extracts features from an audio file using the Wav2Vec2 model, applies PCA for dimensionality reduction, and returns the reduced features.
@@ -422,7 +431,7 @@ class Trial_channel:
             Envelope of the audio signal using Hilbert transform.
         eeg : np.ndarray
             Filtered signal of EEG
-        n_pca : int
+        n_components : int
             Number of principal components to retain after applying PCA.
 
         Returns
@@ -440,11 +449,11 @@ class Trial_channel:
         # Loads model and proccesor
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=UserWarning, message="Passing `gradient_checkpointing` to a config initialization is deprecated")
-            processor = WhisperProcessor.from_pretrained(TRANSFORMER_MODEL, cache_dir=f'saves/preprocessed_Data/{modelfname}')
-            model = WhisperModel.from_pretrained(TRANSFORMER_MODEL, cache_dir=f'saves/preprocessed_Data/{modelfname}')
+            processor = WhisperProcessor.from_pretrained(TRANSFORMER_MODEL, cache_dir=f'saves/preprocessed_data/{modelfname}')
+            model = WhisperModel.from_pretrained(TRANSFORMER_MODEL, cache_dir=f'saves/preprocessed_data/{modelfname}')
         
-            # processor = Wav2Vec2Processor.from_pretrained(wac2vec2model, cache_dir=f'saves/preprocessed_Data/{modelfname}')
-            # model = Wav2Vec2Model.from_pretrained(wac2vec2model, cache_dir=f'saves/preprocessed_Data/{modelfname}')
+            # processor = Wav2Vec2Processor.from_pretrained(wac2vec2model, cache_dir=f'saves/preprocessed_data/{modelfname}')
+            # model = Wav2Vec2Model.from_pretrained(wac2vec2model, cache_dir=f'saves/preprocessed_data/{modelfname}')
         
         # Preprocessing
         input_values = processor(
@@ -482,29 +491,65 @@ class Trial_channel:
         
         # Adjust dimensions (take out batch dimension and resample sequence length to match envelope)
         hidden_states = hidden_states.squeeze(0)  
-        hidden_states_resampled = torch.nn.functional.interpolate(
-                                hidden_states.T.unsqueeze(0),
-                                size=envelope.shape[0],
-                                mode="linear",
-                                align_corners=True
-                                ).squeeze(0).T.detach().numpy() #(envelope_length, hidden_size)
-                                # ).squeeze(0).T
+        
+        # Apply PCA to find principal components that maximize correlation between EEG and audio
+        pca = PCA(n_components=n_components)
+        reduced_hidden_states = pca.fit_transform(hidden_states.detach().numpy())
+        print(f'Portion of variance of whole hidden layer explained by {n_components} components: {np.sum(pca.explained_variance_ratio_)*100:.2f}%')
 
-        # # Apply PCA to find principal components
-        # pca = PCA(n_components=n_pca)
-        # reduced_hidden_states = pca.fit_transform(hidden_states_resampled)
-        # print(f'Portion of variance of whole hidden layer explained by {n_pca} components: {np.sum(pca.explained_variance_ratio_)*100:.2f}%')
-        # return reduced_hidden_states
+        # reduced_hidden_states = gaussian_filter1d(hidden_states_resampled, sigma=15, axis=0)
+        # reduced_hidden_states = smooth_with_spline(reduced_hidden_states, smoothing_factor=15)
+        
+        # Create an interpolation function for each hidden state
+        interp_funcs = [interp1d(np.arange(reduced_hidden_states.shape[0]), reduced_hidden_states[:, i], kind='linear') for i in range(reduced_hidden_states.shape[1])]
+
+        new_time_points = np.linspace(0, reduced_hidden_states.shape[0] - 1, envelope.shape[0])
+
+        # Apply interpolation to each hidden state
+        hidden_states_resampled = np.array([interp_func(new_time_points) for interp_func in interp_funcs]).T  # Shape (envelope_length, hidden_size)
+        
+        return hidden_states_resampled
+        
+        # plt.figure()
+        # plt.plot(reduced_hidden_states[:,0])
+        # plt.show(block=False)
+        # plt.figure()
+        # hidden_states_filtered = lowpass_filter(hidden_states_resampled, cutoff=.1, fs=128)
+        # plt.plot(hidden_states_filtered[:,0])
+        # # plt.plot(hidden_states_resampled[:,0])
+        # plt.show(block=False)
+        
+        
+
+        # # Suponiendo que 'hidden_states_resampled' es de forma (n_samples, hidden_size)
+        # # y querés suavizar a lo largo del tiempo (axis=0)
+        # hidden_states_smoothed = gaussian_filter1d(hidden_states_resampled, sigma=15, axis=0)
+        
+        # plt.figure()
+        # # plt.plot(gaussian_filter1d(reduced_hidden_states[:,1], sigma=15, axis=0))
+        # plt.plot(reduced_hidden_states[:,1])
+        
+        # plt.show(block=False)
        
-        # # Apply PCA to find principal components that maximize correlation between EEG and audio
-        cca = CCA(n_components=n_components)
-        # if eeg.shape[0] < hidden_states_resampled.shape[0]:
-        #     eeg = np.repeat(eeg, hidden_states_resampled.shape[0]//eeg.shape[0], axis=0)
-        if eeg.shape[0]!=hidden_states_resampled.shape[0]:
-            print('ERROR NO MATCHEAN LAS LONGITUDES')
-        else:
-            X_canonical, _ = cca.fit_transform(hidden_states_resampled, eeg)
-        return X_canonical
+        # # # Apply PCA to find principal components that maximize correlation between EEG and audio
+        # cca = CCA(n_components=16)
+        # # if eeg.shape[0] < hidden_states_resampled.shape[0]:
+        # #     eeg = np.repeat(eeg, hidden_states_resampled.shape[0]//eeg.shape[0], axis=0)
+
+        # if eeg.shape[0]!=hidden_states_resampled.shape[0]:
+        #     min_length = min(eeg.shape[0], hidden_states_resampled.shape[0])
+        #     eeg = eeg[:min_length]
+        #     hidden_states_resampled = hidden_states_resampled[:min_length]
+        # ini = time.time()
+        # scaler_X = StandardScaler()
+        # scaler_Y = StandardScaler()
+        # X_scaled = scaler_X.fit_transform(hidden_states_resampled)
+        # Y_scaled = scaler_Y.fit_transform(eeg)
+        # cca = CCA(n_components=n_components, max_iter=1000)
+        # X_canonical, _ = cca.fit_transform(X_scaled, Y_scaled)
+        # end = time.time()
+        # print(f'The CCA took {(end-ini)/60:.2f} minutes')
+        # return X_canonical #- #np.mean(X_canonical, axis=1, keepdims=True)  
         
     def f_mfccs(
         self, 
@@ -1241,7 +1286,7 @@ class Trial_channel:
             if stim.startswith('Control'):
                 channel[stim] = self.f_mistakes_control(envelope=channel['Envelope'], kind=stim)
             if stim=='Wav2vec2':
-                channel[stim] = self.f_wav2vec2(envelope=channel['Envelope'], EEG=channel['EEG'])
+                channel[stim] = self.f_wav2vec2(envelope=channel['Envelope'], eeg=channel['EEG'])
             if stim=='Spectrogram':
                 channel['Spectrogram'] = self.f_spectrogram()
             if stim.startswith('Phonemes'):
