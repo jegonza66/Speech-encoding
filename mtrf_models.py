@@ -159,7 +159,7 @@ class TorchMtrf:
                 self.root_mean_square_error = np.zeros((config.random_permutations, config.info_mne['nchan']))
                 
                 # Shuffle the data, by requierment of random permutations
-                for s in tqdm(iterations, desc='Performing permutations'):
+                for s in tqdm(iterations, desc='Performing permutations', bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
                     indices_p = indices.copy()
                     X_train_p = X_train.clone()
                     X_pred_p = X_pred.clone()
@@ -170,16 +170,16 @@ class TorchMtrf:
                     X_train_p = X_train_p[indices_p]
                     
                     # TODO after first iteration its not neccesary to compute self.y_val
-                    X_train, y_train_p, X_pred_p, y_test_p = self.standarize_normalize(
-                                                X_train=X_train, 
+                    X_train_p, y_train_p, X_pred_p, y_test_p = self.standarize_normalize(
+                                                X_train=X_train_p, 
                                                 X_pred=X_pred_p, 
                                                 y_train=y_train_p, 
                                                 y_test=y_test_p
                                                 )
                     
                     # Fit the Ridge model (X^T X + alpha * I) * mtrfs = X^T * y_train_p 
-                    XTX_reg = X_train.T @ X_train + self.alpha.astype(np.float32) *  torch.eye(X_train.shape[1], device=self.device) # X^T * X + alpha*I
-                    mtrfs = torch.linalg.solve(XTX_reg, X_train.T @ y_train_p)
+                    XTX_reg = X_train_p.T @ X_train_p + self.alpha.astype(np.float32) *  torch.eye(X_train_p.shape[1], device=self.device) # X^T * X + alpha*I
+                    mtrfs = torch.linalg.solve(XTX_reg, X_train_p.T @ y_train_p)
                     
                     # Perform predictions
                     y_predicted = X_pred_p @ mtrfs
