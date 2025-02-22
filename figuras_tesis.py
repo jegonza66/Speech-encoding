@@ -2130,7 +2130,7 @@ for band in bands:
 # axes[1,0].text(-.1, 1.1, 'b)', transform=axes[1,0].transAxes, fontsize=18, va='top', ha='right')
 
 # # Tercer gráfico en la primera subcolumna de la segunda columna (primera fila)
-# mean_average_correlation = average_correlation_subjects.mean(axis=0)
+# mean_average_correlation = average_correlation_subjects.mean(axis=0) #---> # n_subj, n_chans # TODO TOPOMAPS
 # im = mne.viz.plot_topomap(
 #         data=mean_average_correlation, 
 #         pos=config.info_mne, 
@@ -2429,7 +2429,6 @@ for band in bands:
 # path_mtrfs = 'saves/mtrf_ridge_torch/External/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/Theta/Phonological/total_weights_per_subject.pkl'
 # path_tfce = 'saves/mtrf_ridge_torch/External/TFCE/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/Theta/Phonological_4096.pkl'
 # _, pvalue_tfce = load_pickle(path=path_tfce)
-
 # correlations = load_pickle(path=path_correlations)
 # average_correlation_subjects, singificant_channels_subjects = correlations['average_correlation_subjects'], correlations['repeated_good_correlation_channels_subjects']
 # # average_correlation_subjects = np.where((singificant_channels_subjects==1), average_correlation_subjects, np.nan)
@@ -5189,37 +5188,106 @@ for band in bands:
 # #     )
 # fig.show()
 
-# # =======================================================
-# # Ejemplo EEG y PSD (power spectral density) de un sujeto# TODO SIGUE SIN DAR CHARLAR CON JOACO
-# sesion, sujeto = 21, 2
-# RawEegPath = f'Datos/EEG/S{sesion}/s{sesion}-{sujeto}-Trial1-Deci-Filter-Trim-ICA-Pruned.set'
-# # EegPath = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/EEG/All/Causal/Sesion21.pkl'
+# =======================================================
+# Ejemplo EEG y PSD (power spectral density) de un sujeto# TODO SIGUE SIN DAR CHARLAR CON JOACO
+sesion, sujeto = 21, 2
+RawEegPath = f'Datos/EEG/S{sesion}/s{sesion}-{sujeto}-Trial1-Deci-Filter-Trim-ICA-Pruned.set'
+# EegPath = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/EEG/All/Causal/Sesion21.pkl'
 
-# raw = mne.io.read_raw_eeglab(
-#         RawEegPath, 
-#         preload=True,
-#         verbose='CRITICAL',
-#         )
-# # raw = raw.filter(l_freq=.1, h_freq=40)
-# # raw.resample(sfreq=128)
+raw = mne.io.read_raw_eeglab(
+        RawEegPath, 
+        preload=True,
+        verbose='CRITICAL',
+        )
+# raw = raw.filter(l_freq=.1, h_freq=40)
+# raw.resample(sfreq=128)
 # raw.plot(
 #     scalings=dict(eeg=2e-5)
 # )
 
-# from processing import subsample
+from processing import subsample
 
 
-# fmin, fmax = 0, 40
+
+psds_welch_mean, freqs_mean = mne.time_frequency.psd_array_welch(
+    raw._data, 
+    sfreq=1024,#raw.info.get("sfreq"), 
+    fmin=1, 
+    fmax=60, 
+    n_fft=2048,
+    n_per_seg=2048*16, 
+    n_ovelap=32
+    )
+
+fig, ax = plt.subplots(figsize=(10,5))
+evoked = mne.EvokedArray(psds_welch_mean, config.info_mne)
+# evoked.times = freqs_mean
+
+evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='s',
+            show=False, spatial_colors=True, unit=False, units='w', axes=ax)
+ax.set_xlabel('Frequency [Hz]')
+ax.grid()
+fig.show()
+
+
+
+raw = mne.io.read_raw_eeglab(
+        RawEegPath, 
+        preload=True,
+        verbose='CRITICAL',
+        )
+
+fmin, fmax = 1, 15
+
+montage = mne.channels.make_standard_montage('biosemi128')
+info = mne.create_info(ch_names=montage.ch_names[:], sfreq=1024, ch_types='eeg').set_montage(montage)
+raw = mne.io.RawArray(raw._data, info)
+
+spectrum = raw.compute_psd(
+    method='welch',
+    fmin=fmin, 
+    fmax=fmax,
+    # n_fft=2048,#048,
+    # n_per_seg=2048*16, 
+    # n_ovelap=32
+    )
+
+fig, axes = plt.subplots(
+    nrows=1,
+    ncols=1,
+    figsize=(10, 4),
+    # tight_layout=True
+    )
+
+spectrum.plot(
+    dB=False,
+    spatial_colors=True,
+    sphere=.14,
+    axes=axes
+    )
+axes.set(
+    title='PSD (Power Spectral Density)',
+    ylabel='U.A',
+    xlabel='Frecuencia (Hz)',
+    ylim=(-1,20),
+#     xlim=(0,40)
+)
+fig.show()
+
+
 
 # fig, ax = plt.subplots()
 # eeg = raw.get_data().T*1e6  # paso a array y tiro la primer columna de tiempo
-# eeg = subsample(x=eeg, step=int(raw.info.get("sfreq")/ 128))
+# # eeg = subsample(x=eeg, step=int(raw.info.get("sfreq")/ 128))
 # psds_welch_mean, freqs_mean = mne.time_frequency.psd_array_welch(
 #         eeg.T, 
-#         128, 
+#         raw.info.get("sfreq"), 
 #         fmin, 
 #         fmax
 #         )
+
+
+
 # evoked = mne.EvokedArray(psds_welch_mean, config.info_mne)
 # evoked.times = freqs_mean
 # evoked.plot(
@@ -5236,41 +5304,8 @@ for band in bands:
 # ax.grid()
 # fig.show()
 
-
-
-# # eeg = load_pickle(path=EegPath)[0]
-# # raw = mne.io.RawArray(data=eeg.T*1e-6, info=raw_raw.info)
-# spectrum = raw.compute_psd(
-#     method='welch',
-#     fmin=.1, 
-#     fmax=40, 
-    
-#     # n_fft=1096,       # Aumenta el tamaño de la FFT para mayor resolución
-#     # n_overlap=125 # Mayor solapamiento para suavizar el espectro
-#     )
-
-# fig, axes = plt.subplots(
-#     nrows=1,
-#     ncols=1,
-#     figsize=(10, 4),
-#     # tight_layout=True
-#     )
-
-# spectrum.plot(
-#     dB=False,
-#     spatial_colors=True,
-#     sphere=.14,
-#     axes=axes
-#     )
-# axes.set(
-#     title='PSD (Power Spectral Density)',
-#     ylabel='U.A',
-#     xlabel='Frecuencia (Hz)',
-#     ylim=(-1,20),
-# #     xlim=(0,40)
-# )
-# fig.show()
-
+# eeg = load_pickle(path=EegPath)[0]
+# raw = mne.io.RawArray(data=eeg.T*1e-6, info=raw_raw.info)
 # # =================================
 # # Tarea comportamental: EEG y audio
 # for sujeto in [1,2]:
