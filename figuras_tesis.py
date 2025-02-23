@@ -43,7 +43,9 @@ rc('text', usetex=True)
 plt.style.use(['science'])
 
 # tesis_path = os.path.normpath(os.path.join('C:\\Users', 'jocta', 'Documents', 'tesis_escrita', 'imagenes'))
-tesis_path = os.path.normpath(os.path.join('C:\\Users', 'User', 'Documents', 'tesis_escrita', 'imagenes'))
+# tesis_path = os.path.normpath(os.path.join('C:\\Users', 'User', 'Documents', 'tesis_escrita', 'imagenes'))
+tesis_path = os.path.normpath(os.path.join('figures','figuras_tesis' ))
+
 figformat, dpi = 'png', 350
 
 # ==================
@@ -634,7 +636,7 @@ for band in bands:
 # fig.show()
 
 # # ==========================
-# # HEATMAP ANTERIOR-POSTERIOR
+# # HEATMAP ANTERIOR-POSTERIOR # TODO REHACER
 # fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(11,4), constrained_layout='True')
 # axes[0].set_title('Selección de grupos')
 # im = mne.viz.plot_sensors(
@@ -1997,8 +1999,8 @@ for band in bands:
 # _, pvalue_tfce = load_pickle(path=path_tfce)
 
 # correlations = load_pickle(path=path_correlations)
-# average_correlation_subjects, singificant_channels_subjects = correlations['average_correlation_subjects'], correlations['repeated_good_correlation_channels_subjects']
-# # average_correlation_subjects = np.where((singificant_channels_subjects==1), average_correlation_subjects, np.nan)
+# average_correlation_subjects, significant_channels_subjects = correlations['average_correlation_subjects'], correlations['repeated_good_correlation_channels_subjects']
+# # average_correlation_subjects = np.where((significant_channels_subjects==1), average_correlation_subjects, np.nan)
 # # np.nanmean(average_correlation_subjects, axis=0).mean()
 # average_weights_subjects = load_pickle(path=path_mtrfs)['average_weights_subjects'][:, :, :, :] # (18, 128, 1, 104)
 
@@ -2214,8 +2216,8 @@ for band in bands:
 # _, pvalue_tfce = load_pickle(path=path_tfce)
 
 # correlations = load_pickle(path=path_correlations)
-# average_correlation_subjects, singificant_channels_subjects = correlations['average_correlation_subjects'], correlations['repeated_good_correlation_channels_subjects']
-# # average_correlation_subjects = np.where((singificant_channels_subjects==1), average_correlation_subjects, np.nan)
+# average_correlation_subjects, significant_channels_subjects = correlations['average_correlation_subjects'], correlations['repeated_good_correlation_channels_subjects']
+# # average_correlation_subjects = np.where((significant_channels_subjects==1), average_correlation_subjects, np.nan)
 # # np.nanmean(average_correlation_subjects, axis=0).mean()
 # average_weights_subjects = load_pickle(path=path_mtrfs)['average_weights_subjects'][:, :, :, :] # (18, 128, 1, 104)
 
@@ -2430,8 +2432,8 @@ for band in bands:
 # path_tfce = 'saves/mtrf_ridge_torch/External/TFCE/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/Theta/Phonological_4096.pkl'
 # _, pvalue_tfce = load_pickle(path=path_tfce)
 # correlations = load_pickle(path=path_correlations)
-# average_correlation_subjects, singificant_channels_subjects = correlations['average_correlation_subjects'], correlations['repeated_good_correlation_channels_subjects']
-# # average_correlation_subjects = np.where((singificant_channels_subjects==1), average_correlation_subjects, np.nan)
+# average_correlation_subjects, significant_channels_subjects = correlations['average_correlation_subjects'], correlations['repeated_good_correlation_channels_subjects']
+# # average_correlation_subjects = np.where((significant_channels_subjects==1), average_correlation_subjects, np.nan)
 # # np.nanmean(average_correlation_subjects, axis=0).mean()
 # average_weights_subjects = load_pickle(path=path_mtrfs)['average_weights_subjects'][:, :, :, :] # (18, 128, 1, 104)
 
@@ -2527,7 +2529,8 @@ for band in bands:
 # # Segundo gráfico en la primera columna (comparte el eje x con el primer gráfico)
 # ax2 = plt.subplot(gs[1, 0], sharex=ax1)
 
-# feat_weights = average_weights_subjects.mean(axis=0).mean(axis=0)
+# # feat_weights = average_weights_subjects.mean(axis=0).mean(axis=0)
+# feat_weights = average_weights_subjects[significant_channels_subjects.astype(bool)].mean(axis=0)
 # order, null_indexes = clustering_by_correlation(weights=feat_weights)
 # feat_weights = feat_weights[order]
 
@@ -2704,8 +2707,8 @@ for band in bands:
 # _, pvalue_tfce = load_pickle(path=path_tfce)
 
 # correlations = load_pickle(path=path_correlations)
-# average_correlation_subjects, singificant_channels_subjects = correlations['average_correlation_subjects'], correlations['repeated_good_correlation_channels_subjects']
-# # average_correlation_subjects = np.where((singificant_channels_subjects==1), average_correlation_subjects, np.nan)
+# average_correlation_subjects, significant_channels_subjects = correlations['average_correlation_subjects'], correlations['repeated_good_correlation_channels_subjects']
+# # average_correlation_subjects = np.where((significant_channels_subjects==1), average_correlation_subjects, np.nan)
 # # np.nanmean(average_correlation_subjects, axis=0).mean()
 # average_weights_subjects = load_pickle(path=path_mtrfs)['average_weights_subjects'][:, :, :, :] # (18, 128, 1, 104)
 
@@ -2983,14 +2986,14 @@ for band in bands:
 
 # # ===============================================================
 # # PESOS + TOPOMAPS CORR + SIMILARITY + MATRIZ: THETA: PHONEMES # TODO REHACER CON PHONEMES-PHONET y PHONOLOGICAL NUEVO
-# path_correlations = 'saves/mtrf_ridge_torch/External/correlations/tmin-0.2_tmax0.6/Theta/Phonemes-Discrete-Phonet.pkl'
-# path_mtrfs = 'saves/mtrf_ridge_torch/External/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/Theta/Phonemes-Discrete-Phonet/total_weights_per_subject.pkl'
-# path_tfce = 'saves/mtrf_ridge_torch/External/TFCE/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/Theta/Phonemes-Discrete-Phonet_4096.pkl'
+# path_correlations = 'saves/mtrf_ridge_torch/External/correlations/tmin-0.2_tmax0.6/Theta/Phonemes-Phonet.pkl'
+# path_mtrfs = 'saves/mtrf_ridge_torch/External/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/Theta/Phonemes-Phonet/total_weights_per_subject.pkl'
+# path_tfce = 'saves/mtrf_ridge_torch/External/TFCE/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/Theta/Phonemes-Phonet_4096.pkl'
 # _, pvalue_tfce = load_pickle(path=path_tfce)
 
 # correlations = load_pickle(path=path_correlations)
-# average_correlation_subjects, singificant_channels_subjects = correlations['average_correlation_subjects'], correlations['repeated_good_correlation_channels_subjects']
-# # average_correlation_subjects = np.where((singificant_channels_subjects==1), average_correlation_subjects, np.nan)
+# average_correlation_subjects, significant_channels_subjects = correlations['average_correlation_subjects'], correlations['repeated_good_correlation_channels_subjects']
+# # average_correlation_subjects = np.where((significant_channels_subjects==1), average_correlation_subjects, np.nan)
 # # np.nanmean(average_correlation_subjects, axis=0).mean()
 # average_weights_subjects = load_pickle(path=path_mtrfs)['average_weights_subjects'][:, :, :, :] # (18, 128, 1, 104)
 
@@ -3011,7 +3014,19 @@ for band in bands:
 
 # # Primer gráfico en la primera columna (comparte el eje x con el segundo gráfico)
 # ax1 = plt.subplot(gs[0, 0])
-# weights = average_weights_subjects.mean(axis=0).mean(axis=1)
+# # weights = average_weights_subjects.mean(axis=0).mean(axis=1)
+# weights = np.empty(average_weights_subjects.shape[1:])
+# filter_ch = significant_channels_subjects.astype(bool)
+# for j in range(128):
+#     subset = average_weights_subjects[filter_ch[:, j], j, :, :]  # Esto tiene forma (n_true, n_feats, n_delays)
+    
+#     # Si no hay ningún True, podemos decidir asignar NaN o algún valor por defecto
+#     if subset.size == 0:
+#         weights[j] = np.nan
+#     else:
+#         # Promediamos sobre el eje 0 (las filas filtradas)
+#         weights[j] = subset.mean(axis=0)
+# weights = weights.mean(axis=1)
 # evoked = mne.EvokedArray(data=weights, info=config.info_mne)
 # evoked.shift_time(config.times[0], relative=True)
 # evoked_plot = evoked.plot(
@@ -3086,7 +3101,8 @@ for band in bands:
 # # Segundo gráfico en la primera columna (comparte el eje x con el primer gráfico)
 # ax2 = plt.subplot(gs[1, 0], sharex=ax1)
 
-# feat_weights = average_weights_subjects.mean(axis=0).mean(axis=0)
+# # feat_weights = average_weights_subjects.mean(axis=0).mean(axis=0)
+# feat_weights = average_weights_subjects[significant_channels_subjects.astype(bool)].mean(axis=0)
 # order, null_indexes = clustering_by_correlation(weights=feat_weights)
 # feat_weights = feat_weights[order]
 
@@ -3249,11 +3265,11 @@ for band in bands:
 #     )
 
 # ax5.text(-.06, 1.1, 'e)', transform=ax5.transAxes, fontsize=18, va='top', ha='right')
-# # fig.savefig(
-# #     os.path.join(tesis_path,'resultados', f'fonemas_completo.{figformat}'),
-# #     transparent=False,
-# #     dpi=dpi
-# #     )
+# fig.savefig(
+#     os.path.join(tesis_path,'resultados', f'fonemas_completo.{figformat}'),
+#     transparent=False,
+#     dpi=dpi
+#     )
 # fig.show()
 
 # # =========================================================
@@ -3264,8 +3280,8 @@ for band in bands:
 # _, pvalue_tfce = load_pickle(path=path_tfce)
 
 # correlations = load_pickle(path=path_correlations)
-# average_correlation_subjects, singificant_channels_subjects = correlations['average_correlation_subjects'], correlations['repeated_good_correlation_channels_subjects']
-# # average_correlation_subjects = np.where((singificant_channels_subjects==1), average_correlation_subjects, np.nan)
+# average_correlation_subjects, significant_channels_subjects = correlations['average_correlation_subjects'], correlations['repeated_good_correlation_channels_subjects']
+# # average_correlation_subjects = np.where((significant_channels_subjects==1), average_correlation_subjects, np.nan)
 # # np.nanmean(average_correlation_subjects, axis=0).mean()
 # average_weights_subjects = load_pickle(path=path_mtrfs)['average_weights_subjects'][:, :, :, :] # (18, 128, 1, 104)
 
@@ -3521,8 +3537,8 @@ for band in bands:
 # _, pvalue_tfce = load_pickle(path=path_tfce)
 
 # correlations = load_pickle(path=path_correlations)
-# average_correlation_subjects, singificant_channels_subjects = correlations['average_correlation_subjects'], correlations['repeated_good_correlation_channels_subjects']
-# # average_correlation_subjects = np.where((singificant_channels_subjects==1), average_correlation_subjects, np.nan)
+# average_correlation_subjects, significant_channels_subjects = correlations['average_correlation_subjects'], correlations['repeated_good_correlation_channels_subjects']
+# # average_correlation_subjects = np.where((significant_channels_subjects==1), average_correlation_subjects, np.nan)
 # # np.nanmean(average_correlation_subjects, axis=0).mean()
 # average_weights_subjects = load_pickle(path=path_mtrfs)['average_weights_subjects'][:, :, :, :] # (18, 128, 1, 104)
 
