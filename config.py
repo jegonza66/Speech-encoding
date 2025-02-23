@@ -4,14 +4,14 @@ import numpy as np, mne
 # SESSIONS, STIMULI, SITUATION AND EEG BANDS
 sesiones = [
             21, 
-            # 22, 
-            # 23, 
-            # 24, 
-            # 25, 
-            # 26, 
-            # 27, 
-            # 29, 
-            # 30
+            22, 
+            23, 
+            24, 
+            25, 
+            26, 
+            27, 
+            29, 
+            30
             ]
 stimuli = [
     # 'Mistakes-Separated_Control-Separated',
@@ -20,21 +20,21 @@ stimuli = [
         # 'Envelope_Spectrogram',
         # 'Pitch-Log-Raw_Spectrogram',
         # 'Envelope_Pitch-Log-Raw_Spectrogram',
-        # 'Phonemes-Discrete-Phonet_Spectrogram',
-        # 'Phonological_Spectrogram', # HASTA ACA
-        # 'Phonological_Phonemes-Discrete-Phonet',
-        # 'Phonological_Phonemes-Discrete-Phonet_Spectrogram',
-        # 'Phones-Discrete-Phonet_Phonemes-Discrete-Phonet',
+        'Phonemes-Phonet_Spectrogram',
+        'Phonological_Spectrogram', # HASTA ACA
+        'Phonological_Phonemes-Phonet',
+        'Phonological_Phonemes-Phonet_Spectrogram',
+        'Phones-Phonet_Phonemes-Phonet',
         # 'Envelope',
         # 'Pitch-Log-Raw',
         # 'Spectrogram',
         # 'Mfccs',
         # 'Phonological',
         # 'Phonemes-Phonet',
-        # 'Phones-Phonet',
+        # 'Phones-Phonet', #FALTA CORRER CON TFCE
         # 'Phonemes-Discrete-Phonet',
         # 'Phones-Discrete-Phonet',
-        'Wav2vec2'
+        # 'Wav2vec2'
         ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situations = [
         'External', 
@@ -43,12 +43,12 @@ situations = [
         'Internal_BS'
         ] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
 bands = [
-        'Delta', 
+        # 'Delta', 
         'Theta', 
-        'Alpha', 
-        'Beta1', 
-        'Beta2',
-        'All'
+        # 'Alpha', 
+        # 'Beta1', 
+        # 'Beta2',
+        # 'All'
         ] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
 
 # ==========================================
@@ -62,7 +62,7 @@ just_load_data = False
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
 model = 'mtrf'
 estimator = 'ridge_torch' # ridge, ridge_torch or time_delaying_ridge
-statistical_test, perform_tfce, use_gpu = False, False, False
+statistical_test, perform_tfce, use_gpu = True, True, True
 precomputed_design_matrix = False
 stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 
