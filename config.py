@@ -30,11 +30,11 @@ stimuli = [
         # 'Spectrogram',
         # 'Mfccs',
         # 'Phonological',
-        'Phonemes-Phonet',
+        # 'Phonemes-Phonet',
         # 'Phones-Phonet',
         # 'Phonemes-Discrete-Phonet',
         # 'Phones-Discrete-Phonet',
-        # 'Wav2vec2'
+        'Wav2vec2'
         ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situations = [
         'External', 
@@ -62,7 +62,7 @@ just_load_data = False
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
 model = 'mtrf'
 estimator = 'ridge_torch' # ridge, ridge_torch or time_delaying_ridge
-statistical_test, perform_tfce, use_gpu = False, False, True
+statistical_test, perform_tfce, use_gpu = False, False, False
 precomputed_design_matrix = False
 stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 

@@ -1,3 +1,4 @@
+import mne
 # Standard libraries
 import numpy as np, pandas as pd, os, warnings, time
 
@@ -24,8 +25,8 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 mne.set_log_level(verbose='CRITICAL')
 exp_info = config.Exp_info()
 
-TRANSFORMER_MODEL = "openai/whisper-base"
-# TRANSFORMER_MODEL = "openai/whisper-tiny"
+# TRANSFORMER_MODEL = "openai/whisper-base"
+TRANSFORMER_MODEL = "openai/whisper-tiny"
 # TRANSFORMER_MODEL = "facebook/wav2vec2-large-xlsr-53-distilled"
 # TRANSFORMER_MODEL = "facebook/wav2vec2-base"
 
@@ -340,6 +341,8 @@ class Trial_channel:
         """
         # Read file
         wav = wavfile.read(self.wav_fname)[1]
+        # wav = wavfile.read(r'Datos\wavs\S21\s21.objects.01.channel1.wav')[1]
+        
         wav = wav.astype("float")
 
         # Calculate envelope
@@ -369,8 +372,10 @@ class Trial_channel:
         
         # Resample # TODO padear un cero en el envelope
         window_size, stride = int(self.audio_sr/self.sr), int(self.audio_sr/self.sr)
+        # window_size, stride = 125, 125
         envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)])
-        return envelope.reshape(-1, 1)
+        envelope = envelope.reshape(-1, 1)
+        return envelope
         # else:
             # envelope = envelope.reshape(-1,1)
             
@@ -451,10 +456,10 @@ class Trial_channel:
             warnings.filterwarnings("ignore", category=UserWarning, message="Passing `gradient_checkpointing` to a config initialization is deprecated")
             processor = WhisperProcessor.from_pretrained(TRANSFORMER_MODEL, cache_dir=f'saves/preprocessed_data/{modelfname}')
             model = WhisperModel.from_pretrained(TRANSFORMER_MODEL, cache_dir=f'saves/preprocessed_data/{modelfname}')
-        
+
             # processor = Wav2Vec2Processor.from_pretrained(wac2vec2model, cache_dir=f'saves/preprocessed_data/{modelfname}')
             # model = Wav2Vec2Model.from_pretrained(wac2vec2model, cache_dir=f'saves/preprocessed_data/{modelfname}')
-        
+        processor = WhisperProcessor.from_pretrained("openai/whisper-tiny")
         # Preprocessing
         input_values = processor(
                     wav, 
