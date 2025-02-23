@@ -1,20 +1,21 @@
-import mne
 # Standard libraries
 import numpy as np, pandas as pd, os, warnings, time
+from tqdm import tqdm
 
 # Specific libraries
-import torch, mne, librosa, opensmile, textgrids, scipy.io.wavfile as wavfile
-# from transformers import Wav2Vec2Model, Wav2Vec2Processor
-from transformers import WhisperProcessor, WhisperModel
-# from sklearn.preprocessing import StandardScaler
+import torch, mne, librosa, opensmile, textgrids
+from praatio import pitch_and_intensity
+from phonet.phonet import Phonet
+
+from transformers import WhisperProcessor, WhisperModel # from transformers import Wav2Vec2Model, Wav2Vec2Processor
+
 from sklearn.cross_decomposition import CCA
 from sklearn.decomposition import PCA
 
 from scipy.interpolate import interp1d
-
-from phonet.phonet import Phonet# TODO Solve KALDI_ROOT when parsing
-from praatio import pitch_and_intensity
+import scipy.io.wavfile as wavfile
 from scipy import signal as sgn
+import resampy
 
 # Modules
 import processing, funciones, config
@@ -459,69 +460,86 @@ class Trial_channel:
 
             # processor = Wav2Vec2Processor.from_pretrained(wac2vec2model, cache_dir=f'saves/preprocessed_data/{modelfname}')
             # model = Wav2Vec2Model.from_pretrained(wac2vec2model, cache_dir=f'saves/preprocessed_data/{modelfname}')
-        processor = WhisperProcessor.from_pretrained("openai/whisper-tiny")
-        # Preprocessing
-        input_values = processor(
-                    wav, 
-                    sampling_rate=self.audio_sr, 
-                    return_tensors="pt"
-                    ).input_features
-                    # ).input_values
         
-        # Get hidden layer of model after input of the audio
-        # with torch.no_grad():
-        #     ini = time.time()
-            
-        #     # Get model's output
-        #     outputs = model(
-        #             input_values, 
-        #             output_hidden_states=True
-        #             )
-            
-        #     # Get last hidden layer
-        #     hidden_states = outputs.hidden_states[-1]  #(batch_size, sequence_length, hidden_size)
-        #     end = time.time()
         ini = time.time()
         
-        # Get model's output
-        outputs = model.encoder(
-                input_values, 
-                output_hidden_states=True
-                )
+        # Preprocessing: break .wav in windows of 800ms to feed the model and then concatenate the results
+        audio_sr = 16e3
+        sample_windows = np.arange(0, wav.shape[0], 800e-3*audio_sr, dtype=int)
+        sample_windows = np.concatenate((sample_windows, np.array([wav.shape[0]])))
+
+        full_hidden_states = []
+        for sample_window_d, sample_window in tqdm(zip(np.roll(sample_windows, shift=1)[1:], sample_windows[1:]), total=sample_windows.shape[0]):
+            input_values = processor(
+                        wav[sample_window_d:sample_window],
+                        sampling_rate=audio_sr, 
+                        return_tensors="pt"
+                        ).input_features
+            # Get model's output
+            outputs = model.encoder(
+                    input_values, 
+                    output_hidden_states=True
+                    )
         
-        # Get last hidden layer
-        hidden_states = outputs.hidden_states[-1]  #(batch_size, sequence_length, hidden_size)
-        end = time.time()
-        print(f'The model took {(end-ini)/60:.2f} minutes')
-        
-        # Adjust dimensions (take out batch dimension and resample sequence length to match envelope)
-        hidden_states = hidden_states.squeeze(0)  
-        
-        # Apply PCA to find principal components that maximize correlation between EEG and audio
+            # Get last hidden layer
+            hidden_states = outputs.hidden_states[-1]  #(batch_size, sequence_length, hidden_size)
+            
+            # Adjust dimensions (take out batch dimension and resample sequence length to match envelope)
+            hidden_states = hidden_states.squeeze(0).detach().numpy()  
+            
+            full_hidden_states.append(hidden_states)
+            
+        # Apply PCA to find principal components 
         pca = PCA(n_components=n_components)
-        reduced_hidden_states = pca.fit_transform(hidden_states.detach().numpy())
+        pca.fit_transform(np.concatenate(full_hidden_states, axis=0))
         print(f'Portion of variance of whole hidden layer explained by {n_components} components: {np.sum(pca.explained_variance_ratio_)*100:.2f}%')
-
-        # reduced_hidden_states = gaussian_filter1d(hidden_states_resampled, sigma=15, axis=0)
-        # reduced_hidden_states = smooth_with_spline(reduced_hidden_states, smoothing_factor=15)
         
-        # Create an interpolation function for each hidden state
-        interp_funcs = [interp1d(np.arange(reduced_hidden_states.shape[0]), reduced_hidden_states[:, i], kind='linear') for i in range(reduced_hidden_states.shape[1])]
-
-        new_time_points = np.linspace(0, reduced_hidden_states.shape[0] - 1, envelope.shape[0])
-
-        # Apply interpolation to each hidden state
-        hidden_states_resampled = np.array([interp_func(new_time_points) for interp_func in interp_funcs]).T  # Shape (envelope_length, hidden_size)
+        hidden_state_final = []
+        for hidden_states, sample_window, sample_window_d in zip(full_hidden_states, sample_windows[1:], np.roll(sample_windows, shift=1)[1:]):
+            sample_freq_w = int(np.round(hidden_states.shape[0] / ((sample_window-sample_window_d)/16e3),0))
+            
+            hidden_states_reduced = pca.transform(hidden_states)
+            target_hidden_states = resampy.resample(
+                hidden_states_reduced, 
+                sample_freq_w, 
+                config.sr, 
+                axis=0
+                )
+            hidden_state_final.append(target_hidden_states)
         
-        return hidden_states_resampled
+        hidden_state_final = np.concatenate(hidden_state_final, axis=0)
         
+        print(f'The model took {(time.time()-ini)/60:.2f} minutes')
+        
+        # Cutoff to minimum length
+        min_length = min(eeg.shape[0], hidden_state_final.shape[0])
+        return hidden_state_final[:min_length]
+        
+        # reduced_hidden_states = pca.fit_transform(hidden_states.detach().numpy())
+        # reduced_hidden_states.shape
+
+        # # reduced_hidden_states = gaussian_filter1d(hidden_states_resampled, sigma=15, axis=0)
+        # # reduced_hidden_states = smooth_with_spline(reduced_hidden_states, smoothing_factor=15)
+        
+        # # Create an interpolation function for each hidden state
+        # interp_funcs = [interp1d(np.arange(reduced_hidden_states.shape[0]), reduced_hidden_states[:, i], kind='linear') for i in range(reduced_hidden_states.shape[1])]
+        # new_time_points = np.linspace(0, reduced_hidden_states.shape[0] - 1, envelope.shape[0])
+
+        # # Apply interpolation to each hidden state
+        # hidden_states_resampled = np.array([interp_func(new_time_points) for interp_func in interp_funcs]).T  # Shape (envelope_length, hidden_size)
+        
+        # end = time.time()
+        # print(f'The model took {(end-ini)/60:.2f} minutes')
+        # return hidden_states_resampled
+        
+        # import matplotlib.pyplot as plt
+        # # plt.figure()
+        # # plt.plot(reduced_hidden_states[:,0])
+        # # plt.show(block=False)
         # plt.figure()
-        # plt.plot(reduced_hidden_states[:,0])
-        # plt.show(block=False)
-        # plt.figure()
-        # hidden_states_filtered = lowpass_filter(hidden_states_resampled, cutoff=.1, fs=128)
-        # plt.plot(hidden_states_filtered[:,0])
-        # # plt.plot(hidden_states_resampled[:,0])
+        # # hidden_states_filtered = lowpass_filter(hidden_states_resampled, cutoff=.1, fs=128)
+        # # plt.plot(hidden_states_filtered[:,0])
+        # plt.plot(hidden_states_resampled[:,0])
         # plt.show(block=False)
         
         
