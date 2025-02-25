@@ -4829,8 +4829,18 @@ for band in bands:
 # #     )
 # fig.show()
 
-# # =====
+# # ======
 # # Phones 
+# # ======
+# fig, axes = plt.subplots(
+#     nrows=1, 
+#     ncols=2,
+#     tight_layout=True,
+#     figsize=(14, 8),
+#     # sharey='row'
+#     )
+
+# # PLLR
 # PhonesPath = "saves/preprocessed_data/External/tmin-0.2_tmax0.6/Phones-Phonet/Sesion21.pkl"
 # NumberOfTicks = 34
 
@@ -4849,41 +4859,25 @@ for band in bands:
 #     tags.append(config.Exp_info().phones_to_phonemes[phone].replace('/', ''))
 
 # order_tag, tags_counts = np.unique(tags, return_counts=True)
-# tuples = order_tag[tags_counts==2]
-# triples = order_tag[tags_counts==3]
-# quadruples = order_tag[tags_counts==4]
+# tuples = order_tag[tags_counts==2].tolist()
+# triples = order_tag[tags_counts==3].tolist()
+# quadruples = order_tag[tags_counts==4].tolist()
 
 # final_tags = []
+# auxiliary_tags = []
 # for l, tag in enumerate(tags):
-#     if (tag in tuples) & (np.sum(np.unique(tags[:l])==tag)==0):
-#         final_tags.append(tag+r'\textsubscript{1}')
-#     elif (tag in tuples) & (np.sum(np.unique(tags[:l])==tag)==1):
-#         final_tags.append(tag+r'\textsubscript{2}')
-#     elif (tag in triples) & (np.sum(np.unique(tags[:l])==tag)==0):
-#         final_tags.append(tag+r'\textsubscript{1}')
-#     elif (tag in triples) & (np.sum(np.unique(tags[:l])==tag)==1):
-#         final_tags.append(tag+r'\textsubscript{2}')
-#     elif (tag in triples) & (np.sum(np.unique(tags[:l])==tag)==2):
-#         final_tags.append(tag+r'\textsubscript{3}')
-#     elif (tag in quadruples) & (np.sum(np.unique(tags[:l])==tag)==0):
-#         final_tags.append(tag+r'\textsubscript{1}')
-#     elif (tag in quadruples) & (np.sum(np.unique(tags[:l])==tag)==1):
-#         final_tags.append(tag+r'\textsubscript{2}')
-#     elif (tag in quadruples) & (np.sum(np.unique(tags[:l])==tag)==2):
-#         final_tags.append(tag+r'\textsubscript{3}')
-#     elif (tag in quadruples) & (np.sum(np.unique(tags[:l])==tag)==3):
-#         final_tags.append(tag+r'\textsubscript{4}')
+#     auxiliary_tags.append(tag)
+#     if tag in tuples+triples+quadruples:
+#         repetitions = np.sum(np.array(auxiliary_tags)==tag)
+#         final_tags.append(tag+r'\textsubscript' + r'{' + f'{repetitions}'+r'}')
 #     else:
 #         final_tags.append(tag)
-# tags = final_tags
+# tags=final_tags            
 # ticks = np.arange(0, NumberOfTicks, 1)+.5
 
-# fig = plt.figure(
-#     tight_layout=True,
-#     figsize=(8, 8)
-#     )
+
 # norm = TwoSlopeNorm(vmin=phones.min(), vcenter=0, vmax=phones.max())
-# im = plt.imshow(
+# im = axes[1].imshow(
 #     phones.T,
 #     aspect='auto',  # Ajusta el aspecto
 #     extent=[WindowLeft, WindowRight, 0, NumberOfTicks],  # Ajusta los límites de los ejes
@@ -4891,16 +4885,66 @@ for band in bands:
 #     cmap='RdBu_r',  # Ajusta el mapa de colores
 #     norm=norm
 #     )
-# cbar = plt.colorbar(
+# cbar = fig.colorbar(
 #     im,
-#     label='PLLR'
+#     label='Probability Loglikelihood Ratio',
+#     ax=axes[1]
 #     )
-# plt.yticks(
+# axes[1].set_yticks(
 #     ticks=ticks, 
 #     labels=tags
 #     )
-# plt.xlabel('Tiempo (s)')
-# plt.ylabel('Fonos')  
+# axes[1].set_xlabel('Tiempo (s)')
+
+# # ===============
+# # Phones-Discrete
+# PhonesPath = "saves/preprocessed_data/External/tmin-0.2_tmax0.6/Phones-Discrete-Phonet/Sesion21.pkl"
+# NumberOfTicks = 34
+
+# phones = load_pickle(path=PhonesPath)[0][:9168]
+# WindowLeft, WindowRight = 30,40 #0, len(phones)/config.sr
+
+# time_phones = np.arange(0, len(phones)/config.sr, 1/config.sr)
+# window_phones = (WindowLeft <= time_phones) & (time_phones <= WindowRight)
+
+# rightindices = [7, 8, 10, 30, 27, 33, 17, 22, 24, 5, 6, 0, 1, 9, 2, 3, 11, 12, 13, 14, 15, 16, 4, 18, 19, 20, 21, 28, 23, 31, 25, 26, 32, 29]
+# phones = phones[:,rightindices]
+# # tags_discr = [r'b\textsubscript{2}', r'd\textsubscript{2}', r'f\textsubscript{2}', r'g\textsubscript{2}', r'n\textsubscript{2}', r's\textsubscript{2}', r'a', r'b\textsubscript{1}', r'd\textsubscript{1}', r'e', \
+# #         r'f\textsubscript{1}', r'i\textsubscript{1}', r'i\textsubscript{2}', r'x\textsubscript{2}', r'k', r'l', r'm', r'n\textsubscript{1}', r'o', r'p', \
+# #         r'R', r'r', r's\textsubscript{1}', r't', r'tS\textsubscript{1}', r'u\textsubscript{1}', r'u\textsubscript{2}', r'x\textsubscript{1}', r's\textsubscript{3}', r's\textsubscript{4}', \
+# #         r'g\textsubscript{1}', r'tS\textsubscript{2}', r'x\textsubscript{3}', r'L']
+# # rightindices=[]
+# # for el in tags:
+# #     rightindices.append(tags_discr.index(el))
+
+# ticks = np.arange(0, NumberOfTicks, 1)+.5
+
+# norm = TwoSlopeNorm(vmin=phones.min(), vcenter=0.5, vmax=phones.max())
+# im = axes[0].imshow(
+#     phones[window_phones].T,
+#     aspect='auto',  # Ajusta el aspecto
+#     extent=[WindowLeft, WindowRight, 0, NumberOfTicks],  # Ajusta los límites de los ejes
+#     origin='lower',  # Ajusta el origen
+#     cmap=ListedColormap(["white", "gray"]),  # Ajusta el mapa de colores
+#     vmin=phones.min(),
+#     vmax=phones.max()
+#     )
+# cbar = fig.colorbar(
+#     im,
+#     label='Ocurrencias',
+#     ax=axes[0]
+#     )
+# ticks_b = [0, 1]#phonological.min(), phonological.max()
+# cbar.set_ticks(ticks_b)
+
+# axes[0].set_yticks(
+#     ticks=ticks, 
+#     labels=tags
+#     )
+# axes[0].set_xlabel('Tiempo (s)')
+# axes[0].set_ylabel('Fonos')
+# fig.text(0.02, 1, 'a)', fontsize=18, va='top', ha='right')
+# fig.text(0.5, 1, 'b)', fontsize=18, va='top', ha='right')
 # # fig.savefig(
 # #     os.path.join(tesis_path,'metodos', f'sample_phones.{figformat}'),
 # #     transparent=False,
@@ -4910,9 +4954,18 @@ for band in bands:
 
 # # ========
 # # Phonemes
+# # ========
+# fig, axes = plt.subplots(
+#     nrows=1, 
+#     ncols=2,
+#     tight_layout=True,
+#     figsize=(14, 6),
+#     # sharey='row'
+#     )
+# # =====
+# # PLLRS
 # PhonemesPath = "saves/preprocessed_data/External/tmin-0.2_tmax0.6/Phonemes-Phonet/Sesion21.pkl"
 # NumberOfTicks = 21
-
 # phonemes = load_pickle(path=PhonemesPath)[0][:9168]
 # WindowLeft, WindowRight = 30, 40 #0, len(phonemes)/config.sr
 
@@ -4921,15 +4974,10 @@ for band in bands:
 
 # tags = config.Exp_info().phonemes_phonet.copy()
 # tags.remove('/sil/')
+
 # ticks = np.arange(0, NumberOfTicks, 1)+.5
-
-# fig = plt.figure(
-#     tight_layout=True,
-#     figsize=(8, 6)
-#     )
-
 # norm = TwoSlopeNorm(vmin=phonemes.min(), vcenter=0, vmax=phonemes.max())
-# im = plt.imshow(
+# im = axes[1].imshow(
 #     phonemes.T,
 #     aspect='auto',  # Ajusta el aspecto
 #     extent=[WindowLeft, WindowRight, 0, NumberOfTicks],  # Ajusta los límites de los ejes
@@ -4937,18 +4985,56 @@ for band in bands:
 #     cmap='RdBu_r',  # Ajusta el mapa de colores
 #     norm=norm
 #     )
-# cbar = plt.colorbar(
+# cbar = fig.colorbar(
 #     im,
-#     label='PLLR'
+#     label='Probability Loglikelihood Ratio',
+#     ax=axes[1]
 #     )
-# plt.yticks(
+# axes[1].set_yticks(
+#     ticks=ticks, 
+#     labels=tags
+#     )
+# axes[1].set_xlabel('Tiempo (s)')
+# axes[1].set_xlim(WindowLeft, WindowRight)
+
+# # ========
+# # DISCRETE
+# PhonemesPath = "saves/preprocessed_data/External/tmin-0.2_tmax0.6/Phonemes-Discrete-Phonet/Sesion21.pkl"
+# NumberOfTicks = 21
+
+# phonemes = load_pickle(path=PhonemesPath)[0][:9168]
+# WindowLeft, WindowRight = 30, 40 #3, len(phonemes)/config.sr
+
+# time_phonemes = np.arange(0, len(phonemes)/config.sr, 1/config.sr)
+# window_phonemes = (WindowLeft <= time_phonemes) & (time_phonemes <= WindowRight)
+
+# ticks = np.arange(0, NumberOfTicks, 1)+.5
+
+# im = axes[0].imshow(
+#     phonemes[window_phonemes].T,
+#     aspect='auto',  # Ajusta el aspecto
+#     extent=[WindowLeft, WindowRight, 0, NumberOfTicks],  # Ajusta los límites de los ejes
+#     origin='lower',  # Ajusta el origen
+#     cmap=ListedColormap(["white", "gray"]),  # Ajusta el mapa de colores
+#     vmin=phonemes.min(),
+#     vmax=phonemes.max()
+#     )
+# cbar = fig.colorbar(
+#     im,
+#     label='Ocurrencias',
+#     ax=axes[0]
+#     )
+# ticks_b = [0, 1]#phonological.min(), phonological.max()
+# cbar.set_ticks(ticks_b)
+# axes[0].set_yticks(
 #     ticks=ticks, 
 #     labels=tags
 #     )
 
-# plt.xlabel('Tiempo (s)')
-# plt.ylabel('Fonemas')  
-# plt.xlim(WindowLeft, WindowRight)
+# axes[0].set_xlabel('Tiempo (s)')
+# axes[0].set_ylabel('Fonemas')  
+# fig.text(0.02, 1, 'a)', fontsize=18, va='top', ha='right')
+# fig.text(0.5, 1, 'b)', fontsize=18, va='top', ha='right')
 # # fig.savefig(
 # #     os.path.join(tesis_path,'metodos', f'sample_phonemes.{figformat}'),
 # #     transparent=False,
