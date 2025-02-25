@@ -42,10 +42,9 @@ pylab.rcParams.update({
 rc('text', usetex=True)
 plt.style.use(['science'])
 
-# tesis_path = os.path.normpath(os.path.join('C:\\Users', 'jocta', 'Documents', 'tesis_escrita', 'imagenes'))
-tesis_path = os.path.normpath(os.path.join('C:\\Users', 'User', 'Documents', 'tesis_escrita', 'imagenes'))
+tesis_path = os.path.normpath(os.path.join('C:\\Users', 'jocta', 'Documents', 'tesis_escrita', 'imagenes'))
+# tesis_path = os.path.normpath(os.path.join('C:\\Users', 'User', 'Documents', 'tesis_escrita', 'imagenes'))
 # tesis_path = os.path.normpath(os.path.join('figures','figuras_tesis' ))
-
 figformat, dpi = 'png', 350
 
 # # ==================
@@ -4900,7 +4899,6 @@ figformat, dpi = 'png', 350
 # #     )
 # fig.show()
 
-
 # # ======
 # # Phones 
 # # ======
@@ -5152,7 +5150,7 @@ figformat, dpi = 'png', 350
 
 # cbar = plt.colorbar(
 #     im,
-#     label='PLLR'
+#     label='Probability Loglikelihood Ratio'
 #     )
 # # ticks_b = [-8, -4, -2, 0, 2, 4, 6, 8]#phonological.min(), phonological.max()
 # # cbar.set_ticks(ticks_b)
