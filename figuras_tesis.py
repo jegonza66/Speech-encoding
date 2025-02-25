@@ -758,102 +758,106 @@ figformat, dpi = 'png', 350
 #     ['Spectrogram', 'Envelope', 'Pitch-Log-Raw'],
 #     ['Phonological', 'Phonemes-Phonet', 'Spectrogram']
 # ]
-# areas_list = []
+# areas_dic = {band:{} for band in bands}
+# mean_correlations = {band:{} for band in bands}
 # for stimuli in stimuli_list:
-#     stimuli = sorted(stimuli)
-#     double_combinations = ['_'.join(sorted(combination)) for combination in all_possible_combinations(stimuli) if len(combination)==2]
-#     triple_combinations = ['_'.join(sorted(combination)) for combination in all_possible_combinations(stimuli) if len(combination)==3]
-#     all_stimuli = stimuli + double_combinations + triple_combinations
-#     mean_correlations = {}
 #     for band in bands:
+#         stimuli = sorted(stimuli)
+#         double_combinations = ['_'.join(sorted(combination)) for combination in all_possible_combinations(stimuli) if len(combination)==2]
+#         triple_combinations = ['_'.join(sorted(combination)) for combination in all_possible_combinations(stimuli) if len(combination)==3]
+#         all_stimuli = stimuli + double_combinations + triple_combinations
 #         for stim in all_stimuli:
 #             # Get average correlation of each stimulus
 #             data = load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects']
-#             if config.relevant_channels:
-#                 filter_relevant_channels_filter = get_maximum_correlation_channels(data.mean(axis=0), number_of_lat_channels=config.relevant_channels)
-#                 mean_correlations[stim] = data[:,filter_relevant_channels_filter].mean()
-#             else:
-#                 mean_correlations[stim] = data.mean()
-#     for stim12 in double_combinations:
-#         stim1, stim2 = stim12.split('_')
+#             mean_correlations[band][stim] = data.mean()
+#             # if config.relevant_channels:
+#             #     filter_relevant_channels_filter = get_maximum_correlation_channels(data.mean(axis=0), number_of_lat_channels=config.relevant_channels)
+#             #     mean_correlations[stim] = data[:,filter_relevant_channels_filter].mean()
+#             # else:
+#             #     mean_correlations[stim] = data.mean()
+#         for stim12 in double_combinations:
+#             stim1, stim2 = stim12.split('_')
 
-#         # Get squared correlation of stimuli
-#         variance_1 = mean_correlations[stim1] ** 2
-#         variance_2 = mean_correlations[stim2] ** 2
-#         variance_12 = mean_correlations[stim12] ** 2 # this represent the union of the two
+#             # Get squared correlation of stimuli
+#             variance_1 = mean_correlations[band][stim1] ** 2
+#             variance_2 = mean_correlations[band][stim2] ** 2
+#             variance_12 = mean_correlations[band][stim12] ** 2 # this represent the union of the two
 
-#         # This represent the shared variances explained by the intersections of sets 1 and 2 (intersection between 1 and 2)
-#         variance_intersection_12 = variance_1 + variance_2 - variance_12 #11
+#             # This represent the shared variances explained by the intersections of sets 1 and 2 (intersection between 1 and 2)
+#             variance_intersection_12 = variance_1 + variance_2 - variance_12 #11
 
-#         # This is the realtive complemente of 1 and 2: portion of the variance solely explained by 1 and 2, respectively
-#         variance_explained_by_1 = variance_12 - variance_2 #10
-#         variance_explained_by_2 = variance_12 - variance_1 #01
+#             # This is the realtive complemente of 1 and 2: portion of the variance solely explained by 1 and 2, respectively
+#             variance_explained_by_1 = variance_12 - variance_2 #10
+#             variance_explained_by_2 = variance_12 - variance_1 #01
 
-#         # Get list with areas
-#         areas = [ #(10, 01, 11)
-#             variance_explained_by_1,
-#             variance_explained_by_2,
-#             variance_intersection_12
-#             ] # note that the sum gives shared model
-#         areas = [0 if area<0 else area.round(3) for area in areas]
-#     if triple_combinations:
-#         # Get squared correlation of stimuli
-#         variance_1 = mean_correlations[all_stimuli[0]]**2
-#         variance_2 = mean_correlations[all_stimuli[1]]**2
-#         variance_3 = mean_correlations[all_stimuli[2]]**2
-#         variance_12 = mean_correlations[all_stimuli[3]]**2
-#         variance_13 = mean_correlations[all_stimuli[4]]**2
-#         variance_23 = mean_correlations[all_stimuli[5]]**2
-#         variance_123 = mean_correlations[all_stimuli[6]]**2
+#             # Get list with areas
+#             areas = [ #(10, 01, 11)
+#                 variance_explained_by_1,
+#                 variance_explained_by_2,
+#                 variance_intersection_12
+#                 ] # note that the sum gives shared model
+#             areas = [0 if area<0 else area.round(3) for area in areas]
+#             areas_dic[band][stim12]=areas
+#         if triple_combinations:
+#             # Get squared correlation of stimuli
+#             variance_1 = mean_correlations[band][all_stimuli[0]]**2
+#             variance_2 = mean_correlations[band][all_stimuli[1]]**2
+#             variance_3 = mean_correlations[band][all_stimuli[2]]**2
+#             variance_12 = mean_correlations[band][all_stimuli[3]]**2
+#             variance_13 = mean_correlations[band][all_stimuli[4]]**2
+#             variance_23 = mean_correlations[band][all_stimuli[5]]**2
+#             variance_123 = mean_correlations[band][all_stimuli[6]]**2
 
-#         # Shared without each stimulus
-#         variance_shared_with_1 = variance_123 - variance_23 #100
-#         variance_shared_with_2 = variance_123 - variance_13 #010
-#         variance_shared_with_3 = variance_123 - variance_12 #001
+#             # Shared without each stimulus
+#             variance_shared_with_1 = variance_123 - variance_23 #100
+#             variance_shared_with_2 = variance_123 - variance_13 #010
+#             variance_shared_with_3 = variance_123 - variance_12 #001
 
-#         # Explained by subshared, but not by all shared model
-#         variance_shared_with_12 = variance_13 + variance_23 - variance_3 - variance_123 #110
-#         variance_shared_with_13 = variance_12 + variance_23 - variance_2 - variance_123 #101
-#         variance_shared_with_23 = variance_12 + variance_13 - variance_1 - variance_123 #011
+#             # Explained by subshared, but not by all shared model
+#             variance_shared_with_12 = variance_13 + variance_23 - variance_3 - variance_123 #110
+#             variance_shared_with_13 = variance_12 + variance_23 - variance_2 - variance_123 #101
+#             variance_shared_with_23 = variance_12 + variance_13 - variance_1 - variance_123 #011
 
-#         # Explained by one, two, three and full shared model but not by subshared models
-#         variance_int_complement_submodels = variance_123 + variance_1 + variance_2 + variance_3 - variance_12 - variance_13 - variance_23 #111
+#             # Explained by one, two, three and full shared model but not by subshared models
+#             variance_int_complement_submodels = variance_123 + variance_1 + variance_2 + variance_3 - variance_12 - variance_13 - variance_23 #111
 
-#         areas = [ # the order should be(100, 010, 110, 001, 101, 011, 111)
-#             variance_shared_with_1,
-#             variance_shared_with_2,
-#             variance_shared_with_12,
-#             variance_shared_with_3,
-#             variance_shared_with_13,
-#             variance_shared_with_23,
-#             variance_int_complement_submodels
-#             ]
-#         areas = [0 if area<0 else area.round(3) for area in areas] # note that the sum gives shared model variance_123
-#     areas_list.append(areas)
-
-# normalizer = []
-# max_shared_area = max([sum(area) for area in areas_list])
-# for k, area in enumerate(areas_list):
-#     if sum(area)==max_shared_area:
-#         normalizer.append(1)
-#     else:
-#         normalizer.append(sum(area)/max_shared_area)
-
+#             areas = [ # the order should be(100, 010, 110, 001, 101, 011, 111)
+#                 variance_shared_with_1,
+#                 variance_shared_with_2,
+#                 variance_shared_with_12,
+#                 variance_shared_with_3,
+#                 variance_shared_with_13,
+#                 variance_shared_with_23,
+#                 variance_int_complement_submodels
+#                 ]
+#             areas = [0 if area<0 else area.round(3) for area in areas] # note that the sum gives shared model variance_123
+#             areas_dic[band][triple_combinations[0]]=areas
+        
+# normalizer = {band:{} for band in bands}
+# for band in bands:
+#     max_shared_area = max([sum(areas_dic[band][stim]) for stim in areas_dic[band]])
+#     for k, stim in enumerate(areas_dic[band]):
+#         if sum(areas_dic[band][stim])==max_shared_area:
+#             normalizer[band][stim] = 1
+#         else:
+#             normalizer[band][stim] = (sum(areas_dic[band][stim])/max_shared_area)
+# #================
+# # LAS REDUNDANTES
 # fig, axes = plt.subplots(
-#     nrows=2,
+#     nrows=1,
 #     ncols=2,
-#     figsize=(12, 8),
+#     figsize=(10, 4),
 #     constrained_layout=True
 # )
 
-# fig.text(.1, .95, 'b)', fontsize=18, va='top', ha='right')
+# fig.text(.1, .95, 'a)', fontsize=18, va='top', ha='right')
 # venn = venn2(
-#     subsets=areas_list[0], # left area diagran, right area diagram, shared area <--> (10, 01, 11)
+#     subsets=areas_dic['Theta']['Mfccs_Spectrogram'], # left area diagran, right area diagram, shared area <--> (10, 01, 11)
 #     set_labels=('C. Mel', 'Espectrograma'), # stim1, stim2
 #     set_colors=('C0', 'C1'),
 #     alpha=0.45,
-#     normalize_to=normalizer[0],
-#     ax=axes[0,0]
+#     normalize_to=normalizer['Theta']['Mfccs_Spectrogram'],
+#     ax=axes[0]
 #     )
 # for label in venn.subset_labels:
 #     if label:  # Verificar que la etiqueta no sea None
@@ -866,23 +870,16 @@ figformat, dpi = 'png', 350
 # label_conjunto1.set_position((label_conjunto1.get_position()[0] - 0.5, label_conjunto1.get_position()[1] + 0.4))
 # label_conjunto1 = venn.get_label_by_id('B')
 # label_conjunto1.set_position((label_conjunto1.get_position()[0] + 0.45, label_conjunto1.get_position()[1] + 0.9))
+
 # fig.text(.6, .95, 'b)', fontsize=18, va='top', ha='right')
 # venn = venn2(
-#     subsets=areas_list[1], # left area diagran, right area diagram, shared area <--> (10, 01, 11)
+#     subsets=areas_dic['Theta']['Phonemes-Phonet_Phones-Phonet'], # left area diagran, right area diagram, shared area <--> (10, 01, 11) 'Phonemes-Phonet_Phones-Phonet'
 #     set_labels=('Fonemas', 'Fonos'), # stim1, stim2
 #     set_colors=('C2', 'C3'),
 #     alpha=0.45,
-#     ax=axes[0,1],
-#     normalize_to=normalizer[1]
+#     ax=axes[1],
+#     normalize_to=normalizer['Theta']['Phonemes-Phonet_Phones-Phonet']
 #     )
-# # venn2(
-# #     subsets=areas_list[1], # left area diagran, right area diagram, shared area <--> (10, 01, 11)
-# #     set_labels=('Envolvente', 'Tono de voz'), # stim1, stim2
-# #     set_colors=('C2', 'C3'),
-# #     alpha=0.45,
-# #     ax=axes[0,1],
-# #     normalize_to=normalizer[1]
-# #     )
 # for label in venn.subset_labels:
 #     if label:  # Verificar que la etiqueta no sea None
 #         label.set_fontsize(15)
@@ -890,49 +887,70 @@ figformat, dpi = 'png', 350
 #     if label:  # Verificar que la etiqueta no sea None
 #         label.set_fontsize(18)
 # label_conjunto1 = venn.get_label_by_id('A')
-# label_conjunto1.set_position((label_conjunto1.get_position()[0] - 0.5, label_conjunto1.get_position()[1] + 0.7))
+# label_conjunto1.set_position((label_conjunto1.get_position()[0] - 0.5, label_conjunto1.get_position()[1] + 0.4))
 # label_conjunto1 = venn.get_label_by_id('B')
-# label_conjunto1.set_position((label_conjunto1.get_position()[0] + 0.5, label_conjunto1.get_position()[1] + 0.7))
+# label_conjunto1.set_position((label_conjunto1.get_position()[0] + 0.49, label_conjunto1.get_position()[1] + 0.95))
 
-# fig.text(.1, .5, 'c)', fontsize=18, va='top', ha='right')
-# venn = venn3(
-#     subsets=areas_list[-2],
-#     set_labels=('Envolvente', 'Tono de voz', 'Espectrograma'),
-#     set_colors=('C4', 'C5', 'C1'),
-#     alpha=0.45,
-#     ax=axes[1,0],
-#     normalize_to=normalizer[-2]
-#     )
-# for label in venn.subset_labels:
-#     if label:  # Verificar que la etiqueta no sea None
-#         label.set_fontsize(15)
-# for label in venn.set_labels:
-#     if label:  # Verificar que la etiqueta no sea None
-#         label.set_fontsize(18)
-
-# fig.text(.6, .5, 'd)', fontsize=18, va='top', ha='right')
-# venn = venn3(
-#     subsets=areas_list[-1], # the order should be(100, 010, 110, 001, 101, 011, 111)
-#     set_labels=('Fonemas', 'C. Fonológicas', 'Espectrograma'),
-#     set_colors=('C2', 'C6', 'C1'),
-#     alpha=0.45,
-#     ax=axes[1,1],
-#     normalize_to=normalizer[-1]
-#     )
-# for label in venn.subset_labels:
-#     if label:  # Verificar que la etiqueta no sea None
-#         label.set_fontsize(15)
-# for label in venn.set_labels:
-#     if label:  # Verificar que la etiqueta no sea None
-#         label.set_fontsize(18)
-
-# # Save figure
+# # # Save figure
 # # fig.savefig(
-# #     os.path.join(tesis_path,'resultados', f'modelos_conjuntos_externa.{figformat}'),
+# #     os.path.join(tesis_path,'resultados', f'modelos_conjuntos_externa_redundante.{figformat}'),
 # #     transparent=False,
 # #     dpi=dpi
 # #     )
 # fig.show()
+
+# fig, axes = plt.subplots(
+#     nrows=len(bands),
+#     ncols=2,
+#     figsize=(10, 4),
+#     constrained_layout=True
+# )
+
+# # Delta
+# fig.text(.1, .95, 'a)', fontsize=18, va='top', ha='right')
+# venn = venn3(
+#     subsets=areas_dic['Theta']['Envelope_Pitch-Log-Raw_Spectrogram'],
+#     set_labels=('Envolvente', 'Tono de voz', 'Espectrograma'),
+#     set_colors=('C4', 'C5', 'C1'),
+#     alpha=0.45,
+#     ax=axes[0],
+#     normalize_to=normalizer['Theta']['Envelope_Pitch-Log-Raw_Spectrogram']
+#     )
+# for label in venn.subset_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(15)
+# for label in venn.set_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(18)
+# label_conjunto1 = venn.get_label_by_id('A')
+# label_conjunto1.set_position((label_conjunto1.get_position()[0] + .2, label_conjunto1.get_position()[1] + 0.05))
+
+# fig.text(.6, .95, 'b)', fontsize=18, va='top', ha='right')
+# venn = venn3(
+#     subsets=areas_dic['Theta']['Phonemes-Phonet_Phonological_Spectrogram'], # the order should be(100, 010, 110, 001, 101, 011, 111)
+#     set_labels=('Fonemas', 'C. Fonológicas', 'Espectrograma'),
+#     set_colors=('C2', 'C6', 'C1'),
+#     alpha=0.45,
+#     ax=axes[1],
+#     normalize_to=normalizer['Theta']['Phonemes-Phonet_Phonological_Spectrogram']
+#     )
+# for label in venn.subset_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(15)
+# for label in venn.set_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(18)
+# label_conjunto1 = venn.get_label_by_id('A')
+# label_conjunto1.set_position((label_conjunto1.get_position()[0] + .2, label_conjunto1.get_position()[1] + 0.05))
+
+# # # Save figure
+# # fig.savefig(
+# #     os.path.join(tesis_path,'resultados', f'modelos_conjuntos_externa_bandas.{figformat}'),
+# #     transparent=False,
+# #     dpi=dpi
+# #     )
+# fig.show()
+
 
 # # ====================================
 # # PERFIL ESPECTRAL DE GRUPOS FONEMICOS # TODO REHACER CON PHONEMES-PHONET y PHONOLOGICAL NUEVO
@@ -2706,7 +2724,306 @@ figformat, dpi = 'png', 350
 # fig.show()
 
 # # ===============================================================
-# # PESOS + TOPOMAPS CORR + SIMILARITY + MATRIZ: THETA: PHONEMES # TODO FATLA ESTADISTICA Y TFCE SIGNIFICATIVO
+# # PESOS + TOPOMAPS CORR + SIMILARITY + MATRIZ: THETA: PHONEMES-DISCRETE # TODO REHACER CON PHONEMES-PHONET y PHONOLOGICAL NUEVO
+# s_channels=True
+# path_correlations = 'saves/mtrf_ridge_torch/External/correlations/tmin-0.2_tmax0.6/Theta/Phonemes-Discrete-Phonet.pkl'
+# path_mtrfs = 'saves/mtrf_ridge_torch/External/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/Theta/Phonemes-Discrete-Phonet/total_weights_per_subject.pkl'
+# path_tfce = 'saves/mtrf_ridge_torch/External/TFCE/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/Theta/Phonemes-Discrete-Phonet_4096.pkl'
+# _, pvalue_tfce = load_pickle(path=path_tfce)
+
+# correlations = load_pickle(path=path_correlations)
+# average_correlation_subjects, significant_channels_subjects = correlations['average_correlation_subjects'], correlations['repeated_good_correlation_channels_subjects']
+# average_weights_subjects = load_pickle(path=path_mtrfs)['average_weights_subjects'][:, :, :, :] #(n_sub, n_chans, n_feats, n_delays)
+
+
+# # Crear una figura
+# fig = plt.figure(
+#     figsize=(12, 9),
+#     tight_layout=True
+#     )
+
+# # Definir la cuadrícula usando GridSpec
+# # 2 filas y 2 columnas, con la segunda columna dividida en dos partes en la primera fila
+# gs = gridspec.GridSpec(
+#     nrows=2, 
+#     ncols=2, 
+#     width_ratios=[1, 1.2], 
+#     height_ratios=[1, 2]
+#     )
+
+# # Primer gráfico en la primera columna (comparte el eje x con el segundo gráfico)
+# ax1 = plt.subplot(gs[0, 0])
+# if s_channels:
+#     weights = np.empty(average_weights_subjects.shape[1:])
+#     filter_ch = significant_channels_subjects.astype(bool)
+#     for j in range(128):
+#         subset = average_weights_subjects[filter_ch[:, j], j, :, :]  # Esto tiene forma (n_true, n_feats, n_delays)
+
+#         # Si no hay ningún True, podemos decidir asignar NaN o algún valor por defecto
+#         if subset.size == 0:
+#             weights[j] = np.nan
+#         else:
+#             # Promediamos sobre el eje 0 (las filas filtradas)
+#             weights[j] = subset.mean(axis=0)
+#     weights = weights.mean(axis=1)
+# else:
+#     weights = average_weights_subjects.mean(axis=0).mean(axis=1)
+# evoked = mne.EvokedArray(data=weights, info=config.info_mne)
+# evoked.shift_time(config.times[0], relative=True)
+# evoked_plot = evoked.plot(
+#     scalings={'eeg':1}, 
+#     zorder='std', 
+#     time_unit='ms',
+#     show=False, 
+#     spatial_colors=True, 
+#     # unit=False, 
+#     units='mTRFs (U.A)',
+#     axes=ax1,
+#     gfp=False
+#     )
+# # Eliminar la etiqueta "Nave"
+# for text in evoked_plot.axes[0].texts:
+#     if "ave" in text.get_text():
+#         text.set_visible(False)  # Ocultar el texto
+# ax1.plot(
+#     config.times*1e3, #ms
+#     evoked._data.mean(axis=0), 
+#     'black', 
+#     label='Valor medio', 
+#     zorder=130, 
+#     linewidth=2
+#     )
+
+# # Extraer los colores de los canales
+# colors = [line.get_color() for line in ax1.get_lines()[:len(evoked.ch_names)]]
+
+# # Eliminar el esquema de la cabeza original
+# for ax in fig.axes:
+#     # Verificar si el eje contiene un objeto de tipo "PathCollection" (los puntos de los canales)
+#     for artist in ax.get_children():
+#         if isinstance(artist, PathCollection):
+#             ax.remove()  # Eliminar el eje que contiene el esquema de la cabeza original
+#             break
+
+# # Obtener las posiciones de los sensores en 2D
+# montage = evoked.info.get_montage()
+# pos = montage.get_positions()['ch_pos']  # Diccionario con las posiciones de los canales
+
+# # Crear un eje adicional para la cabecita sin sensores
+# ax_head_outline = fig.add_axes([.33, 0.84, 0.11, 0.11])  # [x, y, width, height]
+
+# # Graficar solo el contorno de la cabeza (sin sensores)
+# mne.viz.plot_topomap(
+#     np.zeros(len(evoked.ch_names)),  # Datos ficticios (todos ceros)
+#     evoked.info,
+#     axes=ax_head_outline,
+#     show=False,
+#     sensors=False,  # No graficar los sensores
+#     outlines='head'  # Graficar solo el contorno de la cabeza
+# )
+# ax_head_outline.set_aspect('equal')  # Mantener la proporción de aspecto
+# ax_head_outline.axis('off')  # Ocultar los ejes
+
+# # Crear un eje adicional para graficar los sensores
+# ax_head = fig.add_axes([.34, 0.842, 0.09, 0.09])  # [x, y, width, height]
+
+# # Convertir las posiciones a un array 2D (x, y)
+# pos_2d = np.array([pos[ch][:2] for ch in evoked.ch_names])  # Solo tomamos las coordenadas x e y
+# ax_head.scatter(pos_2d[:, 0], pos_2d[:, 1], c=colors, s=18)  # s es el tamaño de los puntos
+# ax_head.set_aspect('equal')  # Mantener la proporción de aspecto
+# ax_head.axis('off')  # Ocultar los ejes
+
+# ax1.grid(visible=True)
+# ax1.set(xlabel='', xticklabels=[], title='EEG (128 canales)')
+# ax1.tick_params(axis='x', which='both', labelbottom=False)
+# ax1.legend(loc=(.5,.1))
+# ax1.text(-.1, 1.1, 'a)', transform=ax1.transAxes, fontsize=18, va='top', ha='right')
+
+# # Segundo gráfico en la primera columna (comparte el eje x con el primer gráfico)
+# ax2 = plt.subplot(gs[1, 0], sharex=ax1)
+
+# if s_channels:
+#     feat_weights = average_weights_subjects[significant_channels_subjects.astype(bool)].mean(axis=0)
+# else:
+#     feat_weights = average_weights_subjects.mean(axis=0).mean(axis=0)
+# order, null_indexes = clustering_by_correlation(weights=feat_weights)
+# feat_weights = feat_weights[order]
+
+# im = ax2.pcolormesh(
+#     config.times * 1e3, 
+#     np.arange(feat_weights.shape[0]), 
+#     feat_weights, 
+#     cmap='RdBu_r', 
+#     shading='auto',
+#     vmin=-np.abs(feat_weights).max(),
+#     vmax=np.abs(feat_weights).max()
+#     )
+
+# # Set figure configuration
+# tags = config.Exp_info().phonemes_phonet
+# tags.remove('/sil/')
+# ticks = np.arange(feat_weights.shape[0])
+# tags = tags if order is None else [tags[i] for i in order]
+
+# ax2.set(
+#     xlabel='Tiempo (ms)',
+#     xticks=[-200, -100, 0, 100, 200, 300, 400, 500, 600],
+#     xticklabels=[-200, -100, 0, 100, 200, 300, 400, 500, 600], 
+#     ylabel='Fonemas', 
+#     yticks=ticks, 
+#     yticklabels=tags
+#     )
+
+# # Configure colorbar
+# fig.colorbar(
+#     im, 
+#     ax=ax2, 
+#     orientation='horizontal', 
+#     shrink=1, 
+#     label='Amplitud (U.A)', 
+#     fraction=.075,
+#     aspect=20
+#     )
+# ax2.text(-.1, 1.1, 'b)', transform=ax2.transAxes, fontsize=18, va='top', ha='right')
+
+# # Dividir la primera fila de la segunda columna en dos partes HORIZONTALES
+# # Usar GridSpecFromSubplotSpec para dividir la celda (0, 1) en 2 columnas
+# gs_sub = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gs[0, 1], wspace=0.4)
+
+# # Tercer gráfico en la primera subcolumna de la segunda columna (primera fila)
+# ax3 = plt.subplot(gs_sub[0])
+# mean_average_correlation = average_correlation_subjects.mean(axis=0)
+# im = mne.viz.plot_topomap(
+#         data=mean_average_correlation, 
+#         pos=config.info_mne, 
+#         cmap='Reds',
+#         vlim=(mean_average_correlation.min(), mean_average_correlation.max()),
+#         show=False, 
+#         sphere=0.07, 
+#         axes=ax3
+#         )
+# cbar = fig.colorbar(
+#         im[0],
+#         ax=ax3, 
+#         fraction=.075,
+#         aspect=20,
+#         # label='Correlación',
+#         orientation='horizontal',
+#         boundaries=np.linspace(mean_average_correlation.min(), mean_average_correlation.max(), 100),
+#         ticks=np.linspace(mean_average_correlation.min(), mean_average_correlation.max(), 3)
+#         )
+# cbar.set_ticklabels(np.linspace(mean_average_correlation.min(), mean_average_correlation.max(), 3).round(decimals=2))
+
+# ax3.axis('off')  # Desactivar ejes
+# ax3.set_title(r'Correlación: $('+ f'{mean_average_correlation.mean():.3f}\pm{mean_average_correlation.std():.3f}'+r')$', fontsize=15)
+# ax3.text(-.2, 1.15, 'c)', transform=ax3.transAxes, fontsize=18, va='top', ha='right')
+
+# # Cuarto gráfico en la segunda subcolumna de la segunda columna (primera fila)
+# ax4 = plt.subplot(gs_sub[1])
+
+# n_subjects, n_chan, _, n_delays = average_weights_subjects.shape
+# average_weights = average_weights_subjects.mean(axis=2)# across delays
+# correlation_matrices = np.zeros(shape=(n_chan, n_subjects, n_subjects))
+
+# # Calculate correlation betweem subjects
+# for channel in range(n_chan):
+#     matrix = average_weights[:,channel,:] 
+#     correlation_matrices[channel] = np.corrcoef(matrix)
+
+# # Correlacion por canal
+# absolute_correlation_per_channel = np.zeros(n_chan)
+# for channel in range(n_chan):
+#     channel_corr_values = correlation_matrices[channel][np.tril_indices(n_subjects, k=-1)]
+#     absolute_correlation_per_channel[channel] = np.mean(np.abs(channel_corr_values))
+
+# im = mne.viz.plot_topomap(
+#     data=absolute_correlation_per_channel, 
+#     pos=config.info_mne, 
+#     axes=ax4, 
+#     show=False, 
+#     sphere=0.07,
+#     cmap='Greens', 
+#     vlim=(absolute_correlation_per_channel.min(),absolute_correlation_per_channel.max())    
+#     )
+        
+# # Make colorbar
+# cbar = fig.colorbar(
+#     im[0], 
+#     ax=ax4, 
+#     fraction=.075,
+#     aspect=20,
+#     orientation='horizontal', 
+#     boundaries=np.linspace(absolute_correlation_per_channel.min(), absolute_correlation_per_channel.max(), 100),
+#     ticks=np.linspace(absolute_correlation_per_channel.min(), absolute_correlation_per_channel.max(), 3)
+#     )
+# cbar.set_ticklabels(np.linspace(absolute_correlation_per_channel.min(), absolute_correlation_per_channel.max(), 3).round(decimals=2))
+
+# ax4.set_title(r'Similaridad: $('+ f'{absolute_correlation_per_channel.mean():.3f}\pm{absolute_correlation_per_channel.std():.3f}'+r')$', fontsize=15)
+
+# ax4.axis('off')  # Desactivar ejes
+# ax4.text(-.2, 1.15, 'd)', transform=ax4.transAxes, fontsize=18, va='top', ha='right')
+
+# # Quinto gráfico en la segunda columna (segunda fila)
+# ax5 = plt.subplot(gs[1, 1])
+
+# significant_channels = np.zeros(shape=(average_weights_subjects.shape[2], len(config.times)))
+
+# # Iteate over columns to get number of channels per feature that passes the threshold
+# for feature in range(average_weights_subjects.shape[2]):
+#     for delay in range(len(config.times)):
+#         # Count how many channels pass the threshold for a given feature and delay
+#         ppval = pvalue_tfce[feature][delay]
+#         significant_channels[feature, delay] = len(ppval[ppval<config.significance])
+
+# significant_channels = significant_channels[order]
+
+# # Define y and z according to the number of features (this is just to make a wark around 1 dimensional colormesh)
+# number_of_ticks = significant_channels.shape[0]
+# y, z = np.arange(number_of_ticks), significant_channels
+
+# imph = ax5.pcolormesh(
+#     config.times*1e3, # x
+#     y, # y
+#     z, # z
+#     shading='auto',
+#     cmap='inferno'
+#     )
+# ax5.set(
+#     xlabel='Tiempo (ms)', 
+#     # yticks=np.arange(0, average_weights_subjects.shape[2], 1),
+#     yticklabels=['' for i in range(average_weights_subjects.shape[2])],
+#     xticks=[-200, -100, 0, 100, 200, 300, 400, 500, 600],
+#     xticklabels=[-200, -100, 0, 100, 200, 300, 400, 500, 600] 
+#     )
+
+# # Make colorbar
+# fig.colorbar(
+#     mappable=imph, 
+#     ax=ax5, 
+#     orientation='horizontal', 
+#     shrink=1, 
+#     label='Número de canales significativos', 
+#     fraction=.075,
+#     aspect=20
+#     )
+
+# ax5.text(-.06, 1.1, 'e)', transform=ax5.transAxes, fontsize=18, va='top', ha='right')
+# # if s_channels:
+# #     fig.savefig(
+# #         os.path.join(tesis_path,'resultados', f'fonemas_completo_discreto_s.{figformat}'),
+# #         transparent=False,
+# #         dpi=dpi
+# #         )
+# # else:
+# #     fig.savefig(
+# #         os.path.join(tesis_path,'resultados', f'fonemas_completo_discreto.{figformat}'),
+# #         transparent=False,
+# #         dpi=dpi
+# #         )
+# fig.show()
+
+# # ===================================================================
+# # PESOS + TOPOMAPS CORR + SIMILARITY + MATRIZ: THETA: PHONEMES-PHONET # TODO FATLA ESTADISTICA Y TFCE SIGNIFICATIVO
 # s_channels=False
 # path_correlations = 'saves/mtrf_ridge_torch/External/correlations/tmin-0.2_tmax0.6/Theta/Phonemes-Phonet.pkl'
 # path_mtrfs = 'saves/mtrf_ridge_torch/External/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/Theta/Phonemes-Phonet/total_weights_per_subject.pkl'
