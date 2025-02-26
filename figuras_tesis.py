@@ -4131,7 +4131,7 @@ figformat, dpi = 'png', 350
 # ax3.set(xlabel='', xticklabels=[], title='EEG (128 canales)')
 # ax3.tick_params(axis='x', which='both', labelbottom=False)
 # ax3.legend(loc=(.5,.1))
-# ax3.text(-.1, 1.1, 'b)', transform=ax3.transAxes, fontsize=18, va='top', ha='right')
+# ax3.text(-.1, 1.2, 'b)', transform=ax3.transAxes, fontsize=18, va='top', ha='right')
 
 # # Segundo gráfico en la primera columna (comparte el eje x con el primer gráfico)
 # ax4 = plt.subplot(gs[1, 1], sharex=ax3)
