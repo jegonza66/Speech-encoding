@@ -3900,7 +3900,7 @@ figformat, dpi = 'png', 350
 
 # # Crear una figura
 # fig = plt.figure(
-#     figsize=(13, 13),
+#     figsize=(13, 10),
 #     tight_layout=True
 #     )
 
@@ -3916,9 +3916,9 @@ figformat, dpi = 'png', 350
 # # Primer gráfico en la primera columna (comparte el eje x con el segundo gráfico)
 # ax1 = plt.subplot(gs[0, 0])
 # weights = average_weights_subjects.mean(axis=0).mean(axis=1)
-# evoked = mne.EvokedArray(data=weights, info=config.info_mne)
-# evoked.shift_time(config.times[0], relative=True)
-# evoked_plot = evoked.plot(
+# evoked_1 = mne.EvokedArray(data=weights, info=config.info_mne)
+# evoked_1.shift_time(config.times[0], relative=True)
+# evoked_plot_1 = evoked_1.plot(
 #     scalings={'eeg':1},
 #     zorder='std',
 #     time_unit='ms',
@@ -3930,12 +3930,12 @@ figformat, dpi = 'png', 350
 #     gfp=False
 #     )
 # # Eliminar la etiqueta "Nave"
-# for text in evoked_plot.axes[0].texts:
+# for text in evoked_plot_1.axes[0].texts:
 #     if "ave" in text.get_text():
 #         text.set_visible(False)  # Ocultar el texto
 # ax1.plot(
 #     config.times*1e3, #ms
-#     evoked._data.mean(axis=0),
+#     evoked_1._data.mean(axis=0),
 #     'black',
 #     label='Valor medio',
 #     zorder=130,
@@ -3943,48 +3943,11 @@ figformat, dpi = 'png', 350
 #     )
 
 # # Extraer los colores de los canales
-# colors = [line.get_color() for line in ax1.get_lines()[:len(evoked.ch_names)]]
-
-# # Eliminar el esquema de la cabeza original
-# for ax in fig.axes:
-#     # Verificar si el eje contiene un objeto de tipo "PathCollection" (los puntos de los canales)
-#     for artist in ax.get_children():
-#         if isinstance(artist, PathCollection):
-#             ax.remove()  # Eliminar el eje que contiene el esquema de la cabeza original
-#             break
-
-# # Obtener las posiciones de los sensores en 2D
-# montage = evoked.info.get_montage()
-# pos = montage.get_positions()['ch_pos']  # Diccionario con las posiciones de los canales
-
-# # Crear un eje adicional para la cabecita sin sensores
-# ax_head_outline = fig.add_axes([.33, 0.84, 0.11, 0.11])  # [x, y, width, height]
-
-# # Graficar solo el contorno de la cabeza (sin sensores)
-# mne.viz.plot_topomap(
-#     np.zeros(len(evoked.ch_names)),  # Datos ficticios (todos ceros)
-#     evoked.info,
-#     axes=ax_head_outline,
-#     show=False,
-#     sensors=False,  # No graficar los sensores
-#     outlines='head'  # Graficar solo el contorno de la cabeza
-# )
-# ax_head_outline.set_aspect('equal')  # Mantener la proporción de aspecto
-# ax_head_outline.axis('off')  # Ocultar los ejes
-
-# # Crear un eje adicional para graficar los sensores
-# ax_head = fig.add_axes([.34, 0.842, 0.09, 0.09])  # [x, y, width, height]
-
-# # Convertir las posiciones a un array 2D (x, y)
-# pos_2d = np.array([pos[ch][:2] for ch in evoked.ch_names])  # Solo tomamos las coordenadas x e y
-# ax_head.scatter(pos_2d[:, 0], pos_2d[:, 1], c=colors, s=18)  # s es el tamaño de los puntos
-# ax_head.set_aspect('equal')  # Mantener la proporción de aspecto
-# ax_head.axis('off')  # Ocultar los ejes
-
+# colors = [line.get_color() for line in ax1.get_lines()[:len(evoked_1.ch_names)]]
 # ax1.grid(visible=True)
 # ax1.set(xlabel='', xticklabels=[], title='EEG (128 canales)')
 # ax1.tick_params(axis='x', which='both', labelbottom=False)
-# ax1.legend(loc=(.5,.1))
+# ax1.legend(loc=(.5,.02))
 # ax1.text(-.1, 1.2, 'a)', transform=ax1.transAxes, fontsize=18, va='top', ha='right')
 
 # # Segundo gráfico en la primera columna (comparte el eje x con el primer gráfico)
@@ -4062,26 +4025,23 @@ figformat, dpi = 'png', 350
 # # Primer gráfico en la primera columna (comparte el eje x con el segundo gráfico)
 # ax3 = plt.subplot(gs[0, 1])
 # weights = average_weights_subjects.mean(axis=0).mean(axis=1)
-# evoked = mne.EvokedArray(data=weights, info=config.info_mne)
-# evoked.shift_time(config.times[0], relative=True)
-# evoked_plot = evoked.plot(
+# evoked_2 = mne.EvokedArray(data=weights, info=config.info_mne)
+# evoked_2.shift_time(config.times[0], relative=True)
+# evoked_plot_2 = evoked_2.plot(
 #     scalings={'eeg':1},
 #     zorder='std',
 #     time_unit='ms',
 #     show=False,
 #     spatial_colors=True,
 #     # unit=False,
-#     units='',
+#     units='mTRFs (U.A)',
 #     axes=ax3,
 #     gfp=False
 #     )
-# # Eliminar la etiqueta "Nave"
-# for text in evoked_plot.axes[0].texts:
-#     if "ave" in text.get_text():
-#         text.set_visible(False)  # Ocultar el texto
+
 # ax3.plot(
 #     config.times*1e3, #ms
-#     evoked._data.mean(axis=0),
+#     evoked_2._data.mean(axis=0),
 #     'black',
 #     label='Valor medio',
 #     zorder=130,
@@ -4089,7 +4049,7 @@ figformat, dpi = 'png', 350
 #     )
 
 # # Extraer los colores de los canales
-# colors = [line.get_color() for line in ax3.get_lines()[:len(evoked.ch_names)]]
+# colors = [line.get_color() for line in ax3.get_lines()[:len(evoked_2.ch_names)]]
 
 # # Eliminar el esquema de la cabeza original
 # for ax in fig.axes:
@@ -4100,16 +4060,16 @@ figformat, dpi = 'png', 350
 #             break
 
 # # Obtener las posiciones de los sensores en 2D
-# montage = evoked.info.get_montage()
+# montage = evoked_1.info.get_montage()
 # pos = montage.get_positions()['ch_pos']  # Diccionario con las posiciones de los canales
 
 # # Crear un eje adicional para la cabecita sin sensores
-# ax_head_outline = fig.add_axes([.33, 0.84, 0.11, 0.11])  # [x, y, width, height]
+# ax_head_outline = fig.add_axes([.32, 0.85, 0.09, 0.09])  # [x, y, width, height]
 
 # # Graficar solo el contorno de la cabeza (sin sensores)
 # mne.viz.plot_topomap(
-#     np.zeros(len(evoked.ch_names)),  # Datos ficticios (todos ceros)
-#     evoked.info,
+#     np.zeros(len(evoked_1.ch_names)),  # Datos ficticios (todos ceros)
+#     evoked_1.info,
 #     axes=ax_head_outline,
 #     show=False,
 #     sensors=False,  # No graficar los sensores
@@ -4119,18 +4079,50 @@ figformat, dpi = 'png', 350
 # ax_head_outline.axis('off')  # Ocultar los ejes
 
 # # Crear un eje adicional para graficar los sensores
-# ax_head = fig.add_axes([.34, 0.842, 0.09, 0.09])  # [x, y, width, height]
+# ax_head = fig.add_axes([.327, 0.853, 0.075, 0.075])  # [x, y, width, height]
 
 # # Convertir las posiciones a un array 2D (x, y)
-# pos_2d = np.array([pos[ch][:2] for ch in evoked.ch_names])  # Solo tomamos las coordenadas x e y
+# pos_2d = np.array([pos[ch][:2] for ch in evoked_1.ch_names])  # Solo tomamos las coordenadas x e y
 # ax_head.scatter(pos_2d[:, 0], pos_2d[:, 1], c=colors, s=18)  # s es el tamaño de los puntos
 # ax_head.set_aspect('equal')  # Mantener la proporción de aspecto
 # ax_head.axis('off')  # Ocultar los ejes
 
+# # Obtener las posiciones de los sensores en 2D
+# montage = evoked_2.info.get_montage()
+# pos = montage.get_positions()['ch_pos']  # Diccionario con las posiciones de los canales
+
+# # Crear un eje adicional para la cabecita sin sensores
+# ax_head_outline_2 = fig.add_axes([.86, 0.866, 0.08, 0.08])  # [x, y, width, height]
+
+# # Graficar solo el contorno de la cabeza (sin sensores)
+# mne.viz.plot_topomap(
+#     np.zeros(len(evoked_2.ch_names)),  # Datos ficticios (todos ceros)
+#     evoked_2.info,
+#     axes=ax_head_outline_2,
+#     show=False,
+#     sensors=False,  # No graficar los sensores
+#     outlines='head'  # Graficar solo el contorno de la cabeza
+# )
+# ax_head_outline_2.set_aspect('equal')  # Mantener la proporción de aspecto
+# ax_head_outline_2.axis('off')  # Ocultar los ejes
+
+# # Crear un eje adicional para graficar los sensores
+# ax_head_2 = fig.add_axes([.866, 0.868, 0.068, 0.068])  # [x, y, width, height]
+
+# # Convertir las posiciones a un array 2D (x, y)
+# pos_2d = np.array([pos[ch][:2] for ch in evoked_2.ch_names])  # Solo tomamos las coordenadas x e y
+# ax_head_2.scatter(pos_2d[:, 0], pos_2d[:, 1], c=colors, s=18)  # s es el tamaño de los puntos
+# ax_head_2.set_aspect('equal')  # Mantener la proporción de aspecto
+# ax_head_2.axis('off')  # Ocultar los ejes
+
 # ax3.grid(visible=True)
-# ax3.set(xlabel='', xticklabels=[], title='EEG (128 canales)')
+# ax3.set(xlabel='', xticklabels=[], ylabel='', title='EEG (128 canales)')
+# # ax1.get_yticks()
+# ax1.set(ylabel='', yticks=[-0.0005,  0.    ,  0.0005], yticklabels=[-0.0005,  0.    ,  0.0005])
+# ax3.set(ylabel='', yticks=[-0.0005,  0.    ,  0.0005])
 # ax3.tick_params(axis='x', which='both', labelbottom=False)
-# ax3.legend(loc=(.5,.1))
+# ax3.tick_params(axis='y', labelleft=False)
+# ax3.legend(loc=(.57,.1))
 # ax3.text(-.1, 1.2, 'b)', transform=ax3.transAxes, fontsize=18, va='top', ha='right')
 
 # # Segundo gráfico en la primera columna (comparte el eje x con el primer gráfico)
@@ -4197,6 +4189,10 @@ figformat, dpi = 'png', 350
 #     )
 # ax4.text(-.1, 1.1, 'd)', transform=ax4.transAxes, fontsize=18, va='top', ha='right')
 
+# # Eliminar la etiqueta "Nave"
+# for txt in fig.findobj(mtext.Text):
+#     if "ave" in txt.get_text():
+#          txt.remove()
 # # fig.savefig(
 # #     os.path.join(tesis_path,'resultados', f'fonos_completo.{figformat}'),
 # #     transparent=False,
@@ -4244,11 +4240,11 @@ figformat, dpi = 'png', 350
 #     alpha=0.45
 #     )
 # # Save figure
-# fig.savefig(
-#     os.path.join(tesis_path,'metodos', f'ejemplo_venn3.{figformat}'),
-#     transparent=False,
-#     dpi=dpi
-#     )
+# # fig.savefig(
+# #     os.path.join(tesis_path,'metodos', f'ejemplo_venn3.{figformat}'),
+# #     transparent=False,
+# #     dpi=dpi
+# #     )
 # fig.show()
 
 # # ===============================
