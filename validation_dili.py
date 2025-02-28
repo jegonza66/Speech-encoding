@@ -27,7 +27,12 @@ subjects = [1, 2, 3, 5, 6, 7, 8, 10, 11, 12, 13, 14, 16, 17, 18, 19]
 # Relevant paths
 preprocessed_data_path = os.path.normpath(f'saves/preprocessed_data/dili/')
 path_eeg = os.path.join(preprocessed_data_path, 'eeg', band)
-path_stimulus = os.path.join(preprocessed_data_path, 'phonemes.pkl')
+path_stimulus = os.path.join(preprocessed_data_path, 'stimuli', 'phonemes.pkl')
+stimulus = load_pickle(path=path_stimulus)
+
+# Reduce data to a third to save time
+cutoff = int(stimulus.shape[0]//3.5)
+stimulus = stimulus[:cutoff, :]
 
 figures_path = os.path.normpath(f'figures/dili/')
 
@@ -41,12 +46,11 @@ except:
     alphas = {s: {} for s in subjects} 
 
 # Iterate over sessions
-for sub in subjects:
-    print(f'\n\n------->\tStart of subject {sub}\n')
+for subject in subjects:
+    print(f'\n\n------->\tStart of subject {subject}\n')
 
     # Load data by subject, EEG and info
-    eeg = load_pickle(path=os.path.join(path_eeg, f'sub-{str(sub).zfill(3)}.pkl'))
-    stimulus = load_pickle(path=path_stimulus)
+    eeg = np.array(load_pickle(path=os.path.join(path_eeg, f'sub-{str(subject).zfill(3)}_lista.pkl'))).T[:cutoff,:]
 
     n_feats = [stimulus.shape[1]]
     delayed_length_per_stimuli = [n_feat*len(config.delays) for n_feat in n_feats]
@@ -62,9 +66,9 @@ for sub in subjects:
     
     # Make sweep
     for i_alpha, alpha in tqdm(enumerate(config.alphas_swept), total=len(config.alphas_swept), desc='Sweeping progress', bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
-        weights_per_fold = np.zeros((config.n_folds, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float16)
-        correlation_per_channel = np.zeros((config.n_folds, info['nchan']))
-        rmse_per_channel = np.zeros((config.n_folds, info['nchan']))
+        weights_per_fold = np.zeros((config.n_folds, 128, np.sum(n_feats), len(config.delays)), dtype=np.float16)
+        correlation_per_channel = np.zeros((config.n_folds, 128))
+        rmse_per_channel = np.zeros((config.n_folds, 128))
 
         # Make the Kfold test
         kf_test = KFold(config.n_folds, shuffle=False)
@@ -111,7 +115,7 @@ for sub in subjects:
                             correlations_std=correlations_std, 
                             alpha_subject=alpha_subject,
                             correlation_limit_percentage=config.val_correlation_limit_percentage, 
-                            session=sesion, subject=subject, 
+                            session=subject, subject=subject, 
                             stim=stim, 
                             band=band, 
                             save_path=figures_path, 
@@ -120,19 +124,19 @@ for sub in subjects:
                             )
 
     # Update dictionary
-    alphas[sesion][subject] = alpha_subject
-
-    # Save results
-    os.makedirs(name=path_validation, exist_ok=True)
-    if config.save_alphas:
-        dump_pickle(path=alphas_path, obj=alphas, rewrite=True)
-        
+    alphas[subject] = alpha_subject
+    
     # Print the progress of the iteration
-    iteration_percentage(txt=f'\n------->\tEnd of session {sesion}\n', i=subjects.index(sesion), length_of_iterator=len(subjects))
+    iteration_percentage(txt=f'\n------->\tEnd of session {subject}\n', i=subjects.index(subject), length_of_iterator=len(subjects))
 
+# Save results
+os.makedirs(name=path_validation, exist_ok=True)
+if config.save_alphas:
+    dump_pickle(path=alphas_path, obj=alphas, rewrite=True)
+        
 # Get run time            
 run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
-text = f'PARAMETERS  \nModel: ' + config.model +f'\nBands: {config.bands}'+'\nStimuli: ' + f'{config.stimuli}'+'\nCondition: ' +situation+f'\nTime interval: ({config.tmin},{config.tmax})s'
+text = f'PARAMETERS  \nModel: ' + config.model +f'\nBands: {config.bands}'+'\nStimuli: ' + f'{config.stimuli}'+'\nCondition: ' +f'\nTime interval: ({config.tmin},{config.tmax})s'
 if config.just_load_data:
     text += '\n\n\tJUST LOADING DATA'
 else:
