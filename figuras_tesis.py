@@ -135,21 +135,404 @@ figformat, dpi = 'png', 350
 #     plt.legend(by_label.values(), by_label.keys(), markerscale=2)
 
 #     plt.grid(visible=True)
-# #     plt.savefig(
-# #     os.path.join(tesis_path,'resultados', f'convex_{band}_{stims}.{figformat}'),
+#     plt.savefig(
+#     os.path.join(tesis_path,'resultados', f'convex_{band}_{stims}.{figformat}'),
+#     transparent=False,
+#     dpi=dpi
+#     )
+#     plt.show()
+
+
+# # =================
+# # DIAGRAMAS DE VENN #TODO REHACER CON PHONEMES-PHONET y PHONOLOGICAL NUEVO
+# situation='External'
+# correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+# # 'Envelope_Pitch-Log-Raw',
+# # 'Envelope_Spectrogram',
+# # 'Pitch-Log-Raw_Spectrogram',
+# # 'Envelope_Pitch-Log-Raw_Spectrogram',
+# # 'Phonemes-Discrete-Phonet_Spectrogram',
+# # 'Phonological_Spectrogram',
+# # 'Phonological_Phonemes-Discrete-Phonet',
+# # 'Phonological_Phonemes-Discrete-Phonet_Spectrogram',
+# bands = ['Delta','Theta','Alpha','Beta1','Beta2','All']
+# stimuli_list = [
+#     # ['Spectrogram', 'Mfccs'],
+#     # ['Envelope', 'Pitch-Log-Raw'],
+#     # ['Phones-Phonet', 'Phonemes-Phonet'],
+#     ['Spectrogram', 'Envelope', 'Pitch-Log-Raw'],
+#     ['Phonological', 'Phonemes-Phonet', 'Spectrogram']
+# ]
+# areas_dic = {band:{} for band in bands}
+# mean_correlations = {band:{} for band in bands}
+# for stimuli in stimuli_list:
+#     for band in bands:
+#         stimuli = sorted(stimuli)
+#         double_combinations = ['_'.join(sorted(combination)) for combination in all_possible_combinations(stimuli) if len(combination)==2]
+#         triple_combinations = ['_'.join(sorted(combination)) for combination in all_possible_combinations(stimuli) if len(combination)==3]
+#         all_stimuli = stimuli + double_combinations + triple_combinations
+#         for stim in all_stimuli:
+#             # Get average correlation of each stimulus
+#             data = load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects']
+#             mean_correlations[band][stim] = data.mean()
+#             # if config.relevant_channels:
+#             #     filter_relevant_channels_filter = get_maximum_correlation_channels(data.mean(axis=0), number_of_lat_channels=config.relevant_channels)
+#             #     mean_correlations[stim] = data[:,filter_relevant_channels_filter].mean()
+#             # else:
+#             #     mean_correlations[stim] = data.mean()
+#         for stim12 in double_combinations:
+#             stim1, stim2 = stim12.split('_')
+
+#             # Get squared correlation of stimuli
+#             variance_1 = mean_correlations[band][stim1] ** 2
+#             variance_2 = mean_correlations[band][stim2] ** 2
+#             variance_12 = mean_correlations[band][stim12] ** 2 # this represent the union of the two
+
+#             # This represent the shared variances explained by the intersections of sets 1 and 2 (intersection between 1 and 2)
+#             variance_intersection_12 = variance_1 + variance_2 - variance_12 #11
+
+#             # This is the realtive complemente of 1 and 2: portion of the variance solely explained by 1 and 2, respectively
+#             variance_explained_by_1 = variance_12 - variance_2 #10
+#             variance_explained_by_2 = variance_12 - variance_1 #01
+
+#             # Get list with areas
+#             areas = [ #(10, 01, 11)
+#                 variance_explained_by_1,
+#                 variance_explained_by_2,
+#                 variance_intersection_12
+#                 ] # note that the sum gives shared model
+#             areas = [0 if area<0 else area.round(3) for area in areas]
+#             areas_dic[band][stim12]=areas
+#         if triple_combinations:
+#             # Get squared correlation of stimuli
+#             variance_1 = mean_correlations[band][all_stimuli[0]]**2
+#             variance_2 = mean_correlations[band][all_stimuli[1]]**2
+#             variance_3 = mean_correlations[band][all_stimuli[2]]**2
+#             variance_12 = mean_correlations[band][all_stimuli[3]]**2
+#             variance_13 = mean_correlations[band][all_stimuli[4]]**2
+#             variance_23 = mean_correlations[band][all_stimuli[5]]**2
+#             variance_123 = mean_correlations[band][all_stimuli[6]]**2
+
+#             # Shared without each stimulus
+#             variance_shared_with_1 = variance_123 - variance_23 #100
+#             variance_shared_with_2 = variance_123 - variance_13 #010
+#             variance_shared_with_3 = variance_123 - variance_12 #001
+
+#             # Explained by subshared, but not by all shared model
+#             variance_shared_with_12 = variance_13 + variance_23 - variance_3 - variance_123 #110
+#             variance_shared_with_13 = variance_12 + variance_23 - variance_2 - variance_123 #101
+#             variance_shared_with_23 = variance_12 + variance_13 - variance_1 - variance_123 #011
+
+#             # Explained by one, two, three and full shared model but not by subshared models
+#             variance_int_complement_submodels = variance_123 + variance_1 + variance_2 + variance_3 - variance_12 - variance_13 - variance_23 #111
+
+#             areas = [ # the order should be(100, 010, 110, 001, 101, 011, 111)
+#                 variance_shared_with_1,
+#                 variance_shared_with_2,
+#                 variance_shared_with_12,
+#                 variance_shared_with_3,
+#                 variance_shared_with_13,
+#                 variance_shared_with_23,
+#                 variance_int_complement_submodels
+#                 ]
+#             areas = [0 if area<0 else area.round(3) for area in areas] # note that the sum gives shared model variance_123
+#             areas_dic[band][triple_combinations[0]]=areas
+        
+# normalizer = {band:{} for band in bands}
+# for band in bands:
+#     max_shared_area = max([sum(areas_dic[band][stim]) for stim in areas_dic[band]])
+#     for k, stim in enumerate(areas_dic[band]):
+#         if sum(areas_dic[band][stim])==max_shared_area:
+#             normalizer[band][stim] = 1
+#         else:
+#             normalizer[band][stim] = (sum(areas_dic[band][stim])/max_shared_area)
+# #================
+# # LAS REDUNDANTES
+# fig, axes = plt.subplots(
+#     nrows=1,
+#     ncols=2,
+#     figsize=(10, 4),
+#     constrained_layout=True
+# )
+
+# fig.text(.1, .95, 'a)', fontsize=18, va='top', ha='right')
+# venn = venn2(
+#     subsets=areas_dic['Theta']['Mfccs_Spectrogram'], # left area diagran, right area diagram, shared area <--> (10, 01, 11)
+#     set_labels=('C. Mel', 'Espectrograma'), # stim1, stim2
+#     set_colors=('C0', 'C1'),
+#     alpha=0.45,
+#     normalize_to=normalizer['Theta']['Mfccs_Spectrogram'],
+#     ax=axes[0]
+#     )
+# for label in venn.subset_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(15)
+# for label in venn.set_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(18)
+
+# label_conjunto1 = venn.get_label_by_id('A')
+# label_conjunto1.set_position((label_conjunto1.get_position()[0] - 0.5, label_conjunto1.get_position()[1] + 0.4))
+# label_conjunto1 = venn.get_label_by_id('B')
+# label_conjunto1.set_position((label_conjunto1.get_position()[0] + 0.45, label_conjunto1.get_position()[1] + 0.9))
+
+# fig.text(.6, .95, 'b)', fontsize=18, va='top', ha='right')
+# venn = venn2(
+#     subsets=areas_dic['Theta']['Phonemes-Phonet_Phones-Phonet'], # left area diagran, right area diagram, shared area <--> (10, 01, 11) 'Phonemes-Phonet_Phones-Phonet'
+#     set_labels=('Fonemas', 'Fonos'), # stim1, stim2
+#     set_colors=('C2', 'C3'),
+#     alpha=0.45,
+#     ax=axes[1],
+#     normalize_to=normalizer['Theta']['Phonemes-Phonet_Phones-Phonet']
+#     )
+# for label in venn.subset_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(15)
+# for label in venn.set_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(18)
+# label_conjunto1 = venn.get_label_by_id('A')
+# label_conjunto1.set_position((label_conjunto1.get_position()[0] - 0.5, label_conjunto1.get_position()[1] + 0.4))
+# label_conjunto1 = venn.get_label_by_id('B')
+# label_conjunto1.set_position((label_conjunto1.get_position()[0] + 0.49, label_conjunto1.get_position()[1] + 0.95))
+
+# # # Save figure
+# # fig.savefig(
+# #     os.path.join(tesis_path,'resultados', f'modelos_conjuntos_externa_redundante.{figformat}'),
 # #     transparent=False,
 # #     dpi=dpi
 # #     )
-#     plt.show()
+# fig.show()
+
+# # =====
+# # 'Envolvente', 'Tono de voz', 'Espectrograma'
+# fig, axes = plt.subplots(
+#     nrows=1,
+#     ncols=4,
+#     figsize=(14, 10),
+#     layout='constrained'
+# )
+
+# # Delta
+# venn = venn3(
+#     subsets=areas_dic['Delta']['Envelope_Pitch-Log-Raw_Spectrogram'],
+#     set_labels=('Envolvente', 'Tono de voz', 'Espectrograma'),
+#     set_colors=('C4', 'C5', 'C1'),
+#     alpha=0.45,
+#     ax=axes[0],
+#     normalize_to=normalizer['Delta']['Envelope_Pitch-Log-Raw_Spectrogram']
+#     )
+# for label in venn.subset_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(13)
+# for label in venn.set_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(16)
+# # label_conjunto1 = venn.get_label_by_id('A')
+# # label_conjunto1.set_position((label_conjunto1.get_position()[0] + .2, label_conjunto1.get_position()[1] + 0.05))
+
+# # Theta
+# venn = venn3(
+#     subsets=areas_dic['Theta']['Envelope_Pitch-Log-Raw_Spectrogram'],
+#     set_labels=('Envolvente', 'Tono de voz', 'Espectrograma'),
+#     set_colors=('C4', 'C5', 'C1'),
+#     alpha=0.45,
+#     ax=axes[1],
+#     normalize_to=normalizer['Theta']['Envelope_Pitch-Log-Raw_Spectrogram']
+#     )
+# for label in venn.subset_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(13)
+# for label in venn.set_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(16)
+
+# # Alpha
+# venn = venn3(
+#     subsets=areas_dic['Alpha']['Envelope_Pitch-Log-Raw_Spectrogram'],
+#     set_labels=('Envolvente', 'Tono de voz', 'Espectrograma'),
+#     set_colors=('C4', 'C5', 'C1'),
+#     alpha=0.45,
+#     ax=axes[2],
+#     normalize_to=normalizer['Alpha']['Envelope_Pitch-Log-Raw_Spectrogram']
+#     )
+# for label in venn.subset_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(13)
+#         if label.get_text() =='0.01':
+#             pos_actual = label.get_position()
+#             # Ajusta los valores según lo que necesites; por ejemplo, sumar 0.1 a x y restar 0.05 a y
+#             nueva_pos = (pos_actual[0] + 0.3, pos_actual[1] + 0.05)
+#             label.set_position(nueva_pos)
+# for label in venn.set_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(16)
+# # label_conjunto1 = venn.get_label_by_id('A')
+# # label_conjunto1.set_position((label_conjunto1.get_position()[0] + .2, label_conjunto1.get_position()[1] + 0.05))
+
+# # Ancha
+# venn = venn3(
+#     subsets=areas_dic['All']['Envelope_Pitch-Log-Raw_Spectrogram'],
+#     set_labels=('Envolvente', 'Tono de voz', 'Espectrograma'),
+#     set_colors=('C4', 'C5', 'C1'),
+#     alpha=0.45,
+#     ax=axes[3],
+#     normalize_to=normalizer['All']['Envelope_Pitch-Log-Raw_Spectrogram']
+#     )
+# for label in venn.subset_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(13)
+# for label in venn.set_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(16)
+# # label_conjunto1 = venn.get_label_by_id('A')
+# # label_conjunto1.set_position((label_conjunto1.get_position()[0] + .2, label_conjunto1.get_position()[1] + 0.05))
+
+# for idx, banda in enumerate(['Delta', 'Theta', 'Alpha', 'Ancha']):
+#     axes[idx].set_title(r'\textbf{'+banda+r'}', fontsize=18)
+    
+# # fig.set_constrained_layout_pads(hspace=0.01)#, wspace=0.05, h_pad=0.1, w_pad=0.1)
+# # fig.subplots_adjust(hspace=0.0003, wspace=0.001)
+# # fig.subplots_adjust(left=0.04, right=0.96, bottom=0.04, top=0.96, hspace=0.00001, wspace=0.00001)
+
+
+# # left: Posición del borde izquierdo de los subplots (como fracción del ancho total de la figura).
+# # right: Posición del borde derecho (fracción del ancho total).
+# # bottom: Posición del borde inferior (fracción de la altura total).
+# # top: Posición del borde superior (fracción de la altura total).
+# # wspace: Espacio (ancho) entre columnas de subplots, expresado como fracción del ancho medio de los subplots.
+# # hspace: Espacio (alto) entre filas de subplots, expresado como fracción de la altura media de los subplots.
+
+# # Save figure
+# # fig.text(.1, .95, 'a)', fontsize=18, va='top', ha='right')
+# fig.savefig(
+#     os.path.join(tesis_path,'resultados', f'modelos_conjuntos_externa_bandas1.{figformat}'),
+#     bbox_inches='tight',
+#     transparent=False,
+#     dpi=dpi
+#     )
+# fig.show()
+
+# # =====
+# # 'Envolvente', 'Tono de voz', 'Espectrograma'
+# fig, axes = plt.subplots(
+#     nrows=1,
+#     ncols=4,
+#     figsize=(15, 10),
+#     layout='constrained'
+# )
+
+# # Delta
+# venn = venn3(
+#     subsets=areas_dic['Delta']['Phonemes-Phonet_Phonological_Spectrogram'], # the order should be(100, 010, 110, 001, 101, 011, 111)
+#     set_labels=('Fonemas', 'C. Fonológicas', 'Espectrograma'),
+#     set_colors=('C2', 'C6', 'C1'),
+#     alpha=0.45,
+#     ax=axes[0],
+#     normalize_to=normalizer['Delta']['Phonemes-Phonet_Phonological_Spectrogram']
+#     )
+# for label in venn.subset_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(13)
+# for label in venn.set_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(15)
+# label_conjunto1 = venn.get_label_by_id('A')
+# label_conjunto1.set_position((label_conjunto1.get_position()[0] - .2, label_conjunto1.get_position()[1] - 0.2))
+
+# # Theta
+# venn = venn3(
+#     subsets=areas_dic['Theta']['Phonemes-Phonet_Phonological_Spectrogram'], # the order should be(100, 010, 110, 001, 101, 011, 111)
+#     set_labels=('Fonemas', 'C. Fonológicas', 'Espectrograma'),
+#     set_colors=('C2', 'C6', 'C1'), 
+#     alpha=0.45,
+#     ax=axes[1],
+#     normalize_to=normalizer['Theta']['Phonemes-Phonet_Phonological_Spectrogram']
+#     )
+# for label in venn.subset_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(13)
+# for label in venn.set_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(15)
+# label_conjunto1 = venn.get_label_by_id('A')
+# label_conjunto1.set_position((label_conjunto1.get_position()[0] - .2, label_conjunto1.get_position()[1] - 0.2))
+
+# # Alpha
+# venn = venn3(
+#     subsets=areas_dic['Alpha']['Phonemes-Phonet_Phonological_Spectrogram'], # the order should be(100, 010, 110, 001, 101, 011, 111)
+#     set_labels=('Fonemas', 'C. Fonológicas', 'Espectrograma'),
+#     set_colors=('C2', 'C6', 'C1'),
+#     alpha=0.45,
+#     ax=axes[2],
+#     normalize_to=normalizer['Alpha']['Phonemes-Phonet_Phonological_Spectrogram']
+#     )
+# for label in venn.subset_labels:
+#     label
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(13)
+#         # if label =='0.001':
+#         #     pos_actual = label.get_position()
+#         #     # Ajusta los valores según lo que necesites; por ejemplo, sumar 0.1 a x y restar 0.05 a y
+#         #     nueva_pos = (pos_actual[0] + 0.5, pos_actual[1] + 0.05)
+#         #     label.set_position(nueva_pos)
+# for label in venn.set_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(15)
+# label_conjunto1 = venn.get_label_by_id('A')
+# label_conjunto1.set_position((label_conjunto1.get_position()[0] - .2, label_conjunto1.get_position()[1] - 0.2))
+
+# # Ancha
+# venn = venn3(
+#     subsets=areas_dic['All']['Phonemes-Phonet_Phonological_Spectrogram'], # the order should be(100, 010, 110, 001, 101, 011, 111)
+#     set_labels=('Fonemas', 'C. Fonológicas', 'Espectrograma'),
+#     set_colors=('C2', 'C6', 'C1'),
+#     alpha=0.45,
+#     ax=axes[3],
+#     normalize_to=normalizer['All']['Phonemes-Phonet_Phonological_Spectrogram']
+#     )
+# for label in venn.subset_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(13)
+# for label in venn.set_labels:
+#     if label:  # Verificar que la etiqueta no sea None
+#         label.set_fontsize(15)
+# label_conjunto1 = venn.get_label_by_id('A')
+# label_conjunto1.set_position((label_conjunto1.get_position()[0] - .2, label_conjunto1.get_position()[1] - 0.2))
+
+# for idx, banda in enumerate(['Delta', 'Theta', 'Alpha', 'Ancha']):
+#     axes[idx].set_title(r'\textbf{'+banda+r'}', fontsize=18)
+    
+# # fig.set_constrained_layout_pads(hspace=0.01)#, wspace=0.05, h_pad=0.1, w_pad=0.1)
+# # fig.subplots_adjust(hspace=0.0003, wspace=0.001)
+# # fig.subplots_adjust(left=0.04, right=0.96, bottom=0.04, top=0.96, hspace=0.00001, wspace=0.00001)
+
+
+# # left: Posición del borde izquierdo de los subplots (como fracción del ancho total de la figura).
+# # right: Posición del borde derecho (fracción del ancho total).
+# # bottom: Posición del borde inferior (fracción de la altura total).
+# # top: Posición del borde superior (fracción de la altura total).
+# # wspace: Espacio (ancho) entre columnas de subplots, expresado como fracción del ancho medio de los subplots.
+# # hspace: Espacio (alto) entre filas de subplots, expresado como fracción de la altura media de los subplots.
+
+# # Save figure
+# # fig.text(.1, .95, 'a)', fontsize=18, va='top', ha='right')
+# fig.savefig(
+#     os.path.join(tesis_path,'resultados', f'modelos_conjuntos_externa_bandas2.{figformat}'),
+#     bbox_inches='tight',
+#     transparent=False,
+#     dpi=dpi
+#     )
+# fig.show()
 
 # # ==================================================================
-# # Violin plots par todos los atributos las distintas bandas de frecs
+# # Violin plots para todos los atributos las distintas bandas de frecs
 # situation='External'
 # correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
 
 # # Relevant parameters
 # bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
-# stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Mfccs', 'Phones-Phonet', 'Phonemes-Phonet', 'Phonological']
+# stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Mfccs', 'Phones-Phonet', 'Phonemes-Phonet', 'Phonological'] #'Phonemes-Discrete-Phonet', 
 # stimulus_tostr = {'Pitch-Log-Raw':'tono', 'Envelope':'envolvente', 'Spectrogram':'espectrograma', 'Mfccs':'mfccs', 'Phones-Phonet':'fonos', 'Phonemes-Phonet':'fonemas', 'Phonological':'fonologicas'}
 # avg_corr_0 = {stimulus:{} for stimulus in stimuli}
 # avg_corr_1 = {stimulus:{} for stimulus in stimuli}
@@ -173,16 +556,11 @@ figformat, dpi = 'png', 350
 #     # Crear eje para el violin plot que ocupa toda la primera fila
 #     ax_violin = fig.add_subplot(gs[0, :])  # Ocupar todas las columnas de la primera fila
 #     ax_violin.grid(visible=True)
-#     sns.violinplot(
+#     violin = sns.violinplot(
 #         data=pd.DataFrame(avg_corr_1[stimulus]),
-#         palette={band: f'C{h}' for h, band in enumerate(bands)},
+#         palette={band: f'C1' for h, band in enumerate(bands)},
 #         ax=ax_violin
 #     )
-#     # sns.swarmplot(
-#     #     data=pd.DataFrame(avg_corr_1[stimulus]),
-#     #     color="black",
-#     #     ax=ax_violin
-#     #     )
 #     sns.stripplot(
 #         data=pd.DataFrame(avg_corr_1[stimulus]),
 #         jitter=.1,  # Sin dispersión horizontal,
@@ -190,25 +568,10 @@ figformat, dpi = 'png', 350
 #         color='black',
 #         ax=ax_violin
 #         )
+#     for collection in violin.collections:
+#         collection.set_alpha(0.5)
 #     ax_violin.set_xticklabels(['Delta', 'Theta', 'Alpha', r'Beta$_1$', r'Beta$_2$', 'Ancha'])
-#     # for f, band in enumerate(bands):
-#     #     # if p_vals[stimulus][band] < 0.001:
-#     #     #     sig = '***'
-#     #     # elif p_vals[stimulus][band] < 0.01:
-#     #     #     sig = '**'
-#     #     # elif p_vals[stimulus][band] < 0.05:
-#     #     #     sig = '*'
-#     #     # else:
-#     #     #     sig = None
-#     #     sig= ''
-#     #     if sig:
-#     #         if stimulus in ['Envelope']:
-#     #             ax_violin.text(f, 0.72, sig, ha='center', va='bottom', color='black', fontsize=14)
-#     #         elif stimulus in ['Pitch-Log-Raw']:
-#     #             ax_violin.text(f, 0.65, sig, ha='center', va='bottom', color='black', fontsize=14)
-#     #         else:
-#     #             ax_violin.text(f, 0.9, sig, ha='center', va='bottom', color='black', fontsize=14)
-
+    
 #     if stimulus.startswith('Phon'):
 #         ax_violin.set_yticks([-0.25, 0, 0.3, 0.7,  0.9 ])
 #     elif stimulus in ['Envelope', 'Pitch-Log-Raw']:
@@ -219,6 +582,7 @@ figformat, dpi = 'png', 350
 
 #     ax_violin.set_xticklabels(['Delta', 'Theta', 'Alpha', r'Beta$_1$', r'Beta$_2$', 'Ancha'])
 #     ax_violin.set_ylabel("Correlación sujetos")
+#     ax_violin.set_axisbelow(True)
 
 #     # Crear ejes para los topomaps en la segunda fila
 #     axs = [fig.add_subplot(gs[1, i]) for i in range(len(bands))]
@@ -247,13 +611,136 @@ figformat, dpi = 'png', 350
 #     fig.text(0.05, 1, 'a)', fontsize=18, va='top', ha='right')
 #     fig.text(0.05, .47, 'b)', fontsize=18, va='top', ha='right')
 #     fig.text(.025, .25, 'Correlación canales', fontsize=18, rotation=90, va='center', ha='center')
-#     # fig.savefig(
-#     # os.path.join(tesis_path,'resultados', f'violin_correlacion_{stimulus_tostr[stimulus]}.{figformat}'),
-#     # transparent=False,
-#     # dpi=dpi
-#     # )
+#     fig.savefig(
+#     os.path.join(tesis_path,'resultados', f'violin_correlacion_{stimulus_tostr[stimulus]}.{figformat}'),
+#     transparent=False,
+#     dpi=dpi
+#     )
 #     fig.show()
 
+# # Caso especial con fonemas
+# stimulus1, stimulus2 = 'Phonemes-Discrete-Phonet', 'Phonemes-Phonet'
+# p_vals = {band: wilcoxon(avg_corr_1[stimulus1][band], avg_corr_1[stimulus2][band])[1] 
+#           for band in bands}
+
+# # Reestructurar los datos para cada estímulo (asumiendo que avg_corr_1[stimulusX] es un diccionario con arrays o listas por banda)
+# df1 = pd.DataFrame(avg_corr_1[stimulus1])
+# df1 = df1.melt(var_name='Band', value_name='Correlación')
+# df1['Representación'] = 'Ocurrencias'
+
+# df2 = pd.DataFrame(avg_corr_1[stimulus2])
+# df2 = df2.melt(var_name='Band', value_name='Correlación')
+# df2['Representación'] = 'PLLR'
+
+# df = pd.concat([df1, df2], ignore_index=True)
+
+# # # Ordenar las bandas si es necesario:
+# # # (Asegúrate de que los nombres de las columnas en el DataFrame coincidan con estos, o ajústalos según corresponda.)
+
+# # Crear la figura y el GridSpec
+# fig = plt.figure(figsize=(10, 6), tight_layout=True)
+# gs = plt.GridSpec(2, len(bands), height_ratios=[1, 1])  # Violin arriba, topomaps abajo
+
+# # Eje para el violin plot que ocupará toda la primera fila
+# ax_violin = fig.add_subplot(gs[0, :])
+# ax_violin.grid(True)
+
+# # Crear el violin plot comparativo con split (requiere dos niveles en 'Representación')
+# violin = sns.violinplot(
+#     data=df,
+#     x='Band',
+#     y='Correlación',
+#     hue='Representación',
+#     split=True,
+#     inner='quartile',
+#     palette={'Ocurrencias': 'C2', 'PLLR': 'C1'},
+#     alpha=.25,
+#     order=bands,
+#     ax=ax_violin
+# )
+
+# # Ajustar manualmente la transparencia de los violines (por si la paleta no funciona correctamente)
+# for collection in violin.collections:
+#     collection.set_alpha(0.5)
+
+# # Agregar también los puntos de cada observación (stripplot)
+# sns.stripplot(
+#     data=df,
+#     x='Band',
+#     y='Correlación',
+#     hue='Representación',
+#     dodge=True,
+#     color='black',
+#     order=bands,
+#     ax=ax_violin,
+#     jitter=0.1,
+#     size=3
+# )
+
+# # Es importante quitar la leyenda duplicada (ya que tanto violinplot como stripplot la generan)
+# handles, labels = ax_violin.get_legend_handles_labels()
+# for handle in handles:
+#     handle.set_alpha(0.5) 
+# if len(handles) > 2:
+#     ax_violin.legend(handles[0:2], labels[0:2], title='Representación', loc=(.6, .45))
+
+# ax_violin.set_xticklabels(['Delta', 'Theta', 'Alpha', r'Beta$_1$', r'Beta$_2$', 'Ancha'])
+# ax_violin.set_ylabel("Correlación sujetos")
+# ax_violin.set_xlabel("")
+# ax_violin.set_axisbelow(True)
+
+# # Configurar los ticks en y según el estímulo (como en tu código original)
+# if stimulus1.startswith('Phon'):
+#     ax_violin.set_yticks([-0.25, 0, 0.3, 0.7,  0.9])
+# elif stimulus1 in ['Envelope', 'Pitch-Log-Raw']:
+#     ax_violin.set_yticks([-0.2, 0, 0.3, 0.6])
+# else:
+#     ax_violin.set_yticks([-0.25, 0, 0.3, 0.7,  0.9])
+
+# for i, band in enumerate(bands):
+#     p = p_vals.get(band, 1)
+#     if p < 0.005:
+#         sig = '***'
+#     elif p < 0.01:
+#         sig = '**'
+#     elif p < 0.05:
+#         sig = '*'
+#     else:
+#         sig = ''
+#     if sig:
+#         # Filtrar los datos para la banda actual y determinar el máximo
+#         max_val = df[df['Band'] == band]['Correlación'].max()
+#         ypos = ax_violin.get_ylim()[1]-0.08
+#         ax_violin.text(i, ypos, sig, ha='center', va='bottom', color='black', fontsize=14)
+
+# # Crear ejes para los topomaps en la segunda fila
+# axs = [fig.add_subplot(gs[1, i]) for i in range(len(bands))]
+
+# for i, band in enumerate(bands):
+#     im = mne.viz.plot_topomap(
+#         avg_corr_0[stimulus2][band].ravel(),  # o ajusta según el estímulo que quieras mostrar
+#         config.info_mne,
+#         axes=axs[i],
+#         show=False,
+#         sphere=0.07,
+#         cmap='Reds',
+#         vlim=(avg_corr_0[stimulus2][band].min(), avg_corr_0[stimulus2][band].max())
+#     )
+#     cbar = plt.colorbar(im[0], ax=axs[i], orientation='horizontal', shrink=0.7)
+#     min_a = avg_corr_0[stimulus2][band].min()
+#     max_a = avg_corr_0[stimulus2][band].max()
+#     mid = (max_a + min_a) / 2
+#     cbar.set_ticks([min_a, mid, max_a])
+#     cbar.set_ticklabels([f'{min_a:.2f}', f'{mid:.2f}', f'{max_a:.2f}'])
+
+# fig.text(0.05, 1, 'a)', fontsize=18, va='top', ha='right')
+# fig.text(0.05, 0.47, 'b)', fontsize=18, va='top', ha='right')
+# fig.text(0.025, 0.25, 'Correlación canales', fontsize=18, rotation=90, va='center', ha='center')
+# fig.savefig(
+# os.path.join(tesis_path,'resultados', f'violin_correlacion_especial_fonemas.{figformat}'),
+# transparent=False,
+# dpi=dpi
+# )
 # # ===================================================================================================================
 # # TOPOGRAPHIC DISTRIBUTION HEATMAPS: make heatmaps with topographic information across features, situations and bands # TODO SUMAR CANALES SIGNIFICATIVOS PARA EL ESTADISTICO ENTRE SUJETOS EN VEZ DE CANALES
 # # ===================================================================================================================
@@ -737,220 +1224,6 @@ figformat, dpi = 'png', 350
 # #     dpi=dpi
 # #     )
 # fig.show()
-
-# # =================
-# # DIAGRAMAS DE VENN #TODO REHACER CON PHONEMES-PHONET y PHONOLOGICAL NUEVO
-# situation='External'
-# correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
-# # 'Envelope_Pitch-Log-Raw',
-# # 'Envelope_Spectrogram',
-# # 'Pitch-Log-Raw_Spectrogram',
-# # 'Envelope_Pitch-Log-Raw_Spectrogram',
-# # 'Phonemes-Discrete-Phonet_Spectrogram',
-# # 'Phonological_Spectrogram',
-# # 'Phonological_Phonemes-Discrete-Phonet',
-# # 'Phonological_Phonemes-Discrete-Phonet_Spectrogram',
-# bands = ['Theta']
-# stimuli_list = [
-#     ['Spectrogram', 'Mfccs'],
-#     # ['Envelope', 'Pitch-Log-Raw'],
-#     ['Phones-Phonet', 'Phonemes-Phonet'],
-#     ['Spectrogram', 'Envelope', 'Pitch-Log-Raw'],
-#     ['Phonological', 'Phonemes-Phonet', 'Spectrogram']
-# ]
-# areas_dic = {band:{} for band in bands}
-# mean_correlations = {band:{} for band in bands}
-# for stimuli in stimuli_list:
-#     for band in bands:
-#         stimuli = sorted(stimuli)
-#         double_combinations = ['_'.join(sorted(combination)) for combination in all_possible_combinations(stimuli) if len(combination)==2]
-#         triple_combinations = ['_'.join(sorted(combination)) for combination in all_possible_combinations(stimuli) if len(combination)==3]
-#         all_stimuli = stimuli + double_combinations + triple_combinations
-#         for stim in all_stimuli:
-#             # Get average correlation of each stimulus
-#             data = load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects']
-#             mean_correlations[band][stim] = data.mean()
-#             # if config.relevant_channels:
-#             #     filter_relevant_channels_filter = get_maximum_correlation_channels(data.mean(axis=0), number_of_lat_channels=config.relevant_channels)
-#             #     mean_correlations[stim] = data[:,filter_relevant_channels_filter].mean()
-#             # else:
-#             #     mean_correlations[stim] = data.mean()
-#         for stim12 in double_combinations:
-#             stim1, stim2 = stim12.split('_')
-
-#             # Get squared correlation of stimuli
-#             variance_1 = mean_correlations[band][stim1] ** 2
-#             variance_2 = mean_correlations[band][stim2] ** 2
-#             variance_12 = mean_correlations[band][stim12] ** 2 # this represent the union of the two
-
-#             # This represent the shared variances explained by the intersections of sets 1 and 2 (intersection between 1 and 2)
-#             variance_intersection_12 = variance_1 + variance_2 - variance_12 #11
-
-#             # This is the realtive complemente of 1 and 2: portion of the variance solely explained by 1 and 2, respectively
-#             variance_explained_by_1 = variance_12 - variance_2 #10
-#             variance_explained_by_2 = variance_12 - variance_1 #01
-
-#             # Get list with areas
-#             areas = [ #(10, 01, 11)
-#                 variance_explained_by_1,
-#                 variance_explained_by_2,
-#                 variance_intersection_12
-#                 ] # note that the sum gives shared model
-#             areas = [0 if area<0 else area.round(3) for area in areas]
-#             areas_dic[band][stim12]=areas
-#         if triple_combinations:
-#             # Get squared correlation of stimuli
-#             variance_1 = mean_correlations[band][all_stimuli[0]]**2
-#             variance_2 = mean_correlations[band][all_stimuli[1]]**2
-#             variance_3 = mean_correlations[band][all_stimuli[2]]**2
-#             variance_12 = mean_correlations[band][all_stimuli[3]]**2
-#             variance_13 = mean_correlations[band][all_stimuli[4]]**2
-#             variance_23 = mean_correlations[band][all_stimuli[5]]**2
-#             variance_123 = mean_correlations[band][all_stimuli[6]]**2
-
-#             # Shared without each stimulus
-#             variance_shared_with_1 = variance_123 - variance_23 #100
-#             variance_shared_with_2 = variance_123 - variance_13 #010
-#             variance_shared_with_3 = variance_123 - variance_12 #001
-
-#             # Explained by subshared, but not by all shared model
-#             variance_shared_with_12 = variance_13 + variance_23 - variance_3 - variance_123 #110
-#             variance_shared_with_13 = variance_12 + variance_23 - variance_2 - variance_123 #101
-#             variance_shared_with_23 = variance_12 + variance_13 - variance_1 - variance_123 #011
-
-#             # Explained by one, two, three and full shared model but not by subshared models
-#             variance_int_complement_submodels = variance_123 + variance_1 + variance_2 + variance_3 - variance_12 - variance_13 - variance_23 #111
-
-#             areas = [ # the order should be(100, 010, 110, 001, 101, 011, 111)
-#                 variance_shared_with_1,
-#                 variance_shared_with_2,
-#                 variance_shared_with_12,
-#                 variance_shared_with_3,
-#                 variance_shared_with_13,
-#                 variance_shared_with_23,
-#                 variance_int_complement_submodels
-#                 ]
-#             areas = [0 if area<0 else area.round(3) for area in areas] # note that the sum gives shared model variance_123
-#             areas_dic[band][triple_combinations[0]]=areas
-        
-# normalizer = {band:{} for band in bands}
-# for band in bands:
-#     max_shared_area = max([sum(areas_dic[band][stim]) for stim in areas_dic[band]])
-#     for k, stim in enumerate(areas_dic[band]):
-#         if sum(areas_dic[band][stim])==max_shared_area:
-#             normalizer[band][stim] = 1
-#         else:
-#             normalizer[band][stim] = (sum(areas_dic[band][stim])/max_shared_area)
-# #================
-# # LAS REDUNDANTES
-# fig, axes = plt.subplots(
-#     nrows=1,
-#     ncols=2,
-#     figsize=(10, 4),
-#     constrained_layout=True
-# )
-
-# fig.text(.1, .95, 'a)', fontsize=18, va='top', ha='right')
-# venn = venn2(
-#     subsets=areas_dic['Theta']['Mfccs_Spectrogram'], # left area diagran, right area diagram, shared area <--> (10, 01, 11)
-#     set_labels=('C. Mel', 'Espectrograma'), # stim1, stim2
-#     set_colors=('C0', 'C1'),
-#     alpha=0.45,
-#     normalize_to=normalizer['Theta']['Mfccs_Spectrogram'],
-#     ax=axes[0]
-#     )
-# for label in venn.subset_labels:
-#     if label:  # Verificar que la etiqueta no sea None
-#         label.set_fontsize(15)
-# for label in venn.set_labels:
-#     if label:  # Verificar que la etiqueta no sea None
-#         label.set_fontsize(18)
-
-# label_conjunto1 = venn.get_label_by_id('A')
-# label_conjunto1.set_position((label_conjunto1.get_position()[0] - 0.5, label_conjunto1.get_position()[1] + 0.4))
-# label_conjunto1 = venn.get_label_by_id('B')
-# label_conjunto1.set_position((label_conjunto1.get_position()[0] + 0.45, label_conjunto1.get_position()[1] + 0.9))
-
-# fig.text(.6, .95, 'b)', fontsize=18, va='top', ha='right')
-# venn = venn2(
-#     subsets=areas_dic['Theta']['Phonemes-Phonet_Phones-Phonet'], # left area diagran, right area diagram, shared area <--> (10, 01, 11) 'Phonemes-Phonet_Phones-Phonet'
-#     set_labels=('Fonemas', 'Fonos'), # stim1, stim2
-#     set_colors=('C2', 'C3'),
-#     alpha=0.45,
-#     ax=axes[1],
-#     normalize_to=normalizer['Theta']['Phonemes-Phonet_Phones-Phonet']
-#     )
-# for label in venn.subset_labels:
-#     if label:  # Verificar que la etiqueta no sea None
-#         label.set_fontsize(15)
-# for label in venn.set_labels:
-#     if label:  # Verificar que la etiqueta no sea None
-#         label.set_fontsize(18)
-# label_conjunto1 = venn.get_label_by_id('A')
-# label_conjunto1.set_position((label_conjunto1.get_position()[0] - 0.5, label_conjunto1.get_position()[1] + 0.4))
-# label_conjunto1 = venn.get_label_by_id('B')
-# label_conjunto1.set_position((label_conjunto1.get_position()[0] + 0.49, label_conjunto1.get_position()[1] + 0.95))
-
-# # # Save figure
-# # fig.savefig(
-# #     os.path.join(tesis_path,'resultados', f'modelos_conjuntos_externa_redundante.{figformat}'),
-# #     transparent=False,
-# #     dpi=dpi
-# #     )
-# fig.show()
-
-# fig, axes = plt.subplots(
-#     nrows=len(bands),
-#     ncols=2,
-#     figsize=(10, 4),
-#     constrained_layout=True
-# )
-
-# # Delta
-# fig.text(.1, .95, 'a)', fontsize=18, va='top', ha='right')
-# venn = venn3(
-#     subsets=areas_dic['Theta']['Envelope_Pitch-Log-Raw_Spectrogram'],
-#     set_labels=('Envolvente', 'Tono de voz', 'Espectrograma'),
-#     set_colors=('C4', 'C5', 'C1'),
-#     alpha=0.45,
-#     ax=axes[0],
-#     normalize_to=normalizer['Theta']['Envelope_Pitch-Log-Raw_Spectrogram']
-#     )
-# for label in venn.subset_labels:
-#     if label:  # Verificar que la etiqueta no sea None
-#         label.set_fontsize(15)
-# for label in venn.set_labels:
-#     if label:  # Verificar que la etiqueta no sea None
-#         label.set_fontsize(18)
-# label_conjunto1 = venn.get_label_by_id('A')
-# label_conjunto1.set_position((label_conjunto1.get_position()[0] + .2, label_conjunto1.get_position()[1] + 0.05))
-
-# fig.text(.6, .95, 'b)', fontsize=18, va='top', ha='right')
-# venn = venn3(
-#     subsets=areas_dic['Theta']['Phonemes-Phonet_Phonological_Spectrogram'], # the order should be(100, 010, 110, 001, 101, 011, 111)
-#     set_labels=('Fonemas', 'C. Fonológicas', 'Espectrograma'),
-#     set_colors=('C2', 'C6', 'C1'),
-#     alpha=0.45,
-#     ax=axes[1],
-#     normalize_to=normalizer['Theta']['Phonemes-Phonet_Phonological_Spectrogram']
-#     )
-# for label in venn.subset_labels:
-#     if label:  # Verificar que la etiqueta no sea None
-#         label.set_fontsize(15)
-# for label in venn.set_labels:
-#     if label:  # Verificar que la etiqueta no sea None
-#         label.set_fontsize(18)
-# label_conjunto1 = venn.get_label_by_id('A')
-# label_conjunto1.set_position((label_conjunto1.get_position()[0] + .2, label_conjunto1.get_position()[1] + 0.05))
-
-# # # Save figure
-# # fig.savefig(
-# #     os.path.join(tesis_path,'resultados', f'modelos_conjuntos_externa_bandas.{figformat}'),
-# #     transparent=False,
-# #     dpi=dpi
-# #     )
-# fig.show()
-
 
 # # ====================================
 # # PERFIL ESPECTRAL DE GRUPOS FONEMICOS # TODO REHACER CON PHONEMES-PHONET y PHONOLOGICAL NUEVO
