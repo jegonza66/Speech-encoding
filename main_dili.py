@@ -1,0 +1,333 @@
+# Standard libraries
+from datetime import datetime
+import os, numpy as np
+
+# Specific libraries
+from sklearn.model_selection import KFold
+
+# Modules
+from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
+from model_implementations import fold_model
+from processing import tfce 
+from load import load_data
+import config, plot
+
+# Notification bot
+from labos.notificacion_bot import mensaje_tel
+api_token, chat_id = '5448153732:AAGhKraJQquEqMfpD3cb4rnTcrKB6U1ViMA', 1034347542
+
+# ============
+# RUN ANALYSIS
+# ============
+start_time = datetime.now()
+band, stim = 'theta', 'phonemes'
+subjects = [1, 2, 3, 5, 6, 7, 8, 10, 11, 12, 13, 14, 16, 17, 18, 19]
+
+# Relevant paths
+preprocessed_data_path = os.path.normpath(f'saves/preprocessed_data/dili/')
+path_eeg = os.path.join(preprocessed_data_path, 'eeg', band)
+path_stimulus = os.path.join(preprocessed_data_path, 'stimuli', 'phonemes.pkl')
+stimulus = load_pickle(path=path_stimulus)
+
+path_results = os.path.normpath(os.path.join(preprocessed_data_path, f'correlations/{band}/{stim}'))
+path_weights = os.path.normpath(os.path.join(preprocessed_data_path, f'weights/{band}/{stim}')) 
+path_figures = os.path.normpath(os.path.join(f'figures/dili/', band, stim)) 
+
+path_validation = os.path.join(preprocessed_data_path, 'validation', stim, band)
+alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
+
+# Make lists to store relevant data across sobjects
+average_weights_subjects = []
+average_correlation_subjects = []
+average_rmse_subjects = []
+
+# Store total number of subjects (18) to save figures and results just in this case
+total_number_of_subjects = 0
+
+# Iterate over sessions
+for subject in subjects:
+    print(f'\n------->\tStart of session {subject}\n')
+
+    # Load data by subject, EEG and info
+    eeg = np.array(load_pickle(path=os.path.join(path_eeg, f'sub-{str(subject).zfill(3)}_lista.pkl'))).T[:cutoff,:]
+
+    n_feats = [stimulus.shape[1]]
+    delayed_length_per_stimuli = [n_feat*len(config.delays) for n_feat in n_feats]
+
+    # Get relevant indexes
+    relevant_indexes = np.arange(len(stimulus))
+
+    # Initialize empty variables to store relevant data of each fold
+    weights_per_fold = np.zeros((config.n_folds, 128, np.sum(n_feats), len(config.delays)), dtype=np.float16)
+    correlation_per_channel = np.zeros((config.n_folds, 128))
+    rmse_per_channel = np.zeros((config.n_folds, 128))
+
+    # Set alpha for specific subject
+    if config.set_alpha is None:
+        try:
+            alphas = load_pickle(path=alphas_path)
+            alpha = alphas[subject][subject]
+        except:
+            alpha = config.default_alpha
+    else:
+        alpha = config.set_alpha
+
+    # Make the Kfold test
+    kf_test = KFold(config.n_folds, shuffle=False)
+
+    # Keep relevant indexes for eeg
+    relevant_eeg = eeg[relevant_indexes]
+    
+    # Run folds
+    k_models_output = []
+    for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
+        print(f'\n\t······  [{fold+1}/{config.n_folds}]')
+        k_models_output.append(
+                        fold_model(
+                            fold=fold,
+                            alpha=np.float32(alpha),#TODO adapt inside
+                            stims=stimulus,
+                            eeg=eeg,
+                            relevant_indexes=relevant_indexes,
+                            train_indexes=train_indexes,
+                            test_indexes=test_indexes,
+                            validation=False,
+                            statistical_test=False,
+                            session=subject,
+                            subject=subject, 
+                            )
+                        )
+    # Store model output
+    for output_k in k_models_output:
+        fold, weights, correlation_matrix, root_mean_square_error = output_k[:4]
+        
+        # Update weights and metrics per fold
+        weights_per_fold[fold] = weights
+        correlation_per_channel[fold] = correlation_matrix
+        rmse_per_channel[fold] = root_mean_square_error 
+    print(f'\n\t······  Run model\n')
+
+    # Take average weights, avoiding folds entirely filled with zeros
+    for k, weight in enumerate(weights_per_fold):
+        if (weight==0).all():
+            weights_per_fold[k] = np.full(shape=weight.shape, fill_value=np.nan)
+            print(
+                f'\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>\n'
+                f'\t\tFold {k+1}/{config.n_folds} weights are empty\n'
+                f'\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>'
+                )
+            
+    average_weights = np.nanmean(weights_per_fold, axis=0) # 128, np.sum(n_feats), len(delays)
+    average_weights = np.nan_to_num(average_weights)
+                    
+    # Take average correlation and RMSE between folds of all channels
+    average_correlation = np.nanmean(correlation_per_channel, axis=0)
+    average_correlation = np.nan_to_num(average_correlation)
+    average_rmse = rmse_per_channel.mean(axis=0)
+
+    # Channels that passed the tests
+    corr_good_channel_indexes = []
+    rmse_good_channel_indexes = []
+
+    # Variable to store significant channels
+    repeated_good_correlation_channels = np.zeros(128)
+    repeated_good_rmse_channels = np.zeros(128)
+    
+    # Plot head topomap across al channel for correlation and rmse
+    plot.topomap(
+        good_channels_indexes=corr_good_channel_indexes, 
+        average_coefficient=average_correlation, 
+        info=config.info_mne,
+        coefficient_name='Correlation', 
+        save=config.save_figures, 
+        display_interactive_mode=config.display_interactive_mode,
+        save_path=path_figures, 
+        subject=subject, 
+        session=subject, 
+        no_figures=config.no_figures
+        )
+    plot.topomap(
+        good_channels_indexes=rmse_good_channel_indexes, 
+        average_coefficient=average_rmse, 
+        info=config.info_mne,
+        coefficient_name='RMSE', 
+        save=config.save_figures, 
+        display_interactive_mode=config.display_interactive_mode,
+        save_path=path_figures, 
+        subject=subject, 
+        session=subject, 
+        no_figures=config.no_figures #TODO: remove all config. parameters and put them in plot module
+        )
+
+    # Plot weights
+    plot.channel_weights(
+        info=config.info_mne, 
+        save=config.save_figures, 
+        save_path=path_figures, 
+        average_correlation=average_correlation,
+        average_rmse=average_rmse, 
+        best_alpha=alpha, 
+        average_weights=average_weights, 
+        times=config.times,
+        n_feats=n_feats, 
+        stim=stimulus, 
+        session=subject, 
+        subject=subject, 
+        hierarchical_clustering=config.hierarchical_clustering,
+        display_interactive_mode=config.display_interactive_mode, 
+        no_figures=config.no_figures
+        )
+
+    # Saves average correlation, RMSE and weights between folds of each channel of each subject to take average above subjects channels
+    average_weights_subjects.append(average_weights)
+    average_correlation_subjects.append(average_correlation)
+    average_rmse_subjects.append(average_rmse)
+    pvalues_corr_subjects.append(topo_pval_corr_sujeto)
+    pvalues_rmse_subjects.append(topo_pval_rmse_sujeto)
+    repeated_good_correlation_channels_subjects.append(repeated_good_correlation_channels)
+    repeated_good_rmse_channels_subjects.append(repeated_good_rmse_channels)
+
+    # Update the number of subjects
+    total_number_of_subjects+=1
+
+    # Print the progress of the iteration
+    iteration_percentage(txt=f'\n------->\tEnd of session {subject}\n', i=subjects.index(subject), length_of_iterator=len(subjects))
+
+    # del average_weights, average_rmse, average_correlation, correlation_per_channel, rmse_per_channel, correlation_matrix, root_mean_square_error,\
+    #     eeg_test, eeg, stims, stims_sujeto_1, stims_sujeto_2, sujeto_1, sujeto_2, eeg_sujeto_1, eeg_sujeto_2
+
+if config.just_load_data:
+    continue
+
+# Get desire shape n_subject, shape of array. For ex.: shape(average_weights_subjects) = n_subj, n_chans, n_feats, n_delays
+average_weights_subjects = np.stack(average_weights_subjects, axis=0) # n_subj, n_chans, n_feats, n_delays
+average_correlation_subjects = np.stack(average_correlation_subjects , axis=0) # n_subj, n_chans
+average_rmse_subjects = np.stack(average_rmse_subjects , axis=0) # n_subj, n_chans
+pvalues_corr_subjects = np.stack(pvalues_corr_subjects , axis=0) # n_subj, n_chans
+pvalues_rmse_subjects = np.stack(pvalues_rmse_subjects , axis=0) # n_subj, n_chans
+repeated_good_correlation_channels_subjects = np.stack(repeated_good_correlation_channels_subjects , axis=0) # n_subj, n_chans
+repeated_good_rmse_channels_subjects = np.stack(repeated_good_rmse_channels_subjects , axis=0) # n_subj, n_chans
+
+# Save results
+if config.save_results and total_number_of_subjects==18:
+    os.makedirs(save_results_path, exist_ok=True)
+    os.makedirs(path_weights, exist_ok=True)
+    dump_pickle(
+            path=save_results_path+f'{stim}.pkl',
+            obj={'average_correlation_subjects':average_correlation_subjects,
+                'repeated_good_correlation_channels_subjects':repeated_good_correlation_channels_subjects},
+            rewrite=True,
+            verbose=True
+            )
+    dump_pickle(
+            path=path_weights+'total_weights_per_subject.pkl',
+            obj={'average_weights_subjects':average_weights_subjects},
+            rewrite=True
+            )
+
+# Plot phoneme ocurrences
+# if np.array([bool(d) for d in phonemes_occurrences.values()]).any():
+#     plot.phonemes_occurrences(occurrences=phonemes_occurrences, save_path=path_figures, save=save_figures, no_figures=config.no_figures)
+
+# Plot average results only if all subjects are analyzed
+config.no_figures=True if (total_number_of_subjects!=18) else config.no_figures
+
+# Plot average topomap metrics across each subject
+plot.average_topomap(
+    average_coefficient_subjects=average_rmse_subjects, 
+    stim=stimulus, 
+    info=config.info_mne, 
+    display_interactive_mode=config.display_interactive_mode,
+    save=config.save_figures, 
+    save_path=path_figures, 
+    coefficient_name='RMSE', 
+    no_figures=config.no_figures
+    )
+plot.average_topomap(
+    average_coefficient_subjects=average_correlation_subjects, 
+    stim=stimulus, 
+    display_interactive_mode=config.display_interactive_mode,
+    info=config.info_mne, 
+    save=config.save_figures, 
+    save_path=path_figures,
+    coefficient_name='Correlation', 
+    test_result=False, 
+    no_figures=config.no_figures
+    ) 
+
+# Plot topomap with relevant times
+plot.topo_map_relevant_times(
+    average_weights_subjects=average_weights_subjects, 
+    info=config.info_mne, 
+    n_feats=n_feats,
+    band=band,
+    stim=stimulus, 
+    times=config.times,
+    sample_rate=config.sr, 
+    save_path=path_figures, 
+    save=config.save_figures, 
+    display_interactive_mode=config.display_interactive_mode, 
+    no_figures=config.no_figures
+    )
+
+# Plot channel-wise correlation topomap
+plot.channel_wise_correlation_topomap(
+    average_weights_subjects=average_weights_subjects,
+    info=config.info_mne,
+    stim=stimulus, 
+    save=config.save_figures,
+    save_path=path_figures, 
+    display_interactive_mode=config.display_interactive_mode, 
+    no_figures=config.no_figures
+    )
+
+# Plot weights
+plot.average_regression_weights(
+    average_weights_subjects=average_weights_subjects, 
+    info=config.info_mne, 
+    save=config.save_figures, 
+    save_path=path_figures, 
+    hierarchical_clustering=config.hierarchical_clustering,
+    times=config.times, 
+    n_feats=n_feats, 
+    stim=stimulus, 
+    display_interactive_mode=config.display_interactive_mode,
+    no_figures=config.no_figures
+    )
+
+# Plot correlation matrix between subjects
+plot.correlation_matrix_subjects(
+    average_weights_subjects=average_weights_subjects,
+    stim=stimulus, 
+    n_feats=n_feats, 
+    save=config.save_figures,
+    save_path=path_figures, 
+    display_interactive_mode=config.display_interactive_mode, 
+    no_figures=config.no_figures
+    )
+
+# Get run time
+run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
+text = f'\n\n\t\t\tPARAMETERS  \n\n\tModel: ' + config.model +f'\n\tBands: {config.bands}'+'\n\tStimuli: ' + f'{config.stimuli}'+'\n\tCondition: ' f'\n\tTime interval: ({config.tmin},{config.tmax})s'+f'\n\tNumber of subjects analyzed: {total_number_of_subjects}. \n\tSessions: {subjects}'
+if config.just_load_data:
+    text += '\n\n\t\t\tJUST LOADING DATA'
+text += '\n\n\t\t\tmain_dili.py'
+text += f'\n\n\t\t\tRUN TIME:{run_time}'
+
+# Dump metadata
+metadata_path = f'saves/log/main_{datetime.now().strftime("%Y-%m-%d--%H-%M-%S")}/'
+os.makedirs(metadata_path, exist_ok=True)
+metadata = {
+        name: getattr(config, name) for name in dir(config) 
+        if (not name.startswith("__")) and (not callable(getattr(config, name)) and (name not in ['phonemes_to_ipa','ordered_phonemes']))
+        }
+dict_to_csv(
+            path=metadata_path+'metadata.csv',
+            obj=metadata,
+            rewrite=True
+            )
+
+# Send text to telegram bot
+with Suppress_print():
+    mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=text)
+print(text)
