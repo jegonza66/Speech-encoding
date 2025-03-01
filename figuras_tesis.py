@@ -47,135 +47,153 @@ tesis_path = os.path.normpath(os.path.join('C:\\Users', 'jocta', 'Documents', 't
 tesis_path = os.path.normpath(os.path.join('figures','figuras_tesis' ))
 figformat, dpi = 'png', 350
 
+# # ========================
+# # Violin ENTRE SITUACIONES
+# situations = ['External', 'Internal', 'External_BS', 'Internal_BS']
+# stimulus_tostr = {'Pitch-Log-Raw':'Tono de voz', 'Envelope':'Envolvente', 'Spectrogram':'Espectrograma', 'Phonemes-Phonet':'Fonemas', 'Phonological':'C. Fonológicas'}
+# stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Phonemes-Phonet', 'Phonological'] #'Phonemes-Discrete-Phonet', 
+# bands = ['Delta', 'Theta', 'All', 'Alpha', 'Beta1', 'Beta2', ]
+# palette = {
+#     'External': 'C0',
+#     'Internal': 'C1',
+#     'External_BS': 'C2',
+#     'Internal_BS': 'C3'
+# }
 
-# ========================
-# Violin ENTRE SITUACIONES
-situations = ['External', 'Internal', 'External_BS', 'Internal_BS']
-stimulus_tostr = {'Pitch-Log-Raw':'Tono de voz', 'Envelope':'Envolvente', 'Spectrogram':'Espectrograma', 'Phonemes-Phonet':'Fonemas', 'Phonological':'C. Fonológicas'}
-stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Phonemes-Phonet', 'Phonological'] #'Phonemes-Discrete-Phonet', 
-bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
-palette = {
-    'External': 'C0',
-    'Internal': 'C1',
-    'External_BS': 'C2',
-    'Internal_BS': 'C3'
-}
-
-avg_corr_0 = {situation:{stimulus:{} for stimulus in stimuli} for situation in situations}
-avg_corr_1 = {situation:{stimulus:{} for stimulus in stimuli} for situation in situations}
-p_vals = {situation:{stimulus:{} for stimulus in stimuli} for situation in situations if situation!='External'}
+# avg_corr_0 = {situation:{stimulus:{} for stimulus in stimuli} for situation in situations}
+# avg_corr_1 = {situation:{stimulus:{} for stimulus in stimuli} for situation in situations}
+# p_vals = {situation:{stimulus:{} for stimulus in stimuli} for situation in situations if situation!='External'}
 
 
-# Relevant parameters
-for situation in situations:
-    correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
-    for stimulus in stimuli:
-        for i, band in enumerate(bands):
-            data = load_pickle(path=os.path.join(correlations_path, band, stimulus +'.pkl'))
-            avg_corr_0[situation][stimulus][band] = data['average_correlation_subjects'].mean(axis=0)
-            avg_corr_1[situation][stimulus][band] = data['average_correlation_subjects'].mean(axis=1)
+# # Relevant parameters
+# for situation in situations:
+#     correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+#     for stimulus in stimuli:
+#         for i, band in enumerate(bands):
+#             data = load_pickle(path=os.path.join(correlations_path, band, stimulus +'.pkl'))
+#             avg_corr_0[situation][stimulus][band] = data['average_correlation_subjects'].mean(axis=0)
+#             avg_corr_1[situation][stimulus][band] = data['average_correlation_subjects'].mean(axis=1)
 
-for stimulus in stimuli:
-    for i, band in enumerate(bands):
-        stat, p_val = wilcoxon(avg_corr_1['External'][stimulus][band], avg_corr_1['Internal'][stimulus][band])
-        p_vals['Internal'][stimulus][band] = p_val
+# for stimulus in stimuli:
+#     for i, band in enumerate(bands):
+#         stat, p_val = wilcoxon(avg_corr_1['External'][stimulus][band], avg_corr_1['Internal'][stimulus][band])
+#         p_vals['Internal'][stimulus][band] = p_val
 
-        stat, p_val = wilcoxon(avg_corr_1['External'][stimulus][band], avg_corr_1['External_BS'][stimulus][band])
-        p_vals['External_BS'][stimulus][band] = p_val
+#         stat, p_val = wilcoxon(avg_corr_1['External'][stimulus][band], avg_corr_1['External_BS'][stimulus][band])
+#         p_vals['External_BS'][stimulus][band] = p_val
 
-        stat, p_val = wilcoxon(avg_corr_1['External'][stimulus][band], avg_corr_1['Internal_BS'][stimulus][band])
-        p_vals['Internal_BS'][stimulus][band] = p_val
+#         stat, p_val = wilcoxon(avg_corr_1['External'][stimulus][band], avg_corr_1['Internal_BS'][stimulus][band])
+#         p_vals['Internal_BS'][stimulus][band] = p_val
 
-for band in ['Delta', 'Theta', 'Alpha', 'All']:
-    fig, ax = plt.subplots(
-        nrows=1,
-        ncols=1,
-        figsize=(12, 6),
-        layout='constrained'
-    )
+# # Crear figura con 2 filas x 3 columnas y compartir ejes
+# fig, axs = plt.subplots(
+#     nrows=2, ncols=3, 
+#     figsize=(14, 8), 
+#     layout='constrained', 
+#     sharex=True,  # Compartir eje x en cada columna
+#     sharey='row'  # Compartir eje y en cada fila
+# )
+# axes = axs.flatten()  # Para iterar de forma sencilla
+
+# # Recorremos cada banda y asignamos su subplot
+# for idx, band in enumerate(bands):
+#     ax = axes[idx]
     
-    # Preparar datos en formato largo para Seaborn
-    data_list = []
-    for stimulus in stimuli:
-        for situation in situations:
-            for value in avg_corr_1[situation][stimulus][band]:  # 18 valores por sujeto
-                data_list.append({'Estímulo': stimulus_tostr[stimulus], 'Situación': situation, 'Correlación': value})
-    df = pd.DataFrame(data_list)
+#     # Preparar datos en formato largo para Seaborn para la banda actual
+#     data_list = []
+#     for stimulus in stimuli:
+#         for situation in situations:
+#             for value in avg_corr_1[situation][stimulus][band]:  # Valores por sujeto
+#                 data_list.append({
+#                     'Estímulo': stimulus_tostr[stimulus],
+#                     'Situación': situation,
+#                     'Correlación': value
+#                 })
+#     df = pd.DataFrame(data_list)
     
+#     # Agregar grid detrás de los boxplots
+#     ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.7, zorder=0)
+#     ax.tick_params(axis='x', which='major', length=8, width=1) 
+
+#     # Crear boxplot en el subplot correspondiente (sin outliers)
+#     box = sns.boxplot(
+#         data=df,
+#         x="Estímulo",
+#         y="Correlación",
+#         hue="Situación",
+#         dodge=True,  
+#         palette=palette,
+#         showfliers=False,  # Elimina los outliers en forma de diamante
+#         ax=ax,
+#         zorder=2  # Asegura que esté sobre la grilla
+#     )
     
-    # Crear violin plot
-    violin = sns.violinplot(
-        data=df,
-        x="Estímulo",
-        y="Correlación",
-        hue="Situación",
-        dodge=True,  # Divide los violines en cada estimulo
-        inner="quartile",
-        palette=palette,
-        ax=ax
-    )
-
-    # Agregar puntos individuales
-    sns.stripplot(
-        data=df,
-        x="Estímulo",
-        y="Correlación",
-        hue="Situación",
-        dodge=True,  # Separar puntos por situación
-        color='black',
-        alpha=0.6,
-        ax=ax
-    )
+#     # Agregar notación de significancia
+#     for i, stimulus in enumerate(stimuli):
+#         for j, situation in enumerate(['Internal', 'External_BS', 'Internal_BS']):
+#             p_val = p_vals[situation][stimulus][band]
+#             if p_val < 0.005:
+#                 sig = "***"
+#             elif p_val < 0.01:
+#                 sig = "**"
+#             elif p_val < 0.05:
+#                 sig = "*"
+#             else:
+#                 sig = ""
+#             if sig:
+#                 y_max = df['Correlación'].max()
+#                 if band in ['Theta', 'Delta', 'All']:
+#                     if j == 0:
+#                         ax.text(i - 1/10, .52, sig, ha='center', va='bottom', fontsize=14, color='C1')
+#                     elif j == 1:
+#                         ax.text(i + 1/10, .6, sig, ha='center', va='bottom', fontsize=14, color='C2')
+#                     else:
+#                         ax.text(i + 3/10, .57, sig, ha='center', va='bottom', fontsize=14, color='C3')
+#                 else:
+#                     if j == 0:
+#                         ax.text(i - 1/10, .28, sig, ha='center', va='bottom', fontsize=14, color='C1')
+#                     elif j == 1:
+#                         ax.text(i + 1/10, .32, sig, ha='center', va='bottom', fontsize=14, color='C2')
+#                     else:
+#                         ax.text(i + 3/10, .3, sig, ha='center', va='bottom', fontsize=14, color='C3')
     
-    for collection in violin.collections:
-        collection.set_alpha(0.5)
+#     # Solo colocar etiqueta del eje y en la primera columna
+#     if idx % 3 == 0:
+#         ax.set_ylabel("Correlación entre sujetos")
+#     else:
+#         ax.set_ylabel("")
+
+#     # Solo colocar etiqueta del eje x en la última fila
+#     if idx >= 3:
+#         ax.set_xlabel("")
+#         ax.set_xticklabels(list(stimulus_tostr.values()), rotation=25)
+#     else:
+#         ax.set_xlabel("")
+#         ax.set_xticklabels([])
     
-    # Es importante quitar la leyenda duplicada (ya que tanto violinplot como stripplot la generan)
-    handles, labels = ax.get_legend_handles_labels()
-    for handle in handles:
-        handle.set_alpha(0.5) 
-    if len(handles) > 2:
-        ax.legend(handles[0:2], labels[0:2], title='Situaciones')
-    ax.set_axisbelow(True)
-    ax.set_xticklabels(stimulus_tostr)
+#     # Eliminar la leyenda individual en cada subplot
+#     ax.legend_.remove()
 
-        
-    # Determinar posiciones de significancia y agregar asteriscos
-    for i, stimulus in enumerate(stimuli):
-        for j, situation in enumerate(['Internal', 'External_BS', 'Internal_BS']):
-            p_val = p_vals[situation][stimulus][band]
-            
-            # Definir significancia
-            if p_val < 0.005:
-                sig = "***"
-            elif p_val < 0.01:
-                sig = "**"
-            elif p_val < 0.05:
-                sig = "*"
-            else:
-                sig = ""
+# # Agregar leyenda fuera de la figura
+# handles, labels = axes[0].get_legend_handles_labels()
+# fig.legend(
+#     handles[:4], ['External', 'Internal', 'External (AH)', 'Internal (AH)'], 
+#     title="Situaciones", loc=(0.25, .5), bbox_to_anchor=(0.21, 1.01), ncol=4
+# )
+# fig.text(.02, .99, 'a)', fontsize=18, va='top', ha='right')
+# fig.text(.37,.99, 'b)', fontsize=18, va='top', ha='right')
+# fig.text(.685,.99, 'c)', fontsize=18, va='top', ha='right')
+# fig.text(.02, .55, 'd)', fontsize=18, va='top', ha='right')
+# fig.text(.37, .55, 'e)', fontsize=18, va='top', ha='right')
+# fig.text(.685, .55, 'f)', fontsize=18, va='top', ha='right')
 
-            # Posicionar el asterisco en la parte superior del violín
-            if sig:
-                y_max = df[(df["Estímulo"] == stimulus_tostr[stimulus]) & (df["Situación"] == situation)]["Correlación"].max()
-                ax.text(i, y_max + 0.05, sig, ha='center', va='bottom', fontsize=14, color='black')
-
-    # Ajustar leyenda
-    ax.legend(title="Situación", loc="upper left", bbox_to_anchor=(1, 1))
-
-    # Etiquetas
-    ax.set_xlabel("Estímulo")
-    ax.set_ylabel("Correlación entre sujetos")
-    ax.set_title(f"Comparación de correlación por situación ({band} band)")
-    
-    # Save figure
-    fig.savefig(
-        os.path.join(tesis_path,'resultados', f'violin_otras_situaciones_{band}.{figformat}'),
-        transparent=False,
-        dpi=dpi
-        )
-    fig.show()
-
+# # # Guardar figura
+# # fig.savefig(
+# #     os.path.join(tesis_path, 'resultados', f'boxplot_otras_situaciones.{figformat}'),
+# #     transparent=False,
+# #     dpi=dpi
+# # )
+# fig.show()
 
 # # ==================
 # # CONVEX HULL # TODO PENDIENTE 'Phonemes-Phonet_Phonological_Spectrogram'
