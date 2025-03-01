@@ -3425,6 +3425,231 @@ for band in ['Delta', 'Theta', 'Alpha', 'All']:
 # #         )
 # fig.show()
 
+
+# # ===================================================================
+# # PESOS + TOPOMAPS CORR + SIMILARITY + MATRIZ: THETA: DILIBERTO
+# path_correlations = 'saves/preprocessed_data/dili/correlations/theta/phonemesphonemes.pkl'
+# path_mtrfs = 'saves/preprocessed_data/dili/weights/theta/phonemestotal_weights_per_subject.pkl'
+# average_correlation_subjects = load_pickle(path=path_correlations)['average_correlation_subjects']
+# average_weights_subjects = load_pickle(path=path_mtrfs)['average_weights_subjects'][:, :, :, :] #(n_sub, n_chans, n_feats, n_delays)
+
+# # Crear una figura
+# fig = plt.figure(
+#     figsize=(12, 10),
+#     tight_layout=True
+#     )
+
+# # Definir la cuadrícula usando GridSpec
+# # 2 filas y 2 columnas, con la segunda columna dividida en dos partes en la primera fila
+# gs = gridspec.GridSpec(
+#     nrows=2,
+#     ncols=2,
+#     width_ratios=[1.2, 1],
+#     height_ratios=[1, 2]
+#     )
+
+# # Primer gráfico en la primera columna (comparte el eje x con el segundo gráfico)
+# ax1 = plt.subplot(gs[0, 0])
+# weights = average_weights_subjects.mean(axis=0).mean(axis=1)
+# evoked = mne.EvokedArray(data=weights, info=config.info_mne)
+# evoked.shift_time(config.times[0], relative=True)
+# evoked_plot = evoked.plot(
+#     scalings={'eeg':1},
+#     zorder='std',
+#     time_unit='ms',
+#     show=False,
+#     spatial_colors=True,
+#     # unit=False,
+#     units='mTRFs (U.A)',
+#     axes=ax1,
+#     gfp=False
+#     )
+# # Eliminar la etiqueta "Nave"
+# for text in evoked_plot.axes[0].texts:
+#     if "ave" in text.get_text():
+#         text.set_visible(False)  # Ocultar el texto
+# ax1.plot(
+#     config.times*1e3, #ms
+#     evoked._data.mean(axis=0),
+#     'black',
+#     label='Valor medio',
+#     zorder=130,
+#     linewidth=2
+#     )
+
+# # Extraer los colores de los canales
+# colors = [line.get_color() for line in ax1.get_lines()[:len(evoked.ch_names)]]
+
+# # Eliminar el esquema de la cabeza original
+# for ax in fig.axes:
+#     # Verificar si el eje contiene un objeto de tipo "PathCollection" (los puntos de los canales)
+#     for artist in ax.get_children():
+#         if isinstance(artist, PathCollection):
+#             ax.remove()  # Eliminar el eje que contiene el esquema de la cabeza original
+#             break
+
+# # Obtener las posiciones de los sensores en 2D
+# montage = evoked.info.get_montage()
+# pos = montage.get_positions()['ch_pos']  # Diccionario con las posiciones de los canales
+
+# # Crear un eje adicional para la cabecita sin sensores
+# ax_head_outline = fig.add_axes([.415, 0.84, 0.11, 0.11])  # [x, y, width, height]
+
+# # Graficar solo el contorno de la cabeza (sin sensores)
+# mne.viz.plot_topomap(
+#     np.zeros(len(evoked.ch_names)),  # Datos ficticios (todos ceros)
+#     evoked.info,
+#     axes=ax_head_outline,
+#     show=False,
+#     sensors=False,  # No graficar los sensores
+#     outlines='head'  # Graficar solo el contorno de la cabeza
+# )
+# ax_head_outline.set_aspect('equal')  # Mantener la proporción de aspecto
+# ax_head_outline.axis('off')  # Ocultar los ejes
+
+# # Crear un eje adicional para graficar los sensores
+# ax_head = fig.add_axes([.425, 0.842, 0.09, 0.09])  # [x, y, width, height]
+
+# # Convertir las posiciones a un array 2D (x, y)
+# pos_2d = np.array([pos[ch][:2] for ch in evoked.ch_names])  # Solo tomamos las coordenadas x e y
+# ax_head.scatter(pos_2d[:, 0], pos_2d[:, 1], c=colors, s=18)  # s es el tamaño de los puntos
+# ax_head.set_aspect('equal')  # Mantener la proporción de aspecto
+# ax_head.axis('off')  # Ocultar los ejes
+
+# ax1.grid(visible=True)
+# ax1.set(xlabel='', xticklabels=[], title='EEG (128 canales)')
+# ax1.tick_params(axis='x', which='both', labelbottom=False)
+# ax1.legend(loc=(.65,.1))
+
+
+# # Segundo gráfico en la primera columna (comparte el eje x con el primer gráfico)
+# ax2 = plt.subplot(gs[1, 0], sharex=ax1)
+# feat_weights = average_weights_subjects.mean(axis=0).mean(axis=0)
+# order, null_indexes = clustering_by_correlation(weights=feat_weights)
+# feat_weights = feat_weights[order]
+
+# im = ax2.pcolormesh(
+#     config.times * 1e3,
+#     np.arange(feat_weights.shape[0]),
+#     feat_weights,
+#     cmap='RdBu_r',
+#     shading='auto',
+#     vmin=-np.abs(feat_weights).max(),
+#     vmax=np.abs(feat_weights).max()
+#     )
+
+# # Set figure configuration
+# # tags = [np.str_('aɪ'), np.str_('aʊ'), np.str_('b'), np.str_('d'), np.str_('eɪ'), np.str_('f'), np.str_('g'), np.str_('h'), np.str_('i'), np.str_('j'), np.str_('k'), np.str_('l'), np.str_('m'), np.str_('n'), np.str_('oʊ'), np.str_('p'), np.str_('s'), np.str_('t'), np.str_('tʃ'), np.str_('u'), np.str_('v'), np.str_('w'), np.str_('z'), np.str_('æ'), np.str_('ð'), np.str_('ŋ'), np.str_('ɑː'), np.str_('ɔɪ'), np.str_('ɔː'), np.str_('ɛ'), np.str_('ɜːr'), np.str_('ɪ'), np.str_('ɹ'), np.str_('ʃ'), np.str_('ʊ'), np.str_('ʌ'), np.str_('θ')]
+# tags = [np.str_('aI'), np.str_('eU'), np.str_('b'), np.str_('d'), np.str_('eI'), np.str_('f'), np.str_('g'), np.str_('h'), np.str_('i'), np.str_('j'), np.str_('k'), np.str_('l'), np.str_('m'), np.str_('n'), np.str_('oU'), np.str_('p'), np.str_('s'), np.str_('t'), np.str_('tS'), np.str_('u'), np.str_('v'), np.str_('w'), np.str_('z'), np.str_('ae'), np.str_('ð'), np.str_('ŋ'), np.str_('ɑː'), np.str_('ɔɪ'), np.str_('ɔː'), np.str_('ɛ'), np.str_('ɜːr'), np.str_('I'), np.str_('ɹ'), np.str_('ʃ'), np.str_('U'), np.str_('ʌ'), np.str_('θ')]
+# okay_list = ['S', 'z', 'f', 'p', 'v', 'j', 'u','i','ae', 'eU', 'aI', 'eI', 'g', 'h', 'b', 'g', 'k', 'd', 't', 'h','m', 'n','tS', 'I', 'w', 'l', 'U','oU']
+# # tags = [f'f_{i}' if tag not in okay_list else tag for i, tag in enumerate(tags)]
+
+# tags = ['' for i, tag in enumerate(tags)]
+# ticks = np.arange(feat_weights.shape[0])
+# tags = tags if order is None else [tags[i] for i in order]
+
+# ax2.set(
+#     xlabel='Tiempo (ms)',
+#     xticks=[-200, -100, 0, 100, 200, 300, 400, 500, 600],
+#     xticklabels=[-200, -100, 0, 100, 200, 300, 400, 500, 600],
+#     ylabel='Fonemas',
+#     yticks=ticks,
+#     yticklabels=tags
+#     )
+
+# # Configure colorbar
+# fig.colorbar(
+#     im,
+#     ax=ax2,
+#     orientation='horizontal',
+#     shrink=1,
+#     label='Amplitud (U.A)',
+#     fraction=.075,
+#     aspect=20
+#     )
+
+# # Tercer gráfico en la primera subcolumna de la segunda columna (primera fila)
+# ax3 = plt.subplot(gs[1, 1])
+# mean_average_correlation = average_correlation_subjects.mean(axis=0)
+# im = mne.viz.plot_topomap(
+#         data=mean_average_correlation,
+#         pos=config.info_mne,
+#         cmap='Reds',
+#         vlim=(mean_average_correlation.min(), mean_average_correlation.max()),
+#         show=False,
+#         sphere=0.07,
+#         axes=ax3
+#         )
+# cbar = fig.colorbar(
+#         im[0],
+#         ax=ax3,
+#         fraction=.075,
+#         aspect=20,
+#         # label='Correlación',
+#         orientation='horizontal',
+#         boundaries=np.linspace(mean_average_correlation.min(), mean_average_correlation.max(), 100),
+#         ticks=np.linspace(mean_average_correlation.min(), mean_average_correlation.max(), 3)
+#         )
+# cbar.set_ticklabels(np.linspace(mean_average_correlation.min(), mean_average_correlation.max(), 3).round(decimals=2))
+
+# ax3.axis('off')  # Desactivar ejes
+# ax3.set_title(r'Correlación: $('+ f'{mean_average_correlation.mean():.3f}\pm{mean_average_correlation.std()/np.sqrt(config.sr):.3f}'+r')$', fontsize=15)
+
+# # Cuarto gráfico en la segunda subcolumna de la segunda columna (primera fila)
+# ax4 = plt.subplot(gs[0, 1])
+# n_subjects, n_chan, _, n_delays = average_weights_subjects.shape
+# average_weights = average_weights_subjects.mean(axis=2)# across delays
+# correlation_matrices = np.zeros(shape=(n_chan, n_subjects, n_subjects))
+
+# # Calculate correlation betweem subjects
+# for channel in range(n_chan):
+#     matrix = average_weights[:,channel,:]
+#     correlation_matrices[channel] = np.corrcoef(matrix)
+
+# # Correlacion por canal
+# absolute_correlation_per_channel = np.zeros(n_chan)
+# for channel in range(n_chan):
+#     channel_corr_values = correlation_matrices[channel][np.tril_indices(n_subjects, k=-1)]
+#     absolute_correlation_per_channel[channel] = np.mean(np.abs(channel_corr_values))
+
+# im = mne.viz.plot_topomap(
+#     data=absolute_correlation_per_channel,
+#     pos=config.info_mne,
+#     axes=ax4,
+#     show=False,
+#     sphere=0.07,
+#     cmap='Greens',
+#     vlim=(absolute_correlation_per_channel.min(),absolute_correlation_per_channel.max())
+#     )
+
+# # Make colorbar
+# cbar = fig.colorbar(
+#     im[0],
+#     ax=ax4,
+#     fraction=.075,
+#     aspect=20,
+#     orientation='horizontal',
+#     boundaries=np.linspace(absolute_correlation_per_channel.min(), absolute_correlation_per_channel.max(), 100),
+#     ticks=np.linspace(absolute_correlation_per_channel.min(), absolute_correlation_per_channel.max(), 3)
+#     )
+# cbar.set_ticklabels(np.linspace(absolute_correlation_per_channel.min(), absolute_correlation_per_channel.max(), 3).round(decimals=2))
+
+# ax4.set_title(r'Similaridad: $('+ f'{absolute_correlation_per_channel.mean():.3f}\pm{absolute_correlation_per_channel.std()/np.sqrt(correlation_matrices[channel][np.tril_indices(n_subjects, k=-1)].shape[0]):.3f}'+r')$', fontsize=15)
+
+# ax4.axis('off')  # Desactivar ejes
+
+# fig.text(0.03, 1, 'a)', fontsize=18, va='top', ha='right')
+# fig.text(0.03, .62, 'b)', fontsize=18, va='top', ha='right')
+# fig.text(.6, 1, 'c)', fontsize=18, va='top', ha='right')
+# fig.text(.6, .62, 'd)', fontsize=18, va='top', ha='right')
+# # fig.savefig(
+# #     os.path.join(tesis_path,'resultados', f'fonemas_diliberto.{figformat}'),
+# #     transparent=False,
+# #     dpi=dpi
+# #         )
+# fig.show()
+
+
 # # ===================================================================
 # # PESOS + TOPOMAPS CORR + SIMILARITY + MATRIZ: THETA: PHONEMES-PHONET # TODO FATLA ESTADISTICA Y TFCE SIGNIFICATIVO
 # s_channels=False
