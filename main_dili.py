@@ -49,7 +49,7 @@ for subject in subjects:
     print(f'\n------->\tStart of session {subject}\n')
 
     # Load data by subject, EEG and info
-    eeg = np.array(load_pickle(path=os.path.join(path_eeg, f'sub-{str(subject).zfill(3)}_lista.pkl'))).T[:cutoff,:]
+    eeg = np.array(load_pickle(path=os.path.join(path_eeg, f'sub-{str(subject).zfill(3)}_lista.pkl'))).T
 
     n_feats = [stimulus.shape[1]]
     delayed_length_per_stimuli = [n_feat*len(config.delays) for n_feat in n_feats]
@@ -170,7 +170,7 @@ for subject in subjects:
         average_weights=average_weights, 
         times=config.times,
         n_feats=n_feats, 
-        stim=stimulus, 
+        stim='phonemes-dili', 
         session=subject, 
         subject=subject, 
         hierarchical_clustering=config.hierarchical_clustering,
@@ -182,10 +182,6 @@ for subject in subjects:
     average_weights_subjects.append(average_weights)
     average_correlation_subjects.append(average_correlation)
     average_rmse_subjects.append(average_rmse)
-    pvalues_corr_subjects.append(topo_pval_corr_sujeto)
-    pvalues_rmse_subjects.append(topo_pval_rmse_sujeto)
-    repeated_good_correlation_channels_subjects.append(repeated_good_correlation_channels)
-    repeated_good_rmse_channels_subjects.append(repeated_good_rmse_channels)
 
     # Update the number of subjects
     total_number_of_subjects+=1
@@ -193,29 +189,18 @@ for subject in subjects:
     # Print the progress of the iteration
     iteration_percentage(txt=f'\n------->\tEnd of session {subject}\n', i=subjects.index(subject), length_of_iterator=len(subjects))
 
-    # del average_weights, average_rmse, average_correlation, correlation_per_channel, rmse_per_channel, correlation_matrix, root_mean_square_error,\
-    #     eeg_test, eeg, stims, stims_sujeto_1, stims_sujeto_2, sujeto_1, sujeto_2, eeg_sujeto_1, eeg_sujeto_2
-
-if config.just_load_data:
-    continue
-
 # Get desire shape n_subject, shape of array. For ex.: shape(average_weights_subjects) = n_subj, n_chans, n_feats, n_delays
 average_weights_subjects = np.stack(average_weights_subjects, axis=0) # n_subj, n_chans, n_feats, n_delays
 average_correlation_subjects = np.stack(average_correlation_subjects , axis=0) # n_subj, n_chans
 average_rmse_subjects = np.stack(average_rmse_subjects , axis=0) # n_subj, n_chans
-pvalues_corr_subjects = np.stack(pvalues_corr_subjects , axis=0) # n_subj, n_chans
-pvalues_rmse_subjects = np.stack(pvalues_rmse_subjects , axis=0) # n_subj, n_chans
-repeated_good_correlation_channels_subjects = np.stack(repeated_good_correlation_channels_subjects , axis=0) # n_subj, n_chans
-repeated_good_rmse_channels_subjects = np.stack(repeated_good_rmse_channels_subjects , axis=0) # n_subj, n_chans
 
 # Save results
-if config.save_results and total_number_of_subjects==18:
-    os.makedirs(save_results_path, exist_ok=True)
+if config.save_results and total_number_of_subjects==16:
+    os.makedirs(path_results, exist_ok=True)
     os.makedirs(path_weights, exist_ok=True)
     dump_pickle(
-            path=save_results_path+f'{stim}.pkl',
-            obj={'average_correlation_subjects':average_correlation_subjects,
-                'repeated_good_correlation_channels_subjects':repeated_good_correlation_channels_subjects},
+            path=path_results+f'{stim}.pkl',
+            obj={'average_correlation_subjects':average_correlation_subjects},
             rewrite=True,
             verbose=True
             )
@@ -230,12 +215,12 @@ if config.save_results and total_number_of_subjects==18:
 #     plot.phonemes_occurrences(occurrences=phonemes_occurrences, save_path=path_figures, save=save_figures, no_figures=config.no_figures)
 
 # Plot average results only if all subjects are analyzed
-config.no_figures=True if (total_number_of_subjects!=18) else config.no_figures
+config.no_figures=True if (total_number_of_subjects!=16) else config.no_figures
 
 # Plot average topomap metrics across each subject
 plot.average_topomap(
     average_coefficient_subjects=average_rmse_subjects, 
-    stim=stimulus, 
+    stim='phonemes-dili', 
     info=config.info_mne, 
     display_interactive_mode=config.display_interactive_mode,
     save=config.save_figures, 
@@ -245,7 +230,7 @@ plot.average_topomap(
     )
 plot.average_topomap(
     average_coefficient_subjects=average_correlation_subjects, 
-    stim=stimulus, 
+    stim='phonemes-dili', 
     display_interactive_mode=config.display_interactive_mode,
     info=config.info_mne, 
     save=config.save_figures, 
@@ -261,7 +246,7 @@ plot.topo_map_relevant_times(
     info=config.info_mne, 
     n_feats=n_feats,
     band=band,
-    stim=stimulus, 
+    stim='phonemes-dili', 
     times=config.times,
     sample_rate=config.sr, 
     save_path=path_figures, 
@@ -274,7 +259,7 @@ plot.topo_map_relevant_times(
 plot.channel_wise_correlation_topomap(
     average_weights_subjects=average_weights_subjects,
     info=config.info_mne,
-    stim=stimulus, 
+    stim='phonemes-dili', 
     save=config.save_figures,
     save_path=path_figures, 
     display_interactive_mode=config.display_interactive_mode, 
@@ -290,7 +275,7 @@ plot.average_regression_weights(
     hierarchical_clustering=config.hierarchical_clustering,
     times=config.times, 
     n_feats=n_feats, 
-    stim=stimulus, 
+    stim='phonemes-dili', 
     display_interactive_mode=config.display_interactive_mode,
     no_figures=config.no_figures
     )
@@ -298,7 +283,7 @@ plot.average_regression_weights(
 # Plot correlation matrix between subjects
 plot.correlation_matrix_subjects(
     average_weights_subjects=average_weights_subjects,
-    stim=stimulus, 
+    stim='phonemes-dili', 
     n_feats=n_feats, 
     save=config.save_figures,
     save_path=path_figures, 
