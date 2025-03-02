@@ -234,13 +234,13 @@ figformat, dpi = 'png', 350
 #     for i, stim in enumerate(substims):
 
 #         # Identify Hull (la cáscara de los datos, i.e, el borde)
-#         stim_points = np.array([avg_corr[stim], avg_corr[stims]]).transpose()
+#         stim_points = np.array([avg_corr[stims], avg_corr[stim]]).transpose()
 #         stim_hull = ConvexHull(stim_points)
 
 #         # Plot bad channels for each stim
 #         plt.plot(
-#             avg_corr[stim][good_ch[stim] == 0],
 #             avg_corr[stims][good_ch[stim] == 0],
+#             avg_corr[stim][good_ch[stim] == 0],
 #             '.',
 #             color='grey',
 #             alpha=0.5,
@@ -250,8 +250,8 @@ figformat, dpi = 'png', 350
 
 #         # Plot good channels for each stim
 #         plt.plot(
-#             avg_corr[stim][good_ch[stim] != 0],
 #             avg_corr[stims][good_ch[stim] != 0],
+#             avg_corr[stim][good_ch[stim] != 0],
 #             '.',
 #             color=colores_st[stim],
 #             label=renombre[stim],
@@ -266,16 +266,17 @@ figformat, dpi = 'png', 350
 #             )
 
 #     # Get limits
-#     xlimit, ylimit = plt.xlim(), plt.ylim()
+#     xlimit, ylimit = list(plt.xlim()), plt.ylim()
 #     # plt.plot([xlimit[0], ylimit[1]], [xlimit[0], ylimit[1]], 'k--', zorder=0)
-#     plt.plot([xlimit[0], xlimit[1]], [ylimit[0], ylimit[1]], 'k--', zorder=0)
+#     f = lambda x: x
+#     plt.plot(xlimit, f(xlimit), 'k--', zorder=0)
 
 
 #     # plt.hlines(0, xlimit[0], xlimit[1], color='grey', linestyle='dashed')
 #     # plt.vlines(0, ylimit[0], ylimit[1], color='grey', linestyle='dashed')
 
-#     plt.xlabel(r'Correlación del modelo individual')
-#     plt.ylabel(r'Correlación del modelo conjunto')
+#     plt.xlabel(r'Correlación del modelo conjunto')
+#     plt.ylabel(r'Correlación del modelo individual')
 
 #     # Legend
 #     handles, labels = plt.gca().get_legend_handles_labels()
@@ -283,13 +284,12 @@ figformat, dpi = 'png', 350
 #     plt.legend(by_label.values(), by_label.keys(), markerscale=2)
 
 #     plt.grid(visible=True)
-#     plt.savefig(
-#     os.path.join(tesis_path,'resultados', f'convex_{band}_{stims}.{figformat}'),
-#     transparent=False,
-#     dpi=dpi
-#     )
-#     plt.show()
-
+# #     plt.savefig(
+# #     os.path.join(tesis_path,'resultados', f'convex_{band}_{stims}.{figformat}'),
+# #     transparent=False,
+# #     dpi=dpi
+# #     )
+#     plt.show(block=False)
 
 # =================
 # DIAGRAMAS DE VENN #TODO REHACER CON PHONEMES-PHONET y PHONOLOGICAL NUEVO
