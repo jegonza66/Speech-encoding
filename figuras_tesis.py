@@ -170,7 +170,7 @@ figformat, dpi = 'png', 350
 # # Agregar leyenda fuera de la figura
 # handles, labels = axes[0].get_legend_handles_labels()
 # fig.legend(
-#     handles[:4], ['External', 'Internal', 'External (AH)', 'Internal (AH)'], 
+#     handles[:4], ['Externa', 'Interna', 'Externa (AH)', 'Interna (AH)'], 
 #     title="Situaciones", loc=(0.25, .5), bbox_to_anchor=(0.21, 1.01), ncol=4
 # )
 # fig.text(.02, .99, 'a)', fontsize=18, va='top', ha='right')
@@ -181,11 +181,11 @@ figformat, dpi = 'png', 350
 # fig.text(.685, .55, 'f)', fontsize=18, va='top', ha='right')
 
 # # Guardar figura
-# fig.savefig(
-#     os.path.join(tesis_path, 'resultados', f'boxplot_otras_situaciones.{figformat}'),
-#     transparent=False,
-#     dpi=dpi
-# )
+# # fig.savefig(
+# #     os.path.join(tesis_path, 'resultados', f'boxplot_otras_situaciones.{figformat}'),
+# #     transparent=False,
+# #     dpi=dpi
+# # )
 # fig.show()
 
 # # ==================
