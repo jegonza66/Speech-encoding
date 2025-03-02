@@ -62,7 +62,7 @@ figformat, dpi = 'png', 350
 
 # avg_corr_0 = {situation:{stimulus:{} for stimulus in stimuli} for situation in situations}
 # avg_corr_1 = {situation:{stimulus:{} for stimulus in stimuli} for situation in situations}
-# p_vals = {situation:{stimulus:{} for stimulus in stimuli} for situation in situations if situation!='External'}
+# p_vals = {situation:{stimulus:{} for stimulus in stimuli} for situation in situations if situation.startswith('Internal')}
 
 
 # # Relevant parameters
@@ -78,11 +78,7 @@ figformat, dpi = 'png', 350
 #     for i, band in enumerate(bands):
 #         stat, p_val = wilcoxon(avg_corr_1['External'][stimulus][band], avg_corr_1['Internal'][stimulus][band])
 #         p_vals['Internal'][stimulus][band] = p_val
-
-#         stat, p_val = wilcoxon(avg_corr_1['External'][stimulus][band], avg_corr_1['External_BS'][stimulus][band])
-#         p_vals['External_BS'][stimulus][band] = p_val
-
-#         stat, p_val = wilcoxon(avg_corr_1['External'][stimulus][band], avg_corr_1['Internal_BS'][stimulus][band])
+#         stat, p_val = wilcoxon(avg_corr_1['External_BS'][stimulus][band], avg_corr_1['Internal_BS'][stimulus][band])
 #         p_vals['Internal_BS'][stimulus][band] = p_val
 
 # # Crear figura con 2 filas x 3 columnas y compartir ejes
@@ -130,7 +126,7 @@ figformat, dpi = 'png', 350
     
 #     # Agregar notación de significancia
 #     for i, stimulus in enumerate(stimuli):
-#         for j, situation in enumerate(['Internal', 'External_BS', 'Internal_BS']):
+#         for j, situation in enumerate(['Internal', 'Internal_BS']):
 #             p_val = p_vals[situation][stimulus][band]
 #             if p_val < 0.005:
 #                 sig = "***"
@@ -144,18 +140,15 @@ figformat, dpi = 'png', 350
 #                 y_max = df['Correlación'].max()
 #                 if band in ['Theta', 'Delta', 'All']:
 #                     if j == 0:
-#                         ax.text(i - 1/10, .52, sig, ha='center', va='bottom', fontsize=14, color='C1')
-#                     elif j == 1:
-#                         ax.text(i + 1/10, .6, sig, ha='center', va='bottom', fontsize=14, color='C2')
+#                         ax.text(i - 2/10, .52, sig, ha='center', va='bottom', fontsize=14, color='C0')
 #                     else:
-#                         ax.text(i + 3/10, .57, sig, ha='center', va='bottom', fontsize=14, color='C3')
+#                         ax.text(i + 2/10, .6, sig, ha='center', va='bottom', fontsize=14, color='C2')
 #                 else:
 #                     if j == 0:
-#                         ax.text(i - 1/10, .28, sig, ha='center', va='bottom', fontsize=14, color='C1')
-#                     elif j == 1:
-#                         ax.text(i + 1/10, .32, sig, ha='center', va='bottom', fontsize=14, color='C2')
+#                         ax.text(i - 2/10, .28, sig, ha='center', va='bottom', fontsize=14, color='C0')
 #                     else:
-#                         ax.text(i + 3/10, .3, sig, ha='center', va='bottom', fontsize=14, color='C3')
+#                         ax.text(i + 2/10, .32, sig, ha='center', va='bottom', fontsize=14, color='C2')
+                    
     
 #     # Solo colocar etiqueta del eje y en la primera columna
 #     if idx % 3 == 0:
@@ -187,109 +180,109 @@ figformat, dpi = 'png', 350
 # fig.text(.37, .55, 'e)', fontsize=18, va='top', ha='right')
 # fig.text(.685, .55, 'f)', fontsize=18, va='top', ha='right')
 
-# # # Guardar figura
-# # fig.savefig(
-# #     os.path.join(tesis_path, 'resultados', f'boxplot_otras_situaciones.{figformat}'),
-# #     transparent=False,
-# #     dpi=dpi
-# # )
+# # Guardar figura
+# fig.savefig(
+#     os.path.join(tesis_path, 'resultados', f'boxplot_otras_situaciones.{figformat}'),
+#     transparent=False,
+#     dpi=dpi
+# )
 # fig.show()
 
-# ==================
-# CONVEX HULL # TODO PENDIENTE 'Phonemes-Phonet_Phonological_Spectrogram'
-situation='External'
-correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
-renombre = {'Spectrogram':'Espectrograma', 'Phonological':'Características fonológicas', 'Mfccs':'Coeficientes Mel',
-            'Pitch-Log-Raw':'Tono de voz','Envelope':'Envolvente', 'Phonemes-Phonet':'Fonemas'}
-colores_st = {'Spectrogram':'C0', 'Phonological':'C1', 'Mfccs':'C2', 'Pitch-Log-Raw':'C3','Envelope':'C4', 'Phonemes-Phonet':'C5', 'Phones-Phonet':'C6'}
+# # ==================
+# # CONVEX HULL # TODO PENDIENTE 'Phonemes-Phonet_Phonological_Spectrogram'
+# situation='External'
+# correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+# renombre = {'Spectrogram':'Espectrograma', 'Phonological':'Características fonológicas', 'Mfccs':'Coeficientes Mel',
+#             'Pitch-Log-Raw':'Tono de voz','Envelope':'Envolvente', 'Phonemes-Phonet':'Fonemas'}
+# colores_st = {'Spectrogram':'C0', 'Phonological':'C1', 'Mfccs':'C2', 'Pitch-Log-Raw':'C3','Envelope':'C4', 'Phonemes-Phonet':'C5', 'Phones-Phonet':'C6'}
 
-bands = ['Theta']
-# stims = 'Spectrogram_Phonological'
-# stims = 'Spectrogram_Mfccs'
-# stims = 'Spectrogram_Envelope_Pitch-Log-Raw'
-stims = 'Phonemes-Phonet_Phonological_Spectrogram'
+# bands = ['Theta']
+# # stims = 'Spectrogram_Phonological'
+# # stims = 'Spectrogram_Mfccs'
+# # stims = 'Spectrogram_Envelope_Pitch-Log-Raw'
+# stims = 'Phonemes-Phonet_Phonological_Spectrogram'
 
-stims = '_'.join(sorted(stims.split('_')))
-substims = stims.split('_')
-avg_corr, good_ch = {}, {}
+# stims = '_'.join(sorted(stims.split('_')))
+# substims = stims.split('_')
+# avg_corr, good_ch = {}, {}
 
-# Iterate over bands
-for band in bands:
-    # Fill dictionaries with data
-    for stim in substims + [stims]:
-        data = load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))
-        if config.relevant_channels:
-            filter_relevant_channels_filter = get_maximum_correlation_channels(data['average_correlation_subjects'].mean(axis=0), number_of_lat_channels=config.relevant_channels)
-            good_ch[stim] = data['repeated_good_correlation_channels_subjects'][:,filter_relevant_channels_filter].ravel()
-            avg_corr[stim] = data['average_correlation_subjects'][:,filter_relevant_channels_filter].ravel()
-        else:
-            good_ch[stim] = data['repeated_good_correlation_channels_subjects'].ravel()
-            avg_corr[stim] = data['average_correlation_subjects'].ravel()
+# # Iterate over bands
+# for band in bands:
+#     # Fill dictionaries with data
+#     for stim in substims + [stims]:
+#         data = load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))
+#         if config.relevant_channels:
+#             filter_relevant_channels_filter = get_maximum_correlation_channels(data['average_correlation_subjects'].mean(axis=0), number_of_lat_channels=config.relevant_channels)
+#             good_ch[stim] = data['repeated_good_correlation_channels_subjects'][:,filter_relevant_channels_filter].ravel()
+#             avg_corr[stim] = data['average_correlation_subjects'][:,filter_relevant_channels_filter].ravel()
+#         else:
+#             good_ch[stim] = data['repeated_good_correlation_channels_subjects'].ravel()
+#             avg_corr[stim] = data['average_correlation_subjects'].ravel()
 
-    # Make plot
-    plt.figure(
-        figsize=(8,6),
-        layout='tight'
-        )
-    for i, stim in enumerate(substims):
+#     # Make plot
+#     plt.figure(
+#         figsize=(8,6),
+#         layout='tight'
+#         )
+#     for i, stim in enumerate(substims):
 
-        # Identify Hull (la cáscara de los datos, i.e, el borde)
-        stim_points = np.array([avg_corr[stims][good_ch[stim] != 0], avg_corr[stim][good_ch[stim] != 0]]).transpose()
-        stim_hull = ConvexHull(stim_points)
+#         # Identify Hull (la cáscara de los datos, i.e, el borde)
+#         stim_points = np.array([avg_corr[stims][good_ch[stim] != 0], avg_corr[stim][good_ch[stim] != 0]]).transpose()
+#         stim_hull = ConvexHull(stim_points)
 
-        # Plot bad channels for each stim
-        plt.plot(
-            avg_corr[stims][good_ch[stim] == 0],
-            avg_corr[stim][good_ch[stim] == 0],
-            '.',
-            color='grey',
-            alpha=0.5,
-            label='Prueba de permutaciones fallidas',
-            markersize=10
-            )
+#         # Plot bad channels for each stim
+#         plt.plot(
+#             avg_corr[stims][good_ch[stim] == 0],
+#             avg_corr[stim][good_ch[stim] == 0],
+#             '.',
+#             color='grey',
+#             alpha=0.5,
+#             label='Prueba de permutaciones fallidas',
+#             markersize=10
+#             )
 
-        # Plot good channels for each stim
-        plt.plot(
-            avg_corr[stims][good_ch[stim] != 0],
-            avg_corr[stim][good_ch[stim] != 0],
-            '.',
-            color=colores_st[stim],
-            label=renombre[stim],
-            ms=10
-            )
-        plt.fill(
-            stim_points[stim_hull.vertices, 0],
-            stim_points[stim_hull.vertices, 1],
-            color=colores_st[stim],
-            alpha=0.3,
-            linewidth=0
-            )
+#         # Plot good channels for each stim
+#         plt.plot(
+#             avg_corr[stims][good_ch[stim] != 0],
+#             avg_corr[stim][good_ch[stim] != 0],
+#             '.',
+#             color=colores_st[stim],
+#             label=renombre[stim],
+#             ms=10
+#             )
+#         plt.fill(
+#             stim_points[stim_hull.vertices, 0],
+#             stim_points[stim_hull.vertices, 1],
+#             color=colores_st[stim],
+#             alpha=0.3,
+#             linewidth=0
+#             )
 
-    # Get limits
-    xlimit, ylimit = list(plt.xlim()), plt.ylim()
-    # plt.plot([xlimit[0], ylimit[1]], [xlimit[0], ylimit[1]], 'k--', zorder=0)
-    f = lambda x: x
-    plt.plot(xlimit, f(xlimit), 'k--', zorder=0)
+#     # Get limits
+#     xlimit, ylimit = list(plt.xlim()), plt.ylim()
+#     # plt.plot([xlimit[0], ylimit[1]], [xlimit[0], ylimit[1]], 'k--', zorder=0)
+#     f = lambda x: x
+#     plt.plot(xlimit, f(xlimit), 'k--', zorder=0)
 
 
-    # plt.hlines(0, xlimit[0], xlimit[1], color='grey', linestyle='dashed')
-    # plt.vlines(0, ylimit[0], ylimit[1], color='grey', linestyle='dashed')
+#     # plt.hlines(0, xlimit[0], xlimit[1], color='grey', linestyle='dashed')
+#     # plt.vlines(0, ylimit[0], ylimit[1], color='grey', linestyle='dashed')
 
-    plt.xlabel(r'Correlación del modelo conjunto')
-    plt.ylabel(r'Correlación del modelo individual')
+#     plt.xlabel(r'Correlación del modelo conjunto')
+#     plt.ylabel(r'Correlación del modelo individual')
 
-    # Legend
-    handles, labels = plt.gca().get_legend_handles_labels()
-    by_label = dict(zip(labels, handles))
-    plt.legend(by_label.values(), by_label.keys(), markerscale=2)
+#     # Legend
+#     handles, labels = plt.gca().get_legend_handles_labels()
+#     by_label = dict(zip(labels, handles))
+#     plt.legend(by_label.values(), by_label.keys(), markerscale=2)
 
-    plt.grid(visible=True)
-    plt.savefig(
-    os.path.join(tesis_path,'resultados', f'convex_{band}_{stims}.{figformat}'),
-    transparent=False,
-    dpi=dpi
-    )
-    plt.show(block=False)
+#     plt.grid(visible=True)
+#     plt.savefig(
+#     os.path.join(tesis_path,'resultados', f'convex_{band}_{stims}.{figformat}'),
+#     transparent=False,
+#     dpi=dpi
+#     )
+#     plt.show(block=False)
 
 # =================
 # DIAGRAMAS DE VENN #TODO REHACER CON PHONEMES-PHONET y PHONOLOGICAL NUEVO
@@ -562,117 +555,117 @@ fig.savefig(
     )
 fig.show()
 
-# # =====
-# # 'Envolvente', 'Tono de voz', 'Espectrograma'
-# fig, axes = plt.subplots(
-#     nrows=1,
-#     ncols=4,
-#     figsize=(15, 10),
-#     layout='constrained'
-# )
+# =====
+# 'Envolvente', 'Tono de voz', 'Espectrograma'
+fig, axes = plt.subplots(
+    nrows=1,
+    ncols=4,
+    figsize=(15, 10),
+    layout='constrained'
+)
 
-# # Delta
-# venn = venn3(
-#     subsets=areas_dic['Delta']['Phonemes-Phonet_Phonological_Spectrogram'], # the order should be(100, 010, 110, 001, 101, 011, 111)
-#     set_labels=('Fonemas', 'C. Fonológicas', 'Espectrograma'),
-#     set_colors=('C2', 'C6', 'C1'),
-#     alpha=0.45,
-#     ax=axes[0],
-#     normalize_to=normalizer['Delta']['Phonemes-Phonet_Phonological_Spectrogram']
-#     )
-# for label in venn.subset_labels:
-#     if label:  # Verificar que la etiqueta no sea None
-#         label.set_fontsize(13)
-# for label in venn.set_labels:
-#     if label:  # Verificar que la etiqueta no sea None
-#         label.set_fontsize(15)
-# label_conjunto1 = venn.get_label_by_id('A')
-# label_conjunto1.set_position((label_conjunto1.get_position()[0] - .2, label_conjunto1.get_position()[1] - 0.2))
+# Delta
+venn = venn3(
+    subsets=areas_dic['Delta']['Phonemes-Phonet_Phonological_Spectrogram'], # the order should be(100, 010, 110, 001, 101, 011, 111)
+    set_labels=('Fonemas', 'C. Fonológicas', 'Espectrograma'),
+    set_colors=('C2', 'C6', 'C1'),
+    alpha=0.45,
+    ax=axes[0],
+    normalize_to=normalizer['Delta']['Phonemes-Phonet_Phonological_Spectrogram']
+    )
+for label in venn.subset_labels:
+    if label:  # Verificar que la etiqueta no sea None
+        label.set_fontsize(13)
+for label in venn.set_labels:
+    if label:  # Verificar que la etiqueta no sea None
+        label.set_fontsize(15)
+label_conjunto1 = venn.get_label_by_id('A')
+label_conjunto1.set_position((label_conjunto1.get_position()[0] - .2, label_conjunto1.get_position()[1] - 0.2))
 
-# # Theta
-# venn = venn3(
-#     subsets=areas_dic['Theta']['Phonemes-Phonet_Phonological_Spectrogram'], # the order should be(100, 010, 110, 001, 101, 011, 111)
-#     set_labels=('Fonemas', 'C. Fonológicas', 'Espectrograma'),
-#     set_colors=('C2', 'C6', 'C1'), 
-#     alpha=0.45,
-#     ax=axes[1],
-#     normalize_to=normalizer['Theta']['Phonemes-Phonet_Phonological_Spectrogram']
-#     )
-# for label in venn.subset_labels:
-#     if label:  # Verificar que la etiqueta no sea None
-#         label.set_fontsize(13)
-# for label in venn.set_labels:
-#     if label:  # Verificar que la etiqueta no sea None
-#         label.set_fontsize(15)
-# label_conjunto1 = venn.get_label_by_id('A')
-# label_conjunto1.set_position((label_conjunto1.get_position()[0] - .2, label_conjunto1.get_position()[1] - 0.2))
+# Theta
+venn = venn3(
+    subsets=areas_dic['Theta']['Phonemes-Phonet_Phonological_Spectrogram'], # the order should be(100, 010, 110, 001, 101, 011, 111)
+    set_labels=('Fonemas', 'C. Fonológicas', 'Espectrograma'),
+    set_colors=('C2', 'C6', 'C1'), 
+    alpha=0.45,
+    ax=axes[1],
+    normalize_to=normalizer['Theta']['Phonemes-Phonet_Phonological_Spectrogram']
+    )
+for label in venn.subset_labels:
+    if label:  # Verificar que la etiqueta no sea None
+        label.set_fontsize(13)
+for label in venn.set_labels:
+    if label:  # Verificar que la etiqueta no sea None
+        label.set_fontsize(15)
+label_conjunto1 = venn.get_label_by_id('A')
+label_conjunto1.set_position((label_conjunto1.get_position()[0] - .2, label_conjunto1.get_position()[1] - 0.2))
 
-# # Alpha
-# venn = venn3(
-#     subsets=areas_dic['Alpha']['Phonemes-Phonet_Phonological_Spectrogram'], # the order should be(100, 010, 110, 001, 101, 011, 111)
-#     set_labels=('Fonemas', 'C. Fonológicas', 'Espectrograma'),
-#     set_colors=('C2', 'C6', 'C1'),
-#     alpha=0.45,
-#     ax=axes[2],
-#     normalize_to=normalizer['Alpha']['Phonemes-Phonet_Phonological_Spectrogram']
-#     )
-# for label in venn.subset_labels:
-#     label
-#     if label:  # Verificar que la etiqueta no sea None
-#         label.set_fontsize(13)
-#         # if label =='0.001':
-#         #     pos_actual = label.get_position()
-#         #     # Ajusta los valores según lo que necesites; por ejemplo, sumar 0.1 a x y restar 0.05 a y
-#         #     nueva_pos = (pos_actual[0] + 0.5, pos_actual[1] + 0.05)
-#         #     label.set_position(nueva_pos)
-# for label in venn.set_labels:
-#     if label:  # Verificar que la etiqueta no sea None
-#         label.set_fontsize(15)
-# label_conjunto1 = venn.get_label_by_id('A')
-# label_conjunto1.set_position((label_conjunto1.get_position()[0] - .2, label_conjunto1.get_position()[1] - 0.2))
+# Alpha
+venn = venn3(
+    subsets=areas_dic['Alpha']['Phonemes-Phonet_Phonological_Spectrogram'], # the order should be(100, 010, 110, 001, 101, 011, 111)
+    set_labels=('Fonemas', 'C. Fonológicas', 'Espectrograma'),
+    set_colors=('C2', 'C6', 'C1'),
+    alpha=0.45,
+    ax=axes[2],
+    normalize_to=normalizer['Alpha']['Phonemes-Phonet_Phonological_Spectrogram']
+    )
+for label in venn.subset_labels:
+    label
+    if label:  # Verificar que la etiqueta no sea None
+        label.set_fontsize(13)
+        # if label =='0.001':
+        #     pos_actual = label.get_position()
+        #     # Ajusta los valores según lo que necesites; por ejemplo, sumar 0.1 a x y restar 0.05 a y
+        #     nueva_pos = (pos_actual[0] + 0.5, pos_actual[1] + 0.05)
+        #     label.set_position(nueva_pos)
+for label in venn.set_labels:
+    if label:  # Verificar que la etiqueta no sea None
+        label.set_fontsize(15)
+label_conjunto1 = venn.get_label_by_id('A')
+label_conjunto1.set_position((label_conjunto1.get_position()[0] - .2, label_conjunto1.get_position()[1] - 0.2))
 
-# # Ancha
-# venn = venn3(
-#     subsets=areas_dic['All']['Phonemes-Phonet_Phonological_Spectrogram'], # the order should be(100, 010, 110, 001, 101, 011, 111)
-#     set_labels=('Fonemas', 'C. Fonológicas', 'Espectrograma'),
-#     set_colors=('C2', 'C6', 'C1'),
-#     alpha=0.45,
-#     ax=axes[3],
-#     normalize_to=normalizer['All']['Phonemes-Phonet_Phonological_Spectrogram']
-#     )
-# for label in venn.subset_labels:
-#     if label:  # Verificar que la etiqueta no sea None
-#         label.set_fontsize(13)
-# for label in venn.set_labels:
-#     if label:  # Verificar que la etiqueta no sea None
-#         label.set_fontsize(15)
-# label_conjunto1 = venn.get_label_by_id('A')
-# label_conjunto1.set_position((label_conjunto1.get_position()[0] - .2, label_conjunto1.get_position()[1] - 0.2))
+# Ancha
+venn = venn3(
+    subsets=areas_dic['All']['Phonemes-Phonet_Phonological_Spectrogram'], # the order should be(100, 010, 110, 001, 101, 011, 111)
+    set_labels=('Fonemas', 'C. Fonológicas', 'Espectrograma'),
+    set_colors=('C2', 'C6', 'C1'),
+    alpha=0.45,
+    ax=axes[3],
+    normalize_to=normalizer['All']['Phonemes-Phonet_Phonological_Spectrogram']
+    )
+for label in venn.subset_labels:
+    if label:  # Verificar que la etiqueta no sea None
+        label.set_fontsize(13)
+for label in venn.set_labels:
+    if label:  # Verificar que la etiqueta no sea None
+        label.set_fontsize(15)
+label_conjunto1 = venn.get_label_by_id('A')
+label_conjunto1.set_position((label_conjunto1.get_position()[0] - .2, label_conjunto1.get_position()[1] - 0.2))
 
-# for idx, banda in enumerate(['Delta', 'Theta', 'Alpha', 'Ancha']):
-#     axes[idx].set_title(r'\textbf{'+banda+r'}', fontsize=18)
+for idx, banda in enumerate(['Delta', 'Theta', 'Alpha', 'Ancha']):
+    axes[idx].set_title(r'\textbf{'+banda+r'}', fontsize=18)
     
-# # fig.set_constrained_layout_pads(hspace=0.01)#, wspace=0.05, h_pad=0.1, w_pad=0.1)
-# # fig.subplots_adjust(hspace=0.0003, wspace=0.001)
-# # fig.subplots_adjust(left=0.04, right=0.96, bottom=0.04, top=0.96, hspace=0.00001, wspace=0.00001)
+# fig.set_constrained_layout_pads(hspace=0.01)#, wspace=0.05, h_pad=0.1, w_pad=0.1)
+# fig.subplots_adjust(hspace=0.0003, wspace=0.001)
+# fig.subplots_adjust(left=0.04, right=0.96, bottom=0.04, top=0.96, hspace=0.00001, wspace=0.00001)
 
 
-# # left: Posición del borde izquierdo de los subplots (como fracción del ancho total de la figura).
-# # right: Posición del borde derecho (fracción del ancho total).
-# # bottom: Posición del borde inferior (fracción de la altura total).
-# # top: Posición del borde superior (fracción de la altura total).
-# # wspace: Espacio (ancho) entre columnas de subplots, expresado como fracción del ancho medio de los subplots.
-# # hspace: Espacio (alto) entre filas de subplots, expresado como fracción de la altura media de los subplots.
+# left: Posición del borde izquierdo de los subplots (como fracción del ancho total de la figura).
+# right: Posición del borde derecho (fracción del ancho total).
+# bottom: Posición del borde inferior (fracción de la altura total).
+# top: Posición del borde superior (fracción de la altura total).
+# wspace: Espacio (ancho) entre columnas de subplots, expresado como fracción del ancho medio de los subplots.
+# hspace: Espacio (alto) entre filas de subplots, expresado como fracción de la altura media de los subplots.
 
-# # Save figure
-# # fig.text(.1, .95, 'a)', fontsize=18, va='top', ha='right')
-# fig.savefig(
-#     os.path.join(tesis_path,'resultados', f'modelos_conjuntos_{situation.lower()}_bandas2.{figformat}'),
-#     bbox_inches='tight',
-#     transparent=False,
-#     dpi=dpi
-#     )
-# fig.show()
+# Save figure
+# fig.text(.1, .95, 'a)', fontsize=18, va='top', ha='right')
+fig.savefig(
+    os.path.join(tesis_path,'resultados', f'modelos_conjuntos_{situation.lower()}_bandas2.{figformat}'),
+    bbox_inches='tight',
+    transparent=False,
+    dpi=dpi
+    )
+fig.show()
 
 # # ==================================================================
 # # Violin plots para todos los atributos las distintas bandas de frecs
