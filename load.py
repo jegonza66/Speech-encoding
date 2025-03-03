@@ -26,8 +26,8 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 mne.set_log_level(verbose='CRITICAL')
 exp_info = config.Exp_info()
 
-# TRANSFORMER_MODEL = "openai/whisper-base"
-TRANSFORMER_MODEL = "openai/whisper-tiny"
+TRANSFORMER_MODEL = "openai/whisper-base"
+# TRANSFORMER_MODEL = "openai/whisper-tiny"
 # TRANSFORMER_MODEL = "facebook/wav2vec2-large-xlsr-53-distilled"
 # TRANSFORMER_MODEL = "facebook/wav2vec2-base"
 
@@ -42,6 +42,7 @@ class Trial_channel:
         causal_filter_eeg:bool=True, 
         envelope_filter:bool=False, 
         silence_threshold:float=0.03,
+        situation:str='External',
         praat_executable_path:str=r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe"
         )->None: 
         """
@@ -66,6 +67,9 @@ class Trial_channel:
             Whether to use an envelope filter, by default False
         silence_threshold : float, optional
             Silence threshold of the dialogue, by default 0.03
+        situation : str, optional
+            Situation considered when performing the analysis, by default 'External'. Allowed situations are:
+            ['Internal','Internal_BS','External', 'External_BS']
         praat_executable_path : str, optional
             Path to Praat executable, by default r'C:\\Users\\User\\Downloads\\programas_descargados_por_octavio\\Praat.exe'
 
@@ -96,6 +100,9 @@ class Trial_channel:
         self.sex = sex_list[(s - 21) * 2 + channel - 1]
         self.causal_filter_eeg = causal_filter_eeg
         self.envelope_filter = envelope_filter
+        self.situation = situation
+        self.session = s
+        self.channel = channel
         
         # To be filled with loaded data
         self.eeg = None
@@ -377,9 +384,6 @@ class Trial_channel:
         envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)])
         envelope = envelope.reshape(-1, 1)
         return envelope
-        # else:
-            # envelope = envelope.reshape(-1,1)
-            
         # # Creates mne raw array
         # info_envelope = mne.create_info(ch_names=['Envelope'], sfreq=self.audio_sr, ch_types='misc')
         # envelope_mne_array = mne.io.RawArray(data=envelope.T, info=info_envelope)
@@ -445,14 +449,46 @@ class Trial_channel:
         np.ndarray
             Reduced hidden states from the Wav2Vec2 model after applying PCA.
         """
+        print('WARNING: TO RUN THIS FEATURE YOU NEED TO HAVE THE TRANSFORMER MODEL DOWNLOADED AND HAVE THE ENVELOPE MODEL ALREADY RUN FOR THE SITUATION OF INTEREST.')
+        
         # Read file
         wav = wavfile.read(self.wav_fname)[1]
         wav = wav.astype("float")
+        
+        # Identify which moments of the given condition are present in the audio file
+        keepindexes = funciones.load_pickle(path=f'saves/preprocessed_data/{self.situation}/tmin-0.2_tmax0.6/samples_info/samples_info_{self.session}.pkl')[f'keep_indexes{self.channel}']
+        filter_index_used_in_trial = []
+        for i in range(len(envelope)):
+            try:
+                filter_index_used_in_trial.append(keepindexes.index(i))
+            except Exception as err:
+                continue
+        
+        indexes_128Hz = np.array(keepindexes)[filter_index_used_in_trial]
+        
+        # Now, as the audio is sampled at 16e3 Hz instead of 128 Hz we have to consider more indexes (since in one sample step at 128 Hz has 8 indexes at 16e3 Hz)
+        indexes_16kHz = indexes_128Hz*(16e3/128)
+        dense_indexes = []
+        
+        # Complete consecutive samples
+        for i in range(len(indexes_128Hz)-1):
+            start = indexes_16kHz[i]
+            end = indexes_16kHz[i+1]
+            if indexes_128Hz[i+1]-indexes_128Hz[i]==1:
+                dense_indexes.extend(np.arange(start, end + 1))
+            else:
+                dense_indexes.append(start)
+        dense_indexes.append(indexes_16kHz[-1])
+        dense_indexes = list(map(int,dense_indexes))
+        
+        # # Redefine .wav
+        # wav = wav[dense_indexes]
         
         # Get name of folder
         modelfname = f'wav2vec2_weights_{TRANSFORMER_MODEL.split("wav2vec2-")[1]}' if 'wav2vec2' in TRANSFORMER_MODEL else f'whisper_weights_{TRANSFORMER_MODEL.split("whisper-")[1]}'
 
         # Loads model and proccesor
+        ini = time.time()
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=UserWarning, message="Passing `gradient_checkpointing` to a config initialization is deprecated")
             processor = WhisperProcessor.from_pretrained(TRANSFORMER_MODEL, cache_dir=f'saves/preprocessed_data/{modelfname}')
@@ -461,18 +497,23 @@ class Trial_channel:
             # processor = Wav2Vec2Processor.from_pretrained(wac2vec2model, cache_dir=f'saves/preprocessed_data/{modelfname}')
             # model = Wav2Vec2Model.from_pretrained(wac2vec2model, cache_dir=f'saves/preprocessed_data/{modelfname}')
         
-        ini = time.time()
+        # Preprocessing: break .wav in consecutive windows to feed the model and then concatenate the results
+        # sample_windows = np.arange(0, wav.shape[0], 800e-3*self.audio_sr, dtype=int)
+        # sample_windows = np.concatenate((sample_windows, np.array([wav.shape[0]])))
+        sample_windows = []
+        current_window = [dense_indexes[0]]
+        for i in range(1, len(dense_indexes)):
+            if dense_indexes[i]==(dense_indexes[i-1]+1):
+                current_window.append(dense_indexes[i])
+            else:
+                sample_windows.append(current_window)
+                current_window = [dense_indexes[i]]
         
-        # Preprocessing: break .wav in windows of 800ms to feed the model and then concatenate the results
-        audio_sr = 16e3
-        sample_windows = np.arange(0, wav.shape[0], 800e-3*audio_sr, dtype=int)
-        sample_windows = np.concatenate((sample_windows, np.array([wav.shape[0]])))
-
         full_hidden_states = []
-        for sample_window_d, sample_window in tqdm(zip(np.roll(sample_windows, shift=1)[1:], sample_windows[1:]), total=sample_windows.shape[0]):
+        for sample_window in tqdm(sample_windows, total=len(sample_windows)):
             input_values = processor(
-                        wav[sample_window_d:sample_window],
-                        sampling_rate=audio_sr, 
+                        wav[sample_window],
+                        sampling_rate=self.audio_sr, 
                         return_tensors="pt"
                         ).input_features
             # Get model's output
@@ -495,8 +536,8 @@ class Trial_channel:
         print(f'Portion of variance of whole hidden layer explained by {n_components} components: {np.sum(pca.explained_variance_ratio_)*100:.2f}%')
         
         hidden_state_final = []
-        for hidden_states, sample_window, sample_window_d in zip(full_hidden_states, sample_windows[1:], np.roll(sample_windows, shift=1)[1:]):
-            sample_freq_w = int(np.round(hidden_states.shape[0] / ((sample_window-sample_window_d)/16e3),0))
+        for hidden_states, sample_window, in zip(full_hidden_states, sample_windows):
+            sample_freq_w = int(np.round(hidden_states.shape[0] / (len(sample_window)/16e3),0))
             
             hidden_states_reduced = pca.transform(hidden_states)
             target_hidden_states = resampy.resample(
@@ -1393,7 +1434,7 @@ class Sesion_class:
                         'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', \
                         'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Phonet', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
         allowed_band_frequencies = ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
-        allowed_situationes = ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
+        allowed_situations = ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
         for st in stim.split('_'):
             if st in allowed_stims:
                 pass
@@ -1404,10 +1445,10 @@ class Sesion_class:
             self.band = band
         else:
             raise SyntaxError(f"{band} is not an allowed band frecuency. Allowed bands are: {allowed_band_frequencies}")
-        if situation in allowed_situationes:
+        if situation in allowed_situations:
             self.situation = situation
         else:
-            raise SyntaxError(f"{situation} is not an allowed situation. Allowed situations are: {allowed_situationes}")
+            raise SyntaxError(f"{situation} is not an allowed situation. Allowed situations are: {allowed_situations}")
         
         # Define parameters
         self.sesion = sesion
@@ -1520,7 +1561,8 @@ class Sesion_class:
                         causal_filter_eeg=self.causal_filter_eeg,
                         envelope_filter=self.envelope_filter,
                         silence_threshold=self.silence_threshold,
-                        praat_executable_path=self.praat_executable_path
+                        praat_executable_path=self.praat_executable_path,
+                        situation=self.situation,
                         )
                 channel_2 = Trial_channel(
                         s=self.sesion,
@@ -1531,7 +1573,8 @@ class Sesion_class:
                         causal_filter_eeg=self.causal_filter_eeg,
                         envelope_filter=self.envelope_filter,
                         silence_threshold=self.silence_threshold,
-                        praat_executable_path=self.praat_executable_path
+                        praat_executable_path=self.praat_executable_path,
+                        situation=self.situation,
                         )
 
                 # Extract dictionaries with the data
