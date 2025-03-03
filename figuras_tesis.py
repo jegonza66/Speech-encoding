@@ -6516,26 +6516,27 @@ fig.show()
 # # STACK DE PESOS
 # stimuli = [
 #     'Envelope',
-#     'Pitch-Log-Raw',
-#     'Spectrogram',
-#     'Mfccs',
-#     'Phonemes-Discrete-Phonet',
-#     'Phonological'
+#     # 'Pitch-Log-Raw',
+#     # 'Spectrogram',
+#     # 'Mfccs',
+#     # 'Phonemes-Discrete-Phonet',
+#     # 'Phonemes-Phonet',
+#     # 'Phonological'
 #     ]
 # bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
-
+# situations = ['External', 'Internal']#, 'External_BS', 'Internal_BS']
 # fig, axes = plt.subplots(
-#     nrows=len(stimuli),
+#     nrows=len(situations),
 #     ncols=len(bands),
-#     figsize=(len(bands)*1.5, len(stimuli)*1.5),
+#     figsize=(len(bands)*1.5, len(situations)*1.5),
 #     tight_layout=True,
 #     sharex=True,
-#     sharey='row'
+#     # sharey='row'
 #     )
 
 # for j, band in enumerate(bands):
-#     for i, stimulus in enumerate(stimuli):
-#         path_mtrfs = f'saves/mtrf_ridge_torch/External/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/{band}/{stimulus}/total_weights_per_subject.pkl'
+#     for i, situation in enumerate(situations):
+#         path_mtrfs = f'saves/mtrf_ridge_torch/{situation}/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/{band}/{stimuli[0]}/total_weights_per_subject.pkl'
 #         weights = load_pickle(
 #             path=path_mtrfs
 #             )['average_weights_subjects'].mean(axis=0).mean(axis=1)
@@ -6550,33 +6551,55 @@ fig.show()
 #             linewidth=2
 #             )
 #         axes[i, j].grid(visible=True)
-#         if band=='Theta':
-#             axes[i, j].set_ylim(evoked._data.mean(axis=0).min(), evoked._data.mean(axis=0).max())
+#         axes[i, j].set_yticklabels([])
+#         # if band=='Theta':
+#         axes[i, j].set_ylim(evoked._data.mean(axis=0).min(), evoked._data.mean(axis=0).max())
 
-# for ax, col in zip(axes[:,0], stimuli):
-#     if col=='Phonemes-Discrete-Phonet':
-#         col = 'Fonemas'
+# # for ax, col in zip(axes[:,0], situations):
+# #     if col=='Phonemes-Discrete-Phonet':
+# #         col = 'Fonemas'
+# #         ax.set_ylabel(col, rotation=90)
+# #     elif col=='Pitch-Log-Raw':
+# #         col = 'Tono de voz'
+# #         ax.set_ylabel(col, rotation=90)
+# #     elif col=='Envelope':
+# #         col = 'Envolvente'
+# #         ax.set_ylabel(col, rotation=90)
+# #     elif col=='Phonological':
+# #         col = 'C. Fonológicas'
+# #         ax.set_ylabel(col, rotation=90)
+# #     elif col=='Spectrogram':
+# #         col = 'Espectrograma'
+# #         ax.set_ylabel(col, rotation=90)
+# #     elif col=='Mfccs':
+# #         col = 'Coef. Mel'
+# #         ax.set_ylabel(col, rotation=90)
+
+
+# for ax, col in zip(axes[:,0], situations):
+#     if col=='External':
+#         col = 'Externa'
 #         ax.set_ylabel(col, rotation=90)
-#     elif col=='Pitch-Log-Raw':
-#         col = 'Tono de voz'
+#     elif col=='External_BS':
+#         col = 'Externa\n(AH)'
 #         ax.set_ylabel(col, rotation=90)
-#     elif col=='Envelope':
-#         col = 'Envolvente'
+#     elif col=='Internal_BS':
+#         col = 'Interna\n(AH)'
 #         ax.set_ylabel(col, rotation=90)
-#     elif col=='Phonological':
-#         col = 'C. Fonológicas'
-#         ax.set_ylabel(col, rotation=90)
-#     elif col=='Spectrogram':
-#         col = 'Espectrograma'
-#         ax.set_ylabel(col, rotation=90)
-#     elif col=='Mfccs':
-#         col = 'Coef. Mel'
+#     elif col=='Internal':
+#         col = 'Interna'
 #         ax.set_ylabel(col, rotation=90)
 
-# for ax, band in zip(axes[0], bands):
+# for ax, band in zip(axes[0], ['Delta', 'Theta', 'Alpha', 'Beta'+r'$_1$', 'Beta'+r'$_2$', 'Ancha']):
 #     ax.set_title(band)
 
 # for ax in axes[-1]:
 #     ax.set_xlabel('Tiempo (ms)')
 
+# # Guardar figura
+# fig.savefig(
+#     os.path.join(tesis_path, 'resultados', f'pesos_por_sit{stimuli[0]}.{figformat}'),
+#     transparent=False,
+#     dpi=dpi
+# )
 # fig.show()
