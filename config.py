@@ -14,37 +14,40 @@ sesiones = [
             30
             ]
 stimuli = [
-    # 'Mistakes-Separated_Control-Separated',
+        # 'Mistakes-Separated_Control-Separated',
         # 'Spectrogram_Mfccs',
+        # 'Phones-Phonet_Phonemes-Phonet',
+
         # 'Envelope_Pitch-Log-Raw',
         # 'Envelope_Spectrogram',
         # 'Pitch-Log-Raw_Spectrogram',
         # 'Envelope_Pitch-Log-Raw_Spectrogram',
-        'Phonemes-Phonet_Spectrogram',
-        'Phonological_Spectrogram', # HASTA ACA
-        'Phonological_Phonemes-Phonet',
-        'Phonological_Phonemes-Phonet_Spectrogram',
-        'Phones-Phonet_Phonemes-Phonet',
+        
+        # 'Phonological_Spectrogram', 
+        # 'Phonemes-Phonet_Spectrogram',
+        # 'Phonological_Phonemes-Phonet',
+        # 'Phonological_Phonemes-Phonet_Spectrogram',
+        
         # 'Envelope',
         # 'Pitch-Log-Raw',
-        # 'Spectrogram',
+        'Spectrogram',
         # 'Mfccs',
         # 'Phonological',
         # 'Phonemes-Phonet',
-        # 'Phones-Phonet', #FALTA CORRER CON TFCE
+        # 'Phones-Phonet', 
         # 'Phonemes-Discrete-Phonet',
         # 'Phones-Discrete-Phonet',
         # 'Wav2vec2'
         ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situations = [
         'External', 
-        'Internal', 
-        'External_BS',
-        'Internal_BS'
+        # 'Internal', 
+        # 'External_BS',
+        # 'Internal_BS'
         ] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
 bands = [
-        # 'Delta', 
-        'Theta', 
+        'Delta', 
+        # 'Theta', 
         # 'Alpha', 
         # 'Beta1', 
         # 'Beta2',
@@ -62,7 +65,7 @@ just_load_data = False
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
 model = 'mtrf'
 estimator = 'ridge_torch' # ridge, ridge_torch or time_delaying_ridge
-statistical_test, perform_tfce, use_gpu = True, True, True
+statistical_test, perform_tfce, use_gpu = True, False, True
 precomputed_design_matrix = False
 stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 
