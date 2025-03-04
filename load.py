@@ -481,9 +481,11 @@ class Trial_channel:
         dense_indexes.append(indexes_16kHz[-1])
         dense_indexes = list(map(int,dense_indexes))
         
-        # # Redefine .wav
-        # wav = wav[dense_indexes]
-        
+        # Redefine .wav to make 0 elements outside dense_indexes
+        mask = np.ones_like(wav, dtype=bool)
+        mask[dense_indexes] = False
+        wav[mask] = 0
+
         # Get name of folder
         modelfname = f'wav2vec2_weights_{TRANSFORMER_MODEL.split("wav2vec2-")[1]}' if 'wav2vec2' in TRANSFORMER_MODEL else f'whisper_weights_{TRANSFORMER_MODEL.split("whisper-")[1]}'
 
@@ -500,19 +502,22 @@ class Trial_channel:
         # Preprocessing: break .wav in consecutive windows to feed the model and then concatenate the results
         # sample_windows = np.arange(0, wav.shape[0], 800e-3*self.audio_sr, dtype=int)
         # sample_windows = np.concatenate((sample_windows, np.array([wav.shape[0]])))
-        sample_windows = []
-        current_window = [dense_indexes[0]]
-        for i in range(1, len(dense_indexes)):
-            if dense_indexes[i]==(dense_indexes[i-1]+1):
-                current_window.append(dense_indexes[i])
-            else:
-                sample_windows.append(current_window)
-                current_window = [dense_indexes[i]]
+        # sample_windows = []
+        # current_window = [dense_indexes[0]]
+        # for i in range(1, len(dense_indexes)):
+        #     if dense_indexes[i]==(dense_indexes[i-1]+1):
+        #         current_window.append(dense_indexes[i])
+        #     else:
+        #         sample_windows.append(current_window)
+        #         current_window = [dense_indexes[i]]
+        # Preprocessing: break .wav in windows of 800ms to feed the model and then concatenate the results
+        sample_windows = np.arange(0, wav.shape[0], 800e-3*self.audio_sr, dtype=int)
+        sample_windows = np.concatenate((sample_windows, np.array([wav.shape[0]])))
         
         full_hidden_states = []
-        for sample_window in tqdm(sample_windows, total=len(sample_windows)):
+        for sample_window_d, sample_window in tqdm(zip(np.roll(sample_windows, shift=1)[1:], sample_windows[1:]), total=sample_windows.shape[0]):
             input_values = processor(
-                        wav[sample_window],
+                        wav[sample_window_d:sample_window],
                         sampling_rate=self.audio_sr, 
                         return_tensors="pt"
                         ).input_features
@@ -534,10 +539,12 @@ class Trial_channel:
         pca = PCA(n_components=n_components)
         pca.fit_transform(np.concatenate(full_hidden_states, axis=0))
         print(f'Portion of variance of whole hidden layer explained by {n_components} components: {np.sum(pca.explained_variance_ratio_)*100:.2f}%')
-        
+
         hidden_state_final = []
-        for hidden_states, sample_window, in zip(full_hidden_states, sample_windows):
-            sample_freq_w = int(np.round(hidden_states.shape[0] / (len(sample_window)/16e3),0))
+        # for hidden_states, sample_window, in zip(full_hidden_states, sample_windows):
+        for hidden_states, sample_window_d, sample_window in zip(full_hidden_states, np.roll(sample_windows, shift=1)[1:], sample_windows[1:]):
+            window_time = (sample_window-sample_window_d)/self.audio_sr
+            sample_freq_w = int(np.round(hidden_states.shape[0] / window_time, 0))
             
             hidden_states_reduced = pca.transform(hidden_states)
             target_hidden_states = resampy.resample(
