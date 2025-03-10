@@ -102,6 +102,7 @@ class Trial_channel:
         self.envelope_filter = envelope_filter
         self.situation = situation
         self.session = s
+        self.trial = trial
         self.channel = channel
         
         # To be filled with loaded data
@@ -456,7 +457,11 @@ class Trial_channel:
         wav = wav.astype("float")
         
         # Identify which moments of the given condition are present in the audio file
-        keepindexes = funciones.load_pickle(path=f'saves/preprocessed_data/{self.situation}/tmin-0.2_tmax0.6/samples_info/samples_info_{self.session}.pkl')[f'keep_indexes{self.channel}']
+        samples_info = funciones.load_pickle(path=f'saves/preprocessed_data/{self.situation}/tmin-0.2_tmax0.6/samples_info/samples_info_{self.session}.pkl')
+        keepindexes = samples_info[f'keep_indexes{self.channel}']
+        len_trial = samples_info[f'trial_lengths{self.channel}'][self.trial]
+        keepindexes = [keep for keep in keepindexes if keep<=len_trial]
+        
         filter_index_used_in_trial = []
         for i in range(len(envelope)):
             try:

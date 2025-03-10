@@ -6342,6 +6342,62 @@ figformat, dpi = 'png', 350
 # #     )
 # fig.show()
 
+# ===============
+# AUTOCORRELACIÓN
+WavPath = 'Datos/wavs/S21/s21.objects.01.channel1.wav'
+WindowLeft, WindowRight, EegSr = 32, 34, 128
+
+sr, audio = wavfile.read(WavPath)
+window_size, stride = int(sr/EegSr), int(sr/EegSr)
+envelope = np.abs(signal.hilbert(audio))
+envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)])
+# audio = np.array([np.mean(audio[i:i+WindowSize]) for i in range(0, len(audio), Stride) if i+window_size<=len(audio)])
+# sr = EegSr
+
+time_audio = np.arange(0, len(audio)/sr, 1/sr)
+time_envelope = np.arange(0, len(envelope)/EegSr, 1/EegSr)
+
+# Compute auto correlation of the atribute
+auto_corr = np.correlate(envelope, envelope, mode='full')  # Devuelve 2N-1 valores
+lags = np.arange(-len(envelope)+1, len(envelope))  # Desplazamientos correspondientes
+
+# Normalizar la auto_correlación para que el valor máximo sea 1
+auto_corr /= np.max(auto_corr)
+
+
+fig = plt.figure(
+    tight_layout=True,
+    figsize=(6, 5)
+    )
+plt.plot(
+    time_envelope,
+    auto_corr[9167:],
+    # label='Autocorrelación',
+    color='C4',
+    linewidth=2
+    )
+half_arg = np.abs(auto_corr[9167:]-.5).argmin()
+plt.vlines(x=time_envelope[half_arg],
+           ymin=0,
+           ymax=auto_corr[9167:][half_arg], 
+           color='C4', 
+           linestyle='-.', 
+           label=r'$\tau=$'+f' {time_envelope[half_arg]:.2f} s'
+           )
+plt.scatter(time_envelope[half_arg], auto_corr[9167:][half_arg], s=10, color='C4')
+plt.legend(loc='upper right')
+plt.grid(visible=True)
+
+plt.xlim(0, 10)
+plt.ylim(0, 1.05)
+plt.xlabel('Tiempo (s)')
+plt.ylabel('Auto correlación')
+fig.savefig(
+    os.path.join(tesis_path,'metodos', f'auto_corr_envolvente.{figformat}'),
+    transparent=False,
+    dpi=dpi
+    )
+fig.show()
 # =======================================================
 # Ejemplo EEG y PSD (power spectral density) de un sujeto# TODO SIGUE SIN DAR CHARLAR CON JOACO
 sesion, sujeto = 21, 2
@@ -6511,6 +6567,56 @@ fig.show()
 #     #     )
 #     fig.show()
 
+# # =========================
+# # ATRIBUTO BASADO EN REDES
+
+# dnnsPath = "saves/preprocessed_data/External/tmin-0.2_tmax0.6/Wav2vec2/Sesion21.pkl"
+# NumberOfTicks = 16
+
+# dnns = load_pickle(path=dnnsPath)[0][:9168]
+# WindowLeft, WindowRight = 30, 40#0, len(dnns)/config.sr
+
+# time_dnns = np.arange(0, len(dnns)/config.sr, 1/config.sr)
+# window_dnns = (WindowLeft <= time_dnns) & (time_dnns <= WindowRight)
+
+# tags = [f'C{i}' for i in np.arange(1, NumberOfTicks, 2)]
+# ticks = np.arange(0, NumberOfTicks, 2)
+
+# fig = plt.figure(
+#     tight_layout=True,
+#     figsize=(6, 5)
+#     )
+# norm = TwoSlopeNorm(vmin=dnns.min(), vcenter=0, vmax=dnns.max())
+# im = plt.pcolormesh(
+#     time_dnns,
+#     np.arange(16),
+#     dnns.T,
+#     cmap='RdBu_r',#LinearSegmentedColormap.from_list("custom_cmap", ["white", "gray"]),  # Ajusta el mapa de colores
+#     shading='auto',
+#     norm=norm
+#     )
+
+# cbar = plt.colorbar(
+#     im,
+#     label='Amplitud (U.A)'
+#     )
+# # ticks_b = [-40, -20, 0, 40, 80, 120, 180]#dnns.min(), dnns.max()
+# # cbar.set_ticks(ticks_b)
+
+# plt.yticks(
+#     ticks=ticks,
+#     labels=tags
+#     )
+# plt.xlabel('Tiempo (s)')
+# plt.ylabel('Coeficientes DNNs')
+# plt.xlim(WindowLeft, WindowRight)
+# fig.savefig(
+#     os.path.join(tesis_path,'metodos', f'sample_dnns.{figformat}'),
+#     transparent=False,
+#     dpi=dpi
+#     )
+# fig.show()
+
 
 # # ==============
 # # STACK DE PESOS
@@ -6603,3 +6709,23 @@ fig.show()
 #     dpi=dpi
 # )
 # fig.show()
+
+# DESFAASAJE
+# # band='Theta'
+# # situation1='External'
+# # situation2='Internal'
+# # path_mtrfs1 = f'saves/mtrf_ridge_torch/{situation1}/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/{band}/{stimuli[0]}/total_weights_per_subject.pkl'
+# # path_mtrfs2 = f'saves/mtrf_ridge_torch/{situation2}/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/{band}/{stimuli[0]}/total_weights_per_subject.pkl'
+# # weights1 = load_pickle(
+# #     path=path_mtrfs1
+# #     )['average_weights_subjects'].mean(axis=0).mean(axis=1).mean(axis=0)
+# # weights2 = load_pickle(
+# #     path=path_mtrfs2
+# #     )['average_weights_subjects'].mean(axis=0).mean(axis=1).mean(axis=0)
+
+
+# # weights1.min(), weights1.max()
+# # weights2.min(), weights2.max()
+# # config.times[weights1.argmin()]*1e3, config.times[weights1.argmax()]*1e3
+# # config.times[weights2.argmin()]*1e3, config.times[weights2.argmax()]*1e3
+# # config.times[weights2.argmax()]*1e3-config.times[weights1.argmin()]*1e3
