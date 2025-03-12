@@ -3447,7 +3447,7 @@ figformat, dpi = 'png', 350
 
 # # Crear una figura
 # fig = plt.figure(
-#     figsize=(12, 10),
+#     figsize=(9,8),
 #     tight_layout=True
 #     )
 
@@ -3456,8 +3456,8 @@ figformat, dpi = 'png', 350
 # gs = gridspec.GridSpec(
 #     nrows=2,
 #     ncols=2,
-#     width_ratios=[1.2, 1],
-#     height_ratios=[1, 2]
+#     width_ratios=[1.5, 1],
+#     height_ratios=[1, 1]
 #     )
 
 # # Primer gráfico en la primera columna (comparte el eje x con el segundo gráfico)
@@ -3505,7 +3505,7 @@ figformat, dpi = 'png', 350
 # pos = montage.get_positions()['ch_pos']  # Diccionario con las posiciones de los canales
 
 # # Crear un eje adicional para la cabecita sin sensores
-# ax_head_outline = fig.add_axes([.415, 0.84, 0.11, 0.11])  # [x, y, width, height]
+# ax_head_outline = fig.add_axes([.49, 0.82, 0.11, 0.11])  # [x, y, width, height]
 
 # # Graficar solo el contorno de la cabeza (sin sensores)
 # mne.viz.plot_topomap(
@@ -3520,7 +3520,7 @@ figformat, dpi = 'png', 350
 # ax_head_outline.axis('off')  # Ocultar los ejes
 
 # # Crear un eje adicional para graficar los sensores
-# ax_head = fig.add_axes([.425, 0.842, 0.09, 0.09])  # [x, y, width, height]
+# ax_head = fig.add_axes([.5, 0.822, 0.09, 0.09])  # [x, y, width, height]
 
 # # Convertir las posiciones a un array 2D (x, y)
 # pos_2d = np.array([pos[ch][:2] for ch in evoked.ch_names])  # Solo tomamos las coordenadas x e y
@@ -3531,7 +3531,7 @@ figformat, dpi = 'png', 350
 # ax1.grid(visible=True)
 # ax1.set(xlabel='', xticklabels=[], title='EEG (128 canales)')
 # ax1.tick_params(axis='x', which='both', labelbottom=False)
-# ax1.legend(loc=(.65,.1))
+# ax1.legend(loc=(.01,.85))
 
 
 # # Segundo gráfico en la primera columna (comparte el eje x con el primer gráfico)
@@ -3650,10 +3650,14 @@ figformat, dpi = 'png', 350
 
 # ax4.axis('off')  # Desactivar ejes
 
-# fig.text(0.03, 1, 'a)', fontsize=18, va='top', ha='right')
-# fig.text(0.03, .62, 'b)', fontsize=18, va='top', ha='right')
-# fig.text(.6, 1, 'c)', fontsize=18, va='top', ha='right')
-# fig.text(.6, .62, 'd)', fontsize=18, va='top', ha='right')
+# fig.text(0.04, 1, 'a)', fontsize=18, va='top', ha='right')
+# fig.text(0.04, .5, 'b)', fontsize=18, va='top', ha='right')
+# fig.text(.65, 1, 'c)', fontsize=18, va='top', ha='right')
+# fig.text(.65, .5, 'd)', fontsize=18, va='top', ha='right')
+# # Eliminar la etiqueta "Nave"
+# for txt in fig.findobj(mtext.Text):
+#     if "ave" in txt.get_text():
+#          txt.remove()
 # # fig.savefig(
 # #     os.path.join(tesis_path,'resultados', f'fonemas_diliberto.{figformat}'),
 # #     transparent=False,
