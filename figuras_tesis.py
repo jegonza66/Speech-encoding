@@ -47,6 +47,7 @@ tesis_path = os.path.normpath(os.path.join('C:\\Users', 'jocta', 'Documents', 't
 tesis_path = os.path.normpath(os.path.join('figures','figuras_tesis' ))
 figformat, dpi = 'png', 350
 
+
 # # ========================
 # # Boxplot ENTRE SITUACIONES
 # situations = ['External', 'Internal', 'External_BS', 'Internal_BS']
@@ -6714,6 +6715,45 @@ fig.show()
 # )
 # fig.show()
 
+<<<<<<< HEAD
+# ==========================
+# EEG prediction vs original: 21, 2
+weights = load_pickle(r'saves\mtrf_ridge_torch\External\weights\stims_Normalize_EEG_Standarize\tmin-0.2_tmax0.6\Theta\Envelope\total_weights_per_subject.pkl')['average_weights_subjects']
+weights = weights.mean(axis=0).mean(axis=1)
+
+eeg = load_pickle(r'saves\preprocessed_data\External\tmin-0.2_tmax0.6\EEG\Theta\Causal\Sesion21.pkl')[1]
+
+situation='External'
+stim = 'Envelope'
+band ='Theta'
+preprocessed_data_path = r'saves\preprocessed_data\External\tmin-0.2_tmax0.6'
+
+from load import load_data
+from processing import shifted_matrix
+sujeto_1, sujeto_2, samples_info = load_data(
+                                            sesion=21,
+                                            stim=stim,
+                                            band=band,
+                                            sr=config.sr,
+                                            delays=config.delays,
+                                            preprocessed_data_path=preprocessed_data_path,
+                                            praat_executable_path=config.praat_executable_path,
+                                            situation=situation
+                                            )
+
+design_matrix = shifted_matrix(features=sujeto_2['Envelope'], delays=config.delays)
+
+eeg -= eeg.mean(axis=0)
+eeg /= eeg.std(axis=0)
+eeg_predict -= eeg_predict.mean(axis=0)
+eeg_predict /= eeg_predict.std(axis=0)
+
+plt.figure(figsize=(8,4))
+plt.plot(eeg.mean(1)[:2000], label='Original', color='blue')
+plt.plot(eeg_predict.mean(1)[:2000], label='Predicción', color='green')
+plt.legend()
+plt.show()
+=======
 # DESFAASAJE
 # # band='Theta'
 # # situation1='External'
@@ -6733,3 +6773,4 @@ fig.show()
 # # config.times[weights1.argmin()]*1e3, config.times[weights1.argmax()]*1e3
 # # config.times[weights2.argmin()]*1e3, config.times[weights2.argmax()]*1e3
 # # config.times[weights2.argmax()]*1e3-config.times[weights1.argmin()]*1e3
+>>>>>>> 09db34f042fa98c8a0ae3c1ad96fd974d1df4eca
