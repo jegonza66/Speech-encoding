@@ -6512,6 +6512,56 @@ fig.show()
 #     #     )
 #     fig.show()
 
+# # =========================
+# # ATRIBUTO BASADO EN REDES
+
+# dnnsPath = "saves/preprocessed_data/External/tmin-0.2_tmax0.6/Wav2vec2/Sesion21.pkl"
+# NumberOfTicks = 16
+
+# dnns = load_pickle(path=dnnsPath)[0][:9168]
+# WindowLeft, WindowRight = 30, 40#0, len(dnns)/config.sr
+
+# time_dnns = np.arange(0, len(dnns)/config.sr, 1/config.sr)
+# window_dnns = (WindowLeft <= time_dnns) & (time_dnns <= WindowRight)
+
+# tags = [f'C{i}' for i in np.arange(1, NumberOfTicks, 2)]
+# ticks = np.arange(0, NumberOfTicks, 2)
+
+# fig = plt.figure(
+#     tight_layout=True,
+#     figsize=(6, 5)
+#     )
+# norm = TwoSlopeNorm(vmin=dnns.min(), vcenter=0, vmax=dnns.max())
+# im = plt.pcolormesh(
+#     time_dnns,
+#     np.arange(16),
+#     dnns.T,
+#     cmap='RdBu_r',#LinearSegmentedColormap.from_list("custom_cmap", ["white", "gray"]),  # Ajusta el mapa de colores
+#     shading='auto',
+#     norm=norm
+#     )
+
+# cbar = plt.colorbar(
+#     im,
+#     label='Amplitud (U.A)'
+#     )
+# # ticks_b = [-40, -20, 0, 40, 80, 120, 180]#dnns.min(), dnns.max()
+# # cbar.set_ticks(ticks_b)
+
+# plt.yticks(
+#     ticks=ticks,
+#     labels=tags
+#     )
+# plt.xlabel('Tiempo (s)')
+# plt.ylabel('Coeficientes DNNs')
+# plt.xlim(WindowLeft, WindowRight)
+# fig.savefig(
+#     os.path.join(tesis_path,'metodos', f'sample_dnns.{figformat}'),
+#     transparent=False,
+#     dpi=dpi
+#     )
+# fig.show()
+
 
 # # ==============
 # # STACK DE PESOS
@@ -6605,6 +6655,7 @@ fig.show()
 # )
 # fig.show()
 
+<<<<<<< HEAD
 # ==========================
 # EEG prediction vs original: 21, 2
 weights = load_pickle(r'saves\mtrf_ridge_torch\External\weights\stims_Normalize_EEG_Standarize\tmin-0.2_tmax0.6\Theta\Envelope\total_weights_per_subject.pkl')['average_weights_subjects']
@@ -6642,3 +6693,24 @@ plt.plot(eeg.mean(1)[:2000], label='Original', color='blue')
 plt.plot(eeg_predict.mean(1)[:2000], label='Predicción', color='green')
 plt.legend()
 plt.show()
+=======
+# DESFAASAJE
+# # band='Theta'
+# # situation1='External'
+# # situation2='Internal'
+# # path_mtrfs1 = f'saves/mtrf_ridge_torch/{situation1}/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/{band}/{stimuli[0]}/total_weights_per_subject.pkl'
+# # path_mtrfs2 = f'saves/mtrf_ridge_torch/{situation2}/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/{band}/{stimuli[0]}/total_weights_per_subject.pkl'
+# # weights1 = load_pickle(
+# #     path=path_mtrfs1
+# #     )['average_weights_subjects'].mean(axis=0).mean(axis=1).mean(axis=0)
+# # weights2 = load_pickle(
+# #     path=path_mtrfs2
+# #     )['average_weights_subjects'].mean(axis=0).mean(axis=1).mean(axis=0)
+
+
+# # weights1.min(), weights1.max()
+# # weights2.min(), weights2.max()
+# # config.times[weights1.argmin()]*1e3, config.times[weights1.argmax()]*1e3
+# # config.times[weights2.argmin()]*1e3, config.times[weights2.argmax()]*1e3
+# # config.times[weights2.argmax()]*1e3-config.times[weights1.argmin()]*1e3
+>>>>>>> 09db34f042fa98c8a0ae3c1ad96fd974d1df4eca
