@@ -6715,7 +6715,6 @@ fig.show()
 # )
 # fig.show()
 
-<<<<<<< HEAD
 # ==========================
 # EEG prediction vs original: 21, 2
 weights = load_pickle(r'saves\mtrf_ridge_torch\External\weights\stims_Normalize_EEG_Standarize\tmin-0.2_tmax0.6\Theta\Envelope\total_weights_per_subject.pkl')['average_weights_subjects']
