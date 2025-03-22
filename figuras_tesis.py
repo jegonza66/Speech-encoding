@@ -6752,7 +6752,7 @@ plt.plot(eeg.mean(1)[:2000], label='Original', color='blue')
 plt.plot(eeg_predict.mean(1)[:2000], label='Predicción', color='green')
 plt.legend()
 plt.show()
-=======
+# =======
 # DESFAASAJE
 # # band='Theta'
 # # situation1='External'
@@ -6772,4 +6772,3 @@ plt.show()
 # # config.times[weights1.argmin()]*1e3, config.times[weights1.argmax()]*1e3
 # # config.times[weights2.argmin()]*1e3, config.times[weights2.argmax()]*1e3
 # # config.times[weights2.argmax()]*1e3-config.times[weights1.argmin()]*1e3
->>>>>>> 09db34f042fa98c8a0ae3c1ad96fd974d1df4eca
