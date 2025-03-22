@@ -47,7 +47,6 @@ tesis_path = os.path.normpath(os.path.join('C:\\Users', 'jocta', 'Documents', 't
 tesis_path = os.path.normpath(os.path.join('figures','figuras_tesis' ))
 figformat, dpi = 'png', 350
 
-
 # # ========================
 # # Boxplot ENTRE SITUACIONES
 # situations = ['External', 'Internal', 'External_BS', 'Internal_BS']
@@ -6714,6 +6713,26 @@ fig.show()
 #     dpi=dpi
 # )
 # fig.show()
+# =======
+# DESFAASAJE
+# # band='Theta'
+# # situation1='External'
+# # situation2='Internal'
+# # path_mtrfs1 = f'saves/mtrf_ridge_torch/{situation1}/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/{band}/{stimuli[0]}/total_weights_per_subject.pkl'
+# # path_mtrfs2 = f'saves/mtrf_ridge_torch/{situation2}/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/{band}/{stimuli[0]}/total_weights_per_subject.pkl'
+# # weights1 = load_pickle(
+# #     path=path_mtrfs1
+# #     )['average_weights_subjects'].mean(axis=0).mean(axis=1).mean(axis=0)
+# # weights2 = load_pickle(
+# #     path=path_mtrfs2
+# #     )['average_weights_subjects'].mean(axis=0).mean(axis=1).mean(axis=0)
+
+
+# # weights1.min(), weights1.max()
+# # weights2.min(), weights2.max()
+# # config.times[weights1.argmin()]*1e3, config.times[weights1.argmax()]*1e3
+# # config.times[weights2.argmin()]*1e3, config.times[weights2.argmax()]*1e3
+# # config.times[weights2.argmax()]*1e3-config.times[weights1.argmin()]*1e3
 
 # ==========================
 # EEG prediction vs original: 21, 2
@@ -6752,23 +6771,3 @@ plt.plot(eeg.mean(1)[:2000], label='Original', color='blue')
 plt.plot(eeg_predict.mean(1)[:2000], label='Predicción', color='green')
 plt.legend()
 plt.show()
-# =======
-# DESFAASAJE
-# # band='Theta'
-# # situation1='External'
-# # situation2='Internal'
-# # path_mtrfs1 = f'saves/mtrf_ridge_torch/{situation1}/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/{band}/{stimuli[0]}/total_weights_per_subject.pkl'
-# # path_mtrfs2 = f'saves/mtrf_ridge_torch/{situation2}/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/{band}/{stimuli[0]}/total_weights_per_subject.pkl'
-# # weights1 = load_pickle(
-# #     path=path_mtrfs1
-# #     )['average_weights_subjects'].mean(axis=0).mean(axis=1).mean(axis=0)
-# # weights2 = load_pickle(
-# #     path=path_mtrfs2
-# #     )['average_weights_subjects'].mean(axis=0).mean(axis=1).mean(axis=0)
-
-
-# # weights1.min(), weights1.max()
-# # weights2.min(), weights2.max()
-# # config.times[weights1.argmin()]*1e3, config.times[weights1.argmax()]*1e3
-# # config.times[weights2.argmin()]*1e3, config.times[weights2.argmax()]*1e3
-# # config.times[weights2.argmax()]*1e3-config.times[weights1.argmin()]*1e3
