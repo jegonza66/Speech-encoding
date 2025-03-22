@@ -6343,6 +6343,62 @@ figformat, dpi = 'png', 350
 # #     )
 # fig.show()
 
+# ===============
+# AUTOCORRELACIÓN
+WavPath = 'Datos/wavs/S21/s21.objects.01.channel1.wav'
+WindowLeft, WindowRight, EegSr = 32, 34, 128
+
+sr, audio = wavfile.read(WavPath)
+window_size, stride = int(sr/EegSr), int(sr/EegSr)
+envelope = np.abs(signal.hilbert(audio))
+envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)])
+# audio = np.array([np.mean(audio[i:i+WindowSize]) for i in range(0, len(audio), Stride) if i+window_size<=len(audio)])
+# sr = EegSr
+
+time_audio = np.arange(0, len(audio)/sr, 1/sr)
+time_envelope = np.arange(0, len(envelope)/EegSr, 1/EegSr)
+
+# Compute auto correlation of the atribute
+auto_corr = np.correlate(envelope, envelope, mode='full')  # Devuelve 2N-1 valores
+lags = np.arange(-len(envelope)+1, len(envelope))  # Desplazamientos correspondientes
+
+# Normalizar la auto_correlación para que el valor máximo sea 1
+auto_corr /= np.max(auto_corr)
+
+
+fig = plt.figure(
+    tight_layout=True,
+    figsize=(6, 5)
+    )
+plt.plot(
+    time_envelope,
+    auto_corr[9167:],
+    # label='Autocorrelación',
+    color='C4',
+    linewidth=2
+    )
+half_arg = np.abs(auto_corr[9167:]-.5).argmin()
+plt.vlines(x=time_envelope[half_arg],
+           ymin=0,
+           ymax=auto_corr[9167:][half_arg], 
+           color='C4', 
+           linestyle='-.', 
+           label=r'$\tau=$'+f' {time_envelope[half_arg]:.2f} s'
+           )
+plt.scatter(time_envelope[half_arg], auto_corr[9167:][half_arg], s=10, color='C4')
+plt.legend(loc='upper right')
+plt.grid(visible=True)
+
+plt.xlim(0, 10)
+plt.ylim(0, 1.05)
+plt.xlabel('Tiempo (s)')
+plt.ylabel('Auto correlación')
+fig.savefig(
+    os.path.join(tesis_path,'metodos', f'auto_corr_envolvente.{figformat}'),
+    transparent=False,
+    dpi=dpi
+    )
+fig.show()
 # =======================================================
 # Ejemplo EEG y PSD (power spectral density) de un sujeto# TODO SIGUE SIN DAR CHARLAR CON JOACO
 sesion, sujeto = 21, 2
