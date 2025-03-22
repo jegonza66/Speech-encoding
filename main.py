@@ -80,27 +80,27 @@ for situation in config.situations:
                 n_feats = [sujeto_1[stimulus].shape[1] for stimulus in stim.split('_')]
                 delayed_length_per_stimuli = [n_feat*len(config.delays) for n_feat in n_feats]
 
-                # Store phonemes ocurrences to make boxplot
-                for stimulus in stim.split('_'):
-                    if stimulus.startswith('Phonemes'):
-                        # Change to 1's every value that isn't 0. In this way the method works for every kind
-                        matrix_1 = sujeto_1[stimulus].copy()
-                        matrix_1[matrix_1!=0.] = 1
-                        matrix_2 = sujeto_2[stimulus].copy()
-                        matrix_2[matrix_2!=0.] = 1
-                        matrix = matrix_1 + matrix_2
+                # # Store phonemes ocurrences to make boxplot
+                # for stimulus in stim.split('_'):
+                #     if stimulus.startswith('Phonemes'):
+                #         # Change to 1's every value that isn't 0. In this way the method works for every kind
+                #         matrix_1 = sujeto_1[stimulus].copy()
+                #         matrix_1[matrix_1!=0.] = 1
+                #         matrix_2 = sujeto_2[stimulus].copy()
+                #         matrix_2[matrix_2!=0.] = 1
+                #         matrix = matrix_1 + matrix_2
 
-                        # Identify the phonemes
-                        phonemes = config.Exp_info()
-                        if stimulus.endswith('Manual'):
-                            phonemes = phonemes.ph_labels_man
-                        elif stimulus.endswith('Phonet'):
-                            phonemes = [el if el!='<p:>' else '' for el in phonemes.ph_labels_phonet]
-                        else:
-                            phonemes = phonemes.ph_labels
-                        phonemes_occurrences[sesion][stimulus] = {'phonemes':phonemes, 'count':np.sum(matrix, axis=0)}
-                    else:
-                        pass
+                #         # Identify the phonemes
+                #         phonemes = config.Exp_info()
+                #         if stimulus.endswith('Manual'):
+                #             phonemes = phonemes.ph_labels_man
+                #         elif stimulus.endswith('Phonet'):
+                #             phonemes = [el if el!='<p:>' else '' for el in phonemes.ph_labels_phonet]
+                #         else:
+                #             phonemes = phonemes.ph_labels
+                #         phonemes_occurrences[sesion][stimulus] = {'phonemes':phonemes, 'count':np.sum(matrix, axis=0)}
+                #     else:
+                #         pass
 
                 # Get relevant indexes
                 relevant_indexes_1 = samples_info['keep_indexes1'].copy()
@@ -485,7 +485,7 @@ for situation in config.situations:
 
                     # Save TFCE
                     os.makedirs(os.path.join(path_TFCE, band), exist_ok=True)
-                    dump_pickle(path=os.path.join(path_TFCE, band, stimulus + f'_{config.n_permutations}.pkl'), obj=(tvalue_tfce, pvalue_tfce), rewrite=True)
+                    dump_pickle(path=os.path.join(path_TFCE, band, stim + f'_{config.n_permutations}.pkl'), obj=(tvalue_tfce, pvalue_tfce), rewrite=True)
 
                 # Plot t and p values
                 plot.plot_pvalue_tfce(
