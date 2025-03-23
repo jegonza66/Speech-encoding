@@ -6743,7 +6743,9 @@ situation='External'
 stim = 'Phonological'
 band ='Theta'
 weights = load_pickle(f'saves/mtrf_ridge_torch/External/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/Theta/{stim}/total_weights_per_subject.pkl')['average_weights_subjects']
-weights = weights.mean(axis=0).mean(axis=1)
+# weights = weights.mean(axis=0).mean(axis=1)
+weights = weights[1]
+weights = np.concatenate([weights[:,i,:] for i in range(weights.shape[1])], axis=1)
 
 eeg = load_pickle(r'saves\preprocessed_data\External\tmin-0.2_tmax0.6\EEG\Theta\Causal\Sesion21.pkl')[1]
 preprocessed_data_path = r'saves\preprocessed_data\External\tmin-0.2_tmax0.6'
@@ -6768,7 +6770,21 @@ eeg_predict -= eeg_predict.mean(axis=0)
 eeg_predict /= eeg_predict.std(axis=0)
 
 plt.figure(figsize=(8,4))
-plt.plot(eeg.mean(1)[:], label='Original', color='blue')
-plt.plot(eeg_predict.mean(1)[:], label='Predicción', color='green')
+plt.plot(eeg.mean(1)[11100:11400], label='Original', color='#1567a3ff')
+plt.plot(eeg_predict.mean(1)[11100:11400], label='Predicción', color='#bd164fff')
+ax = plt.gca()
+# eeg.shape[0]/config.sr
+ax.set_yticklabels([])
+ax.set_xticklabels([])
+
+# ax.set_xticklabels([[]])
+# plt.yticks([])
+plt.grid()
 plt.legend()
-plt.show()
+plt.ylabel('Tensión (U.A)')
+plt.xlabel('Tiempo (U.A)')
+plt.savefig(
+    os.path.join(tesis_path, 'resultados', 'prediccion_eeg'),
+    transparent=False,
+    dpi=dpi
+)
