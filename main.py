@@ -336,12 +336,13 @@ for situation in config.situations:
                         rewrite=True,
                         verbose=True
                         )
-                dump_pickle(
-                        path=save_results_path+f'{stim}_significant_channels.pkl',
-                        obj={'significant_channels':repeated_good_correlation_channels_subjects},
-                        rewrite=True,
-                        verbose=True
-                        )
+                if np.sum(repeated_good_correlation_channels_subjects)!=0:
+                    dump_pickle(
+                            path=save_results_path+f'{stim}_significant_channels.pkl',
+                            obj={'significant_channels':repeated_good_correlation_channels_subjects},
+                            rewrite=True,
+                            verbose=True
+                            )
                 dump_pickle(
                         path=path_weights+'total_weights_per_subject.pkl',
                         obj={'average_weights_subjects':average_weights_subjects},
