@@ -1705,102 +1705,142 @@ figformat, dpi = 'png', 350
 # #     )
 # fig.show()
 
-# ==========================================
-# MATRIZ CORRELACIONES Y SIMILARIDAD CABEZAS 
-situation = 'External'
-correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
-mtrf_path = os.path.normpath(f'saves/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
-bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
-stimuli = ['Pitch-Log-Raw', 'Envelope', 'Mfccs', 'Spectrogram', 'Phonemes-Phonet', 'Phonological']
+# # ==========================================
+# # MATRIZ CORRELACIONES Y SIMILARIDAD CABEZAS 
+# situation = 'External'
+# correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+# mtrf_path = os.path.normpath(f'saves/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
+# bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
+# stimuli = ['Pitch-Log-Raw', 'Envelope', 'Mfccs', 'Spectrogram', 'Phonemes-Phonet', 'Phonological']
 
-# Cálculo de correlaciones (como en tu código)
-correlations = {
-    (stim, band): load_pickle(path=os.path.join(correlations_path, band, stim + '.pkl'))['average_correlation_subjects'].mean(axis=0)
-    for stim in stimuli for band in bands
-}
-minimum_cor = min([corr.min() for corr in correlations.values()])
-maximum_cor = max([corr.max() for corr in correlations.values()])
-normalizer_c = Normalize(vmin=np.round(minimum_cor, 2), vmax=np.round(maximum_cor, 2))
-im_c = cm.ScalarMappable(norm=normalizer_c, cmap='Reds')
+# # Cálculo de correlaciones (como en tu código)
+# correlations = {
+#     (stim, band): load_pickle(path=os.path.join(correlations_path, band, stim + '.pkl'))['average_correlation_subjects'].mean(axis=0)
+#     for stim in stimuli for band in bands
+# }
+# minimum_cor = min([corr.min() for corr in correlations.values()])
+# maximum_cor = max([corr.max() for corr in correlations.values()])
+# normalizer_c = Normalize(vmin=np.round(minimum_cor, 2), vmax=np.round(maximum_cor, 2))
+# im_c = cm.ScalarMappable(norm=normalizer_c, cmap='Reds')
 
-n_stims, n_bands = len(stimuli), len(bands)
+# n_stims, n_bands = len(stimuli), len(bands)
 
-# Get mean correlations across subjects and total max and min
-correlations = {(stim,band):load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
-minimum_cor, maximum_cor = min([correlation.min() for correlation in correlations.values()]), max([correlation.max() for correlation in correlations.values()])
+# # Get mean correlations across subjects and total max and min
+# correlations = {(stim,band):load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
+# minimum_cor, maximum_cor = min([correlation.min() for correlation in correlations.values()]), max([correlation.max() for correlation in correlations.values()])
 
-# Create figure and title
-fig, axes = plt.subplots(
-        figsize=(8,8),
-        nrows=n_bands,
-        ncols=n_stims,
-        layout="constrained"
-        )
+# # Get similarities across subjects and total max and min
+# similarities = {}
+# for band in bands:
+#     for stim in stimuli:
+#         average_weights_subjects = load_pickle(path=os.path.join(mtrf_path, band, stim, 'total_weights_per_subject.pkl'))['average_weights_subjects']
+#         n_subjects, n_chan, _, _ = average_weights_subjects.shape #nfeat ndelays
+#         average_weights = average_weights_subjects.mean(axis=2)
+#         correlation_matrices = np.zeros(shape=(n_chan, n_subjects, n_subjects))
 
-# Configure axis
-for ax, col in zip(axes[:,0], stimuli):
-    if col=='Phonemes-Phonet':
-        col = 'Fonemas'
-        ax.set_ylabel(col, rotation=90)
-    elif col=='Pitch-Log-Raw':
-        col = 'Tono de voz'
-        ax.set_ylabel(col, rotation=90)
-    elif col=='Envelope':
-        col = 'Envolvente'
-        ax.set_ylabel(col, rotation=90)
-    elif col=='Phonological':
-        col = 'C. Fonológicas'
-        ax.set_ylabel(col, rotation=90)
-    elif col=='Spectrogram':
-        col = 'Espectrograma'
-        ax.set_ylabel(col, rotation=90)
-    elif col=='Mfccs':
-        col = 'C. Mel'
-        ax.set_ylabel(col, rotation=90)
-    else:
-        ax.set_ylabel(col, rotation=90)
-for ax, band in zip(axes[0], bands):
-    if band=='Beta1':
-        band=r'Beta$_1$'
+#         # Calculate correlation betweem subjects
+#         for channel in range(n_chan):
+#             matrix = average_weights[:,channel,:] # nsubj x ndelays la correlación se hace en el tiempo
+#             correlation_matrices[channel] = np.corrcoef(matrix) # cada canal tiene una matriz de nsubjxnsubj en la cual cada valor tiene la correlación entre las TRF de ese canal para ese par de sujetos
 
-    if band=='Beta2':
-        band=r'Beta$_2$'
+#         # Correlacion por canal
+#         absolute_correlation_per_channel = np.zeros(n_chan)
+#         for channel in range(n_chan):
+#             channel_corr_values = correlation_matrices[channel][np.tril_indices(n_subjects, k=-1)] # elementos fuera de la diagonal triangular superior o inf
+#             absolute_correlation_per_channel[channel] = np.mean(np.abs(channel_corr_values)) # la media de esos valores  
+        
+#         # Append to similarities
+#         similarities[(stim, band)] = absolute_correlation_per_channel
+# minimum_sim, maximum_sim = min([similarity.min() for similarity in similarities.values()]), max([similarity.max() for similarity in similarities.values()])
 
-    if band=='All':
-        band='Ancha'
-    ax.set_title(band)
+# # Create figure and title
+# fig, axes = plt.subplots(
+#         figsize=(8,8),
+#         nrows=n_bands,
+#         ncols=n_stims,
+#         layout="constrained"
+#         )
 
-# Build scale
-normalizer = Normalize(vmin=np.round(minimum_cor,2), vmax=np.round(maximum_cor,2))
-im = cm.ScalarMappable(norm=normalizer, cmap='Reds')
+# # Configure axis
+# for ax, col in zip(axes[:,0], stimuli):
+#     if col=='Phonemes-Phonet':
+#         col = 'Fonemas'
+#         ax.set_ylabel(col, rotation=90)
+#     elif col=='Pitch-Log-Raw':
+#         col = 'Tono de voz'
+#         ax.set_ylabel(col, rotation=90)
+#     elif col=='Envelope':
+#         col = 'Envolvente'
+#         ax.set_ylabel(col, rotation=90)
+#     elif col=='Phonological':
+#         col = 'C. Fonológicas'
+#         ax.set_ylabel(col, rotation=90)
+#     elif col=='Spectrogram':
+#         col = 'Espectrograma'
+#         ax.set_ylabel(col, rotation=90)
+#     elif col=='Mfccs':
+#         col = 'C. Mel'
+#         ax.set_ylabel(col, rotation=90)
+#     else:
+#         ax.set_ylabel(col, rotation=90)
+# for ax, band in zip(axes[0], bands):
+#     if band=='Beta1':
+#         band=r'Beta$_1$'
 
-# Iterate over bands
-for j, band in enumerate(bands):
-    for i, stim in enumerate(stimuli):
-        # Get average correlation of each stimulus across subjects
-        average_correlation = correlations[(stim,band)]
+#     if band=='Beta2':
+#         band=r'Beta$_2$'
 
-        # Plot topomap
-        mne.viz.plot_topomap(
-                data=average_correlation,
-                pos=config.info_mne,
-                axes=axes[i, j],
-                show=False,
-                sphere=0.07,
-                cmap='Reds',
-                # vlim=(minimum_cor, maximum_cor),
-                cnorm=normalizer
-                )
+#     if band=='All':
+#         band='Ancha'
+#     ax.set_title(band)
 
-# Make colorbar
-cbar = fig.colorbar(im, ax=axes.ravel().tolist())
-cbar.ax.tick_params(labelsize=15)
+# # Build scale
+# # normalizer = Normalize(vmin=np.round(minimum_cor,2), vmax=np.round(maximum_cor,2))
+# # im = cm.ScalarMappable(norm=normalizer, cmap='Reds')
+# normalizer = Normalize(vmin=np.round(minimum_sim,2), vmax=np.round(maximum_sim,2))
+# im = cm.ScalarMappable(norm=normalizer, cmap='Greens')
+
+# # Iterate over bands
+# for j, band in enumerate(bands):
+#     for i, stim in enumerate(stimuli):
+#         # Get average correlation of each stimulus across subjects
+#         # average_correlation = correlations[(stim,band)]
+#         average_correlation = similarities[(stim,band)]
+
+#         # Plot topomap
+#         mne.viz.plot_topomap(
+#                 data=average_correlation,
+#                 pos=config.info_mne,
+#                 axes=axes[i, j],
+#                 show=False,
+#                 sphere=0.07,
+#                 # cmap='Reds',
+#                 cmap='Greens',
+#                 # vlims=(minimum_cor, maximum_cor),
+#                 # vlims=(minimum_sim, maximum_sim),
+#                 cnorm=normalizer
+#                 # vlim=(average_correlation.min(),average_correlation.max())
+#                 )
+
+# # Make colorbar
+# cbar = fig.colorbar(im, ax=axes.ravel().tolist())
+# cbar.ax.tick_params(labelsize=15)
+# # fig.savefig(
+# #     os.path.join(tesis_path,'resultados', f'matriz_corr_externa.{figformat}'),
+# #     transparent=False,
+# #     dpi=dpi
+# #     )
+# # fig.savefig(
+# #     os.path.join(tesis_path,'resultados', f'matriz_corr_externa_puro.{figformat}'),
+# #     transparent=False,
+# #     dpi=dpi
+# #     )
 # fig.savefig(
-#     os.path.join(tesis_path,'resultados', f'matriz_corr_externa.{figformat}'),
+#     os.path.join(tesis_path,'resultados', f'matriz_sim_externa.{figformat}'),
 #     transparent=False,
 #     dpi=dpi
 #     )
-fig.show()
+# fig.show()
 
 # # =========================
 # # PESOS FONOLOG POR GRUPOS # TODO REHACER CON PHONEMES-PHONET y PHONOLOGICAL NUEVO
