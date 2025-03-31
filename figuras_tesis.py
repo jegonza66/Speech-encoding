@@ -6535,62 +6535,62 @@ colores_st = {'Spectrogram':'C0', 'Phonological':'C1', 'Mfccs':'C2', 'Pitch-Log-
 # #     )
 # fig.show()
 
-# ===============
-# AUTOCORRELACIÓN
-WavPath = 'Datos/wavs/S21/s21.objects.01.channel1.wav'
-WindowLeft, WindowRight, EegSr = 32, 34, 128
+# # ===============
+# # AUTOCORRELACIÓN
+# WavPath = 'Datos/wavs/S21/s21.objects.01.channel1.wav'
+# WindowLeft, WindowRight, EegSr = 32, 34, 128
 
-sr, audio = wavfile.read(WavPath)
-window_size, stride = int(sr/EegSr), int(sr/EegSr)
-envelope = np.abs(signal.hilbert(audio))
-envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)])
-# audio = np.array([np.mean(audio[i:i+WindowSize]) for i in range(0, len(audio), Stride) if i+window_size<=len(audio)])
-# sr = EegSr
+# sr, audio = wavfile.read(WavPath)
+# window_size, stride = int(sr/EegSr), int(sr/EegSr)
+# envelope = np.abs(signal.hilbert(audio))
+# envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)])
+# # audio = np.array([np.mean(audio[i:i+WindowSize]) for i in range(0, len(audio), Stride) if i+window_size<=len(audio)])
+# # sr = EegSr
 
-time_audio = np.arange(0, len(audio)/sr, 1/sr)
-time_envelope = np.arange(0, len(envelope)/EegSr, 1/EegSr)
+# time_audio = np.arange(0, len(audio)/sr, 1/sr)
+# time_envelope = np.arange(0, len(envelope)/EegSr, 1/EegSr)
 
-# Compute auto correlation of the atribute
-auto_corr = np.correlate(envelope, envelope, mode='full')  # Devuelve 2N-1 valores
-lags = np.arange(-len(envelope)+1, len(envelope))  # Desplazamientos correspondientes
+# # Compute auto correlation of the atribute
+# auto_corr = np.correlate(envelope, envelope, mode='full')  # Devuelve 2N-1 valores
+# lags = np.arange(-len(envelope)+1, len(envelope))  # Desplazamientos correspondientes
 
-# Normalizar la auto_correlación para que el valor máximo sea 1
-auto_corr /= np.max(auto_corr)
+# # Normalizar la auto_correlación para que el valor máximo sea 1
+# auto_corr /= np.max(auto_corr)
 
 
-fig = plt.figure(
-    tight_layout=True,
-    figsize=(6, 5)
-    )
-plt.plot(
-    time_envelope,
-    auto_corr[9167:],
-    # label='Autocorrelación',
-    color='C4',
-    linewidth=2
-    )
-half_arg = np.abs(auto_corr[9167:]-.5).argmin()
-plt.vlines(x=time_envelope[half_arg],
-           ymin=0,
-           ymax=auto_corr[9167:][half_arg], 
-           color='C4', 
-           linestyle='-.', 
-           label=r'$\tau=$'+f' {time_envelope[half_arg]:.2f} s'
-           )
-plt.scatter(time_envelope[half_arg], auto_corr[9167:][half_arg], s=10, color='C4')
-plt.legend(loc='upper right')
-plt.grid(visible=True)
+# fig = plt.figure(
+#     tight_layout=True,
+#     figsize=(6, 5)
+#     )
+# plt.plot(
+#     time_envelope,
+#     auto_corr[9167:],
+#     # label='Autocorrelación',
+#     color='C4',
+#     linewidth=2
+#     )
+# half_arg = np.abs(auto_corr[9167:]-.5).argmin()
+# plt.vlines(x=time_envelope[half_arg],
+#            ymin=0,
+#            ymax=auto_corr[9167:][half_arg], 
+#            color='C4', 
+#            linestyle='-.', 
+#            label=r'$\tau=$'+f' {time_envelope[half_arg]:.2f} s'
+#            )
+# plt.scatter(time_envelope[half_arg], auto_corr[9167:][half_arg], s=10, color='C4')
+# plt.legend(loc='upper right')
+# plt.grid(visible=True)
 
-plt.xlim(0, 10)
-plt.ylim(0, 1.05)
-plt.xlabel('Tiempo (s)')
-plt.ylabel('Auto correlación')
-fig.savefig(
-    os.path.join(tesis_path,'metodos', f'auto_corr_envolvente.{figformat}'),
-    transparent=False,
-    dpi=dpi
-    )
-fig.show()
+# plt.xlim(0, 10)
+# plt.ylim(0, 1.05)
+# plt.xlabel('Tiempo (s)')
+# plt.ylabel('Auto correlación')
+# fig.savefig(
+#     os.path.join(tesis_path,'metodos', f'auto_corr_envolvente.{figformat}'),
+#     transparent=False,
+#     dpi=dpi
+#     )
+# fig.show()
 # =======================================================
 # Ejemplo EEG y PSD (power spectral density) de un sujeto# TODO SIGUE SIN DAR CHARLAR CON JOACO
 sesion, sujeto = 21, 2
@@ -6922,6 +6922,104 @@ fig.show()
 # # config.times[weights1.argmin()]*1e3, config.times[weights1.argmax()]*1e3
 # # config.times[weights2.argmin()]*1e3, config.times[weights2.argmax()]*1e3
 # # config.times[weights2.argmax()]*1e3-config.times[weights1.argmin()]*1e3
+
+# # ==========================
+# # EEG prediction vs original: 21, 2
+# from load import load_data
+# from processing import shifted_matrix
+
+# situation='External'
+# stim = 'Phonological'
+# band ='Theta'
+# weights = load_pickle(f'saves/mtrf_ridge_torch/External/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/Theta/{stim}/total_weights_per_subject.pkl')['average_weights_subjects']
+# # weights = weights.mean(axis=0).mean(axis=1)
+# weights = weights[1]
+# weights = np.concatenate([weights[:,i,:] for i in range(weights.shape[1])], axis=1)
+
+# eeg = load_pickle(r'saves\preprocessed_data\External\tmin-0.2_tmax0.6\EEG\Theta\Causal\Sesion21.pkl')[1]
+# preprocessed_data_path = r'saves\preprocessed_data\External\tmin-0.2_tmax0.6'
+
+# sujeto_1, sujeto_2, samples_info = load_data(
+#                                             sesion=21,
+#                                             stim=stim,
+#                                             band=band,
+#                                             sr=config.sr,
+#                                             delays=config.delays,
+#                                             preprocessed_data_path=preprocessed_data_path,
+#                                             praat_executable_path=config.praat_executable_path,
+#                                             situation=situation
+#                                             )
+
+# design_matrix = shifted_matrix(features=sujeto_2[stim], delays=config.delays)
+
+# eeg_predict = design_matrix @ weights.T
+# eeg -= eeg.mean(axis=0)
+# eeg /= eeg.std(axis=0)
+# eeg_predict -= eeg_predict.mean(axis=0)
+# eeg_predict /= eeg_predict.std(axis=0)
+
+# plt.figure(figsize=(8,4))
+# plt.plot(eeg.mean(1)[11100:11400], label='Original', color='#1567a3ff')
+# plt.plot(eeg_predict.mean(1)[11100:11400], label='Predicción', color='#bd164fff')
+# ax = plt.gca()
+# # eeg.shape[0]/config.sr
+# ax.set_yticklabels([])
+# ax.set_xticklabels([])
+
+# # ax.set_xticklabels([[]])
+# # plt.yticks([])
+# plt.grid()
+# plt.legend()
+# plt.ylabel('Tensión (U.A)')
+# plt.xlabel('Tiempo (U.A)')
+# plt.savefig(
+#     os.path.join(tesis_path, 'resultados', 'prediccion_eeg'),
+#     transparent=False,
+#     dpi=dpi
+# )
+
+
+
+# ===================================================================================================================
+# TOPOGRAPHIC DISTRIBUTION HEATMAPS: make heatmaps with topographic information across features, situations and bands # TODO SUMAR CANALES SIGNIFICATIVOS PARA EL ESTADISTICO ENTRE SUJETOS EN VEZ DE CANALES
+# ===================================================================================================================
+situation = 'External'
+correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+
+# Relevant parameters
+bands = ['Delta', 'Theta', 'Alpha', 'All']
+stimuli = ['Envelope', 'Pitch-Log-Raw', 'Spectrogram', 'Phonemes-Phonet', 'Phonological'] # 'Envelope_Phonemes-Discrete-Manual'
+n_stims, n_bands = len(stimuli), len(bands)
+
+# Get mean correlations across subjects and total max and min
+correlations = {(stim,band):load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects'] for stim in stimuli for band in bands}
+good_chs = {(stim,band):load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['repeated_good_correlation_channels_subjects'] for stim in stimuli for band in bands}
+# good_chs = {(stim,band):np.ones(shape=(18,128)) for stim in stimuli for band in bands}
+
+# Get groups to make average correlations
+n_groups_x, n_groups_y = 12, 12
+posicion_x = np.array([config.montage._get_ch_pos()[ch][0] for ch in config.montage._get_ch_pos()])
+posicion_y = np.array([config.montage._get_ch_pos()[ch][1] for ch in config.montage._get_ch_pos()])
+bins_x = np.linspace(posicion_x.min(), posicion_x.max(), n_groups_x)
+bins_y = np.linspace(posicion_y.min(), posicion_y.max(), n_groups_y)
+groups_x, groups_y = [], []
+for i in range(1, n_groups_y):
+    group_y = []
+    for ch in config.montage._get_ch_pos():
+        y_value = config.montage._get_ch_pos()[ch][1]
+        if bins_y[i-1]<=y_value<=bins_y[i]:
+            group_y.append(config.info_mne.ch_names.index(ch))
+    groups_y.append(group_y)
+for i in range(1, n_groups_x):
+    group_x = []
+    for ch in config.montage._get_ch_pos():
+        x_value = config.montage._get_ch_pos()[ch][0]
+        y_value = config.montage._get_ch_pos()[ch][1]
+        if (bins_x[i-1]<=x_value<=bins_x[i]) and (y_value>=0) :
+            group_x.append(config.info_mne.ch_names.index(ch))
+    groups_x.append(group_x)
+
+fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(11,10), constrained_layout='True')
 
 # ==========================
 # EEG prediction vs original: 21, 2
