@@ -332,8 +332,13 @@ for situation in config.situations:
                 os.makedirs(path_weights, exist_ok=True)
                 dump_pickle(
                         path=save_results_path+f'{stim}.pkl',
-                        obj={'average_correlation_subjects':average_correlation_subjects,
-                            'repeated_good_correlation_channels_subjects':repeated_good_correlation_channels_subjects},
+                        obj={'average_correlation_subjects':average_correlation_subjects},
+                        rewrite=True,
+                        verbose=True
+                        )
+                dump_pickle(
+                        path=save_results_path+f'{stim}_significant_channels.pkl',
+                        obj={'significant_channels':repeated_good_correlation_channels_subjects},
                         rewrite=True,
                         verbose=True
                         )
