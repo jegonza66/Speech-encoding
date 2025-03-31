@@ -6447,6 +6447,8 @@ colores_st = {'Spectrogram':'C0', 'Phonological':'C1', 'Mfccs':'C2', 'Pitch-Log-
 
 # sr, audio = wavfile.read(WavPath)
 # pitch = load_pickle(path=PitchPath)[0][:9168].reshape(-1)
+# pitch -= pitch.min()
+# pitch /= pitch.max()
 
 # time_audio = np.arange(0, len(audio)/sr, 1/sr)
 # time_pitch = np.arange(0, len(pitch)/config.sr, 1/config.sr)
@@ -6458,16 +6460,18 @@ colores_st = {'Spectrogram':'C0', 'Phonological':'C1', 'Mfccs':'C2', 'Pitch-Log-
 #     tight_layout=True,
 #     figsize=(6, 5)
 #     )
+
+# pitch[window_pitch] = np.where(pitch[window_pitch]==0, .89, pitch[window_pitch])
 # plt.plot(
 #     time_pitch[window_pitch],
-#     1e2*pitch[window_pitch],
+#     (pitch[window_pitch]-.89)*1.5e1,
 #     label=r'$\propto$ Log (Tono de voz)',
 #     color='C4',
 #     linewidth=2
 #     )
 # plt.plot(
 #     time_audio[window_audio],
-#     audio[window_audio],
+#     audio[window_audio]/np.max(audio[window_audio]),
 #     label='Audio',
 #     color='C0',
 #     linewidth=1,
