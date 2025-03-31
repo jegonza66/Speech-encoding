@@ -13,12 +13,14 @@ from matplotlib.collections import PathCollection
 from matplotlib.ticker import ScalarFormatter
 from matplotlib_venn import venn3, venn2
 import matplotlib.gridspec as gridspec
+import matplotlib.patches as mpatches
 from scipy.spatial import ConvexHull
 import matplotlib.pylab as pylab
 from matplotlib import colormaps
 import matplotlib.pyplot as plt
 import matplotlib.text as mtext
 from matplotlib import rc, cm
+
 
 import seaborn as sns
 import scienceplots
@@ -188,13 +190,156 @@ figformat, dpi = 'png', 350
 # # )
 # fig.show()
 
-# # ==================
-# # CONVEX HULL # TODO PENDIENTE 'Phonemes-Phonet_Phonological_Spectrogram'
-# situation='External'
-# correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
-# renombre = {'Spectrogram':'Espectrograma', 'Phonological':'Características fonológicas', 'Mfccs':'Coeficientes Mel',
-#             'Pitch-Log-Raw':'Tono de voz','Envelope':'Envolvente', 'Phonemes-Phonet':'Fonemas'}
-# colores_st = {'Spectrogram':'C0', 'Phonological':'C1', 'Mfccs':'C2', 'Pitch-Log-Raw':'C3','Envelope':'C4', 'Phonemes-Phonet':'C5', 'Phones-Phonet':'C6'}
+# # ========================
+# # Boxplot ENTRE EXTERNAL E INTERNAL NAMAS
+# situations = ['External', 'Internal']
+# stimulus_tostr = {'Pitch-Log-Raw':'Tono de voz', 'Envelope':'Envolvente', 'Spectrogram':'Espectrograma', 'Phonemes-Phonet':'Fonemas', 'Phonological':'C. Fonológicas'}
+# stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Phonemes-Phonet', 'Phonological'] #'Phonemes-Discrete-Phonet', 
+# bands = ['Delta', 'Theta', 'All', 'Alpha', 'Beta1', 'Beta2', ]
+# palette = {
+#     'External': 'C2',
+#     'Internal': 'C3',
+# }
+
+# avg_corr_0 = {situation:{stimulus:{} for stimulus in stimuli} for situation in situations}
+# avg_corr_1 = {situation:{stimulus:{} for stimulus in stimuli} for situation in situations}
+# p_vals = {situation:{stimulus:{} for stimulus in stimuli} for situation in situations if situation.startswith('Internal')}
+
+# # Relevant parameters
+# for situation in situations:
+#     correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+#     for stimulus in stimuli:
+#         for i, band in enumerate(bands):
+#             data = load_pickle(path=os.path.join(correlations_path, band, stimulus +'.pkl'))
+#             avg_corr_0[situation][stimulus][band] = data['average_correlation_subjects'].mean(axis=0)
+#             avg_corr_1[situation][stimulus][band] = data['average_correlation_subjects'].mean(axis=1)
+
+# for stimulus in stimuli:
+#     for i, band in enumerate(bands):
+#         stat, p_val = wilcoxon(avg_corr_1['External'][stimulus][band], avg_corr_1['Internal'][stimulus][band])
+#         p_vals['Internal'][stimulus][band] = p_val
+        
+# # Crear figura con 2 filas x 3 columnas y compartir ejes
+# fig, axs = plt.subplots(
+#     nrows=2, ncols=3, 
+#     figsize=(14, 8), 
+#     layout='constrained', 
+#     sharex=True,  # Compartir eje x en cada columna
+#     sharey='row'  # Compartir eje y en cada fila
+# )
+# axes = axs.flatten()  # Para iterar de forma sencilla
+
+# # Recorremos cada banda y asignamos su subplot
+# for idx, band in enumerate(bands):
+#     ax = axes[idx]
+    
+#     # Preparar datos en formato largo para Seaborn para la banda actual
+#     data_list = []
+#     for stimulus in stimuli:
+#         for situation in situations:
+#             for value in avg_corr_1[situation][stimulus][band]:  # Valores por sujeto
+#                 data_list.append({
+#                     'Estímulo': stimulus_tostr[stimulus],
+#                     'Situación': situation,
+#                     'Correlación': value
+#                 })
+#     df = pd.DataFrame(data_list)
+    
+#     # Agregar grid detrás de los boxplots
+#     ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.7, zorder=0)
+#     ax.tick_params(axis='x', which='major', length=8, width=1) 
+
+#     # Crear boxplot en el subplot correspondiente (sin outliers)
+#     box = sns.boxplot(
+#         data=df,
+#         x="Estímulo",
+#         y="Correlación",
+#         hue="Situación",
+#         dodge=True,  
+#         palette=palette,
+#         showfliers=False,  # Elimina los outliers en forma de diamante
+#         ax=ax,
+#         zorder=2  # Asegura que esté sobre la grilla
+#     )
+    
+#     # Agregar notación de significancia
+#     for i, stimulus in enumerate(stimuli):
+#             p_val = p_vals['Internal'][stimulus][band]
+#             if p_val < 0.005:
+#                 sig = "***"
+#             elif p_val < 0.01:
+#                 sig = "**"
+#             elif p_val < 0.05:
+#                 sig = "*"
+#             else:
+#                 sig = ""
+#             if sig:
+#                 y_max = df['Correlación'].max()
+#                 if band in ['Theta', 'Delta', 'All']:
+#                     ax.text(i, .535, sig, ha='center', va='bottom', fontsize=14, color='black')
+#                 else:
+#                     ax.text(i, .28, sig, ha='center', va='bottom', fontsize=14, color='black')
+                    
+    
+#     # Solo colocar etiqueta del eje y en la primera columna
+#     if idx % 3 == 0:
+#         ax.set_ylabel("Correlación entre sujetos")
+#     else:
+#         ax.set_ylabel("")
+
+#     # Solo colocar etiqueta del eje x en la última fila
+#     if idx >= 3:
+#         ax.set_xlabel("")
+#         ax.set_xticklabels(list(stimulus_tostr.values()), rotation=25)
+#     else:
+#         ax.set_xlabel("")
+#         ax.set_xticklabels([])
+    
+#     # Eliminar la leyenda individual en cada subplot
+#     ax.legend_.remove()
+
+# # # Agregar leyenda fuera de la figura
+# # handles, labels = axes[0].get_legend_handles_labels()
+# # fig.legend(
+# #     handles[:], ['Externa', 'Interna'], 
+# #     title="Situaciones", loc=(0.25, .5), bbox_to_anchor=(0.21, 1.01), ncol=4
+# # )
+# # Crear los patches manualmente
+# patch_externa = mpatches.Patch(color='C2', label='Externa')
+# patch_interna = mpatches.Patch(color='C3', label='Interna')
+
+# # Crear la leyenda global
+# fig.legend([patch_externa, patch_interna], ['Externa', 'Interna'],
+#            title="Situaciones",  loc=(0.25, .5), bbox_to_anchor=(0.4, 1.005), ncol=2)
+
+# # fig.text(.115, .95, 'Delta', fontsize=18, va='top', ha='right')
+# # fig.text(.445,.95, 'Theta', fontsize=18, va='top', ha='right')
+# # fig.text(.76,.95, 'Ancha', fontsize=18, va='top', ha='right')
+# # fig.text(.115, .51, 'Alpha', fontsize=18, va='top', ha='right')
+# # fig.text(.445, .51, r'Beta$_1$', fontsize=18, va='top', ha='right')
+# # fig.text(.76, .51, r'Beta$_2$', fontsize=18, va='top', ha='right')
+# # ['Delta', 'Theta', 'All', 'Alpha', 'Beta1', 'Beta2', ]
+
+# # Guardar figura
+# # fig.savefig(
+# #     os.path.join(tesis_path, 'resultados', f'boxplot_ext_int_pelao.{figformat}'),
+# #     transparent=False,
+# #     dpi=dpi
+# # )
+# fig.savefig(
+#     os.path.join(tesis_path, 'resultados', f'boxplot_ext_int.{figformat}'),
+#     transparent=False,
+#     dpi=dpi
+# )
+# fig.show()
+
+# ==================
+# CONVEX HULL # TODO PENDIENTE 'Phonemes-Phonet_Phonological_Spectrogram'
+situation='External'
+correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+renombre = {'Spectrogram':'Espectrograma', 'Phonological':'Características fonológicas', 'Mfccs':'Coeficientes Mel',
+            'Pitch-Log-Raw':'Tono de voz','Envelope':'Envolvente', 'Phonemes-Phonet':'Fonemas'}
+colores_st = {'Spectrogram':'C0', 'Phonological':'C1', 'Mfccs':'C2', 'Pitch-Log-Raw':'C3','Envelope':'C4', 'Phonemes-Phonet':'C5', 'Phones-Phonet':'C6'}
 
 # bands = ['Theta']
 # # stims = 'Spectrogram_Phonological'
