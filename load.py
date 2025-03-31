@@ -69,7 +69,7 @@ class Trial_channel:
             Silence threshold of the dialogue, by default 0.03
         situation : str, optional
             Situation considered when performing the analysis, by default 'External'. Allowed situations are:
-            ['Internal','Internal_BS','External', 'External_BS']
+            ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
         praat_executable_path : str, optional
             Path to Praat executable, by default r'C:\\Users\\User\\Downloads\\programas_descargados_por_octavio\\Praat.exe'
 
@@ -1414,7 +1414,7 @@ class Sesion_class:
             Whether to use or not an envelope filter, by default False
         situation : str, optional
             Situation considered when performing the analysis, by default 'External'. Allowed situations are:
-            ['Internal','Internal_BS','External', 'External_BS']
+            ['Internal','Internal_BS','External', 'External_BS', 'External_All_Times', 'Internal_All_Times']
         silence_threshold : float, optional
             Silence threshold of the dialogue, by default 0.03
         delays : np.ndarray, optional
@@ -1439,7 +1439,7 @@ class Sesion_class:
             If 'band' is not an allowed band frequency. Allowed frequencies are:
             ['Delta','Theta', 'Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
             If 'situation' is not an allowed situation. Allowed situations are:
-            ['Internal','Internal_BS','External', 'External_BS']
+            ['Internal','Internal_BS','External', 'External_BS', 'External_All_Times', 'Internal_All_Times']
         """
         # Check if band, stim and situation parameters where passed with the right syntax
         allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', \
@@ -1927,7 +1927,7 @@ def load_data(
         If 'band' is not an allowed band frequency. Allowed ones are:
         ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
         If 'situation' is not an allowed situation. Allowed ones are:
-        ['Internal','Internal_BS','External', 'External_BS']
+        ['Internal','Internal_BS','External', 'External_BS', 'External_All_Times', 'Internal_All_Times']
     """
     # Define allowed stimuli
     allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes',\
