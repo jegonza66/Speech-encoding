@@ -69,7 +69,9 @@ class Trial_channel:
             Silence threshold of the dialogue, by default 0.03
         situation : str, optional
             Situation considered when performing the analysis, by default 'External'. Allowed situations are:
-            ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
+            ['Internal', 'Internal_BS', 'External', 'External_BS', 'Internal_All_Times', 'External_All_Times'].
+            Also any of the above options concatenated by '_Silence_x', where x is an integer that represents 
+            the percentage of samples with silence within a row of the design matrix.
         praat_executable_path : str, optional
             Path to Praat executable, by default r'C:\\Users\\User\\Downloads\\programas_descargados_por_octavio\\Praat.exe'
 
@@ -1414,7 +1416,9 @@ class Sesion_class:
             Whether to use or not an envelope filter, by default False
         situation : str, optional
             Situation considered when performing the analysis, by default 'External'. Allowed situations are:
-            ['Internal','Internal_BS','External', 'External_BS', 'External_All_Times', 'Internal_All_Times']
+            ['Internal','Internal_BS','External', 'External_BS', 'External_All_Times', 'Internal_All_Times'].
+            Also any of the above options concatenated by '_Silence_x', where x is an integer that represents 
+            the percentage of samples with silence within a row of the design matrix.
         silence_threshold : float, optional
             Silence threshold of the dialogue, by default 0.03
         delays : np.ndarray, optional
@@ -1439,7 +1443,9 @@ class Sesion_class:
             If 'band' is not an allowed band frequency. Allowed frequencies are:
             ['Delta','Theta', 'Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
             If 'situation' is not an allowed situation. Allowed situations are:
-            ['Internal','Internal_BS','External', 'External_BS', 'External_All_Times', 'Internal_All_Times']
+            ['Internal','Internal_BS','External', 'External_BS', 'External_All_Times', 'Internal_All_Times'].
+            Also any of the above options concatenated by '_Silence_x', where x is an integer that represents 
+            the percentage of samples with silence within a row of the design matrix.
         """
         # Check if band, stim and situation parameters where passed with the right syntax
         allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', \
@@ -1450,6 +1456,8 @@ class Sesion_class:
         for st in stim.split('_'):
             if st in allowed_stims:
                 pass
+            elif st.split('_Silence')[0] in allowed_stims:
+                pass
             else:
                 raise SyntaxError(f"{st} is not an allowed stimulus. Allowed stimuli are: {allowed_stims}. If more than one stimulus is wanted, the separator should be '_'.")
         self.stim = stim
@@ -1458,6 +1466,8 @@ class Sesion_class:
         else:
             raise SyntaxError(f"{band} is not an allowed band frecuency. Allowed bands are: {allowed_band_frequencies}")
         if situation in allowed_situations:
+            self.situation = situation
+        elif st.split('_Silence')[0] in allowed_stims:
             self.situation = situation
         else:
             raise SyntaxError(f"{situation} is not an allowed situation. Allowed situations are: {allowed_situations}")
@@ -1774,7 +1784,17 @@ class Sesion_class:
 
         # Computes shifted matrix
         shifted_matrix_speaker_labels = processing.shifted_matrix_2(features=speaker_labels, delays=self.delays, use_gpu=config.use_gpu).astype(float)
-
+               
+        if 'Silence' in self.situation and any(char.isdigit() for char in self.situation):
+            percentage = int(self.situation.split('Silence_')[1])
+            
+            # Filter silence plus condition, plus padding
+            filter_silence_external = ((shifted_matrix_speaker_labels==0)|(shifted_matrix_speaker_labels==4)|(shifted_matrix_speaker_labels==1)).all(axis=1)
+            
+            # Just windows with x percent of silence condition
+            filter_silence_x_percent = (shifted_matrix_speaker_labels==4).sum(axis=1)==int(percentage*len(delays))
+        
+            return (filter_silence_external &filter_silence_x_percent).nonzero()[0]
         # Make the appropiate label
         if self.situation.endswith('BS'):
             situation_label = 3
@@ -1898,6 +1918,8 @@ def load_data(
     situation : str, optional
         Situation considered when performing the analysis, by default 'External'. Allowed situations are: 
         ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times'].
+        Also any of the above options concatenated by '_Silence_x', where x is an integer that represents 
+        the percentage of samples with silence within a row of the design matrix.
     causal_filter_eeg : bool, optional
         Whether to use or not a causal filter for the EEG, by default True.
     envelope_filter : bool, optional
@@ -1927,7 +1949,9 @@ def load_data(
         If 'band' is not an allowed band frequency. Allowed ones are:
         ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
         If 'situation' is not an allowed situation. Allowed ones are:
-        ['Internal','Internal_BS','External', 'External_BS', 'External_All_Times', 'Internal_All_Times']
+        ['Internal','Internal_BS','External', 'External_BS', 'External_All_Times', 'Internal_All_Times'].
+        Also any of the above options concatenated by '_Silence_x', where x is an integer that represents 
+        the percentage of samples with silence within a row of the design matrix.
     """
     # Define allowed stimuli
     allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes',\
@@ -1940,10 +1964,11 @@ def load_data(
     condition_1 = all(stimulus in allowed_stims for stimulus in stim.split('_'))
     condition_2 = band in allowed_bands
     condition_3 = situation in allowed_situations
+    condition_3bis = situation.split('_Silence')[0] in allowed_stims
 
     if condition_1:
         if condition_2:
-            if condition_3:
+            if condition_3+condition_3bis:
                 
                 # Re-order stim and band to create just one file for each case: 'Phonemes_Envelope' --> 'Envelope_Phonemes'
                 ordered_stims = sorted(stim.split('_'))
