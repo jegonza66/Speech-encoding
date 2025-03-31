@@ -7022,56 +7022,485 @@ for i in range(1, n_groups_x):
 fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(11,10), constrained_layout='True')
 
 # ==========================
-# EEG prediction vs original: 21, 2
-from load import load_data
-from processing import shifted_matrix
+# HEATMAP ANTERIOR-POSTERIOR
+axes[0, 0].set_title('Selección de grupos')
+im = mne.viz.plot_sensors(
+        info=config.info_mne,
+        show_names=False,
+        block=False,
+        pointsize=35,
+        cmap='cividis',
+        axes=axes[0,0],
+        ch_groups=groups_y,
+        linewidth=0,
+        show=False
+        )
+cmap = colormaps['cividis']
+colors = cmap(np.linspace(0, 1, len(groups_y)))
 
-situation='External'
-stim = 'Phonological'
-band ='Theta'
-weights = load_pickle(f'saves/mtrf_ridge_torch/External/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/Theta/{stim}/total_weights_per_subject.pkl')['average_weights_subjects']
-# weights = weights.mean(axis=0).mean(axis=1)
-weights = weights[1]
-weights = np.concatenate([weights[:,i,:] for i in range(weights.shape[1])], axis=1)
+# Obtener coordenadas de los sensores en el eje Y
+y_start = -0.076
+y_end = 0.076
 
-eeg = load_pickle(r'saves\preprocessed_data\External\tmin-0.2_tmax0.6\EEG\Theta\Causal\Sesion21.pkl')[1]
-preprocessed_data_path = r'saves\preprocessed_data\External\tmin-0.2_tmax0.6'
+# Definir coordenadas de la flecha
+xlim = axes[0,0].get_xlim()
+x_arrow = xlim[0] + 0 * (xlim[1] - xlim[0])  # Un poco a la derecha del borde
 
-sujeto_1, sujeto_2, samples_info = load_data(
-                                            sesion=21,
-                                            stim=stim,
-                                            band=band,
-                                            sr=config.sr,
-                                            delays=config.delays,
-                                            preprocessed_data_path=preprocessed_data_path,
-                                            praat_executable_path=config.praat_executable_path,
-                                            situation=situation
-                                            )
+# Dibujar la flecha
+axes[0,0].annotate(
+    "",  # Sin texto
+    xy=(x_arrow, y_end), xytext=(x_arrow, y_start),
+    arrowprops=dict(arrowstyle="->", linewidth=2, color="black"),
+    annotation_clip=False  # Para que se vea si está fuera de los límites
+)
 
-design_matrix = shifted_matrix(features=sujeto_2[stim], delays=config.delays)
+# Definir etiquetas en los valores exactos de y_start y y_end
+y_positions = np.linspace(y_start, y_end, 11)  # 11 valores, incluyendo los extremos
 
-eeg_predict = design_matrix @ weights.T
-eeg -= eeg.mean(axis=0)
-eeg /= eeg.std(axis=0)
-eeg_predict -= eeg_predict.mean(axis=0)
-eeg_predict /= eeg_predict.std(axis=0)
+for i, y in enumerate(y_positions):
+    axes[0,0].text(
+        x_arrow - 0.025, y, f"G{i}", color=colors[i],
+        verticalalignment="center", horizontalalignment="left", fontsize=14
+    )
+axes[0, 1].set_title('C. Fonológicas - Theta',
+                   y=1.05,
+                   verticalalignment="top")
+axes[0, 1].grid(visible=True)
+axes[0, 1].set_axisbelow(True)
 
-plt.figure(figsize=(8,4))
-plt.plot(eeg.mean(1)[11100:11400], label='Original', color='#1567a3ff')
-plt.plot(eeg_predict.mean(1)[11100:11400], label='Predicción', color='#bd164fff')
-ax = plt.gca()
-# eeg.shape[0]/config.sr
-ax.set_yticklabels([])
-ax.set_xticklabels([])
+for i, (group, color) in enumerate(zip(groups_y, colors)):
+    # corr_group = correlations[('Phonological','Theta')][:, group].mean()
+    filter_good_chs = good_chs[('Phonological','Theta')][:, group]
+    corr_group = np.nanmean(np.where(filter_good_chs == 0, np.nan, correlations[('Phonological','Theta')][:, group]))
+    axes[0,1].scatter(i, corr_group, color=color, s=35)
 
-# ax.set_xticklabels([[]])
-# plt.yticks([])
-plt.grid()
-plt.legend()
-plt.ylabel('Tensión (U.A)')
-plt.xlabel('Tiempo (U.A)')
-plt.savefig(
-    os.path.join(tesis_path, 'resultados', 'prediccion_eeg'),
+# # Move the legend
+axes[0,1].grid(visible=True)
+axes[0, 1].set_xticks(np.arange(n_groups_y-1))
+axes[0, 1].set_xticklabels([f'{i}'for i in np.arange(n_groups_y-1)])
+# axes[0, 1].set_yticks(np.linspace(correlations[('Phonological', 'Alpha')].min(), correlations[('Phonological', 'Alpha')].max(), 5))
+axes[0, 1].grid(visible=True)
+
+# axes[0, 1].set_xlabel('Grupos de electrodos', fontsize=15)
+axes[0, 1].set_ylabel('Correlación promedio', fontsize=15)
+axes[0, 1].tick_params(which='minor', bottom=False, left=True, right=True, top=False)
+
+z = np.zeros(shape=(len(bands),len(stimuli)))
+for i, band in enumerate(bands):
+    for j, stim in enumerate(stimuli):
+        list_to_correlate = []
+        for group in groups_y:
+            average_correlation = correlations[(stim,band)][:, group]
+            filter_good_chs = good_chs[(stim,band)][:, group]
+            list_to_correlate.append(np.nanmean(np.where(filter_good_chs == 0, np.nan, average_correlation)))
+        z[i,j] = np.corrcoef(np.array(list_to_correlate), np.arange(n_groups_y-1))[1,0]
+
+# axes[0, 2].set_title('Lateralization: right(G[0-3])-left(G[7-10])')
+axes[0, 2].set_title('Correlación de Pearson', x=.5)
+im = axes[0, 2].imshow(
+            z,
+            vmin=z.min(),
+            vmax=z.max(),
+            cmap='magma'
+            )
+axes[0, 2].set_xticks(np.arange(len(stimuli)))
+# axes[0, 2].set_xticklabels(['Envolvente', 'Tono de voz', 'Espectrograma', 'Fonemas', 'C. Fonológicas'], minor=False, fontsize=12, rotation=35)
+axes[0, 2].set_xticklabels([])
+
+axes[0, 2].set_yticks(np.arange(len(bands)))
+axes[0, 2].set_yticklabels(['Delta', 'Theta', 'Alpha', 'Ancha'], minor=False, fontsize=12)
+axes[0, 2].minorticks_off()
+
+cbar = fig.colorbar(im, ax=axes[0, 2])
+
+# ======================
+# HEATMAP CENTRALIZATION #TODO CHARLAR CON JUAN:  COMO NO USO CANALES SIGNIFICATIVOS, INTRA SUJETOS NO DA
+cmap = colormaps['turbo']
+colors = cmap(np.linspace(0, 1, len(groups_x)))
+cmap_gr = colormaps['magma']
+colors_gr = cmap_gr(np.linspace(0, 1, len(groups_x)))
+
+mne.viz.plot_sensors(
+        info=config.info_mne,
+        show_names=False,
+        block=False,
+        pointsize=35,
+        cmap='turbo',
+        axes=axes[1, 0],
+        ch_groups=groups_x,
+        linewidth=0,
+        show=False
+        )
+# Obtener coordenadas de los sensores en el eje Y
+x_start = -0.086
+x_end = 0.086
+
+# Definir coordenadas de la flecha
+ylim = axes[1, 0].get_ylim()
+y_arrow = ylim[0] + 0 * (ylim[1] - ylim[0])  # Un poco a la derecha del borde
+
+# Dibujar la flecha
+axes[1, 0].annotate(
+    "",  # Sin texto
+    xy=(x_end, y_arrow), xytext=(x_start, y_arrow),
+    arrowprops=dict(arrowstyle="->", linewidth=2, color="black"),
+    annotation_clip=False  # Para que se vea si está fuera de los límites
+)
+
+# Definir etiquetas en los valores exactos de y_start y y_end
+x_positions = np.linspace(x_start-.02, x_end, 11)  # 11 valores, incluyendo los extremos
+
+for i, x in enumerate(x_positions):
+    if i in [4,5,6]:
+        axes[1, 0].text(
+            x, y_arrow-0.02, f"G{i}", color=colors[i],
+            verticalalignment="center", horizontalalignment="left", fontsize=13
+        )
+    else:
+        axes[1, 0].text(
+            x, y_arrow-0.02, f"G{i}", color=colors[i],
+            verticalalignment="center", horizontalalignment="left", fontsize=13
+        )
+# axes[1, 0].text(
+#             np.mean(x_positions)-.01, y_arrow-0.04, f"Centro", color=colors_gr[0],
+#             verticalalignment="center", horizontalalignment="left", fontsize=13
+#         )
+# axes[1, 0].text(
+#             x_positions[-1]-.045, y_arrow-0.04, f"Costados", color=colors_gr[-2],
+#             verticalalignment="center", horizontalalignment="left", fontsize=13
+#         )
+# axes[1, 0].text(
+#             x_positions[0]+.01, y_arrow-0.04, f"Costados", color=colors_gr[-2],
+#             verticalalignment="center", horizontalalignment="left", fontsize=13
+#         )
+
+# axes[1,1].set_title('Fonemas - Theta',
+#                    y=1.05,
+#                    verticalalignment="top")
+axes[1,1].grid(visible=True)
+axes[1,1].set_axisbelow(True)
+
+data_plot = {'Grupos de electrodos':[], 'Correlación':[]}
+for i, group in enumerate(groups_x):
+    corr_ex = correlations[('Phonological','Theta')][:, group]
+    filter_good_chs_left = good_chs[('Phonological','Theta')][:, group]
+    corr_ex = np.where(filter_good_chs_left == 0, np.nan, corr_ex)
+    corr_group = np.nanmean(corr_ex, axis=1)
+    corr_group = corr_group[~np.isnan(corr_group)]
+    for corr in corr_group:
+        data_plot['Grupos de electrodos'].append(f'G{i}')
+        data_plot['Correlación'].append(corr)
+
+# Ahora usamos Seaborn para crear el violin plot
+sns.boxplot(
+    data=data_plot,
+    x='Grupos de electrodos',
+    y='Correlación',
+    palette={f'G{k}': colors[k] for k in range(len(groups_x))},
+    ax=axes[1,1],
+)
+# Move the legend
+axes[1,1].grid(visible=True)
+axes[1,1].set_xticks(np.arange(n_groups_x-1))
+axes[1,1].set_xticklabels([f'{i}'for i in np.arange(n_groups_x-1)])
+xticks = axes[1,1].get_xticklabels()
+for l, label in enumerate(xticks):
+    if l in [4,5,6]:
+        label.set_color(colors_gr[0])
+    else:
+        label.set_color(colors_gr[-2])
+axes[1,1].set_yticks(np.linspace(correlations[('Phonemes-Phonet','Theta')].min(), correlations[('Phonemes-Phonet','Theta')].max(), 5).round(3))
+axes[1,1].grid(False)
+
+# axes[1,1].set_xlabel('Grupos de electrodos', fontsize=15)
+axes[1,1].set_ylabel('Correlación promedio', fontsize=15)
+axes[1,1].tick_params(which='minor', bottom=False, left=True, right=True, top=False)
+
+z = np.zeros(shape=(len(bands),len(stimuli)))
+z_pv = np.zeros(shape=(len(bands),len(stimuli)))
+for i, band in enumerate(bands):
+    for j, stim in enumerate(stimuli):
+        # band = 'Theta'
+        average_correlation = correlations[(stim,band)]
+        sides_group, center_group = [], []
+        for l in range(n_groups_x-1):
+            if 4<=l<=6:
+                for ch in groups_x[l]:
+                    center_group.append(ch)
+            else:
+                for ch in groups_x[l]:
+                    sides_group.append(ch)
+        filter_good_chs_sides = good_chs[(stim, band)][:, sides_group]
+        average_correlation_sides = average_correlation[:, sides_group]
+        average_correlation_sides = np.where(filter_good_chs_sides == 0, np.nan, average_correlation_sides)
+        filter_good_chs_center = good_chs[(stim, band)][:, center_group]
+        average_correlation_center = average_correlation[:, center_group]
+        average_correlation_center = np.where(filter_good_chs_center == 0, np.nan, average_correlation_center)
+        
+        # plt.figure(figsize=(9,6))
+        # plt.title(f'{stim}-{band}')
+        # plt.bar(np.arange(1, 19)-.15, 100*filter_good_chs_sides.sum(axis=1)/len(sides_group), color='C0', label='Sides', width=.4)
+        # plt.bar(np.arange(1, 19)+.15, 100*filter_good_chs_center.sum(axis=1)/len(center_group), color='C1', label='Center', width=.4)
+        # plt.grid(visible=True)
+        
+        # plt.xticks(np.arange(1, 19))
+        # plt.xlabel('Sujetos')
+        # plt.ylabel(r'Porcentaje de canales significativos (\%)')
+        
+        # plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.15), ncol=2) 
+        # plt.show(block=False)
+        
+        z[i,j] = np.nanmean(average_correlation_sides)-np.nanmean(average_correlation_center)
+        
+        sides_wilc = np.nanmean(average_correlation_sides, axis=1)
+        center_wilc = np.nanmean(average_correlation_center, axis=1)
+        filter_wilc = (~np.isnan(sides_wilc)) & (~np.isnan(center_wilc))
+        stat, p_val = wilcoxon(sides_wilc[filter_wilc],center_wilc[filter_wilc], alternative='two-sided')
+        z_pv[i,j] = p_val
+        
+# axes[1,2].set_title('Lateralization: right(G[0-3])-left(G[7-10])')
+axes[1,2].set_title('Centralización: Lat-Cen', x=.5)
+im = axes[1,2].imshow(
+            z,
+            vmin=z.min(),
+            vmax=z.max(),
+            cmap='magma'
+            )
+for i in range(z_pv.shape[0]):
+    for j in range(z_pv.shape[1]):
+        p_val = z_pv[i, j]
+        if p_val < 0.005:
+            annot = '***'
+        elif p_val < 0.01:
+            annot = '**'
+        elif p_val < 0.05:
+            annot = '*'
+        else:
+            annot = ''
+        if annot:
+            if z[i,j]<-.002:
+                axes[1,2].text(j, i, annot, ha='center', va='center', color='white', fontsize=20, fontweight='bold')
+            else:
+                axes[1,2].text(j, i, annot, ha='center', va='center', color='black', fontsize=20, fontweight='bold')
+
+axes[1,2].set_xticks(np.arange(len(stimuli)))
+# axes[1,2].set_xticklabels(['Tono de voz', 'Envolvente', 'Espectrograma', 'Fonemas', 'C. Fonológicas'], minor=False, fontsize=12, rotation=35)
+axes[1,2].set_xticklabels([])
+
+axes[1,2].set_yticks(np.arange(len(bands)))
+axes[1,2].set_yticklabels(['Delta', 'Theta', 'Alpha', 'Ancha'], minor=False, fontsize=12)
+axes[1,2].minorticks_off()
+
+# axes[1,2].xaxis.tick_top()
+cbar = fig.colorbar(im,
+                    ax=axes[1,2])
+cbar.ax.set(yticks=[-.006,  0.   ,  0.006,  0.009], yticklabels=[-.006,  0.   ,  0.006,  0.009])
+fig.show()
+# cbar.ax.tick_params(labelsize=15)
+
+# =======================
+# HEATMAP LATERALIZATION 
+upper_channels = np.concatenate(groups_y[4:]).tolist()
+
+left_channels = np.concatenate(groups_x[:4]).tolist()
+right_channels = np.concatenate(groups_x[7:]).tolist()
+
+# left_channels = ['C32', 'C31', 'C30', 'C29', 'C28', 'C27', 'C26', 'C25', 'C24', 'D7', 'D6',\
+#     'D5', 'D4', 'D3', 'D2', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13']
+# right_channels = ['C10', 'C9', 'C8', 'C16', 'C15', 'C14', 'C13', 'C12', 'C11', 'C7', 'C6',\
+#     'C5', 'C4', 'C3', 'C2', 'B27', 'B28', 'B29', 'B30', 'B31','B32']
+# left_channels = ['C32', 'C31', 'C30', 'D7', 'D6',\
+#     'D5', 'D4', 'D3', 'D8', 'D9', 'D10', 'D11']
+# right_channels = ['C10', 'C9', 'C8', 'C7', 'C6',\
+#     'C5', 'C4', 'C3', 'B27', 'B28', 'B29', 'B30']
+# left_channels = ['C32', 'C31', 'C30', 'D7', 'D6',\
+#     'D5', 'D8', 'D9', 'D10', 'D11']
+# right_channels = ['C10', 'C9', 'C8', 'C7', 'C6',\
+#     'C5', 'B27', 'B28', 'B29', 'B30']
+
+# left_channels = [config.info_mne['ch_names'][.index](ch) for ch in left_channels]
+# right_channels = [config.info_mne['ch_names'][.index](ch) for ch in right_channels]
+left_channels = [ch for ch in left_channels if ch in upper_channels]
+right_channels = [ch for ch in right_channels if ch in upper_channels]
+
+# number_of_channels = 21
+# left_corrs = sorted(average_corr[left_channels])[-number_of_channels:]
+# right_corrs = sorted(average_corr[right_channels])[-number_of_channels:]
+# left_chs = [average_corr.tolist().index(corr) for corr in left_corrs]
+# right_chs = [average_corr.tolist().index(corr) for corr in right_corrs]
+
+cmap = colormaps['magma']
+colors = cmap(np.linspace(0, 1, len(groups_x)))
+custom_cmap = ListedColormap([colors[2], colors[-2]])
+
+mne.viz.plot_sensors(
+        info=config.info_mne,
+        show_names=False,
+        block=False,
+        pointsize=35,
+        cmap=custom_cmap,
+        axes=axes[2,0],
+        ch_groups=[left_channels, right_channels],
+        linewidth=0,
+        show=False
+        )
+# mne.viz.plot_sensors(
+#         info=config.info_mne,
+#         show_names=True,
+#         block=False,
+#         pointsize=35,
+#         cmap=custom_cmap,
+#         # axes=axes[2,0],
+#         # ch_groups=[left_channels, right_channels],
+#         linewidth=0,
+#         show=True
+#         )
+
+axes[2,0].text(
+            -.076, -.02, 'Izquierda', color=colors[2],
+            verticalalignment="center", horizontalalignment="left", fontsize=13
+        )
+axes[2,0].text(
+            .026, -.02, 'Derecha', color=colors[-2],
+            verticalalignment="center", horizontalalignment="left", fontsize=13
+        )
+
+# axes[2,1].set_title('C. Fonológicas - Theta',
+#                    y=1.05,
+#                    verticalalignment="top")
+axes[2,1].grid(visible=True)
+axes[2,1].set_axisbelow(True)
+
+filter_good_chs_left = good_chs[('Phonological','Theta')][:, left_channels]
+filter_good_chs_right = good_chs[('Phonological','Theta')][:, right_channels]
+av_corr_left = correlations[('Phonological','Theta')][:, left_channels]
+av_corr_left = np.where(filter_good_chs_left == 0, np.nan, av_corr_left)
+
+av_corr_right = correlations[('Phonological','Theta')][:, right_channels]
+av_corr_right = np.where(filter_good_chs_right == 0, np.nan, av_corr_right)
+
+mean_left = np.nanmean(av_corr_left, axis=1)
+mean_right = np.nanmean(av_corr_right, axis=1)
+filter_nans = (~np.isnan(mean_left)) & (~np.isnan(mean_right))
+
+data_plot = {'Izquierda':mean_left[filter_nans],
+             'Derecha':mean_right[filter_nans]}
+data_plot = pd.DataFrame(data=data_plot)
+
+# Ahora usamos Seaborn para crear el violin plot
+sns.boxplot(
+    data=data_plot,
+    # x='Grupos de electrodos',
+    # y='Correlación',
+    palette={'Izquierda':colors[2], 'Derecha':colors[-2]},
+    ax=axes[2,1],
+)
+add_stat_annotation(
+                    ax=axes[2,1],
+                    data=data_plot,
+                    box_pairs=[('Izquierda', 'Derecha')],
+                    test='Wilcoxon',
+                    text_format='star',
+                    loc='inside',
+                    fontsize='xx-large',
+                    verbose=0
+                    )
+
+for patch in axes[2,1].artists:
+    r, g, b, alpha = patch.get_facecolor()
+    patch.set_facecolor((r, g, b, .8))
+sns.swarmplot(data=data_plot, color=".25", ax=axes[2,1])
+
+# # Move the legend
+axes[2,1].grid(visible=True)
+axes[2,1].set_xticks([0, 1])
+axes[2,1].set_xticklabels(['Izquierda', 'Derecha'])
+# axes[2,1].set_ylim([0.42, 0.455])
+# axes[2,1].set_yticks(np.linspace(correlations[('Phonological', 'Theta')].min(), correlations[('Phonological', 'Theta')].max(), 5))
+
+axes[2,1].grid(False)
+
+# axes[2,1].set_xlabel('Grupos de electrodos', fontsize=15)
+axes[2,1].set_ylabel('Correlación promedio', fontsize=15)
+axes[2,1].tick_params(which='minor', bottom=False, left=True, right=True, top=False)
+
+z = np.zeros(shape=(len(bands),len(stimuli)))
+z_pv = np.zeros(shape=(len(bands),len(stimuli)))
+for i, band in enumerate(bands):
+    for j, stim in enumerate(stimuli):
+        average_correlation = correlations[(stim,band)]
+        # left_corrs = sorted(average_correlation.mean(axis=0)[left_channels])[-number_of_channels:]
+        # right_corrs = sorted(average_correlation.mean(axis=0)[right_channels])[-number_of_channels:]
+        # left_chs = [average_correlation.mean(axis=0).tolist().index(corr) for corr in left_corrs]
+        # right_chs = [average_correlation.mean(axis=0).tolist().index(corr) for corr in right_corrs]
+        filter_good_chs_left = good_chs[(stim, band)][:, left_channels]
+        filter_good_chs_right = good_chs[(stim, band)][:, right_channels]
+        
+        # plt.figure(figsize=(9,6))
+        # plt.title(f'{stim}-{band}')
+        # plt.bar(np.arange(1, 19)-.15, 100*filter_good_chs_left.sum(axis=1)/len(left_channels), color='C0', label='Left', width=.4)
+        # plt.bar(np.arange(1, 19)+.15, 100*filter_good_chs_right.sum(axis=1)/len(right_channels), color='C1', label='Right', width=.4)
+        # plt.grid(visible=True)
+        
+        # plt.xticks(np.arange(1, 19))
+        # plt.xlabel('Sujetos')
+        # plt.ylabel(r'Porcentaje de canales significativos (\%)')
+        
+        # plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.15), ncol=2) 
+        # plt.show(block=False)
+        
+        ave_left = average_correlation[:, left_channels]
+        ave_left = np.where(filter_good_chs_left == 0, np.nan, ave_left)
+        
+        ave_right = average_correlation[:, right_channels]
+        ave_right = np.where(filter_good_chs_right == 0, np.nan, ave_right)
+        
+        z[i,j] = np.nanmean(ave_right)-np.nanmean(ave_left)
+        
+        
+        wilc_left = np.nanmean(ave_left, axis=1)
+        wilc_right = np.nanmean(ave_right, axis=1)
+        filter_wilc = (~np.isnan(wilc_left)) & (~np.isnan(wilc_right))
+
+        stat, p_val = wilcoxon(wilc_right[filter_wilc], wilc_left[filter_wilc], alternative='two-sided')
+        z_pv[i,j] = p_val
+
+# axes[2,2].set_title('Lateralization: right(G[0-3])-left(G[7-10])')
+axes[2,2].set_title('Lateralización: Der-Izq', x=.5)
+im = axes[2,2].imshow(
+            z,
+            vmin=z.min(),
+            vmax=z.max(),
+            cmap='magma'
+            )
+for i in range(z_pv.shape[0]):
+    for j in range(z_pv.shape[1]):
+        p_val = z_pv[i, j]
+        if p_val < 0.005:
+            annot = '***'
+        elif p_val < 0.01:
+            annot = '**'
+        elif p_val < 0.05:
+            annot = '*'
+        else:
+            annot = ''
+        if annot:
+            if z[i,j]<-.003:
+                axes[2,2].text(j, i, annot, ha='center', va='center', color='white', fontsize=20, fontweight='bold')
+            else:
+                axes[2,2].text(j, i, annot, ha='center', va='center', color='black', fontsize=20, fontweight='bold')
+
+axes[2,2].set_xticks(np.arange(len(stimuli)))
+axes[2,2].set_xticklabels(['Envolvente', 'Tono de voz', 'Espectrograma', 'Fonemas', 'C. Fonológicas'], minor=False, fontsize=12, rotation=35)
+axes[2,2].set_yticks(np.arange(len(bands)))
+axes[2,2].set_yticklabels(['Delta', 'Theta', 'Alpha', 'Ancha'], minor=False, fontsize=12)
+axes[2,2].minorticks_off()
+
+cbar = fig.colorbar(im, ax=axes[2,2])
+fig.show()
+
+fig.savefig(
+    os.path.join(tesis_path,'resultados', f'LOCALIZACIONES.{figformat}'),
     transparent=False,
     dpi=dpi
-)
+    )
