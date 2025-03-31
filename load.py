@@ -1786,15 +1786,32 @@ class Sesion_class:
         shifted_matrix_speaker_labels = processing.shifted_matrix_2(features=speaker_labels, delays=self.delays, use_gpu=config.use_gpu).astype(float)
                
         if 'Silence' in self.situation and any(char.isdigit() for char in self.situation):
+            # import numpy as np, config
+            # from processing import shifted_matrix_2
+            # features = np.array([1,1,1,1,1,1,1,1,4,4,4,4,4,4,4,4,1,1,1,1,4,4,4,2,2,2,2,2,3,3,3,3,3,3]).reshape(-1,1)
+            # delays = [-3,-2,-1,0,1,2]
+            # shifted_matrix_speaker_labels = shifted_matrix_2(features=features, delays=delays, use_gpu=True).astype(float)
+            # percentage = 20
+
+            # filter_silence_external = ((shifted_matrix_speaker_labels==0)|(shifted_matrix_speaker_labels==4)|(shifted_matrix_speaker_labels==1)).all(axis=1)
+            # shifted_matrix_speaker_labels[filter_silence_external.nonzero()[0]]
+            
+            
+            # filter_silence_x_percent = (shifted_matrix_speaker_labels==4).sum(axis=1)<=int(percentage*len(delays)/100)
+            
+            # shifted_matrix_speaker_labels[(filter_silence_x_percent).nonzero()[0]]
+            
+            # shifted_matrix_speaker_labels[(filter_silence_external & filter_silence_x_percent).nonzero()[0]]
             percentage = int(self.situation.split('Silence_')[1])
             
             # Filter silence plus condition, plus padding
             filter_silence_external = ((shifted_matrix_speaker_labels==0)|(shifted_matrix_speaker_labels==4)|(shifted_matrix_speaker_labels==1)).all(axis=1)
             
             # Just windows with x percent of silence condition
-            filter_silence_x_percent = (shifted_matrix_speaker_labels==4).sum(axis=1)==int(percentage*len(delays))
+            filter_silence_x_percent = (shifted_matrix_speaker_labels==4).sum(axis=1)<=int(percentage*len(config.delays)/100)
         
-            return (filter_silence_external &filter_silence_x_percent).nonzero()[0]
+            return (filter_silence_external & filter_silence_x_percent).nonzero()[0]
+        
         # Make the appropiate label
         if self.situation.endswith('BS'):
             situation_label = 3
@@ -1818,7 +1835,7 @@ class Sesion_class:
         """
         Make print for trial update
 
-        Parameters
+        Para meters
         ----------
         p : int
             index of given trial inside trials
@@ -1964,7 +1981,7 @@ def load_data(
     condition_1 = all(stimulus in allowed_stims for stimulus in stim.split('_'))
     condition_2 = band in allowed_bands
     condition_3 = situation in allowed_situations
-    condition_3bis = situation.split('_Silence')[0] in allowed_stims
+    condition_3bis = situation.split('_Silence')[0] in allowed_situations
 
     if condition_1:
         if condition_2:
