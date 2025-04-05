@@ -44,6 +44,16 @@ situations = [
         # 'Internal', 
         # 'External_BS',
         # 'Internal_BS'
+        # 'External_Silence_10', 
+        # 'External_Silence_20',
+        # 'External_Silence_30',
+        # 'External_Silence_40',
+        # 'External_Silence_50',
+        # 'External_Silence_60',
+        # 'External_Silence_70',
+        # 'External_Silence_80',
+        # 'External_Silence_90',
+        # 'External_Silence_100',
         ] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
 bands = [
         'Delta', 
