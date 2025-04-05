@@ -159,7 +159,7 @@ class Trial_channel:
                 #                 )
             else:
                 eeg = eeg.filter(l_freq=self.l_freq_eeg, h_freq=self.h_freq_eeg)
-                # eeg = eeg.filter(l_freq=4, h_freq=8, phase='minimum')
+                # eeg = eeg.filter(l_freq=4, h_freq=8)
         # # Store dimension mne.raw
         # eeg.resample(sfreq=self.sr)
 
@@ -1533,6 +1533,9 @@ class Sesion_class:
         self.export_paths['Phones-Discrete-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phones-Discrete-Phonet/')
         self.export_paths['Phones-Onset-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phones-Onset-Phonet/')
         
+        # # Leadership dictionary
+        # self.leadership = funciones.load_pickle(path='Datos/leadership.pkl')
+        
     def load_from_raw(
         self
         )->dict:
@@ -1546,13 +1549,13 @@ class Sesion_class:
         """
         
         # Subjects dictionaries, stores their data
-        sujeto_1 = {}
-        sujeto_2 = {}
+        subject_leader = {}
+        subject_follower = {}
 
         # Retrive number of files, i.e: trials. This is done this way because there are missing phonemes values
         trials = [int(fname.split('.')[2]) for fname in os.listdir(self.phn_path) if fname.endswith('TextGrid')]
         trials = list(set([tr for tr in trials if trials.count(tr) > 1]))
-
+        
         # Try to open preprocessed info of samples, if not crates raw. This dictionary contains data of trial lengths and indexes to keep up to given trial
         try:
             self.samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.sesion}.pkl'))
@@ -1560,24 +1563,32 @@ class Sesion_class:
         except:
             loaded_samples_info = False
             self.samples_info = {
-                                'trial_lengths1': [0],
-                                'trial_lengths2': [0],
-                                'keep_indexes1':[],
-                                'keep_indexes2':[]
+                                'trial_lengths_leader': [0],
+                                'trial_lengths_follower': [0],
+                                'keep_indexes_leader':[],
+                                'keep_indexes_follower':[]
                                 }
 
         # Retrive and concatenate data of all trials
         for p, trial in enumerate(trials):
+            
+            # Define leadership: if trial is uneven leader is ch1, if even ch2
+            if trial%2!=0:
+                leadership = 1 
+                follower = 2
+            else:
+                leadership = 2
+                follower = 1
 
             # Update on number of trials
             Sesion_class.print_trials(p, trial, trials)
 
             # Create trial for both channels in order to extract features and EEG signal
             try:
-                channel_1 = Trial_channel(
+                leader = Trial_channel(
                         s=self.sesion, 
                         trial=trial, 
-                        channel=1,
+                        channel=leadership,
                         band=self.band, 
                         sr=self.sr,
                         causal_filter_eeg=self.causal_filter_eeg,
@@ -1586,10 +1597,10 @@ class Sesion_class:
                         praat_executable_path=self.praat_executable_path,
                         situation=self.situation,
                         )
-                channel_2 = Trial_channel(
+                follower = Trial_channel(
                         s=self.sesion,
                         trial=trial,
-                        channel=2,
+                        channel=follower,
                         band=self.band,
                         sr=self.sr,
                         causal_filter_eeg=self.causal_filter_eeg,
@@ -1600,86 +1611,80 @@ class Sesion_class:
                         )
 
                 # Extract dictionaries with the data
-                trial_channel_1 = channel_1.load_trial(stims=self.stim.split('_'))
-                trial_channel_2 = channel_2.load_trial(stims=self.stim.split('_'))
+                trial_leader_own = leader.load_trial(stims=self.stim.split('_'))
+                trial_follower_own = follower.load_trial(stims=self.stim.split('_'))
     
                 # Load data to dictionary taking own stimuli and eeg signal. I.e: each subject predicts its own EEG with its own stimuli
-                if self.situation.startswith('Internal'):
-                    trial_sujeto_1 = {key: trial_channel_1[key] for key in trial_channel_1.keys()}
-                    trial_sujeto_2 = {key: trial_channel_2[key] for key in trial_channel_2.keys()}              
-                
-                # Load data to dictionary taking own eeg signal and interlocutors stimuli. I.e: predicts own EEG using stimuli from interlocutor
-                else:
-                    trial_sujeto_1 = {key: trial_channel_2[key] for key in trial_channel_2.keys() if key!='EEG'} 
-                    trial_sujeto_2 = {key: trial_channel_1[key] for key in trial_channel_1.keys() if key!='EEG'}
-                    trial_sujeto_1['EEG'], trial_sujeto_2['EEG'] = trial_channel_1['EEG'], trial_channel_2['EEG']
+                trial_leader = {key: trial_leader_own[key] for key in trial_leader_own.keys() if key!='EEG'} 
+                trial_follower = {key: trial_folloer_own[key] for key in trial_folloer_own.keys() if key!='EEG'}
+                trial_leader['EEG'], trial_follower['EEG'] = trial_folloer_own['EEG'], trial_leader_own['EEG']
 
-                # Labeling of current speaker. {3:both_speaking,2:speaks_locutor,1:speaks_interlocutor,0:silence}. La diferencia entre _1 y _2 ese que se permutan los valores 1 y 2 (cambia la perspectiva de quién es locutor e interlocutor)
-                current_speaker_1 = self.labeling(trial=trial, channel=2) # len matching eeg
-                current_speaker_2 = self.labeling(trial=trial, channel=1)
+                # Labeling of current speaker {3:both_speaking, 2:speaks_locutor, 1:speaks_interlocutor, 0:silence}. La diferencia entre _1 y _2 ese que se permutan los valores 1 y 2 (cambia la perspectiva de quién es locutor e interlocutor)
+                current_speaker_leader = self.labeling(trial=trial, channel=follower) # len matching eeg
+                current_speaker_follower = self.labeling(trial=trial, channel=leader)
 
                 # Match length of speaker labels and trials with the info of its lengths
-                trial_sujeto_1, current_speaker_1, minimum1 = self.match_lengths(dic=trial_sujeto_1, speaker_labels=current_speaker_1)
-                trial_sujeto_2, current_speaker_2, minimum2 = self.match_lengths(dic=trial_sujeto_2, speaker_labels=current_speaker_2)
+                trial_leader, current_speaker_leader, minimum_leader = self.match_lengths(dic=trial_leader, speaker_labels=current_leader)
+                trial_follower, current_speaker_follower, minimum_follower = self.match_lengths(dic=trial_follower, speaker_labels=current_follower)
 
                 # Define/Re-define samples_info trial length
                 if not loaded_samples_info:
-                    self.samples_info['trial_lengths1'].append(minimum1)
-                    self.samples_info['trial_lengths2'].append(minimum2)
+                    self.samples_info['trial_lengths_leader'].append(minimum_leader)
+                    self.samples_info['trial_lengths_follower'].append(minimum_follower)
 
                     # Preprocessing: calaculates the relevant indexes for the apropiate analysis. Add sum of all previous trials length. This is because at the end, all trials previous to the actual will be concatenated
-                    self.samples_info['keep_indexes1'] += (self.shifted_indexes_to_keep(speaker_labels=current_speaker_1) + np.sum(self.samples_info['trial_lengths1'][:-1])).tolist()
-                    self.samples_info['keep_indexes2'] += (self.shifted_indexes_to_keep(speaker_labels=current_speaker_2) + np.sum(self.samples_info['trial_lengths2'][:-1])).tolist()
+                    self.samples_info['keep_indexes_leader'] += (self.shifted_indexes_to_keep(speaker_labels=current_speaker_1) + np.sum(self.samples_info['trial_lengths_leader'][:-1])).tolist()
+                    self.samples_info['keep_indexes_follower'] += (self.shifted_indexes_to_keep(speaker_labels=current_speaker_2) + np.sum(self.samples_info['trial_lengths_follower'][:-1])).tolist()
                 
                 # Concatenates data of each subject 
-                for key in trial_sujeto_1:
+                for key in trial_leader:
                     if key != 'info':
-                        if key not in sujeto_1:
-                            sujeto_1[key] = trial_sujeto_1[key]
+                        if key not in subject_leader:
+                            subject_leader[key] = trial_leader[key]
                         else:
-                            sujeto_1[key] = np.concatenate((sujeto_1[key], trial_sujeto_1[key]), axis=0)
-                for key in trial_sujeto_2:
+                            subject_leader[key] = np.concatenate((subject_leader[key], trial_leader[key]), axis=0)
+                for key in trial_subject_follower:
                     if key != 'info':
-                        if key not in sujeto_2:
-                            sujeto_2[key] = trial_sujeto_2[key]
+                        if key not in subject_follower:
+                            subject_follower[key] = trial_subject_follower[key]
                         else:
-                            sujeto_2[key] = np.concatenate((sujeto_2[key], trial_sujeto_2[key]), axis=0)
+                            subject_follower[key] = np.concatenate((subject_follower[key], trial_subject_follower[key]), axis=0)
 
             # Empty trial
             except:
                 print(f"Trial {trial} of session {self.sesion} couldn't be loaded.")
-                self.samples_info['trial_lengths1'][p] = 0
-                self.samples_info['trial_lengths2'][p] = 0
+                self.samples_info['trial_lengths_leader'][p] = 0
+                self.samples_info['trial_lengths_follower'][p] = 0
 
         # Get info of the setup that was exluded in the previous iteration
-        info = trial_channel_1['info']
+        info = trial_leader['info']
 
         # Saves modified relevant indexes 
         os.makedirs(self.samples_info_path, exist_ok=True)
         funciones.dump_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.sesion}.pkl'), obj=self.samples_info, rewrite=True)
 
         # Save results
-        for key in sujeto_1:
+        for key in subject_leader:
             # # Drops silences phoneme column
             # if key.startswith('Phonemes'):
             #     # Remove silence column, the last one by construction
-            #     sujeto_1[key] = np.delete(arr=sujeto_1[key], obj=-1, axis=1)
-            #     sujeto_2[key] = np.delete(arr=sujeto_2[key], obj=-1, axis=1)
+            #     subject_leader[key] = np.delete(arr=subject_leader[key], obj=-1, axis=1)
+            #     subject_follower[key] = np.delete(arr=subject_follower[key], obj=-1, axis=1)
 
             # Save preprocesed data
             os.makedirs(self.export_paths[key], exist_ok=True)
-            funciones.dump_pickle(path=os.path.join(self.export_paths[key], f'Sesion{self.sesion}.pkl'), obj=[sujeto_1[key], sujeto_2[key]], rewrite=True)
+            funciones.dump_pickle(path=os.path.join(self.export_paths[key], f'Sesion{self.sesion}.pkl'), obj=[subject_leader[key], subject_follower[key]], rewrite=True)
 
         # Saves info of the setup                    
         funciones.dump_pickle(path=os.path.join(self.preprocessed_data_path, 'EEG/info.pkl'), obj=info, rewrite=True)
 
         # Redefine subjects dictionaries to return only used stimuli
-        sujeto_1_return = {key: sujeto_1[key] for key in self.stim.split('_') + ['EEG']}
-        sujeto_2_return = {key: sujeto_2[key] for key in self.stim.split('_') + ['EEG']}
-        sujeto_1_return['info'] = info
-        sujeto_2_return['info'] = info
+        subject_leader_return = {key: subject_leader[key] for key in self.stim.split('_') + ['EEG']}
+        subject_follower_return = {key: subject_follower[key] for key in self.stim.split('_') + ['EEG']}
+        subject_leader_return['info'] = info
+        subject_follower_return['info'] = info
 
-        return {'Sujeto_1': sujeto_1_return, 'Sujeto_2': sujeto_2_return}, self.samples_info
+        return {'Sujeto_1': subject_leader_return, 'Sujeto_2': subject_follower_return}, self.samples_info
     
     def load_procesed(
         self
@@ -1785,23 +1790,22 @@ class Sesion_class:
         shifted_matrix_speaker_labels = processing.shifted_matrix_2(features=speaker_labels, delays=self.delays, use_gpu=config.use_gpu).astype(float)
                
         if 'Silence' in self.situation and any(char.isdigit() for char in self.situation):
-            # import numpy as np, config
-            # from processing import shifted_matrix_2
-            # features = np.array([1,1,1,1,1,1,1,1,4,4,4,4,4,4,4,4,1,1,1,1,4,4,4,2,2,2,2,2,3,3,3,3,3,3]).reshape(-1,1)
-            # delays = [-3,-2,-1,0,1,2]
-            # shifted_matrix_speaker_labels = shifted_matrix_2(features=features, delays=delays, use_gpu=True).astype(float)
-            # percentage = 100
+            import numpy as np, config
+            from processing import shifted_matrix_2
+            features = np.array([1,1,1,1,1,1,1,1,4,4,4,4,4,4,4,4,1,1,1,1,4,4,4,2,2,2,2,2,3,3,3,3,3,3]).reshape(-1,1)
+            delays = [-3,-2,-1,0,1,2]
+            shifted_matrix_speaker_labels = shifted_matrix_2(features=features, delays=delays, use_gpu=True).astype(float)
+            percentage = 100
 
-            # filter_silence_external = ((shifted_matrix_speaker_labels==0)|(shifted_matrix_speaker_labels==4)|(shifted_matrix_speaker_labels==1)).all(axis=1)
-            # shifted_matrix_speaker_labels[filter_silence_external.nonzero()[0]]
+            filter_silence_external = ((shifted_matrix_speaker_labels==0)|(shifted_matrix_speaker_labels==4)|(shifted_matrix_speaker_labels==1)).all(axis=1)
+            shifted_matrix_speaker_labels[filter_silence_external.nonzero()[0]]
             
             
-            # filter_silence_x_percent = (shifted_matrix_speaker_labels==4).sum(axis=1)<=int(percentage*len(delays)/100)
+            filter_silence_x_percent = (shifted_matrix_speaker_labels==4).sum(axis=1)<=int(percentage*len(delays)/100)
             
-            # shifted_matrix_speaker_labels[(filter_silence_x_percent).nonzero()[0]]
+            shifted_matrix_speaker_labels[(filter_silence_x_percent).nonzero()[0]]
             
-            # shifted_matrix_speaker_labels[(filter_silence_external & filter_silence_x_percent).nonzero()[0]]
-            
+            shifted_matrix_speaker_labels[(filter_silence_external & filter_silence_x_percent).nonzero()[0]]
             percentage = int(self.situation.split('Silence_')[1])
             
             # Filter silence plus condition, plus padding
@@ -1883,7 +1887,7 @@ class Sesion_class:
 
         """
         # Get minimum between EEG and envelope to make cutoff
-        minimum = min([dic['Envelope'].shape[0]] + [dic['EEG'].shape[0]] + [len(speaker_labels)])
+        minimum = min([dic['Envelope'].shape[0]] +[dic['EEG'].shape[0]]+ [len(speaker_labels)])
         
         # Correct length 
         for key in dic:
