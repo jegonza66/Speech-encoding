@@ -26,13 +26,14 @@ class Standarize():
         """
         self.axis = axis
         self.by_gpu = by_gpu
+        self.device = torch.device("cuda" if by_gpu and torch.cuda.is_available() else "cpu")
 
     def _to_device(
         self, 
         data:np.ndarray
         )->torch.Tensor:
         """
-        Move data to GPU if by_gpu is True.
+        Move data to GPU if by_gpu is True, and ensure dtype is float64.
         
         Parameters
         ----------
@@ -42,16 +43,20 @@ class Standarize():
         Returns
         -------
         torch.Tensor
-            Data moved to GPU if by_gpu is True.
+            Data moved to GPU if by_gpu is True, in float64.
         """
-        if self.by_gpu:
-            if isinstance(data, torch.Tensor):
-                if data.is_cuda:
-                    return data
-                else:
-                    return data.cuda()
+        if isinstance(data, np.ndarray):
+            data = torch.tensor(data, dtype=torch.float64)
+        elif isinstance(data, torch.Tensor):
+            if (data.dtype != torch.float64):
+                data = data.to(dtype=torch.float64)
             else:
-                return torch.tensor(data).cuda()
+                pass
+        else:
+            raise TypeError("Input must be np.ndarray or torch.Tensor")
+
+        if self.by_gpu and torch.cuda.is_available():
+            return data.to(self.device)
         else:
             return data
 
@@ -77,19 +82,16 @@ class Standarize():
         # Fix mean and standard deviation with train data
         if isinstance(train_data, torch.Tensor):
             self.mean = train_data.mean(dim=self.axis)
-            self.std = train_data.std(dim=self.axis)
+            self.std = train_data.std(dim=self.axis, unbiased=False)  # Use biased std for consistency with numpy
         else:
             self.mean = train_data.mean(axis=self.axis)
             self.std = train_data.std(axis=self.axis)   
 
         # Standardize data
         train_data -= self.mean
-        train_data /= (self.std + 1e-8)  # Adding epsilon to avoid division by zero
+        train_data /= (self.std + 1e-12)  # Adding epsilon to avoid division by zero
         
-        if isinstance(train_data, torch.Tensor):
-            return train_data.float()
-        else:
-            return train_data
+        return train_data
 
     def fit_standarize_test(
         self, 
@@ -111,12 +113,9 @@ class Standarize():
         
         # Standardize with mean and standard deviation of train
         test_data -= self.mean
-        test_data /= (self.std + 1e-8)
+        test_data /= (self.std + 1e-12)
         
-        if isinstance(test_data, torch.Tensor):
-            return test_data.float()
-        else:
-            return test_data
+        return test_data
 
     def standarize_data(
         self,
@@ -139,15 +138,12 @@ class Standarize():
         
         if isinstance(data, torch.Tensor):
             data -= data.mean(dim=self.axis)
-            data /= data.std(dim=self.axis)
+            data /= data.std(dim=self.axis, unbiased=False)  # Use biased std for consistency with numpy
         else:
             data -= data.mean(axis=self.axis)
             data /= data.std(axis=self.axis)
             
-        if isinstance(data, torch.Tensor):
-            return data.float()
-        else:
-            return data
+        return data
     
 class Normalize():
     def __init__(
@@ -171,13 +167,14 @@ class Normalize():
         self.axis = axis
         self.porcent = porcent
         self.by_gpu = by_gpu
+        self.device = torch.device("cuda" if by_gpu and torch.cuda.is_available() else "cpu")
 
     def _to_device(
         self, 
         data:np.ndarray
         )->torch.Tensor:
         """
-        Move data to GPU if by_gpu is True.
+        Move data to GPU if by_gpu is True, and ensure dtype is float64.
         
         Parameters
         ----------
@@ -187,16 +184,20 @@ class Normalize():
         Returns
         -------
         torch.Tensor
-            Data moved to GPU if by_gpu is True.
+            Data moved to GPU if by_gpu is True, in float64.
         """
-        if self.by_gpu and torch.cuda.is_available():
-            if isinstance(data, torch.Tensor):
-                if data.is_cuda:
-                    return data.float()
-                else:
-                    return data.cuda()
+        if isinstance(data, np.ndarray):
+            data = torch.tensor(data, dtype=torch.float64)
+        elif isinstance(data, torch.Tensor):
+            if (data.dtype != torch.float64):
+                data = data.to(dtype=torch.float64)
             else:
-                return torch.tensor(data).cuda()
+                pass
+        else:
+            raise TypeError("Input must be np.ndarray or torch.Tensor")
+
+        if self.by_gpu and torch.cuda.is_available():
+            return data.to(self.device)
         else:
             return data
 
@@ -232,12 +233,9 @@ class Normalize():
         else:
             self.max = train_data.max(axis=self.axis)
             
-        train_data = train_data / (self.max + 1e-8)  # Adding epsilon to avoid division by zero
+        train_data = train_data / (self.max + 1e-12)  # Adding epsilon to avoid division by zero
         
-        if isinstance(train_data, torch.Tensor):
-            return train_data.float()
-        else:
-            return train_data
+        return train_data
 
     def fit_normalize_test(
         self, 
@@ -259,12 +257,9 @@ class Normalize():
         test_data = self._to_device(test_data)
         
         test_data -= self.min
-        test_data = test_data / (self.max + 1e-8)
+        test_data = test_data / (self.max + 1e-12)
         
-        if isinstance(test_data, torch.Tensor):
-            return test_data.float()
-        else:
-            return test_data
+        return test_data
 
     def normalize_data(
         self, 
@@ -299,10 +294,7 @@ class Normalize():
             data *= 2
             data -= 1
         
-        if isinstance(data, torch.Tensor):
-            return data.float()
-        else:
-            return data
+        return data
 
     def fit_normalize_percent(
         self, 
@@ -338,12 +330,9 @@ class Normalize():
         max_data_n = sorted_data[-n]
         
         # Normalize data
-        data = data / (max_data_n + 1e-8)  # Adding epsilon to avoid division by zero
+        data = data / (max_data_n + 1e-12)  # Adding epsilon to avoid division by zero
         
-        if isinstance(data, torch.Tensor):
-            return data.float()
-        else:
-            return data
+        return data
 
 def shifted_matrix(
     features: np.ndarray, 
@@ -372,13 +361,13 @@ def shifted_matrix(
 
     device = torch.device("cuda" if use_gpu and torch.cuda.is_available() else "cpu")
     try:
-        features_tensor = torch.tensor(features, dtype=torch.float32, device=device)
+        features_tensor = torch.tensor(features, dtype=torch.float64, device=device)
 
         n_samples, n_features = features_tensor.shape
         n_delays = len(delays)
 
         # Create design matrix
-        shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float32, device=device)
+        shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float64, device=device)
 
         for i, delay in enumerate(delays):
             if delay < 0:
@@ -399,13 +388,13 @@ def shifted_matrix(
         print(f"CUDA out of memory: switching to CPU for computation.\n Following error occured: {e}.")
         
         device = torch.device("cpu")
-        features_tensor = torch.tensor(features, dtype=torch.float32, device=device)
+        features_tensor = torch.tensor(features, dtype=torch.float64, device=device)
 
         n_samples, n_features = features_tensor.shape
         n_delays = len(delays)
 
         # Create design matrix
-        shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float32, device=device)
+        shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float64, device=device)
 
         for i, delay in enumerate(delays):
             if delay < 0:
@@ -452,14 +441,14 @@ def shifted_matrix_2(
 
     if features.ndim == 1:
         features = features.reshape(-1, 1)
-    features_tensor = torch.tensor(features, dtype=torch.float32, device=device)
+    features_tensor = torch.tensor(features, dtype=torch.float64, device=device)
     n_samples, n_features = features_tensor.shape
     n_delays = len(delays)
     try:
         if indices_to_keep is not None:
             kept_indices = torch.tensor(indices_to_keep, device=device, dtype=torch.long)
             n_kept = kept_indices.size(0)
-            shifted = torch.zeros((n_kept, n_delays, n_features), dtype=torch.float32, device=device)
+            shifted = torch.zeros((n_kept, n_delays, n_features), dtype=torch.float64, device=device)
 
             for i, delay in enumerate(delays):
                 current_indices = kept_indices
@@ -483,7 +472,7 @@ def shifted_matrix_2(
                     if valid_kept.numel() > 0:
                         shifted[valid_kept, i, :] = features_tensor[current_indices[valid_kept], :]
         else:
-            shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float32, device=device)
+            shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float64, device=device)
             for i, delay in enumerate(delays):
                 if delay < 0:
                     shifted[:delay, i, :] = features_tensor[-delay:, :]
@@ -501,7 +490,7 @@ def shifted_matrix_2(
         if indices_to_keep is not None:
             kept_indices = torch.tensor(indices_to_keep, dtype=torch.long, device=device)
             n_kept = kept_indices.size(0)
-            shifted = torch.zeros((n_kept, n_delays, n_features), dtype=torch.float32, device=device)
+            shifted = torch.zeros((n_kept, n_delays, n_features), dtype=torch.float64, device=device)
 
             for i, delay in enumerate(delays):
                 current_indices = kept_indices
@@ -525,7 +514,7 @@ def shifted_matrix_2(
                     if valid_kept.numel() > 0:
                         shifted[valid_kept, i, :] = features_tensor[current_indices[valid_kept], :]
         else:
-            shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float32, device=device)
+            shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float64, device=device)
             for i, delay in enumerate(delays):
                 if delay < 0:
                     shifted[:delay, i, :] = features_tensor[-delay:, :]
