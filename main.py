@@ -159,7 +159,7 @@ for situation in config.situations:
                         k_models_output.append(
                                         fold_model(
                                             fold=fold,
-                                            alpha=np.float32(alpha),#TODO adapt inside
+                                            alpha=alpha,#TODO adapt inside
                                             stims=stims,
                                             eeg=eeg,
                                             relevant_indexes=relevant_indexes,
