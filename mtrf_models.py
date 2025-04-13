@@ -237,7 +237,7 @@ class TorchMtrf:
             del y_val
             
             # Fit the Ridge model
-            XTX_reg = X_train_for_val.T @ X_train_for_val + self.alpha.astype(np.float32) *  torch.eye(X_train_for_val.shape[1], device=self.device) # X^T * X + alpha*I
+            XTX_reg = X_train_for_val.T @ X_train_for_val + torch.tensor(self.alpha, dtype=torch.float64) *  torch.eye(X_train_for_val.shape[1], device=self.device) # X^T * X + alpha*I
             mtrfs = torch.linalg.solve(XTX_reg, X_train_for_val.T @ y_train_for_val)
             
             # Perform predictions
