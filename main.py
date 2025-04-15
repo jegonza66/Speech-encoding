@@ -10,7 +10,6 @@ from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentag
 from model_implementations import fold_model
 from processing import tfce 
 from load import load_data
-# from load_leadership import load_data
 import config, plot
 
 # Notification bot
@@ -37,20 +36,10 @@ for situation in config.situations:
             path_null = f'saves/{config.model}/{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
             path_figures = f'figures/{config.model}/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
 
-            path_validation = f'saves/{config.model}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+            path_validation = f'saves/{config.model}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
             alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
-            
+
             path_TFCE = f'saves/{config.model}/{situation}/TFCE/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/'
-            # save_results_path = f'leadership/saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/{band}/'
-            # preprocessed_data_path = f'leadership/saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
-            # path_weights = f'leadership/saves/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-            # path_null = f'leadership/saves/{config.model}/{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-            # path_figures = f'figures/{config.model}/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-
-            # path_validation = f'leadership/saves/{config.model}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-            # alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
-            # path_TFCE = f'leadership/saves/{config.model}/{situation}/TFCE/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/'
-
 
             # Make lists to store relevant data across sobjects
             average_weights_subjects = []
@@ -117,24 +106,24 @@ for situation in config.situations:
                 relevant_indexes_1 = samples_info['keep_indexes1'].copy()
                 relevant_indexes_2 = samples_info['keep_indexes2'].copy()
 
-                # Initialize empty variables to store relevant data of each fold
-                weights_per_fold = np.zeros((config.n_folds, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float16)
-                correlation_per_channel = np.zeros((config.n_folds, info['nchan']))
-                rmse_per_channel = np.zeros((config.n_folds, info['nchan']))
-
-                # Variable to store all channel's p-value
-                topo_pvalues_corr_per_fold = np.zeros((config.n_folds, info['nchan']))
-                topo_pvalues_rmse_per_fold = np.zeros((config.n_folds, info['nchan']))
-
-                # Variable to store p-value of significant channels
-                proba_correlation_per_channel = np.ones((config.n_folds, info['nchan']))
-                proba_rmse_per_channel = np.ones((config.n_folds, info['nchan']))
-                # power_correlation_per_channel = np.zeros((config.n_folds, info['nchan']))
-                # power_rmse_per_channel = np.zeros((config.n_folds, info['nchan']))
-
                 # Run model for each subject
                 for sujeto, eeg, stims, relevant_indexes in zip((1, 2), (eeg_sujeto_1, eeg_sujeto_2), (stims_sujeto_1, stims_sujeto_2), (relevant_indexes_1, relevant_indexes_2)):
                     print(f'\n\t······  Running model for Subject {sujeto}\n')
+                    
+                    # Initialize empty variables to store relevant data of each fold
+                    weights_per_fold = np.zeros((config.n_folds, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float32)
+                    correlation_per_channel = np.zeros((config.n_folds, info['nchan']))
+                    rmse_per_channel = np.zeros((config.n_folds, info['nchan']))
+
+                    # Variable to store all channel's p-value
+                    topo_pvalues_corr_per_fold = np.zeros((config.n_folds, info['nchan']))
+                    topo_pvalues_rmse_per_fold = np.zeros((config.n_folds, info['nchan']))
+
+                    # Variable to store p-value of significant channels
+                    proba_correlation_per_channel = np.ones((config.n_folds, info['nchan']))
+                    proba_rmse_per_channel = np.ones((config.n_folds, info['nchan']))
+                    # power_correlation_per_channel = np.zeros((config.n_folds, info['nchan']))
+                    # power_rmse_per_channel = np.zeros((config.n_folds, info['nchan']))
 
                     # Set alpha for specific subject
                     if config.set_alpha is None:

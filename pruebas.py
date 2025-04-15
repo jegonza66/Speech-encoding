@@ -1,60 +1,256 @@
-# Standard libraries
-import numpy as np, pandas as pd, os, warnings, matplotlib.pyplot as plt
-import mne, librosa, librosa.display, platform, opensmile, textgrids
+import numpy as np, matplotlib.pyplot as plt
+from funciones import dump_pickle, load_pickle
+import config
+import torch
+from processing import shifted_matrix_2
 
-# Specific libraries
-import scipy.io.wavfile as wavfile
-from scipy import signal as sgn
-from praatio import pitch_and_intensity
-from disvoice.phonological.phonological import Phonological
+# mtrfs = load_pickle('C:/Users/User/Downloads/mtrfs.pkl')
+mtrfs = load_pickle('C:/Users/User/Downloads/mtrfs.pkl').cpu().numpy().T
+mtrfs_original = load_pickle('C:/Users/User/Downloads/mtrfs_orig.pkl')
 
-# Modules
-import processing, funciones, config
+# mtrfs = np.stack(np.split(mtrfs, 104, axis=1))
+# mtrfs_original = np.stack(np.split(mtrfs_original, 104, axis=1))
+# mtrfs = mtrfs.reshape(128, 104, 16)
+# mtrfs_original = mtrfs_original.reshape(128, 104, 16)
+plt.figure()
+# plt.plot(mtrfs.mean(axis=1).mean(axis=1), label='mtrfs')
+# plt.plot(mtrfs_original.mean(axis=1).mean(axis=1), label='mtrfs_original')
+plt.plot(mtrfs[1,:104], label='mtrfs')
+plt.plot(mtrfs_original[1,:104], label='mtrfs_original')
+plt.legend()
+plt.title('mtrfs')
+plt.show(block=False)
 
-# Review this If we want to update packages
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-mne.set_log_level(verbose='CRITICAL')
-exp_info = config.Exp_info()
 
-# Modules
-from funciones  import load_pickle, dump_pickle
-bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
-# bands = ['Theta']
-sesiones = [21,22,23,24,25,26,27,29,30]
-root = r'saves\preprocessed_data\External\tmin-0.2_tmax0.6'
 
-for sesion in sesiones:
-    # sesion=24
-    stimuli = []
-    for folder in os.listdir(root):
-        if folder == 'EEG':
-            eeg1 = {}
-            eeg2 = {}
-            for band in bands:
-                eeg1[band], eeg2[band] = load_pickle(os.path.join(root, folder, band,  'Causal', f'Sesion{sesion}.pkl'))
-        elif folder == 'samples_info':
-            samples_inf = load_pickle(os.path.join(root, folder, f'samples_info_{sesion}.pkl'))
-            index_1, index_2 = samples_inf['keep_indexes1'], samples_inf['keep_indexes2']
-        else:
-            stimulus_1, stimulus_2 = load_pickle(os.path.join(root, folder, f'Sesion{sesion}.pkl'))
-            stimuli.append((folder, stimulus_1, stimulus_2))
+X_train_a = load_pickle('C:/Users/User/Downloads/X_train_a.pkl')
+y_train_a = load_pickle('C:/Users/User/Downloads/y_train_a.pkl')
+X_pred_a = load_pickle('C:/Users/User/Downloads/X_pred_a.pkl')
+y_test_a = load_pickle('C:/Users/User/Downloads/y_test_a.pkl')
+
+dstims_train_val_a = load_pickle('C:/Users/User/Downloads/dstims_train_val_a.pkl')
+dstims_test_a = load_pickle('C:/Users/User/Downloads/dstims_test_a.pkl')
+eeg_test_a = load_pickle('C:/Users/User/Downloads/eeg_test_a.pkl')
+eeg_train_val_a = load_pickle('C:/Users/User/Downloads/eeg_train_val_a.pkl')
+
+# (np.abs(dstims_train_val_a==X_train_a.cpu().numpy())).all()
+# (np.abs(dstims_test_a==X_pred_a.cpu().numpy())).all()
+# (np.abs(eeg_train_val_a==y_train_a.cpu().numpy())).all()
+# (np.abs(eeg_test_a==y_test_a.cpu().numpy())).all()
+
+by_gpu = True
+device = torch.device("cuda" if by_gpu and torch.cuda.is_available() else "cpu")
+# ===============
+# ESTANDARIZACION
+# LO QUE HACE ORIGINAL
+mean = np.mean(eeg_train_val_a, axis=0)
+std = np.std(eeg_train_val_a, axis=0)
+y_train_N = (eeg_train_val_a-mean)/std
+y_test_N = (eeg_test_a-mean)/std
+
+# LO QUE HACE EL NUEVO
+y_train_a = y_train_a.to(device)
+y_test_a = y_test_a.to(device)
+mean_t = y_train_a.mean(dim=0)
+std_t = y_train_a.std(dim=0, unbiased=False)
+y_train_N2 = (y_train_a-mean_t)/(std_t + 1e-8)  
+y_test_N2 = (y_test_a-mean_t)/(std_t + 1e-8)  
+
+# =============
+# NORMALIZACIÓN
+# LO QUE HACE ORIGINAL
+min = np.min(dstims_train_val_a, axis=0)
+X_train_N = dstims_train_val_a-min
+max = np.max(X_train_N, axis = 0)
+X_train_N = np.divide(X_train_N, max, out=np.zeros_like(X_train_N), where=max != 0)
+X_pred_N = dstims_test_a-min
+X_pred_N = np.divide(X_pred_N, max, out=np.zeros_like(X_pred_N), where=max != 0)
         
-    # Hacemos chequeo de shape
-    for band in bands:
-        # band='Theta'
-        for (folder, stimulus_1, stimulus_2) in stimuli:
-            # if folder=='Phonemes-Discrete-Phonet':
-            if (stimulus_1[:].shape[0]==eeg1[band][:].shape[0], stimulus_2[:].shape[0]==eeg2[band][:].shape[0]) != (True, True):
-            # if (stimulus_1[index_1].shape[0]==eeg1[band][index_1].shape[0], stimulus_2[index_2].shape[0]==eeg2[band][index_2].shape[0]) != (True, True):
-                print('\n\nFALLA', band, sesion, folder)
-                stimulus_1[:].shape[0], eeg1[band][:].shape[0]
+# LO QUE HACE EL NUEVO
+X_train_a = X_train_a.to(device)
+X_pred_a = X_pred_a.to(device)
+min_t = X_train_a.min(dim=0)[0]
+
+X_train_N2 = X_train_a-min_t
+max_t = X_train_N2.max(dim=0)[0]
+X_train_N2 /= (max_t+1e-12)
+X_pred_N2 = (X_pred_a-min_t)/(max_t+1e-12)
+
+# mean_t_np = mean_t.cpu().numpy()
+# std_t_np = std_t.cpu().numpy()
+# print("mean diff:", np.max(np.abs(mean_t_np - mean)))
+# print("std diff:", np.max(np.abs(std_t_np - std)))
+
+min_t_np = min_t.cpu().numpy()
+max_t_np = max_t.cpu().numpy()
+print("min diff:", np.max(np.abs(min_t_np - min)))
+print("max diff:", np.max(np.abs(max_t_np - max)))
 
 
-ind = load_pickle(r'C:\Users\User\repos\Speech-encoding\saves\preprocessed_data\External\tmin-0.2_tmax0.6\samples_info\samples_info_21.pkl')['keep_indexes2']
-atr = load_pickle(r'C:\Users\User\repos\Speech-encoding\saves\preprocessed_data\External\tmin-0.2_tmax0.6\Phonemes-Discrete-Phonet\Sesion21.pkl')[0]
-eeg = load_pickle(r'C:\Users\User\repos\Speech-encoding\saves\preprocessed_data\External\tmin-0.2_tmax0.6\EEG\Theta\Causal\Sesion21.pkl')[1]
-atr[ind].shape
-eeg[ind].shape
+
+# np.allclose(y_train_N2.cpu().numpy(), y_train_N, atol=1e-6)
+# np.allclose(y_test_N2.cpu().numpy(), y_test_N, atol=1e-6)
+# (np.abs(y_train_N2.cpu().numpy()-y_train_N)<1e6).all()
+# (np.abs(y_test_N2.cpu().numpy()-y_test_N)<1e6).all()
+# (np.abs(X_train_N2.cpu().numpy()-X_train_N)==0).all()
+# (np.abs(dstims_test-X_pred)==0).all()
+# (np.abs(y_train-eeg_train_val)==0).all()
+# (np.abs(eeg_test-y_test)==0).all()
+
+X_train = load_pickle('C:/Users/User/Downloads/X_train.pkl')
+y_train = load_pickle('C:/Users/User/Downloads/y_train.pkl')
+X_pred = load_pickle('C:/Users/User/Downloads/X_pred.pkl')
+y_test = load_pickle('C:/Users/User/Downloads/y_test.pkl')
+
+dstims_train_val = load_pickle('C:/Users/User/Downloads/dstims_train_val.pkl')
+dstims_test = load_pickle('C:/Users/User/Downloads/dstims_test.pkl')
+eeg_test = load_pickle('C:/Users/User/Downloads/eeg_test.pkl')
+eeg_train_val = load_pickle('C:/Users/User/Downloads/eeg_train_val.pkl')
+
+stim_tolerance = 1e-9
+eeg_tolerance = 1e-9
+(np.abs(dstims_train_val-X_train.cpu().numpy())<stim_tolerance).all()
+(np.abs(dstims_test-X_pred.cpu().numpy())<stim_tolerance).all()
+(np.abs(eeg_train_val-y_train.cpu().numpy())<eeg_tolerance).all()
+(np.abs(eeg_test-y_test.cpu().numpy())<eeg_tolerance).all()
+
+XTX_reg = dstims_train_val.T @ dstims_train_val + 400 *  np.eye(dstims_train_val.shape[1]) # X^T * X + alpha*I
+mtrfs = np.linalg.solve(XTX_reg, dstims_train_val.T @ eeg_train_val)
+from sklearn.linear_model import Ridge
+ridge = Ridge(alpha=400, fit_intercept=False)
+ridge.fit(dstims_train_val, eeg_train_val)
+mtrfs = ridge.coef_.T
+
+
+wavfile(r'Datos\wavs\S21\s21.objects.01.channel1.wav')
+
+channel = load_pickle('C:/Users/User/Downloads/channel.pkl')
+
+X_train_2 = np.array(load_pickle('C:/Users/User/Downloads/X_train2.pkl')[:len(channel)])
+
+relevant_indexes_1 = len(load_pickle('C:/Users/User/repos/Speech-encoding/saves/preprocessed_data/Internal_BS/tmin-0.2_tmax0.6/samples_info/samples_info_21.pkl')['keep_indexes1'])
+relevant_indexes_1 = np.cumsum(load_pickle('C:/Users/User/repos/Speech-encoding/saves/preprocessed_data/Internal_BS/tmin-0.2_tmax0.6/samples_info/samples_info_21.pkl')['trial_lengths1'])
+
+X_train_2[relevant_indexes_1][:, 0]
+X_train[:, :104][:, 26]
+
+for i in [21,22,23,24,25,26,27,29,30]:
+    # len(load_pickle(f'C:/Users/User/repos/Speech-encoding/saves/preprocessed_data/External_BS/tmin-0.2_tmax0.6/samples_info/samples_info_{i}.pkl')['keep_indexes1'])/128#/60
+    len(load_pickle(f'C:/Users/User/repos/Speech-encoding/saves/preprocessed_data/Internal_BS/tmin-0.2_tmax0.6/samples_info/samples_info_{i}.pkl')['keep_indexes1'])/128#/60
+    len(load_pickle(f'C:/Users/User/repos/Speech-encoding/saves/preprocessed_data/External/tmin-0.2_tmax0.6/samples_info/samples_info_{i}.pkl')['keep_indexes1'])/128/.8
+    # len(load_pickle(f'C:/Users/User/repos/Speech-encoding/saves/preprocessed_data/Internal/tmin-0.2_tmax0.6/samples_info/samples_info_{i}.pkl')['keep_indexes2'])/128/.8
+    
+    # len(load_pickle(f'C:/Users/User/repos/Speech-encoding/saves/preprocessed_data/Internal/tmin-0.2_tmax0.6/samples_info/samples_info_{i}.pkl')['keep_indexes1'])/128/60
+
+# Read file
+import librosa
+from scipy.io import wavfile
+wav_fname = r'Datos\wavs\S21\s21.objects.01.channel1.wav'
+audio_sr = 16e3
+wav = wavfile.read(wav_fname)[1]
+wav = wav.astype("float")
+len
+# Calculates the mel frequencies spectrogram giving the desire sampling (match the EEG)
+sample_window = int(audio_sr/config.sr)
+S = librosa.feature.melspectrogram(
+    y=wav,
+    sr=audio_sr, 
+    n_fft=sample_window, 
+    hop_length=sample_window, 
+    n_mels=16
+    )
+# Transform to dB using normalization to 1
+S_DB = librosa.power_to_db(S=S, ref=np.max)
+
+S_DB = S_DB.T
+
+
+wavo = wavfile.read(wav_fname)[1]
+wavo = wavo.astype("float")
+
+n_fft = 125
+hop_length = 125
+n_mels = 16
+
+S_2 = librosa.feature.melspectrogram(wavo, sr=audio_sr, n_fft=n_fft, hop_length=hop_length, n_mels=n_mels)
+S_DB_2 = librosa.power_to_db(S_2, ref=np.max)
+S_DB_2 = S_DB_2.transpose()
+
+# Match to Envelope size if shorter to standarized across features
+S_DB_2 = S_DB_2[:min(len(S_DB_2), 9168), :]
+S_DB_2 =np.array(S_DB_2)
+
+
+# ESTAA ACA!!!!JAJAJA
+sX_train_2 = shifted_matrix_3(features=X_train_2, delays=config.delays, use_gpu=True,indices_to_keep=relevant_indexes_1)
+sX_train_2b = shifted_matrix_3(features=X_train_2, delays=config.delays, use_gpu=True,indices_to_keep=relevant_indexes_1)
+
+(sX_train_2-sX_train_2b).max()
+
+X_train.astype(np.float32).mean()
+X_train.astype(np.float32).std()
+X_train_2.astype(np.float32).mean()
+X_train_2.astype(np.float32).std()
+
+'C:/Users/User/Downloads/eeg_train_index_new.pkl'
+
+# # Standard libraries
+# import numpy as np, pandas as pd, os, warnings, matplotlib.pyplot as plt
+# import mne, librosa, librosa.display, platform, opensmile, textgrids
+
+# # Specific libraries
+# import scipy.io.wavfile as wavfile
+# from scipy import signal as sgn
+# from praatio import pitch_and_intensity
+# from disvoice.phonological.phonological import Phonological
+
+# # Modules
+# import processing, funciones, config
+
+# # Review this If we want to update packages
+# warnings.filterwarnings("ignore", category=DeprecationWarning)
+# mne.set_log_level(verbose='CRITICAL')
+# exp_info = config.Exp_info()
+
+# # Modules
+# from funciones  import load_pickle, dump_pickle
+# bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
+# # bands = ['Theta']
+# sesiones = [21,22,23,24,25,26,27,29,30]
+# root = r'saves\preprocessed_data\External\tmin-0.2_tmax0.6'
+
+# for sesion in sesiones:
+#     # sesion=24
+#     stimuli = []
+#     for folder in os.listdir(root):
+#         if folder == 'EEG':
+#             eeg1 = {}
+#             eeg2 = {}
+#             for band in bands:
+#                 eeg1[band], eeg2[band] = load_pickle(os.path.join(root, folder, band,  'Causal', f'Sesion{sesion}.pkl'))
+#         elif folder == 'samples_info':
+#             samples_inf = load_pickle(os.path.join(root, folder, f'samples_info_{sesion}.pkl'))
+#             index_1, index_2 = samples_inf['keep_indexes1'], samples_inf['keep_indexes2']
+#         else:
+#             stimulus_1, stimulus_2 = load_pickle(os.path.join(root, folder, f'Sesion{sesion}.pkl'))
+#             stimuli.append((folder, stimulus_1, stimulus_2))
+        
+#     # Hacemos chequeo de shape
+#     for band in bands:
+#         # band='Theta'
+#         for (folder, stimulus_1, stimulus_2) in stimuli:
+#             # if folder=='Phonemes-Discrete-Phonet':
+#             if (stimulus_1[:].shape[0]==eeg1[band][:].shape[0], stimulus_2[:].shape[0]==eeg2[band][:].shape[0]) != (True, True):
+#             # if (stimulus_1[index_1].shape[0]==eeg1[band][index_1].shape[0], stimulus_2[index_2].shape[0]==eeg2[band][index_2].shape[0]) != (True, True):
+#                 print('\n\nFALLA', band, sesion, folder)
+#                 stimulus_1[:].shape[0], eeg1[band][:].shape[0]
+
+
+# ind = load_pickle(r'C:\Users\User\repos\Speech-encoding\saves\preprocessed_data\External\tmin-0.2_tmax0.6\samples_info\samples_info_21.pkl')['keep_indexes2']
+# atr = load_pickle(r'C:\Users\User\repos\Speech-encoding\saves\preprocessed_data\External\tmin-0.2_tmax0.6\Phonemes-Discrete-Phonet\Sesion21.pkl')[0]
+# eeg = load_pickle(r'C:\Users\User\repos\Speech-encoding\saves\preprocessed_data\External\tmin-0.2_tmax0.6\EEG\Theta\Causal\Sesion21.pkl')[1]
+# atr[ind].shape
+# eeg[ind].shape
 
 # #=========
 # # ENVELOPE

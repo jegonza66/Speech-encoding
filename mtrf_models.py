@@ -115,7 +115,7 @@ class TorchMtrf:
 
         # Get relevant indexes and transform to GPU
         design_matrix = torch.tensor(design_matrix).to(self.device)
-        y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float64).to(self.device)
+        y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to(self.device)
         del stims, eeg
         
         # Separate into training and testing
@@ -178,7 +178,7 @@ class TorchMtrf:
                                                 )
                     
                     # Fit the Ridge model (X^T X + alpha * I) * mtrfs = X^T * y_train_p 
-                    XTX_reg = X_train_p.T @ X_train_p + self.alpha.astype(np.float64) *  torch.eye(X_train_p.shape[1], device=self.device) # X^T * X + alpha*I
+                    XTX_reg = X_train_p.T @ X_train_p + self.alpha.astype(np.float32) *  torch.eye(X_train_p.shape[1], device=self.device) # X^T * X + alpha*I
                     mtrfs = torch.linalg.solve(XTX_reg, X_train_p.T @ y_train_p)
                     
                     # Perform predictions
@@ -197,6 +197,7 @@ class TorchMtrf:
                     self.correlations[s] = correlation_matrix
                     self.root_mean_square_error[s] = root_mean_square_error
                     self.coefs[s] = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1).cpu().numpy()
+                del X_train, y_train, X_pred, X_train_p, y_train_p, X_pred_p, y_test_p                    
             else:
                 # Standarize and normalize
                 X_train, y_train, X_pred, self.y_test = self.standarize_normalize(
@@ -208,7 +209,7 @@ class TorchMtrf:
                 del y_test
 
                 # Fit the Ridge model
-                XTX_reg = X_train.T @ X_train + torch.tensor(self.alpha, dtype=torch.float64) *  torch.eye(X_train.shape[1], device=self.device) # X^T * X + alpha*I
+                XTX_reg = X_train.T @ X_train + torch.tensor(self.alpha, dtype=torch.float32) *  torch.eye(X_train.shape[1], device=self.device) # X^T * X + alpha*I
                 mtrfs = torch.linalg.solve(XTX_reg, X_train.T @ y_train)
                 
                 # Perform predictions
@@ -217,6 +218,7 @@ class TorchMtrf:
                 
                 # Store mtrfs
                 self.coefs = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1).cpu().numpy()
+                del X_train, y_train 
         else:
             # Make split for validation: validation sets, fixing the train percent of data
             train_percent = .8
@@ -237,7 +239,7 @@ class TorchMtrf:
             del y_val
             
             # Fit the Ridge model
-            XTX_reg = X_train_for_val.T @ X_train_for_val + torch.tensor(self.alpha, dtype=torch.float64) *  torch.eye(X_train_for_val.shape[1], device=self.device) # X^T * X + alpha*I
+            XTX_reg = X_train_for_val.T @ X_train_for_val + torch.tensor(self.alpha, dtype=torch.float32) *  torch.eye(X_train_for_val.shape[1], device=self.device) # X^T * X + alpha*I
             mtrfs = torch.linalg.solve(XTX_reg, X_train_for_val.T @ y_train_for_val)
             
             # Perform predictions
@@ -246,7 +248,7 @@ class TorchMtrf:
             
             # Store mtrfs
             self.coefs = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1).cpu().numpy()
-
+            del X_train, y_train
     def predict(
         self
         )->tuple:

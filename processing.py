@@ -33,7 +33,7 @@ class Standarize():
         data:np.ndarray
         )->torch.Tensor:
         """
-        Move data to GPU if by_gpu is True, and ensure dtype is float64.
+        Move data to GPU if by_gpu is True, and ensure dtype is float32.
         
         Parameters
         ----------
@@ -43,13 +43,13 @@ class Standarize():
         Returns
         -------
         torch.Tensor
-            Data moved to GPU if by_gpu is True, in float64.
+            Data moved to GPU if by_gpu is True, in float32.
         """
         if isinstance(data, np.ndarray):
-            data = torch.tensor(data, dtype=torch.float64)
+            data = torch.tensor(data, dtype=torch.float32)
         elif isinstance(data, torch.Tensor):
-            if (data.dtype != torch.float64):
-                data = data.to(dtype=torch.float64)
+            if (data.dtype != torch.float32):
+                data = data.to(dtype=torch.float32)
             else:
                 pass
         else:
@@ -174,7 +174,7 @@ class Normalize():
         data:np.ndarray
         )->torch.Tensor:
         """
-        Move data to GPU if by_gpu is True, and ensure dtype is float64.
+        Move data to GPU if by_gpu is True, and ensure dtype is float32.
         
         Parameters
         ----------
@@ -184,13 +184,13 @@ class Normalize():
         Returns
         -------
         torch.Tensor
-            Data moved to GPU if by_gpu is True, in float64.
+            Data moved to GPU if by_gpu is True, in float32.
         """
         if isinstance(data, np.ndarray):
-            data = torch.tensor(data, dtype=torch.float64)
+            data = torch.tensor(data, dtype=torch.float32)
         elif isinstance(data, torch.Tensor):
-            if (data.dtype != torch.float64):
-                data = data.to(dtype=torch.float64)
+            if (data.dtype != torch.float32):
+                data = data.to(dtype=torch.float32)
             else:
                 pass
         else:
@@ -361,13 +361,13 @@ def shifted_matrix(
 
     device = torch.device("cuda" if use_gpu and torch.cuda.is_available() else "cpu")
     try:
-        features_tensor = torch.tensor(features, dtype=torch.float64, device=device)
+        features_tensor = torch.tensor(features, dtype=torch.float32, device=device)
 
         n_samples, n_features = features_tensor.shape
         n_delays = len(delays)
 
         # Create design matrix
-        shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float64, device=device)
+        shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float32, device=device)
 
         for i, delay in enumerate(delays):
             if delay < 0:
@@ -388,13 +388,13 @@ def shifted_matrix(
         print(f"CUDA out of memory: switching to CPU for computation.\n Following error occured: {e}.")
         
         device = torch.device("cpu")
-        features_tensor = torch.tensor(features, dtype=torch.float64, device=device)
+        features_tensor = torch.tensor(features, dtype=torch.float32, device=device)
 
         n_samples, n_features = features_tensor.shape
         n_delays = len(delays)
 
         # Create design matrix
-        shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float64, device=device)
+        shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float32, device=device)
 
         for i, delay in enumerate(delays):
             if delay < 0:
@@ -441,14 +441,14 @@ def shifted_matrix_2(
 
     if features.ndim == 1:
         features = features.reshape(-1, 1)
-    features_tensor = torch.tensor(features, dtype=torch.float64, device=device)
+    features_tensor = torch.tensor(features, dtype=torch.float32, device=device)
     n_samples, n_features = features_tensor.shape
     n_delays = len(delays)
     try:
         if indices_to_keep is not None:
             kept_indices = torch.tensor(indices_to_keep, device=device, dtype=torch.long)
             n_kept = kept_indices.size(0)
-            shifted = torch.zeros((n_kept, n_delays, n_features), dtype=torch.float64, device=device)
+            shifted = torch.zeros((n_kept, n_delays, n_features), dtype=torch.float32, device=device)
 
             for i, delay in enumerate(delays):
                 current_indices = kept_indices
@@ -472,7 +472,7 @@ def shifted_matrix_2(
                     if valid_kept.numel() > 0:
                         shifted[valid_kept, i, :] = features_tensor[current_indices[valid_kept], :]
         else:
-            shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float64, device=device)
+            shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float32, device=device)
             for i, delay in enumerate(delays):
                 if delay < 0:
                     shifted[:delay, i, :] = features_tensor[-delay:, :]
@@ -490,7 +490,7 @@ def shifted_matrix_2(
         if indices_to_keep is not None:
             kept_indices = torch.tensor(indices_to_keep, dtype=torch.long, device=device)
             n_kept = kept_indices.size(0)
-            shifted = torch.zeros((n_kept, n_delays, n_features), dtype=torch.float64, device=device)
+            shifted = torch.zeros((n_kept, n_delays, n_features), dtype=torch.float32, device=device)
 
             for i, delay in enumerate(delays):
                 current_indices = kept_indices
@@ -514,7 +514,7 @@ def shifted_matrix_2(
                     if valid_kept.numel() > 0:
                         shifted[valid_kept, i, :] = features_tensor[current_indices[valid_kept], :]
         else:
-            shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float64, device=device)
+            shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float32, device=device)
             for i, delay in enumerate(delays):
                 if delay < 0:
                     shifted[:delay, i, :] = features_tensor[-delay:, :]
@@ -525,7 +525,120 @@ def shifted_matrix_2(
 
         shifted_matrix = shifted.permute(0, 2, 1).reshape(-1, n_features * n_delays)
         return shifted_matrix.cpu().numpy()
-    
+# def shifted_matrix_3(
+#     features: np.ndarray,
+#     delays: np.ndarray,
+#     use_gpu: bool = True,
+#     indices_to_keep: np.ndarray = None
+# ) -> np.ndarray:
+#     """
+#     Computes shifted matrix for given delays, optionally only for specified indices.
+
+#     Parameters
+#     ----------
+#     features : array, (n_times, n_features)
+#         Time series data.
+#     delays : array
+#         Index delays to apply.
+#     use_gpu : bool
+#         Whether to use GPU.
+#     indices_to_keep : array, optional
+#         Row indices to compute, avoiding full matrix creation.
+
+#     Returns
+#     -------
+#     array
+#         Shifted matrix, possibly only for specified rows.
+#     """
+#     device = torch.device("cuda" if use_gpu and torch.cuda.is_available() else "cpu")
+
+#     if features.ndim == 1:
+#         features = features.reshape(-1, 1)
+#     features_tensor = torch.tensor(features, dtype=torch.float32, device=device)
+#     n_samples, n_features = features_tensor.shape
+#     n_delays = len(delays)
+#     try:
+#         if indices_to_keep is not None:
+#             kept_indices = torch.tensor(indices_to_keep, device=device, dtype=torch.long)
+#             n_kept = kept_indices.size(0)
+#             shifted = torch.zeros((n_kept, n_delays, n_features), dtype=torch.float32, device=device)
+#             indices = torch.arange(n_samples, device=device)
+
+#             for i, delay in enumerate(delays):
+#                 if delay > 0:
+#                     shifted[indices[d:], i, :] = features_tensor[kept_indices[d:], :]
+#                 elif delay < 0:
+#                     abs_delay = -delay
+#                     max_valid = n_samples - abs_delay
+#                     mask = current_indices < max_valid
+#                     valid_kept = mask.nonzero().squeeze()
+#                     if valid_kept.numel() > 0:
+#                         feature_indices = current_indices[valid_kept] + abs_delay
+#                         shifted[valid_kept, i, :] = features_tensor[feature_indices, :]
+#                 else:
+#                     mask = (current_indices >= 0) & (current_indices < n_samples)
+#                     valid_kept = mask.nonzero().squeeze()
+#                     if valid_kept.numel() > 0:
+#                         shifted[valid_kept, i, :] = features_tensor[current_indices[valid_kept], :]
+#         else:
+#             shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float32, device=device)
+#             for i, delay in enumerate(delays):
+#                 if delay < 0:
+#                     shifted[:delay, i, :] = features_tensor[-delay:, :]
+#                 elif delay > 0:
+#                     shifted[delay:, i, :] = features_tensor[:-delay, :]
+#                 else:
+#                     shifted[:, i, :] = features_tensor
+
+#         shifted_matrix = shifted.permute(0, 2, 1).reshape(-1, n_features * n_delays)
+#         return shifted_matrix.cpu().numpy()
+#     except Exception as e:
+#         print(f"CUDA out of memory: switching to CPU for computation.\nFollowing error occurred: {e}.")
+#         device = torch.device("cpu")
+
+#         if indices_to_keep is not None:
+#             kept_indices = torch.tensor(indices_to_keep, dtype=torch.long, device=device)
+#             n_kept = kept_indices.size(0)
+#             shifted = torch.zeros((n_kept, n_delays, n_features), dtype=torch.float32, device=device)
+
+#             for i, delay in enumerate(delays):
+#                 current_indices = kept_indices
+#                 if delay > 0:
+#                     shifted[indices[delay:], i, :] = features_tensor[kept_indices[delay:], :]
+
+#                 elif delay < 0:
+#                     abs_delay = -delay
+#                     max_valid = n_samples - abs_delay
+#                     mask = current_indices < max_valid
+#                     valid_kept = mask.nonzero().squeeze()
+#                     if valid_kept.numel() > 0:
+#                         feature_indices = current_indices[valid_kept] + abs_delay
+#                         shifted[valid_kept, i, :] = features_tensor[feature_indices, :]
+#                 else:
+#                     mask = (current_indices >= 0) & (current_indices < n_samples)
+#                     valid_kept = mask.nonzero().squeeze()
+#                     if valid_kept.numel() > 0:
+#                         shifted[valid_kept, i, :] = features_tensor[current_indices[valid_kept], :]
+#         else:
+#             shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float32, device=device)
+#             for i, delay in enumerate(delays):
+#                 if delay < 0:
+#                     shifted[:delay, i, :] = features_tensor[-delay:, :]
+#                 elif delay > 0:
+#                     shifted[delay:, i, :] = features_tensor[:-delay, :]
+#                 else:
+#                     shifted[:, i, :] = features_tensor
+
+#         shifted_matrix = shifted.permute(0, 2, 1).reshape(-1, n_features * n_delays)
+#         return shifted_matrix.cpu().numpy()
+
+
+# features = np.arange(10).reshape(-1,1)
+# delays = np.array([1, 2, 3])
+# # shifted_matrix_2(features=features, delays=delays, use_gpu=True, indices_to_keep=[1,2,5,7])
+# shifted_matrix_3(features=features, delays=delays, use_gpu=False, indices_to_keep=[1,2,5,7])
+
+
 def butter_filter(
     data:np.ndarray, 
     frequencies:float, 

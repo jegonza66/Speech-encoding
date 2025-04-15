@@ -10,11 +10,13 @@ import mne
 
 from matplotlib.colors import Normalize, ListedColormap, LinearSegmentedColormap,TwoSlopeNorm
 from matplotlib.collections import PathCollection
+from matplotlib.patches import PathPatch, Patch
 from matplotlib.ticker import ScalarFormatter
 from matplotlib_venn import venn3, venn2
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as mpatches
 from scipy.spatial import ConvexHull
+from matplotlib.lines import Line2D
 import matplotlib.pylab as pylab
 from matplotlib import colormaps
 import matplotlib.pyplot as plt
@@ -27,7 +29,7 @@ import scienceplots
 
 from funciones import load_pickle, all_possible_combinations, get_maximum_correlation_channels
 from processing import clustering_by_correlation
-from plot import define_ticks
+from plot import define_ticks, gradient_fill_density_based
 import config
 
 pylab.rcParams.update({
@@ -53,7 +55,7 @@ figformat, dpi = 'png', 350
 # # Boxplot ENTRE SITUACIONES
 # situations = ['External', 'Internal', 'External_BS', 'Internal_BS']
 # stimulus_tostr = {'Pitch-Log-Raw':'Tono de voz', 'Envelope':'Envolvente', 'Spectrogram':'Espectrograma', 'Phonemes-Phonet':'Fonemas', 'Phonological':'C. Fonológicas'}
-# stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Phonemes-Phonet', 'Phonological'] #'Phonemes-Discrete-Phonet', 
+# stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Phonemes-Phonet', 'Phonological'] #'Phonemes-Discrete-Phonet',
 # bands = ['Delta', 'Theta', 'All', 'Alpha', 'Beta1', 'Beta2', ]
 # palette = {
 #     'External': 'C0',
@@ -85,9 +87,9 @@ figformat, dpi = 'png', 350
 
 # # Crear figura con 2 filas x 3 columnas y compartir ejes
 # fig, axs = plt.subplots(
-#     nrows=2, ncols=3, 
-#     figsize=(14, 8), 
-#     layout='constrained', 
+#     nrows=2, ncols=3,
+#     figsize=(14, 8),
+#     layout='constrained',
 #     sharex=True,  # Compartir eje x en cada columna
 #     sharey='row'  # Compartir eje y en cada fila
 # )
@@ -96,7 +98,7 @@ figformat, dpi = 'png', 350
 # # Recorremos cada banda y asignamos su subplot
 # for idx, band in enumerate(bands):
 #     ax = axes[idx]
-    
+
 #     # Preparar datos en formato largo para Seaborn para la banda actual
 #     data_list = []
 #     for stimulus in stimuli:
@@ -108,10 +110,10 @@ figformat, dpi = 'png', 350
 #                     'Correlación': value
 #                 })
 #     df = pd.DataFrame(data_list)
-    
+
 #     # Agregar grid detrás de los boxplots
 #     ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.7, zorder=0)
-#     ax.tick_params(axis='x', which='major', length=8, width=1) 
+#     ax.tick_params(axis='x', which='major', length=8, width=1)
 
 #     # Crear boxplot en el subplot correspondiente (sin outliers)
 #     box = sns.boxplot(
@@ -119,13 +121,13 @@ figformat, dpi = 'png', 350
 #         x="Estímulo",
 #         y="Correlación",
 #         hue="Situación",
-#         dodge=True,  
+#         dodge=True,
 #         palette=palette,
 #         showfliers=False,  # Elimina los outliers en forma de diamante
 #         ax=ax,
 #         zorder=2  # Asegura que esté sobre la grilla
 #     )
-    
+
 #     # Agregar notación de significancia
 #     for i, stimulus in enumerate(stimuli):
 #         for j, situation in enumerate(['Internal', 'Internal_BS']):
@@ -150,8 +152,8 @@ figformat, dpi = 'png', 350
 #                         ax.text(i - 2/10, .28, sig, ha='center', va='bottom', fontsize=14, color='C0')
 #                     else:
 #                         ax.text(i + 2/10, .32, sig, ha='center', va='bottom', fontsize=14, color='C2')
-                    
-    
+
+
 #     # Solo colocar etiqueta del eje y en la primera columna
 #     if idx % 3 == 0:
 #         ax.set_ylabel("Correlación entre sujetos")
@@ -165,14 +167,14 @@ figformat, dpi = 'png', 350
 #     else:
 #         ax.set_xlabel("")
 #         ax.set_xticklabels([])
-    
+
 #     # Eliminar la leyenda individual en cada subplot
 #     ax.legend_.remove()
 
 # # Agregar leyenda fuera de la figura
 # handles, labels = axes[0].get_legend_handles_labels()
 # fig.legend(
-#     handles[:4], ['Externa', 'Interna', 'Externa (AH)', 'Interna (AH)'], 
+#     handles[:4], ['Externa', 'Interna', 'Externa (AH)', 'Interna (AH)'],
 #     title="Situaciones", loc=(0.25, .5), bbox_to_anchor=(0.21, 1.01), ncol=4
 # )
 # fig.text(.02, .99, 'a)', fontsize=18, va='top', ha='right')
@@ -194,7 +196,7 @@ figformat, dpi = 'png', 350
 # # Boxplot ENTRE EXTERNAL E INTERNAL NAMAS
 # situations = ['External', 'Internal']
 # stimulus_tostr = {'Pitch-Log-Raw':'Tono de voz', 'Envelope':'Envolvente', 'Spectrogram':'Espectrograma', 'Phonemes-Phonet':'Fonemas', 'Phonological':'C. Fonológicas'}
-# stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Phonemes-Phonet', 'Phonological'] #'Phonemes-Discrete-Phonet', 
+# stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Phonemes-Phonet', 'Phonological'] #'Phonemes-Discrete-Phonet',
 # bands = ['Delta', 'Theta', 'All', 'Alpha', 'Beta1', 'Beta2', ]
 # palette = {
 #     'External': 'C2',
@@ -218,12 +220,12 @@ figformat, dpi = 'png', 350
 #     for i, band in enumerate(bands):
 #         stat, p_val = wilcoxon(avg_corr_1['External'][stimulus][band], avg_corr_1['Internal'][stimulus][band])
 #         p_vals['Internal'][stimulus][band] = p_val
-        
+
 # # Crear figura con 2 filas x 3 columnas y compartir ejes
 # fig, axs = plt.subplots(
-#     nrows=2, ncols=3, 
-#     figsize=(14, 8), 
-#     layout='constrained', 
+#     nrows=2, ncols=3,
+#     figsize=(14, 8),
+#     layout='constrained',
 #     sharex=True,  # Compartir eje x en cada columna
 #     sharey='row'  # Compartir eje y en cada fila
 # )
@@ -232,7 +234,7 @@ figformat, dpi = 'png', 350
 # # Recorremos cada banda y asignamos su subplot
 # for idx, band in enumerate(bands):
 #     ax = axes[idx]
-    
+
 #     # Preparar datos en formato largo para Seaborn para la banda actual
 #     data_list = []
 #     for stimulus in stimuli:
@@ -244,10 +246,10 @@ figformat, dpi = 'png', 350
 #                     'Correlación': value
 #                 })
 #     df = pd.DataFrame(data_list)
-    
+
 #     # Agregar grid detrás de los boxplots
 #     ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.7, zorder=0)
-#     ax.tick_params(axis='x', which='major', length=8, width=1) 
+#     ax.tick_params(axis='x', which='major', length=8, width=1)
 
 #     # Crear boxplot en el subplot correspondiente (sin outliers)
 #     box = sns.boxplot(
@@ -255,13 +257,13 @@ figformat, dpi = 'png', 350
 #         x="Estímulo",
 #         y="Correlación",
 #         hue="Situación",
-#         dodge=True,  
+#         dodge=True,
 #         palette=palette,
 #         showfliers=False,  # Elimina los outliers en forma de diamante
 #         ax=ax,
 #         zorder=2  # Asegura que esté sobre la grilla
 #     )
-    
+
 #     # Agregar notación de significancia
 #     for i, stimulus in enumerate(stimuli):
 #             p_val = p_vals['Internal'][stimulus][band]
@@ -279,8 +281,8 @@ figformat, dpi = 'png', 350
 #                     ax.text(i, .535, sig, ha='center', va='bottom', fontsize=14, color='black')
 #                 else:
 #                     ax.text(i, .28, sig, ha='center', va='bottom', fontsize=14, color='black')
-                    
-    
+
+
 #     # Solo colocar etiqueta del eje y en la primera columna
 #     if idx % 3 == 0:
 #         ax.set_ylabel("Correlación entre sujetos")
@@ -294,14 +296,14 @@ figformat, dpi = 'png', 350
 #     else:
 #         ax.set_xlabel("")
 #         ax.set_xticklabels([])
-    
+
 #     # Eliminar la leyenda individual en cada subplot
 #     ax.legend_.remove()
 
 # # # Agregar leyenda fuera de la figura
 # # handles, labels = axes[0].get_legend_handles_labels()
 # # fig.legend(
-# #     handles[:], ['Externa', 'Interna'], 
+# #     handles[:], ['Externa', 'Interna'],
 # #     title="Situaciones", loc=(0.25, .5), bbox_to_anchor=(0.21, 1.01), ncol=4
 # # )
 # # Crear los patches manualmente
@@ -525,7 +527,7 @@ figformat, dpi = 'png', 350
 #                 ]
 #             areas = [0 if area<0 else area.round(3) for area in areas] # note that the sum gives shared model variance_123
 #             areas_dic[band][triple_combinations[0]]=np.round((areas/(sum(areas)/100)),1)
-        
+
 # normalizer = {band:{} for band in bands}
 # for band in bands:
 #     max_shared_area = max([sum(areas_dic[band][stim]) for stim in areas_dic[band]])
@@ -678,7 +680,7 @@ figformat, dpi = 'png', 350
 
 # for idx, banda in enumerate(['Delta', 'Theta', 'Alpha', 'Ancha']):
 #     axes[idx].set_title(r'\textbf{'+banda+r'}', fontsize=18)
-    
+
 # # fig.set_constrained_layout_pads(hspace=0.01)#, wspace=0.05, h_pad=0.1, w_pad=0.1)
 # # fig.subplots_adjust(hspace=0.0003, wspace=0.001)
 # # fig.subplots_adjust(left=0.04, right=0.96, bottom=0.04, top=0.96, hspace=0.00001, wspace=0.00001)
@@ -732,7 +734,7 @@ figformat, dpi = 'png', 350
 # venn = venn3(
 #     subsets=areas_dic['Theta']['Phonemes-Phonet_Phonological_Spectrogram'], # the order should be(100, 010, 110, 001, 101, 011, 111)
 #     set_labels=('Fonemas', 'C. Fonológicas', 'Espectrograma'),
-#     set_colors=('C2', 'C6', 'C1'), 
+#     set_colors=('C2', 'C6', 'C1'),
 #     alpha=0.45,
 #     ax=axes[1],
 #     normalize_to=normalizer['Theta']['Phonemes-Phonet_Phonological_Spectrogram']
@@ -790,7 +792,7 @@ figformat, dpi = 'png', 350
 
 # for idx, banda in enumerate(['Delta', 'Theta', 'Alpha', 'Ancha']):
 #     axes[idx].set_title(r'\textbf{'+banda+r'}', fontsize=18)
-    
+
 # # fig.set_constrained_layout_pads(hspace=0.01)#, wspace=0.05, h_pad=0.1, w_pad=0.1)
 # # fig.subplots_adjust(hspace=0.0003, wspace=0.001)
 # # fig.subplots_adjust(left=0.04, right=0.96, bottom=0.04, top=0.96, hspace=0.00001, wspace=0.00001)
@@ -820,7 +822,7 @@ figformat, dpi = 'png', 350
 
 # # Relevant parameters
 # bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
-# stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Mfccs', 'Phones-Phonet', 'Phonemes-Phonet', 'Phonological'] #'Phonemes-Discrete-Phonet', 
+# stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Mfccs', 'Phones-Phonet', 'Phonemes-Phonet', 'Phonological'] #'Phonemes-Discrete-Phonet',
 # stimulus_tostr = {'Pitch-Log-Raw':'tono', 'Envelope':'envolvente', 'Spectrogram':'espectrograma', 'Mfccs':'mfccs', 'Phones-Phonet':'fonos', 'Phonemes-Phonet':'fonemas', 'Phonological':'fonologicas'}
 # avg_corr_0 = {stimulus:{} for stimulus in stimuli}
 # avg_corr_1 = {stimulus:{} for stimulus in stimuli}
@@ -859,7 +861,7 @@ figformat, dpi = 'png', 350
 #     for collection in violin.collections:
 #         collection.set_alpha(0.5)
 #     ax_violin.set_xticklabels(['Delta', 'Theta', 'Alpha', r'Beta$_1$', r'Beta$_2$', 'Ancha'])
-    
+
 #     if stimulus.startswith('Phon'):
 #         ax_violin.set_yticks([-0.25, 0, 0.3, 0.7,  0.9 ])
 #     elif stimulus in ['Envelope', 'Pitch-Log-Raw']:
@@ -908,7 +910,7 @@ figformat, dpi = 'png', 350
 
 # # Caso especial con fonemas
 # stimulus1, stimulus2 = 'Phonemes-Discrete-Phonet', 'Phonemes-Phonet'
-# p_vals = {band: wilcoxon(avg_corr_1[stimulus1][band], avg_corr_1[stimulus2][band])[1] 
+# p_vals = {band: wilcoxon(avg_corr_1[stimulus1][band], avg_corr_1[stimulus2][band])[1]
 #           for band in bands}
 
 # # Reestructurar los datos para cada estímulo (asumiendo que avg_corr_1[stimulusX] es un diccionario con arrays o listas por banda)
@@ -968,7 +970,7 @@ figformat, dpi = 'png', 350
 # # Es importante quitar la leyenda duplicada (ya que tanto violinplot como stripplot la generan)
 # handles, labels = ax_violin.get_legend_handles_labels()
 # for handle in handles:
-#     handle.set_alpha(0.5) 
+#     handle.set_alpha(0.5)
 # if len(handles) > 2:
 #     ax_violin.legend(handles[0:2], labels[0:2], title='Representación', loc=(.6, .45))
 
@@ -1852,7 +1854,7 @@ figformat, dpi = 'png', 350
 # fig.show()
 
 # # ==========================================
-# # MATRIZ CORRELACIONES Y SIMILARIDAD CABEZAS 
+# # MATRIZ CORRELACIONES Y SIMILARIDAD CABEZAS
 # situation = 'External'
 # correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
 # mtrf_path = os.path.normpath(f'saves/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
@@ -1893,8 +1895,8 @@ figformat, dpi = 'png', 350
 #         absolute_correlation_per_channel = np.zeros(n_chan)
 #         for channel in range(n_chan):
 #             channel_corr_values = correlation_matrices[channel][np.tril_indices(n_subjects, k=-1)] # elementos fuera de la diagonal triangular superior o inf
-#             absolute_correlation_per_channel[channel] = np.mean(np.abs(channel_corr_values)) # la media de esos valores  
-        
+#             absolute_correlation_per_channel[channel] = np.mean(np.abs(channel_corr_values)) # la media de esos valores
+
 #         # Append to similarities
 #         similarities[(stim, band)] = absolute_correlation_per_channel
 # minimum_sim, maximum_sim = min([similarity.min() for similarity in similarities.values()]), max([similarity.max() for similarity in similarities.values()])
@@ -3347,9 +3349,9 @@ figformat, dpi = 'png', 350
 # # Definir la cuadrícula usando GridSpec
 # # 2 filas y 2 columnas, con la segunda columna dividida en dos partes en la primera fila
 # gs = gridspec.GridSpec(
-#     nrows=2, 
-#     ncols=2, 
-#     width_ratios=[1, 1.2], 
+#     nrows=2,
+#     ncols=2,
+#     width_ratios=[1, 1.2],
 #     height_ratios=[1, 2]
 #     )
 
@@ -3373,12 +3375,12 @@ figformat, dpi = 'png', 350
 # evoked = mne.EvokedArray(data=weights, info=config.info_mne)
 # evoked.shift_time(config.times[0], relative=True)
 # evoked_plot = evoked.plot(
-#     scalings={'eeg':1}, 
-#     zorder='std', 
+#     scalings={'eeg':1},
+#     zorder='std',
 #     time_unit='ms',
-#     show=False, 
-#     spatial_colors=True, 
-#     # unit=False, 
+#     show=False,
+#     spatial_colors=True,
+#     # unit=False,
 #     units='mTRFs (U.A)',
 #     axes=ax1,
 #     gfp=False
@@ -3389,10 +3391,10 @@ figformat, dpi = 'png', 350
 #         text.set_visible(False)  # Ocultar el texto
 # ax1.plot(
 #     config.times*1e3, #ms
-#     evoked._data.mean(axis=0), 
-#     'black', 
-#     label='Valor medio', 
-#     zorder=130, 
+#     evoked._data.mean(axis=0),
+#     'black',
+#     label='Valor medio',
+#     zorder=130,
 #     linewidth=2
 #     )
 
@@ -3452,10 +3454,10 @@ figformat, dpi = 'png', 350
 # feat_weights = feat_weights[order]
 
 # im = ax2.pcolormesh(
-#     config.times * 1e3, 
-#     np.arange(feat_weights.shape[0]), 
-#     feat_weights, 
-#     cmap='RdBu_r', 
+#     config.times * 1e3,
+#     np.arange(feat_weights.shape[0]),
+#     feat_weights,
+#     cmap='RdBu_r',
 #     shading='auto',
 #     vmin=-np.abs(feat_weights).max(),
 #     vmax=np.abs(feat_weights).max()
@@ -3470,19 +3472,19 @@ figformat, dpi = 'png', 350
 # ax2.set(
 #     xlabel='Tiempo (ms)',
 #     xticks=[-200, -100, 0, 100, 200, 300, 400, 500, 600],
-#     xticklabels=[-200, -100, 0, 100, 200, 300, 400, 500, 600], 
-#     ylabel='Fonemas', 
-#     yticks=ticks, 
+#     xticklabels=[-200, -100, 0, 100, 200, 300, 400, 500, 600],
+#     ylabel='Fonemas',
+#     yticks=ticks,
 #     yticklabels=tags
 #     )
 
 # # Configure colorbar
 # fig.colorbar(
-#     im, 
-#     ax=ax2, 
-#     orientation='horizontal', 
-#     shrink=1, 
-#     label='Amplitud (U.A)', 
+#     im,
+#     ax=ax2,
+#     orientation='horizontal',
+#     shrink=1,
+#     label='Amplitud (U.A)',
 #     fraction=.075,
 #     aspect=20
 #     )
@@ -3496,17 +3498,17 @@ figformat, dpi = 'png', 350
 # ax3 = plt.subplot(gs_sub[0])
 # mean_average_correlation = average_correlation_subjects.mean(axis=0)
 # im = mne.viz.plot_topomap(
-#         data=mean_average_correlation, 
-#         pos=config.info_mne, 
+#         data=mean_average_correlation,
+#         pos=config.info_mne,
 #         cmap='Reds',
 #         vlim=(mean_average_correlation.min(), mean_average_correlation.max()),
-#         show=False, 
-#         sphere=0.07, 
+#         show=False,
+#         sphere=0.07,
 #         axes=ax3
 #         )
 # cbar = fig.colorbar(
 #         im[0],
-#         ax=ax3, 
+#         ax=ax3,
 #         fraction=.075,
 #         aspect=20,
 #         # label='Correlación',
@@ -3529,7 +3531,7 @@ figformat, dpi = 'png', 350
 
 # # Calculate correlation betweem subjects
 # for channel in range(n_chan):
-#     matrix = average_weights[:,channel,:] 
+#     matrix = average_weights[:,channel,:]
 #     correlation_matrices[channel] = np.corrcoef(matrix)
 
 # # Correlacion por canal
@@ -3539,22 +3541,22 @@ figformat, dpi = 'png', 350
 #     absolute_correlation_per_channel[channel] = np.mean(np.abs(channel_corr_values))
 
 # im = mne.viz.plot_topomap(
-#     data=absolute_correlation_per_channel, 
-#     pos=config.info_mne, 
-#     axes=ax4, 
-#     show=False, 
+#     data=absolute_correlation_per_channel,
+#     pos=config.info_mne,
+#     axes=ax4,
+#     show=False,
 #     sphere=0.07,
-#     cmap='Greens', 
-#     vlim=(absolute_correlation_per_channel.min(),absolute_correlation_per_channel.max())    
+#     cmap='Greens',
+#     vlim=(absolute_correlation_per_channel.min(),absolute_correlation_per_channel.max())
 #     )
-        
+
 # # Make colorbar
 # cbar = fig.colorbar(
-#     im[0], 
-#     ax=ax4, 
+#     im[0],
+#     ax=ax4,
 #     fraction=.075,
 #     aspect=20,
-#     orientation='horizontal', 
+#     orientation='horizontal',
 #     boundaries=np.linspace(absolute_correlation_per_channel.min(), absolute_correlation_per_channel.max(), 100),
 #     ticks=np.linspace(absolute_correlation_per_channel.min(), absolute_correlation_per_channel.max(), 3)
 #     )
@@ -3591,20 +3593,20 @@ figformat, dpi = 'png', 350
 #     cmap='inferno'
 #     )
 # ax5.set(
-#     xlabel='Tiempo (ms)', 
+#     xlabel='Tiempo (ms)',
 #     # yticks=np.arange(0, average_weights_subjects.shape[2], 1),
 #     yticklabels=['' for i in range(average_weights_subjects.shape[2])],
 #     xticks=[-200, -100, 0, 100, 200, 300, 400, 500, 600],
-#     xticklabels=[-200, -100, 0, 100, 200, 300, 400, 500, 600] 
+#     xticklabels=[-200, -100, 0, 100, 200, 300, 400, 500, 600]
 #     )
 
 # # Make colorbar
 # fig.colorbar(
-#     mappable=imph, 
-#     ax=ax5, 
-#     orientation='horizontal', 
-#     shrink=1, 
-#     label='Número de canales significativos', 
+#     mappable=imph,
+#     ax=ax5,
+#     orientation='horizontal',
+#     shrink=1,
+#     label='Número de canales significativos',
 #     fraction=.075,
 #     aspect=20
 #     )
@@ -4818,11 +4820,11 @@ figformat, dpi = 'png', 350
 # #         final_tags.append(tag+r'\textsubscript' + r'{' + f'{repetitions}'+r'}')
 # #     else:
 # #         final_tags.append(tag)
-# # tags = final_tags       
+# # tags = final_tags
 # tags = [r'b\textsubscript{2}', r'd\textsubscript{2}', r'f\textsubscript{2}', r'g\textsubscript{2}', r'n\textsubscript{2}', r's\textsubscript{2}', r'a', r'b\textsubscript{1}', r'd\textsubscript{1}', r'e', \
 #         r'f\textsubscript{1}', r'i\textsubscript{1}', r'i\textsubscript{2}', r'x\textsubscript{2}', r'k', r'l', r'm', r'n\textsubscript{1}', r'o', r'p', \
 #         r'R', r'r', r's\textsubscript{1}', r't', r'tS\textsubscript{1}', r'u\textsubscript{1}', r'u\textsubscript{2}', r'x\textsubscript{1}', r's\textsubscript{3}', r's\textsubscript{4}', \
-#         r'g\textsubscript{1}', r'tS\textsubscript{2}', r'x\textsubscript{3}', r'L']     
+#         r'g\textsubscript{1}', r'tS\textsubscript{2}', r'x\textsubscript{3}', r'L']
 
 # ticks = np.arange(feat_weights.shape[0])
 # tags = tags if order is None else [tags[i] for i in order]
@@ -4993,7 +4995,7 @@ figformat, dpi = 'png', 350
 #         final_tags.append(tag+r'\textsubscript' + r'{' + f'{repetitions}'+r'}')
 #     else:
 #         final_tags.append(tag)
-# tags = final_tags            
+# tags = final_tags
 
 # ticks = np.arange(feat_weights.shape[0])
 # tags = tags if order is None else [tags[i] for i in order]
@@ -5486,7 +5488,7 @@ figformat, dpi = 'png', 350
 # fig.show()
 
 # # =============
-# # EJEMPLOS TFCE 
+# # EJEMPLOS TFCE
 # SpectrogramTfcePath = 'saves/mtrf_ridge_torch/External/TFCE/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/Theta/Spectrogram_4096.pkl'
 # PhonemesTfcePath = 'saves/mtrf_ridge_torch/External/TFCE/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/Theta/Phonemes-Phonet_4096.pkl'
 # _, sp_pvalue_tfce = load_pickle(path=SpectrogramTfcePath)
@@ -5940,142 +5942,142 @@ figformat, dpi = 'png', 350
 # #     )
 # fig.show()
 
-# # =======================================
-# # ENVOLVENETE + AUDIO + EEG PARA DIAGRAMA DE PIPELINE
-# WavPath = 'Datos/wavs/S21/s21.objects.01.channel1.wav'
-# WindowLeft, WindowRight, EegSr = 32, 34, 128
+# =======================================
+# ENVOLVENETE + AUDIO + EEG PARA DIAGRAMA DE PIPELINE
+WavPath = 'Datos/wavs/S21/s21.objects.01.channel1.wav'
+WindowLeft, WindowRight, EegSr = 32, 34, 128
 
-# sr, audio = wavfile.read(WavPath)
-# window_size, stride = int(sr/EegSr), int(sr/EegSr)
-# envelope = np.abs(signal.hilbert(audio))
-# envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)])
-# # audio = np.array([np.mean(audio[i:i+WindowSize]) for i in range(0, len(audio), Stride) if i+window_size<=len(audio)])
-# # sr = EegSr
+sr, audio = wavfile.read(WavPath)
+window_size, stride = int(sr/EegSr), int(sr/EegSr)
+envelope = np.abs(signal.hilbert(audio))
+envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)])
+# audio = np.array([np.mean(audio[i:i+WindowSize]) for i in range(0, len(audio), Stride) if i+window_size<=len(audio)])
+# sr = EegSr
 
-# time_audio = np.arange(0, len(audio)/sr, 1/sr)
-# time_envelope = np.arange(0, len(envelope)/EegSr, 1/EegSr)
+time_audio = np.arange(0, len(audio)/sr, 1/sr)
+time_envelope = np.arange(0, len(envelope)/EegSr, 1/EegSr)
 
-# window_audio = (WindowLeft <= time_audio) & (time_audio <= WindowRight)
-# window_envelope = (WindowLeft <= time_envelope) & (time_envelope <= WindowRight)
+window_audio = (WindowLeft <= time_audio) & (time_audio <= WindowRight)
+window_envelope = (WindowLeft <= time_envelope) & (time_envelope <= WindowRight)
 
-# fig = plt.figure(
-#     tight_layout=True,
-#     figsize=(6, 5)
+fig = plt.figure(
+    tight_layout=True,
+    figsize=(6, 5)
+    )
+plt.plot(
+    time_audio[window_audio],
+    audio[window_audio],
+    color='C0',
+    linewidth=1
+    )
+
+plt.axis('off')
+# fig.savefig(
+#     os.path.join(tesis_path,'metodos', f'sample_envolvente_diagrama1.{figformat}'),
+#     transparent=False,
+#     dpi=dpi
 #     )
-# plt.plot(
-#     time_audio[window_audio],
-#     audio[window_audio],
-#     color='C0',
-#     linewidth=1
+fig.show()
+
+fig = plt.figure(
+    tight_layout=True,
+    figsize=(6, 5)
+    )
+plt.plot(
+    time_envelope[window_envelope],
+    envelope[window_envelope],
+    color='C4',
+    linewidth=2
+    )
+plt.axis('off')
+# fig.savefig(
+#     os.path.join(tesis_path,'metodos', f'sample_envolvente_diagrama2.{figformat}'),
+#     transparent=False,
+#     dpi=dpi
 #     )
+fig.show()
 
-# plt.axis('off')
-# # fig.savefig(
-# #     os.path.join(tesis_path,'metodos', f'sample_envolvente_diagrama1.{figformat}'),
-# #     transparent=False,
-# #     dpi=dpi
-# #     )
-# fig.show()
-
-# fig = plt.figure(
-#     tight_layout=True,
-#     figsize=(6, 5)
+EegPath = f'Datos/EEG/S21/s21-{1}-Trial13-Deci-Filter-Trim-ICA-Pruned.set'
+WavPath = f'Datos/wavs/S21/s21.objects.01.channel{1}.wav'
+raw = mne.io.read_raw_eeglab(
+    EegPath,
+    preload=True,
+    verbose='CRITICAL'
+    )
+sr, audio = wavfile.read(WavPath)
+fig = plt.figure(
+    figsize=(6, 5),
+    tight_layout=True
+    )
+for k, ch in enumerate(raw.get_data()[::25,:]):
+    plt.plot(
+        ch[6000:16000]*1e1 + k*2.5e-3,
+        color='gray'
+        )
+plt.axis('off')
+# fig.savefig(
+#     os.path.join(tesis_path,'metodos', f'sample_envolvente_diagrama3.{figformat}'),
+#     transparent=False,
+#     dpi=dpi
 #     )
-# plt.plot(
-#     time_envelope[window_envelope],
-#     envelope[window_envelope],
-#     color='C4',
-#     linewidth=2
+fig.show()
+
+# Get average weights across subjects
+situation='External'
+mtrf_path = os.path.normpath(f'saves/{config.model}/{situation}/weights//stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
+weights = load_pickle(path=os.path.join(mtrf_path, 'Theta', 'Envelope', 'total_weights_per_subject.pkl'))['average_weights_subjects'].mean(axis=0).mean(axis=1)
+
+# Create figure and title
+fig, axes = plt.subplots(
+                        nrows=1,
+                        ncols=1,
+                        layout="constrained",
+                        figsize=(6, 5),
+                        )
+evoked = mne.EvokedArray(data=weights, info=config.info_mne)
+evoked.shift_time(config.times[0], relative=True)
+ev = evoked.plot(
+            scalings={'eeg':1},
+            zorder='std',
+            # gfp=True,
+            time_unit='ms',
+            show=False,
+            spatial_colors=True,
+            # unit=False,
+            titles=None,
+            window_title=None,
+            units='mTRF (a.u.)',
+            axes=axes,
+            # legend=False
+            )
+ev.delaxes(ev.axes[-1])  # Eliminarlo
+
+axes.plot(
+        config.times*1000, #ms
+        evoked._data.mean(0),
+        'k-',
+        zorder=130,
+        linewidth=2
+        )
+
+# frame = axes.legend(loc="upper right", edgecolor="#d9ead3ff")
+for text in axes.texts:
+    text.set_visible(False)
+# Graph properties
+axes.set_title("")
+axes.axis('off')
+# fig.savefig(
+#     os.path.join(tesis_path,'metodos', f'sample_envolvente_diagrama4.{figformat}'),
+#     transparent=False,
+#     dpi=dpi
 #     )
-# plt.axis('off')
-# # fig.savefig(
-# #     os.path.join(tesis_path,'metodos', f'sample_envolvente_diagrama2.{figformat}'),
-# #     transparent=False,
-# #     dpi=dpi
-# #     )
-# fig.show()
-
-# EegPath = f'Datos/EEG/S21/s21-{1}-Trial13-Deci-Filter-Trim-ICA-Pruned.set'
-# WavPath = f'Datos/wavs/S21/s21.objects.01.channel{1}.wav'
-# raw = mne.io.read_raw_eeglab(
-#     EegPath,
-#     preload=True,
-#     verbose='CRITICAL'
-#     )
-# sr, audio = wavfile.read(WavPath)
-# fig = plt.figure(
-#     figsize=(6, 5),
-#     tight_layout=True
-#     )
-# for k, ch in enumerate(raw.get_data()[::25,:]):
-#     plt.plot(
-#         ch[6000:16000]*1e1 + k*2.5e-3,
-#         color='gray'
-#         )
-# plt.axis('off')
-# # fig.savefig(
-# #     os.path.join(tesis_path,'metodos', f'sample_envolvente_diagrama3.{figformat}'),
-# #     transparent=False,
-# #     dpi=dpi
-# #     )
-# fig.show()
-
-# # Get average weights across subjects
-# situation='External'
-# mtrf_path = os.path.normpath(f'saves/{config.model}/{situation}/weights//stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
-# weights = load_pickle(path=os.path.join(mtrf_path, 'Theta', 'Envelope', 'total_weights_per_subject.pkl'))['average_weights_subjects'].mean(axis=0).mean(axis=1)
-
-# # Create figure and title
-# fig, axes = plt.subplots(
-#                         nrows=1,
-#                         ncols=1,
-#                         layout="constrained",
-#                         figsize=(6, 5),
-#                         )
-# evoked = mne.EvokedArray(data=weights, info=config.info_mne)
-# evoked.shift_time(config.times[0], relative=True)
-# ev = evoked.plot(
-#             scalings={'eeg':1},
-#             zorder='std',
-#             # gfp=True,
-#             time_unit='ms',
-#             show=False,
-#             spatial_colors=True,
-#             # unit=False,
-#             titles=None,
-#             window_title=None,
-#             units='mTRF (a.u.)',
-#             axes=axes,
-#             # legend=False
-#             )
-# ev.delaxes(ev.axes[-1])  # Eliminarlo
-
-# axes.plot(
-#         config.times*1000, #ms
-#         evoked._data.mean(0),
-#         'k-',
-#         zorder=130,
-#         linewidth=2
-#         )
-
-# # frame = axes.legend(loc="upper right", edgecolor="#d9ead3ff")
-# for text in axes.texts:
-#     text.set_visible(False)
-# # Graph properties
-# axes.set_title("")
-# axes.axis('off')
-# # fig.savefig(
-# #     os.path.join(tesis_path,'metodos', f'sample_envolvente_diagrama4.{figformat}'),
-# #     transparent=False,
-# #     dpi=dpi
-# #     )
-# fig.show()
+fig.show()
 
 # # ======
-# # Phones 
+# # Phones
 # # ======
 # fig, axes = plt.subplots(
-#     nrows=1, 
+#     nrows=1,
 #     ncols=2,
 #     tight_layout=True,
 #     figsize=(14, 8),
@@ -6114,7 +6116,7 @@ figformat, dpi = 'png', 350
 #         final_tags.append(tag+r'\textsubscript' + r'{' + f'{repetitions}'+r'}')
 #     else:
 #         final_tags.append(tag)
-# tags=final_tags            
+# tags=final_tags
 # ticks = np.arange(0, NumberOfTicks, 1)+.5
 
 # norm = TwoSlopeNorm(vmin=phones.min(), vcenter=0, vmax=phones.max())
@@ -6133,7 +6135,7 @@ figformat, dpi = 'png', 350
 #     )
 
 # axes[1].set_yticks(
-#     ticks=ticks, 
+#     ticks=ticks,
 #     labels=tags
 #     )
 # axes[1].set_xlabel('Tiempo (s)')
@@ -6180,7 +6182,7 @@ figformat, dpi = 'png', 350
 # cbar.set_ticks(ticks_b)
 
 # axes[0].set_yticks(
-#     ticks=ticks, 
+#     ticks=ticks,
 #     labels=tags
 #     )
 # axes[0].set_xlabel('Tiempo (s)')
@@ -6198,7 +6200,7 @@ figformat, dpi = 'png', 350
 # # Phonemes
 # # ========
 # fig, axes = plt.subplots(
-#     nrows=1, 
+#     nrows=1,
 #     ncols=2,
 #     tight_layout=True,
 #     figsize=(14, 6),
@@ -6234,7 +6236,7 @@ figformat, dpi = 'png', 350
 #     )
 
 # axes[1].set_yticks(
-#     ticks=ticks, 
+#     ticks=ticks,
 #     labels=tags
 #     )
 # axes[1].set_xlabel('Tiempo (s)')
@@ -6270,12 +6272,12 @@ figformat, dpi = 'png', 350
 # ticks_b = [0, 1]#phonological.min(), phonological.max()
 # cbar.set_ticks(ticks_b)
 # axes[0].set_yticks(
-#     ticks=ticks, 
+#     ticks=ticks,
 #     labels=tags
 #     )
 
 # axes[0].set_xlabel('Tiempo (s)')
-# axes[0].set_ylabel('Fonemas')  
+# axes[0].set_ylabel('Fonemas')
 # fig.text(0.02, 1, 'a)', fontsize=18, va='top', ha='right')
 # fig.text(0.5, 1, 'b)', fontsize=18, va='top', ha='right')
 # # fig.savefig(
@@ -6574,9 +6576,9 @@ figformat, dpi = 'png', 350
 # half_arg = np.abs(auto_corr[9167:]-.5).argmin()
 # plt.vlines(x=time_envelope[half_arg],
 #            ymin=0,
-#            ymax=auto_corr[9167:][half_arg], 
-#            color='C4', 
-#            linestyle='-.', 
+#            ymax=auto_corr[9167:][half_arg],
+#            color='C4',
+#            linestyle='-.',
 #            label=r'$\tau=$'+f' {time_envelope[half_arg]:.2f} s'
 #            )
 # plt.scatter(time_envelope[half_arg], auto_corr[9167:][half_arg], s=10, color='C4')
@@ -6711,56 +6713,58 @@ fig.show()
 
 # eeg = load_pickle(path=EegPath)[0]
 # raw = mne.io.RawArray(data=eeg.T*1e-6, info=raw_raw.info)
-# # =================================
-# # Tarea comportamental: EEG y audio
-# for sujeto in [1,2]:
-#     EegPath = f'Datos/EEG/S21/s21-{sujeto}-Trial13-Deci-Filter-Trim-ICA-Pruned.set'
-#     WavPath = f'Datos/wavs/S21/s21.objects.01.channel{sujeto}.wav'
-#     raw = mne.io.read_raw_eeglab(
-#         EegPath,
-#         preload=True,
-#         verbose='CRITICAL'
-#         )
-#     sr, audio = wavfile.read(WavPath)
-#     fig, axes = plt.subplots(
-#         nrows=1,
-#         ncols=2,
-#         figsize=(10, 5),
-#         tight_layout=True
-#         )
-#     texto = 'Hiper-registro del primer sujeto' if sujeto == 1 else 'Hiper-registro del segundo sujeto'
-#     fig.suptitle(texto, fontsize=20)
+# =================================
+# Tarea comportamental: EEG y audio
+for sujeto in [1,2]:
+    EegPath = f'Datos/EEG/S21/s21-{sujeto}-Trial13-Deci-Filter-Trim-ICA-Pruned.set'
+    WavPath = f'Datos/wavs/S21/s21.objects.01.channel{sujeto}.wav'
+    raw = mne.io.read_raw_eeglab(
+        EegPath,
+        preload=True,
+        verbose='CRITICAL'
+        )
+    sr, audio = wavfile.read(WavPath)
+    fig, axes = plt.subplots(
+        nrows=1,
+        ncols=2,
+        figsize=(10, 5),
+        tight_layout=True
+        )
+    texto = 'Hiper-registro del primer sujeto' if sujeto == 1 else 'Hiper-registro del segundo sujeto'
+    fig.suptitle(texto, fontsize=32)
 
-#     for k, ch in enumerate(raw.get_data()[::25,:]):
-#         axes[0].plot(
-#             ch[6000:16000]*1e1 + k*2.5e-3,
-#             color='C0'
-#             )
+    for k, ch in enumerate(raw.get_data()[::25,:]):
+        axes[0].plot(
+            ch[6000:16000]*1e1 + k*2.5e-3,
+            color='C0'
+            )
 
-#     axes[0].set(
-#         title='EEG',
-#         # ylabel='Canales de EEG',
-#         # yticks=[k*2.5e-3 for k in range(6)],
-#         yticks=[],
-#         # yticklabels=[f'C{k}' for k in range(0, 129, 25)],
-#         xticks=[],
-#         )
+    axes[0].set(
+        # title='EEG',
+        # ylabel='Canales de EEG',
+        # yticks=[k*2.5e-3 for k in range(6)],
+        yticks=[],
+        # yticklabels=[f'C{k}' for k in range(0, 129, 25)],
+        xticks=[],
+        )
+    axes[0].set_title('EEG', fontsize=32)
 
-#     axes[1].plot(
-#         audio[100:],
-#         color='C4'
-#         )
-#     axes[1].set(
-#         title='Audio',
-#         yticks=[],
-#         xticks=[],
-#         )
-#     # fig.savefig(
-#     #     f'G:/My Drive/tesis_licenciatura/figuras/UBA_GAMES_s{sujeto}.png',
-#     #     transparent=False,
-#     #     dpi=dpi
-#     #     )
-#     fig.show()
+    axes[1].plot(
+        audio[100:],
+        color='C4'
+        )
+    axes[1].set(
+        # title='Audio',
+        yticks=[],
+        xticks=[],
+        )
+    axes[1].set_title('Audio', fontsize=32)
+    fig.savefig(
+    os.path.join(tesis_path,'metodos', f'UBA_GAMES_s{sujeto}.{figformat}'),
+    transparent=True,
+    dpi=dpi
+    )
+    fig.show()
 
 # # =========================
 # # ATRIBUTO BASADO EN REDES
@@ -7243,18 +7247,18 @@ for i, band in enumerate(bands):
         filter_good_chs_center = good_chs[(stim, band)][:, center_group]
         average_correlation_center = average_correlation[:, center_group]
         average_correlation_center = np.where(filter_good_chs_center == 0, np.nan, average_correlation_center)
-        
+
         axes_c[j, i].set_title(f'{stim}-{band}')
         axes_c[j, i].bar(np.arange(1, 19)-.15, 100*filter_good_chs_sides.sum(axis=1)/len(sides_group), color='C0', label=f'Sides: {len(sides_group)}', width=.4)
         axes_c[j, i].bar(np.arange(1, 19)+.15, 100*filter_good_chs_center.sum(axis=1)/len(center_group), color='C1', label=f'Center: {len(center_group)}', width=.4)
         axes_c[j, i].grid(visible=True)
-        
+
         axes_c[j, i].set_xticks(np.arange(1, 19))
         axes_c[j, i].tick_params(axis='x', which='major', length=10, width=1.5)
         # axes_c[j, i].set_ylabel(r'Porcentaje de canales significativos (\%)')
-        
+
         z[i,j] = np.nanmean(average_correlation_sides)-np.nanmean(average_correlation_center)
-        
+
         sides_wilc = np.nanmean(average_correlation_sides, axis=1)
         center_wilc = np.nanmean(average_correlation_center, axis=1)
         filter_wilc = (~np.isnan(sides_wilc)) & (~np.isnan(center_wilc))
@@ -7312,7 +7316,7 @@ cbar.ax.set(yticks=[-.006,  0.   ,  0.006,  0.009], yticklabels=[-.006,  0.   , 
 # cbar.ax.tick_params(labelsize=15)
 
 # =======================
-# HEATMAP LATERALIZATION 
+# HEATMAP LATERALIZATION
 upper_channels = np.concatenate(groups_y[4:]).tolist()
 
 left_channels = np.concatenate(groups_x[:4]).tolist()
@@ -7456,26 +7460,26 @@ for i, band in enumerate(bands):
         # right_chs = [average_correlation.mean(axis=0).tolist().index(corr) for corr in right_corrs]
         filter_good_chs_left = good_chs[(stim, band)][:, left_channels]
         filter_good_chs_right = good_chs[(stim, band)][:, right_channels]
-        
+
         axes_c[j, i].set_title(f'{stim}-{band}')
         axes_c[j, i].bar(np.arange(1, 19)-.15, 100*filter_good_chs_left.sum(axis=1)/len(left_channels), color='C2', label=f'Left: {len(left_channels)}', width=.4)
         axes_c[j, i].bar(np.arange(1, 19)+.15, 100*filter_good_chs_right.sum(axis=1)/len(right_channels), color='C4', label=f'Right: {len(right_channels)}', width=.4)
         axes_c[j, i].grid(visible=True)
-        
+
         axes_c[j, i].set_xticks(np.arange(1, 19))
         axes_c[j, i].tick_params(axis='x', which='major', length=10, width=1.5)
         # axes_c[j, i].set_ylabel(r'Porcentaje de canales significativos (\%)')
-        
-        
+
+
         ave_left = average_correlation[:, left_channels]
         ave_left = np.where(filter_good_chs_left == 0, np.nan, ave_left)
-        
+
         ave_right = average_correlation[:, right_channels]
         ave_right = np.where(filter_good_chs_right == 0, np.nan, ave_right)
-        
+
         z[i,j] = np.nanmean(ave_right)-np.nanmean(ave_left)
-        
-        
+
+
         wilc_left = np.nanmean(ave_left, axis=1)
         wilc_right = np.nanmean(ave_right, axis=1)
         filter_wilc = (~np.isnan(wilc_left)) & (~np.isnan(wilc_right))
@@ -7561,37 +7565,37 @@ fig, axes = plt.subplots(
     )
 for n_s, stimulus in enumerate(stimuli):
     axes[0].scatter(
-        percentages, 
-        correlations[stimulus], 
+        percentages,
+        correlations[stimulus],
         color='black',
         s=10,
         )
     axes[0].errorbar(
-        percentages, 
-        correlations[stimulus], 
-        yerr=correlations_std[stimulus], 
+        percentages,
+        correlations[stimulus],
+        yerr=correlations_std[stimulus],
         capsize=2,
         ecolor='black',
         color=f'C{n_s}',
         label=stimulus
         )
-    
+
     axes[1].scatter(
-        percentages, 
-        correlations[stimulus]-correlations[stimulus][0], 
+        percentages,
+        correlations[stimulus]-correlations[stimulus][0],
         color='black',
         s=10,
         )
     axes[1].errorbar(
-        percentages, 
-        correlations[stimulus]-correlations[stimulus][0], 
-        yerr=np.array(correlations_std[stimulus])*np.sqrt(2), 
+        percentages,
+        correlations[stimulus]-correlations[stimulus][0],
+        yerr=np.array(correlations_std[stimulus])*np.sqrt(2),
         capsize=2,
         ecolor='black',
         color=f'C{n_s}',
         label=stimulus
         )
-    
+
 axes[0].set_ylabel('Mean correlation')
 axes[0].set_xlabel(r'Silence allowed in window (\%)')
 axes[0].grid(visible=True)
@@ -7613,12 +7617,12 @@ fig.show()
 
 # correlations = {band:{stimulus:load_pickle(path=theta_envelope_path(band, stimulus))['average_correlation_subjects'] for stimulus in stimuli} for band in bands}
 
-# # leaders = 
+# # leaders =
 # correlations['Theta']['Envelope'][]
 
 # for band in bands:
 #     for stimulus in stimuli:
-#         data = 
+#         data =
 #         correlations[stimulus].append(data.mean())
 #         correlations_std[stimulus].append(data.std()/np.sqrt(128*18))
 
@@ -7630,37 +7634,37 @@ fig.show()
 #     )
 # for n_s, stimulus in enumerate(stimuli):
 #     axes[0].scatter(
-#         percentages, 
-#         correlations[stimulus], 
+#         percentages,
+#         correlations[stimulus],
 #         color='black',
 #         s=10,
 #         )
 #     axes[0].errorbar(
-#         percentages, 
-#         correlations[stimulus], 
-#         yerr=correlations_std[stimulus], 
+#         percentages,
+#         correlations[stimulus],
+#         yerr=correlations_std[stimulus],
 #         capsize=2,
 #         ecolor='black',
 #         color=f'C{n_s}',
 #         label=stimulus
 #         )
-    
+
 #     axes[1].scatter(
-#         percentages, 
-#         correlations[stimulus]-correlations[stimulus][0], 
+#         percentages,
+#         correlations[stimulus]-correlations[stimulus][0],
 #         color='black',
 #         s=10,
 #         )
 #     axes[1].errorbar(
-#         percentages, 
-#         correlations[stimulus]-correlations[stimulus][0], 
-#         yerr=np.array(correlations_std[stimulus])*np.sqrt(2), 
+#         percentages,
+#         correlations[stimulus]-correlations[stimulus][0],
+#         yerr=np.array(correlations_std[stimulus])*np.sqrt(2),
 #         capsize=2,
 #         ecolor='black',
 #         color=f'C{n_s}',
 #         label=stimulus
 #         )
-    
+
 # axes[0].set_ylabel('Mean correlation')
 # axes[0].set_xlabel(r'Silence allowed in window (\%)')
 # axes[0].grid(visible=True)
@@ -7684,9 +7688,9 @@ fig = plt.figure(
     tight_layout=True
 )
 for i, situation in enumerate(situations):
-    
+
     mtrfs = load_pickle(path=mtrfs_path(situation, band, stimulus))['average_weights_subjects'].mean(axis=0).mean(axis=1)
-    
+
     axis = plt.subplot(len(situations), 1, i+1)
     evoked = mne.EvokedArray(data=mtrfs, info=config.info_mne)
     evoked.shift_time(config.times[0], relative=True)
@@ -7703,7 +7707,7 @@ for i, situation in enumerate(situations):
         )
     for text in evoked_plot.axes[0].texts:
         if "ave" in text.get_text():
-            text.set_visible(False)  
+            text.set_visible(False)
     axis.plot(
         config.times*1e3, #ms
         evoked._data.mean(axis=0),
@@ -7712,7 +7716,7 @@ for i, situation in enumerate(situations):
         zorder=130,
         linewidth=2
         )
-    
+
 
 fig.savefig(
     os.path.join(tesis_path, 'resultados',  f'situations_broke.{figformat}'),
@@ -7720,3 +7724,281 @@ fig.savefig(
     dpi=dpi
     )
 
+
+
+# =================================================================================================
+# CORRELATION HEATMAPS: make heatmaps with correlation values across features, situations and bands
+# =================================================================================================
+# Relevant parameters
+situation = 'External'
+bands = ['All', 'Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
+stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
+n_stims, n_bands = len(stimuli), len(bands)
+
+# Get mean correlations across subjects and total max and min
+correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+
+correlations = {(stim,band):load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
+minimum_cor, maximum_cor = min([correlation.mean() for correlation in correlations.values()]), max([correlation.mean() for correlation in correlations.values()])
+
+z = np.zeros(shape=(len(bands),len(stimuli)))
+for i, band in enumerate(bands):
+    for j, stim in enumerate(stimuli):
+        z[i,j] = correlations[(stim,band)].mean()
+
+z = np.zeros(shape=(len(stimuli),len(bands)))
+for i, band in enumerate(bands):
+    for j, stim in enumerate(stimuli):
+        z[j,i] = correlations[(stim,band)].mean()
+
+fig = plt.figure(constrained_layout=True,
+                 figsize=(6,4.5))
+ax = fig.gca()
+# plt.title('External')
+rect = fig.patch
+# rect.set_facecolor('#f3f3f3ff')
+im = plt.imshow(
+        z,
+        vmin=z.min(),
+        vmax=z.max(),
+        cmap='plasma'
+        )
+ax.set_title('Correlación promedio')
+ax.set_yticks(np.arange(len(stimuli)))
+ax.set_yticklabels([r'F$_0$', 'Env.', 'Esp.', 'Fon.', 'C. Fono'], minor=False, fontsize=15, rotation=0)
+ax.set_xticks(np.arange(len(bands)))
+ax.set_xticklabels(['Ancha', 'Delta', 'Theta', 'Alpha', 'Beta'+r'$_1$', 'Beta'+r'$_2$'], minor=False, fontsize=15)
+ax.xaxis.tick_top()
+cbar = fig.colorbar(im, ax=ax)
+cbar.ax.tick_params(labelsize=15)
+
+fig.savefig(
+    os.path.join(tesis_path, 'resultados',  f'heatmap_corr.{figformat}'),
+    transparent=False,
+    dpi=dpi
+    )
+
+# ========================================================
+## PAPER JAIIO
+# Relevant parameters
+situation = 'External'
+bands = ['All', 'Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2']
+stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
+n_stims, n_bands = len(stimuli), len(bands)
+
+# Get mean correlations across subjects and total max and min
+correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+
+correlations = {(stim,band):load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
+minimum_cor, maximum_cor = min([correlation.mean() for correlation in correlations.values()]), max([correlation.mean() for correlation in correlations.values()])
+
+# z = np.zeros(shape=(len(bands),len(stimuli)))
+# for i, band in enumerate(bands):
+#     for j, stim in enumerate(stimuli):
+#         z[i,j] = correlations[(stim,band)].mean()
+
+z = np.zeros(shape=(len(stimuli),len(bands)))
+for i, band in enumerate(bands):
+    for j, stim in enumerate(stimuli):
+        z[j,i] = correlations[(stim,band)].mean()
+
+path_mtrfs = 'saves/mtrf_ridge_torch/External/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/Theta/Phonemes-Discrete-Phonet/total_weights_per_subject.pkl'
+average_weights_subjects = load_pickle(path=path_mtrfs)['average_weights_subjects'][:, :, :, :] #(n_sub, n_chans, n_feats, n_delays)
+
+data = load_pickle(path=os.path.normpath(os.path.join('saves', 'mtrf_ridge_torch', 'External', 'sensitivity_speech_latency', 'phonemes_discrete_phonet.pkl')))
+color_labels = {'Vocales':'C0', 'Consonantes':'orange'}
+color_g = '#eb5b34'
+
+#FIGURA
+fig, axes = plt.subplots(
+    figsize=(9, 7),
+    constrained_layout=True
+    )
+gs = fig.add_gridspec(
+    nrows=2,
+    ncols=2,
+    width_ratios=[1, 1],
+    height_ratios=[1.3, 1]
+)
+ax00 = plt.subplot(gs[0, 0])
+# rect = fig.patch
+# rect.set_facecolor('#f3f3f3ff')
+im = ax00.imshow(
+        z,
+        vmin=z.min(),
+        vmax=z.max(),
+        cmap='plasma'
+        )
+ax00.set_title('Correlación promedio', fontsize=14)
+ax00.set_yticks(np.arange(len(stimuli)))
+ax00.set_yticklabels([r'F$_0$', 'Env.', 'Esp.', 'Fon.', 'C. Fono'], minor=False, fontsize=14, rotation=0)
+ax00.set_xticks(np.arange(len(bands)))
+ax00.set_xticklabels(['Ancha', 'Delta', 'Theta', 'Alpha', 'Beta'+r'$_1$', 'Beta'+r'$_2$'], minor=False, fontsize=14)
+ax00.xaxis.tick_bottom()
+cbar = fig.colorbar(im, ax=ax00)
+cbar.ax.tick_params(labelsize=14)
+
+ax01 = plt.subplot(gs[0, 1])
+
+# # Primer gráfico en la primera columna (comparte el eje x con el segundo gráfico)
+ax01 = plt.subplot(gs[0, 1])
+feat_weights = average_weights_subjects.mean(axis=0).mean(axis=0)
+order, null_indexes = clustering_by_correlation(weights=feat_weights)
+feat_weights = feat_weights[order]
+
+im = ax01.pcolormesh(
+    config.times[:] * 1e3,
+    np.arange(feat_weights.shape[0]),
+    feat_weights[:, :],
+    cmap='RdBu_r',
+    shading='auto',
+    vmin=-np.abs(feat_weights).max(),
+    vmax=np.abs(feat_weights).max()
+    )
+
+# Set figure configuration
+tags = config.Exp_info().phonemes_phonet
+tags.remove('/sil/')
+ticks = np.arange(feat_weights.shape[0])
+tags = tags if order is None else [tags[i] for i in order]
+
+# ax01.set(
+#     xlabel='Tiempo (ms)',
+#     xticks=[0, 100, 200, 300, 400, 500],
+#     xticklabels=[0, 100, 200, 300, 400, 500],
+#     xlim=(5,550),
+#     ylabel='Fonemas',
+#     yticks=ticks,
+#     yticklabels=tags,
+#     )
+# ax01.set_xlabel('Tiempo (ms)', fontsize=14)
+ax01.set_xlabel('', fontsize=14)
+ax01.xaxis.labelpad = 0
+
+ax01.set_ylabel('Fonemas', fontsize=14)
+# ax01.set_xticks([0, 100, 200, 300, 400, 500], labels = [0, 100, 200, 300, 400, 500], fontsize=14)
+ax01.set_xticks([0, 100, 200, 300, 400, 500], labels = ["","","", "", "", ""], fontsize=14)
+ax01.set_xlim(5,550)
+ax01.set_yticks(ticks, labels =tags, fontsize=14)
+
+# # Configure colorbar
+# cbar = fig.colorbar(
+#     im,
+#     ax=ax01,
+#     orientation='horizontal',
+#     shrink=1,
+#     fraction=.075,
+#     aspect=20
+#     )
+# cbar.set_label(label='Amplitud (U.A)',size=14)
+# cbar.ax.tick_params(labelsize=14)
+
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+divider = make_axes_locatable(ax01)
+cax = divider.append_axes("bottom", size="5%", pad=0.2)  # reducí `pad` para acercarla
+
+cbar = plt.colorbar(
+    im,
+    cax=cax,
+    orientation='horizontal'
+)
+cbar.set_label(label='Amplitud (U.A)', size=14)
+cbar.ax.tick_params(labelsize=14)
+
+# MÉTRICA
+ax11 = plt.subplot(gs[1, 1])
+ax11.grid(True)
+selected_window_time = data['rolling_windows_centers'][data['selected_window']]*1e3
+ax11.vlines(selected_window_time, ymin=-0.06, ymax=.7, linestyle='-.', linewidth=1.5, color='black')
+
+# Percentiles y datos
+lower_percentile = np.percentile(data['Aris_random'], 5, axis=1)
+upper_percentile = np.percentile(data['Aris_random'], 95, axis=1)
+
+# Aplicamos el degradado basado en la densidad
+gradient_fill_density_based(
+    data['rolling_windows_centers']*1e3,
+    lower_percentile,
+    upper_percentile,
+    data['Aris_random'],
+    fill_color=color_g,
+    ax=ax11
+    )
+
+# Puntos significativos
+ax11.plot(
+    data['rolling_windows_centers'][data['Aris_significance'] == 1].flatten()*1e3,
+    max(data['Aris']) * 1.3 * np.ones(int(np.sum(data['Aris_significance']))),
+    '*',
+    color='black',
+    # label='Valores significativos',
+    zorder=4
+    )
+
+ax11.plot(data['rolling_windows_centers']*1e3, data['Aris'], color=color_g, zorder=3)
+ax11.scatter(data['rolling_windows_centers']*1e3, data['Aris'], color=color_g, s=6, zorder=3, label='Métrica')
+
+# ax11.set(xlabel='Tiempo (ms)', ylabel='ari'.upper(), xlim=(5, 550))
+            #    title=r'\textit{Adjusted Rand Index}')
+ax11.set_xlabel('Tiempo (ms)',fontsize=14)
+ax11.set_ylabel('Adjusted Rand Index', fontsize=14)
+ax11.set_xticks([0, 100, 200, 300, 400, 500], labels = [0, 100, 200, 300, 400, 500], fontsize=14)
+ax11.set_xlim(5, 550)
+
+gradient_patch = Patch(facecolor=color_g, alpha=0.5, label=r'Distribución nula (5-95\%)')
+handles, labels = ax11.get_legend_handles_labels()
+handles = handles[::-1]
+labels = labels[::-1]
+handles.append(gradient_patch)
+labels.append(r'Distribución nula (5\% - 95\%)')
+handles = handles[::-1]
+labels = labels[::-1]
+ax11.legend(handles=handles, labels=labels, loc=(.005,.63), fontsize=13.5)
+
+# Visualization
+ax10 = plt.subplot(gs[1, 0])
+transfo ={'Vocales':'Grupo 1', 'Consonantes':'Grupo 2'}
+for i, row in data['dataframes'][data['selected_window']].iterrows():
+    ax10.scatter(row['Feature_1']*1e2, row['Feature_2']*1e1, c='black', s=.5, facecolors='none')#, label = f"Row {row['Original_Row_Index']}")#, fontsize=9, ha='right')
+    ax10.text(row['Feature_1']*1e2, row['Feature_2']*1e1, r"\textbf{" + f"{data['phonemes'][i]}" + r"}", fontsize=13, ha='right', color=color_labels[data['keys_to_phonemes_labels'][i]])
+    # ax10.text(row['Feature_1']*1e2, row['Feature_2']*1e1, r"\textbf{" + f"{data['phonemes'][i]}" + r"}", fontsize=15, ha='right', color=color_labels[keys_to_phonemes_labels[i]])
+
+legend_handles = [Line2D([0], [0], color=color_labels[name], lw=4, label=transfo[name]) for name in color_labels]
+
+
+ax10.ticklabel_format(style='scientific', axis='x', scilimits=(0, 0))
+ax10.ticklabel_format(style='scientific', axis='y', scilimits=(0, 0))
+
+ax10.legend(handles=legend_handles, title="Categorías", loc=(.55,.6), title_fontsize=14, fontsize=14)
+
+f_s = data['F-scores'][data['selected_window']]
+a_s = data['Aris'][data['selected_window']]
+ax10.set_title(f'Ventana temporal: {selected_window_time:.1f} ms - ARI: {a_s:.2f}'.replace('.',','), fontsize=14)
+ax10.set_xlabel('MDS 1 (U.A)', fontsize=14)
+ax10.set_ylabel('MDS 2 (U.A)', fontsize=14)
+ax10.set_xlim(ax10.get_xlim()[0]-.4, ax10.get_xlim()[-1])
+# ax10.set_ylim(ax10.get_ylim()[0]-.005, ax10.get_ylim()[-1]+.005)
+ax10.grid(True, alpha=.7)
+
+# Remover los patches de degradado
+for ax in fig.axes:
+    for im in ax.images:
+        im.set_clip_path(None)
+
+fig.text(.05, .99, 'a)', fontsize=18, va='top', ha='right')
+fig.text(.565,.99, 'b)', fontsize=18, va='top', ha='right')
+fig.text(.565, .5, 'c)', fontsize=18, va='top', ha='right')
+fig.text(.05,.5, 'd)', fontsize=18, va='top', ha='right')
+
+# Ahora guardar la figura sin que se calcule el bbox de esos patches
+fig.savefig(
+    os.path.normpath(os.path.join('figures','figuras_tesis', 'resultados', 'paper_jaiio.png')),
+    transparent=False,
+    bbox_inches='tight',
+    dpi=400
+)
+fig.show()
+
+# ========================
+# Leadership vs. Following
