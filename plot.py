@@ -8,11 +8,16 @@ warnings.filterwarnings("ignore", message="Tight layout not applied. tight_layou
 
 # Specific libraries
 from scipy.stats import wilcoxon#, pearsonr
+from scipy.stats import gaussian_kde, mode
 from statannot import add_stat_annotation
 import librosa
 
 # Default size is 10 pts, the scalings (10pts*scale) are:
 #'xx-small':0.579,'x-small':0.694,'small':0.833,'medium':1.0,'large':1.200,'x-large':1.440,'xx-large':1.728,None:1.0}
+from matplotlib.patches import PathPatch, Patch
+from matplotlib.path import Path
+from matplotlib.transforms import Bbox
+from matplotlib.colors import to_rgb
 from matplotlib.lines import Line2D
 import matplotlib.pylab as pylab
 params = {
@@ -2178,6 +2183,59 @@ def hyperparameter_selection(alphas_swept:np.ndarray,
         plt.close(fig)
     
 
+def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, ax=None, N=256):
+    if ax is None:
+        ax = plt.gca()
+    rgb = to_rgb(fill_color)
+
+    for i in range(len(x) - 1):
+        # Distribución en el tiempo i
+        distribution = metric_random[i, :]
+
+        # Estimación de densidad (KDE)
+        kde = gaussian_kde(distribution)
+        y_values = np.linspace(y_lower[i], y_upper[i], N)
+        density = kde(y_values)
+        density /= density.max()  # Normalización
+
+        # Crear imagen RGBA con canal alfa según la densidad
+        rgba = np.ones((N, 1, 4))
+        rgba[..., :3] = rgb
+        rgba[..., 3] = density.reshape(-1, 1)
+
+        # Extensión del degradado en este intervalo de x
+        extent = [x[i], x[i+1], y_lower[i], y_upper[i]]
+        im = ax.imshow(rgba, aspect='auto', extent=extent, origin='lower', zorder=1)
+
+        # Definir un Path cerrado con códigos adecuados
+        verts = np.array([
+            [x[i],         y_lower[i]],
+            [x[i+1],       y_lower[i+1]],
+            [x[i+1],       y_upper[i+1]],
+            [x[i],         y_upper[i]],
+            [x[i],         y_lower[i]]  # Cierre del polígono
+        ])
+        codes = [
+            Path.MOVETO,
+            Path.LINETO,
+            Path.LINETO,
+            Path.LINETO,
+            Path.CLOSEPOLY
+        ]
+        clip_path = Path(verts, codes)
+        patch = PathPatch(clip_path, facecolor='none', edgecolor='none', transform=ax.transData)
+        # Forzamos un bbox a partir de los vértices
+        bbox = Bbox.from_bounds(np.min(verts[:,0]), np.min(verts[:,1]),
+                                np.ptp(verts[:,0]), np.ptp(verts[:,1]))
+        patch.get_extents = lambda renderer=None: bbox
+
+        # Marcar este patch como parte del degradado
+        patch.gradient_patch = True
+
+        ax.add_patch(patch)
+        im.set_clip_path(patch)
+
+    return im
 # ##############################################################
 
 

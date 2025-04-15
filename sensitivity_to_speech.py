@@ -28,7 +28,7 @@ from matplotlib import rc
 import scienceplots
 
 # Modules
-from funciones import load_pickle, get_maximum_correlation_channels
+from funciones import load_pickle, dump_pickle, get_maximum_correlation_channels
 import config, plot 
 
 rc('text', usetex=True)
@@ -46,62 +46,8 @@ pylab.rcParams.update(
         }
     )
 
-def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, ax=None, N=256):
-    if ax is None:
-        ax = plt.gca()
-    rgb = to_rgb(fill_color)
-
-    for i in range(len(x) - 1):
-        # Distribución en el tiempo i
-        distribution = metric_random[i, :]
-
-        # Estimación de densidad (KDE)
-        kde = gaussian_kde(distribution)
-        y_values = np.linspace(y_lower[i], y_upper[i], N)
-        density = kde(y_values)
-        density /= density.max()  # Normalización
-
-        # Crear imagen RGBA con canal alfa según la densidad
-        rgba = np.ones((N, 1, 4))
-        rgba[..., :3] = rgb
-        rgba[..., 3] = density.reshape(-1, 1)
-
-        # Extensión del degradado en este intervalo de x
-        extent = [x[i], x[i+1], y_lower[i], y_upper[i]]
-        im = ax.imshow(rgba, aspect='auto', extent=extent, origin='lower', zorder=1)
-
-        # Definir un Path cerrado con códigos adecuados
-        verts = np.array([
-            [x[i],         y_lower[i]],
-            [x[i+1],       y_lower[i+1]],
-            [x[i+1],       y_upper[i+1]],
-            [x[i],         y_upper[i]],
-            [x[i],         y_lower[i]]  # Cierre del polígono
-        ])
-        codes = [
-            Path.MOVETO,
-            Path.LINETO,
-            Path.LINETO,
-            Path.LINETO,
-            Path.CLOSEPOLY
-        ]
-        clip_path = Path(verts, codes)
-        patch = PathPatch(clip_path, facecolor='none', edgecolor='none', transform=ax.transData)
-        # Forzamos un bbox a partir de los vértices
-        bbox = Bbox.from_bounds(np.min(verts[:,0]), np.min(verts[:,1]),
-                                np.ptp(verts[:,0]), np.ptp(verts[:,1]))
-        patch.get_extents = lambda renderer=None: bbox
-
-        # Marcar este patch como parte del degradado
-        patch.gradient_patch = True
-
-        ax.add_patch(patch)
-        im.set_clip_path(patch)
-
-    return im
-
 # Relevant paths
-situation, band = config.situations[0], config.bands[0]
+situation, band = 'External', 'Theta'
 figures_path = os.path.normpath(f'figures/{config.model}/{situation}/sensitivity_speech_latency/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
 correlation_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonemes-Discrete-Phonet.pkl')
 mtrfs_path = os.path.normpath(f'saves/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonemes-Discrete-Phonet/total_weights_per_subject.pkl')
@@ -285,6 +231,31 @@ selected_window = 37#np.argmax(f_scores)
 # selected_window = 37
 selected_window_time = rolling_windows_centers[selected_window]
 
+data = {
+    'F-scores': f_scores,
+    'Aris': aris,
+    'Nmis': nmis,
+    'F-scores_random': f_scores_random,
+    'Aris_random': aris_random,
+    'Nmis_random': nmis_random,
+    'F-scores_significance': f_scores_significance,
+    'Aris_significance': aris_significance,
+    'Nmis_significance': nmis_significance,
+    'rolling_windows_centers': rolling_windows_centers,
+    'dataframes': dataframes,
+    'phonemes': phonemes,
+    'group_2_labels': cons_ph,
+    'group_1_labels': voc_ph,
+    'NUMBER_OF_CLUSTERS': NUMBER_OF_CLUSTERS,
+    'KMEANS_NRUNS': KMEANS_NRUNS,
+    'ROLLING_WINDOW_SECONDS': ROLLING_WINDOW_SECONDS,
+    'SIGNIFICANCE': SIGNIFICANCE,
+    'selected_window': selected_window,
+    'keys_to_phonemes_labels': keys_to_phonemes_labels
+}
+os.makedirs(os.path.normpath(os.path.join('saves', 'mtrf_ridge_torch', 'External', 'sensitivity_speech_latency')), exist_ok=True)
+dump_pickle(path=os.path.normpath(os.path.join('saves', 'mtrf_ridge_torch', 'External', 'sensitivity_speech_latency', 'phonemes_discrete_phonet.pkl')), obj=data, rewrite=True)
+
 # Graficamos
 fig, axes = plt.subplots(
     figsize=(14, 7), 
@@ -302,7 +273,7 @@ lower_percentile = np.percentile(metric_random, 5, axis=1)
 upper_percentile = np.percentile(metric_random, 95, axis=1)
 
 # Aplicamos el degradado basado en la densidad
-gradient_fill_density_based(
+plot.plot.gradient_fill_density_based(
     rolling_windows_centers*1e3, 
     lower_percentile, 
     upper_percentile, 
@@ -359,12 +330,13 @@ for ax in fig.axes:
     for im in ax.images:
         im.set_clip_path(None)
 
-# # Ahora guardar la figura sin que se calcule el bbox de esos patches
-# fig.savefig(
-#     'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/mapa_fonemas.svg',
-#     transparent=True,
-#     bbox_inches='tight'
-# )
+# Ahora guardar la figura sin que se calcule el bbox de esos patches
+fig.savefig(
+    os.path.normpath(os.path.join('figures','figuras_tesis', 'resultados', 'mapa_fonemas.png')),
+    transparent=False,
+    bbox_inches='tight',
+    dpi=400
+)
 fig.show()
 
 # =====================================
@@ -372,7 +344,7 @@ fig.show()
 # =====================================
 
 # Relevant paths
-situation, band = config.situations[0], config.bands[0]
+situation, band = 'External', 'Theta'
 figures_path = os.path.normpath(f'figures/{config.model}/{situation}/sensitivity_speech_latency/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
 correlation_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonological.pkl')
 mtrfs_path = os.path.normpath(f'saves/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonological/total_weights_per_subject.pkl')
@@ -550,6 +522,30 @@ selected_window = 41#np.argmax(f_scores)
 aris[selected_window]
 selected_window_time = rolling_windows_centers[selected_window]*1e3
 
+data = {
+    'F-scores': f_scores,
+    'Aris': aris,
+    'Nmis': nmis,
+    'F-scores_random': f_scores_random,
+    'Aris_random': aris_random,
+    'Nmis_random': nmis_random,
+    'F-scores_significance': f_scores_significance,
+    'Aris_significance': aris_significance,
+    'Nmis_significance': nmis_significance,
+    'rolling_windows_centers': rolling_windows_centers,
+    'dataframes': dataframes,
+    'phonological': phonological,
+    'group_1_labels': group1_labels,
+    'group_2_labels': group2_labels,
+    'NUMBER_OF_CLUSTERS': NUMBER_OF_CLUSTERS,
+    'KMEANS_NRUNS': KMEANS_NRUNS,
+    'ROLLING_WINDOW_SECONDS': ROLLING_WINDOW_SECONDS,
+    'SIGNIFICANCE': SIGNIFICANCE,
+    'selected_window': selected_window,
+    'keys_to_phonological_labels': keys_to_phonological_labels
+}
+os.makedirs(os.path.normpath(os.path.join('saves', 'mtrf_ridge_torch', 'External', 'sensitivity_speech_latency')), exist_ok=True)
+dump_pickle(path=os.path.normpath(os.path.join('saves', 'mtrf_ridge_torch', 'External', 'sensitivity_speech_latency', 'phonological.pkl')), obj=data)
 # Graficamos
 fig, axes = plt.subplots(
     figsize=(14, 7), 
@@ -568,7 +564,7 @@ lower_percentile = np.percentile(metric_random, 5, axis=1)
 upper_percentile = np.percentile(metric_random, 95, axis=1)
 
 # Aplicamos el degradado basado en la densidad
-gradient_fill_density_based(
+plot.gradient_fill_density_based(
     rolling_windows_centers*1e3, 
     lower_percentile, 
     upper_percentile, 
@@ -634,3 +630,4 @@ for ax in fig.axes:
 #     bbox_inches='tight'
 # )
 fig.show()
+
