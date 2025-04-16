@@ -461,47 +461,72 @@ for situation in ['External']:
         mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=text)
     print(text)
 
+# ===========================
+# ANALYSIS: # TODO comentar la diferencia en pesos, está interesante. Pareciera ser que los pesos de los líderes tienen más orden que los de los seguidores.
+# Notar también la diferencia en la latencia, por ej. para Phonological.
+
 import matplotlib.pyplot as plt, pandas as pd, numpy as np, seaborn as sns
 from scipy.stats import wilcoxon
+import config
+from funciones import load_pickle, dump_pickle
 import mne
 
-# stimulus, band = 'Spectrogram', 'Theta'
-# stimulus, band = 'Envelope', 'Theta'
-stimulus, band = 'Phonemes-Discrete-Phonet', 'Theta'
 
+# ===================================================================
+# Comparación de pesos promedios entre dimensiones, sujetos y canales
 mtrfs_path = lambda stimulus, band: fr"leadership\saves\mtrf_ridge_torch\External\weights\stims_Normalize_EEG_Standarize\tmin-0.2_tmax0.6\{band}\{stimulus}\total_weights_per_subject.pkl"
 correlation_path = lambda stimulus, band: fr"leadership\saves\mtrf_ridge_torch\External\correlations\tmin-0.2_tmax0.6\{band}\{stimulus}.pkl"
+stimulus, band = 'Phonemes-Discrete-Phonet', 'Theta'
+# stimulus, band = 'Spectrogram', 'Theta'
+# stimulus, band = 'Phonological', 'Theta'
+# stimulus, band = 'Envelope', 'Theta'
 
+# Load data
 mtrfs = load_pickle(path=mtrfs_path(stimulus, band))
 correlations = load_pickle(path=correlation_path(stimulus, band))
-
 data = pd.DataFrame(data=
                     {
                     'average_correlation_subjects_follower': correlations['average_correlation_subjects_follower'].mean(axis=1), 
                     'average_correlation_subjects_leader': correlations['average_correlation_subjects_leader'].mean(axis=1), 
                     }
                     )
+colors_leadership = {'average_correlation_subjects_follower':'#1567A3', 'average_correlation_subjects_leader':'#BD164F'}
 
+# Statistical test to find diff
 stat, p_val = wilcoxon(
     data['average_correlation_subjects_follower'], 
     data['average_correlation_subjects_leader'], 
     alternative='two-sided'
     )
 
+# Plot results
 fig = plt.figure(figsize=(10, 5))
+fig.suptitle(f'{stimulus}-{band}')
 
+# TRFs
 ax = plt.subplot(1, 2, 1)
-ax.plot(config.times*1e3, mtrfs['average_weights_subjects_follower'].mean(axis=(0,1,2)), label='Follower')
-ax.plot(config.times*1e3, mtrfs['average_weights_subjects_leader'].mean(axis=(0,1,2)), label='Leader')
+ax.plot(config.times*1e3, mtrfs['average_weights_subjects_follower'].mean(axis=(0,1,2)), label='Follower', color=colors_leadership['average_correlation_subjects_follower'])
+ax.plot(config.times*1e3, mtrfs['average_weights_subjects_leader'].mean(axis=(0,1,2)), label='Leader', color=colors_leadership['average_correlation_subjects_leader'])
 ax.set_title('Average MTRFs')
 ax.set_xlabel('Time (ms)')
 ax.set_ylabel('Amplitude (U.A)')
 ax.legend()
 ax.grid(True)
 
+# Boxplot correlation diff
 ax2 = plt.subplot(1, 2, 2)
-sns.boxplot(data=data, palette='Set2', ax=ax2)
-sns.stripplot(data=data, palette='Set2', ax=ax2, color='black', alpha=0.5)
+sns.boxplot(
+    data=data, 
+    palette=colors_leadership, 
+    ax=ax2
+    )
+sns.stripplot(
+    data=data, 
+    palette=colors_leadership, 
+    ax=ax2, 
+    color='black', 
+    alpha=0.5
+    )
 ax2.set_xticklabels(['Follower', 'Leader'])
 if p_val < 0.005:
     ax2.text(0.5, 0.95, f'p < 0.005', ha='center', va='center', transform=ax2.transAxes, fontsize=12, color='black')
@@ -516,84 +541,67 @@ ax2.set_ylabel('Average correlation')
 ax2.grid(True)
 fig.show()
 
- correlations['average_correlation_subjects_follower']
+# ===================================================
+# Distribución topográfica de la diff follower-leader
+
+# Topographic distribution
+norm = correlations['average_correlation_subjects_follower'].mean()
+diff_corr = (correlations['average_correlation_subjects_follower'].mean(axis=0)-correlations['average_correlation_subjects_leader'].mean(axis=0))/norm
+
+# Statistical test # TODO revisr si es correcta la construcción
+significance = 0.05
+diff_corr_stat = (correlations['average_correlation_subjects_follower']-correlations['average_correlation_subjects_leader'])/norm
+wilc_sta, p_val = wilcoxon(diff_corr_stat, alternative='two-sided')
+p_val[p_val>significance] = 1
+log_pval = -np.log10(p_val)
+
+# Plot results
 fig = plt.figure(
-    figsize=(6,6), 
+    figsize=(8,5), 
     layout='constrained'
     )
+fig.suptitle(f'{stimulus}-{band}')
 
+# Normalized correlation diff
+ax1 = plt.subplot(1,2,1)
 im = mne.viz.plot_topomap(
-    data=average_coefficient, 
-    pos=info, 
-    axes=axs, 
+    data=diff_corr, 
+    pos=config.info_mne, 
+    axes=ax1, 
     show=False, 
     sphere=0.07, 
-    cmap='Greys', 
-    vlim=(average_coefficient.min(), average_coefficient.max()),
-    mask=mask,
-    mask_params=dict(marker='o', markerfacecolor='red', markeredgecolor='k', linewidth=0, markersize=4, alpha=.35)
+    cmap='RdBu_r', 
+    vlim=(-diff_corr.max(), diff_corr.max()),
 )
-# Make plot
-plt.colorbar(
+fig.colorbar(
     im[0], 
-    ax=axs,
+    ax=ax1,
     shrink=0.85, 
-    label=coefficient_name, 
+    label='Normalized correlation difference\n (by follower mean)', 
     orientation='horizontal',
-    boundaries=np.linspace(average_coefficient.min().round(decimals=3), average_coefficient.max().round(decimals=3), 100),
-    ticks=np.linspace(average_coefficient.min(), average_coefficient.max(), 9).round(decimals=3)
+    boundaries=np.linspace(-diff_corr.max().round(decimals=2), diff_corr.max().round(decimals=2), 100),
+    ticks=np.linspace(-diff_corr.max(), diff_corr.max(), 5).round(decimals=2)
     )
 
+# Statistical significance
+ax2 = plt.subplot(1,2,2)
+im = mne.viz.plot_topomap(
+    data=log_pval, 
+    pos=config.info_mne, 
+    axes=ax2, 
+    show=False, 
+    sphere=0.07, 
+    cmap='inferno', 
+    vlim=(log_pval.mean(axis=0).min(), log_pval.mean(axis=0).max()),
+)
+fig.colorbar(
+    im[0], 
+    ax=ax2,
+    shrink=0.85, 
+    label=r'$- Log_{10}(p_{value})$', 
+    orientation='horizontal',
+    boundaries=np.linspace(log_pval.min().round(decimals=2), log_pval.max().round(decimals=2), 100),
+    ticks=np.linspace(log_pval.min(), log_pval.max(), 5).round(decimals=2)
+    )
 
-
-
-# evoked_array = mne.EvokedArray(
-#     data=mtrfs['average_weights_subjects_follower'].mean(axis=(0,2)), 
-#     info=config.info_mne
-#     )
-# evoked_array.shift_time(config.times[0], relative=True)
-# evoked_plot = evoked_array.plot(
-#     scalings={'eeg':1},
-#     zorder='std',
-#     time_unit='ms',
-#     show=False,
-#     spatial_colors=True,
-#     # unit=False,
-#     units='mTRFs (U.A)',
-#     axes=ax,
-#     gfp=False
-#     )
-# ax.plot(
-#     config.times*1e3, #ms
-#     evoked_array._data.mean(axis=0),
-#     'black',
-#     label='Valor medio',
-#     zorder=130,
-#     linewidth=2
-#     )
-
-# evoked_array = mne.EvokedArray(
-#     data=mtrfs['average_weights_subjects_leader'].mean(axis=(0,2)), 
-#     info=config.info_mne
-#     )
-# evoked_array.shift_time(config.times[0], relative=True)
-# evoked_plot_2 = evoked_array.plot(
-#     scalings={'eeg':1},
-#     zorder='std',
-#     time_unit='ms',
-#     show=False,
-#     spatial_colors=True,
-#     # unit=False,
-#     units='mTRFs (U.A)',
-#     axes=ax,
-#     gfp=False
-#     )
-
-# ax.plot(
-#     config.times*1e3, #ms
-#     evoked_array._data.mean(axis=0),
-#     'black',
-#     label='Valor medio',
-#     zorder=130,
-#     linewidth=2
-#     )
+fig.show()
