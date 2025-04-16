@@ -248,7 +248,7 @@ class TorchMtrf:
             
             # Store mtrfs
             self.coefs = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1).cpu().numpy()
-            del X_train, y_train
+            del X_train_for_val, y_train_for_val
     def predict(
         self
         )->tuple:
