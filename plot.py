@@ -999,22 +999,22 @@ def topo_map_relevant_times(
                 vlim=(chan_weight_j.min().round(3),chan_weight_j.max().round(3))
                 )
             
-            # Configure colorbar
-            f = lambda x: round(x, -int(np.floor(np.log10(abs(x)))))
-            cbar = plt.colorbar(
-                im[0], # TODO PROBLEMA
-                ax=ax,
-                orientation='vertical',
-                shrink=0.6,
-                aspect=15,
-                boundaries=[f(x) for x in np.linspace(chan_weight_j.min(), chan_weight_j.max(), 100) if x not in [np.inf, 0]],
-                ticks=[f(x) for x in np.linspace(chan_weight_j.min(),chan_weight_j.max(), 4) if x not in [np.inf, 0]]
-                )
+            # # Configure colorbar
+            # f = lambda x: round(x, -int(np.floor(np.log10(abs(x)))))
+            # cbar = plt.colorbar(
+            #     im[0], # TODO PROBLEMA
+            #     ax=ax,
+            #     orientation='vertical',
+            #     shrink=0.6,
+            #     aspect=15,
+            #     boundaries=[f(x) for x in np.linspace(chan_weight_j.min(), chan_weight_j.max(), 100) if x not in [np.inf, 0]],
+            #     ticks=[f(x) for x in np.linspace(chan_weight_j.min(),chan_weight_j.max(), 4) if x not in [np.inf, 0]]
+            #     )
             # cbar.formatter.set_powerlimits((-2, 2))
             # cbar.ax.xaxis.get_offset_text().set_position((.5,.5))
 
-            if j==len(positive_relevant_indexes)-1:
-                cbar.ax.set_ylabel('Weights')
+            # if j==len(positive_relevant_indexes)-1:
+            #     cbar.ax.set_ylabel('Weights')
         plt.figtext(x=.05, y=.05, s='Red is reserved for positive peaks, blue for negative ones', fontdict={'weight':'light'})
         if save:
             save_figure(
