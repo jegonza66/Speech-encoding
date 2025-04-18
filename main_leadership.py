@@ -476,8 +476,8 @@ import mne
 # Comparación de pesos promedios entre dimensiones, sujetos y canales
 mtrfs_path = lambda stimulus, band: fr"leadership\saves\mtrf_ridge_torch\External\weights\stims_Normalize_EEG_Standarize\tmin-0.2_tmax0.6\{band}\{stimulus}\total_weights_per_subject.pkl"
 correlation_path = lambda stimulus, band: fr"leadership\saves\mtrf_ridge_torch\External\correlations\tmin-0.2_tmax0.6\{band}\{stimulus}.pkl"
-stimulus, band = 'Phonemes-Discrete-Phonet', 'Theta'
-# stimulus, band = 'Spectrogram', 'Theta'
+# stimulus, band = 'Phonemes-Discrete-Phonet', 'Theta'
+stimulus, band = 'Spectrogram', 'Theta'
 # stimulus, band = 'Phonological', 'Theta'
 # stimulus, band = 'Envelope', 'Theta'
 
@@ -528,14 +528,16 @@ sns.stripplot(
     alpha=0.5
     )
 ax2.set_xticklabels(['Follower', 'Leader'])
-if p_val < 0.005:
-    ax2.text(0.5, 0.95, f'p < 0.005', ha='center', va='center', transform=ax2.transAxes, fontsize=12, color='black')
-elif p_val < 0.01:
-    ax2.text(0.5, 0.95, f'p < 0.001', ha='center', va='center', transform=ax2.transAxes, fontsize=12, color='black')
-elif p_val < 0.05:
-    ax2.text(0.5, 0.95, f'p < 0.05', ha='center', va='center', transform=ax2.transAxes, fontsize=12, color='black')
-else:
-    ax2.text(0.5, 0.95, f'N.S', ha='center', va='center', transform=ax2.transAxes, fontsize=12, color='black')
+
+ax2.text(0.5, 0.95, f'p = {p_val}', ha='center', va='center', transform=ax2.transAxes, fontsize=12, color='black')
+# if p_val < 0.005:
+#     ax2.text(0.5, 0.95, f'p < 0.005', ha='center', va='center', transform=ax2.transAxes, fontsize=12, color='black')
+# elif p_val < 0.01:
+#     ax2.text(0.5, 0.95, f'p < 0.001', ha='center', va='center', transform=ax2.transAxes, fontsize=12, color='black')
+# elif p_val < 0.05:
+#     ax2.text(0.5, 0.95, f'p < 0.05', ha='center', va='center', transform=ax2.transAxes, fontsize=12, color='black')
+# else:
+#     ax2.text(0.5, 0.95, f'N.S', ha='center', va='center', transform=ax2.transAxes, fontsize=12, color='black')
 ax2.set_title('Distribution between subjects')
 ax2.set_ylabel('Average correlation')
 ax2.grid(True)
@@ -545,7 +547,7 @@ fig.show()
 # Distribución topográfica de la diff follower-leader
 
 # Topographic distribution
-norm = correlations['average_correlation_subjects_follower'].mean()
+norm = 1#correlations['average_correlation_subjects_follower'].mean()
 diff_corr = (correlations['average_correlation_subjects_follower'].mean(axis=0)-correlations['average_correlation_subjects_leader'].mean(axis=0))/norm
 
 # Statistical test # TODO revisr si es correcta la construcción
@@ -605,3 +607,43 @@ fig.colorbar(
     )
 
 fig.show()
+
+statistics = {
+    'leader1':[],
+    'leader2':[],
+    'follower1':[],
+    'follower2':[],
+}
+import os
+root_path= r'leadership\saves\preprocessed_data\External\tmin-0.2_tmax0.6\samples_info'
+for sesion, archive in enumerate(os.listdir(root_path)):
+    data = load_pickle(os.path.join(root_path, archive))
+    
+    statistics['leader1'].append(len(data['keep_indexes_leader1']))
+    statistics['leader2'].append(len(data['keep_indexes_leader2']))
+    statistics['follower1'].append(len(data['keep_indexes_follower1']))
+    statistics['follower2'].append(len(data['keep_indexes_follower2']))    
+    
+# Comparing distributions
+statistics_df = pd.DataFrame(statistics)
+
+# Visualizar las distribuciones con un boxplot
+plt.figure(figsize=(10, 6))
+sns.boxplot(data=statistics_df, palette="Set2")
+plt.title("Distribuciones de líderes y seguidores")
+plt.ylabel("Número de ventanas en la regresión")
+plt.xlabel("Grupos")
+plt.grid(True)
+plt.show(block=False)
+
+# Comparar distribuciones estadísticamente
+from scipy.stats import mannwhitneyu
+results = {}
+for group1, group2 in [("leader1", "leader2"), ("follower1", "follower2"), ("leader1", "follower1"), ("leader2", "follower2")]:
+    stat, p_value = mannwhitneyu(statistics[group1], statistics[group2], alternative='two-sided')
+    results[f"{group1} vs {group2}"] = p_value
+
+# Mostrar resultados de las pruebas estadísticas
+print("Resultados de las pruebas estadísticas (Mann-Whitney U):")
+for comparison, p_value in results.items():
+    print(f"{comparison}: p-value = {p_value:.4f}")

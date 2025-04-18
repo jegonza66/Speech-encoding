@@ -7811,14 +7811,14 @@ color_g = '#eb5b34'
 
 #FIGURA
 fig, axes = plt.subplots(
-    figsize=(9, 7),
+    figsize=(10, 7),
     constrained_layout=True
     )
 gs = fig.add_gridspec(
     nrows=2,
     ncols=2,
     width_ratios=[1, 1],
-    height_ratios=[1.3, 1]
+    height_ratios=[1.35, 1]
 )
 ax00 = plt.subplot(gs[0, 0])
 # rect = fig.patch

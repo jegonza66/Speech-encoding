@@ -1644,15 +1644,25 @@ class Sesion_class:
                         self.samples_info['trial_lengths_follower2'].append(minimum_follower)
 
                         # Preprocessing: calaculates the relevant indexes for the apropiate analysis. Add sum of all previous trials length. This is because at the end, all trials previous to the actual will be concatenated
-                        self.samples_info['keep_indexes_leader1'] += (self.shifted_indexes_to_keep(speaker_labels=current_speaker_leader) + np.sum(self.samples_info['trial_lengths_leader1'][:-1])).tolist()
-                        self.samples_info['keep_indexes_follower2'] += (self.shifted_indexes_to_keep(speaker_labels=current_speaker_follower) + np.sum(self.samples_info['trial_lengths_follower2'][:-1])).tolist()
+                        shifted_indexes_leader = self.shifted_indexes_to_keep(speaker_labels=current_speaker_leader)
+                        shifted_indexes_follower = self.shifted_indexes_to_keep(speaker_labels=current_speaker_follower)
+                        
+                        # shifted_indexes_leader, shifted_indexes_follower = self.subsampling_indexes_to_minimum(shifted_indexes_leader, shifted_indexes_follower)
+                        
+                        self.samples_info['keep_indexes_leader1'] += (shifted_indexes_leader + np.sum(self.samples_info['trial_lengths_leader1'][:-1])).tolist()
+                        self.samples_info['keep_indexes_follower2'] += (shifted_indexes_follower + np.sum(self.samples_info['trial_lengths_follower2'][:-1])).tolist()
                     else:
                         self.samples_info['trial_lengths_leader2'].append(minimum_leader)
                         self.samples_info['trial_lengths_follower1'].append(minimum_follower)
+                        
+                        # Preprocessing: calaculates the relevant indexes for the apropiate analysis. Add sum of all previous trials length. This is because at the end, all trials previous to the actual will be concatenated
+                        shifted_indexes_leader = self.shifted_indexes_to_keep(speaker_labels=current_speaker_leader)
+                        shifted_indexes_follower = self.shifted_indexes_to_keep(speaker_labels=current_speaker_follower)
+                        # shifted_indexes_leader, shifted_indexes_follower = self.subsampling_indexes_to_minimum(shifted_indexes_leader, shifted_indexes_follower)
 
                         # Preprocessing: calaculates the relevant indexes for the apropiate analysis. Add sum of all previous trials length. This is because at the end, all trials previous to the actual will be concatenated
-                        self.samples_info['keep_indexes_leader2'] += (self.shifted_indexes_to_keep(speaker_labels=current_speaker_leader) + np.sum(self.samples_info['trial_lengths_leader2'][:-1])).tolist()
-                        self.samples_info['keep_indexes_follower1'] += (self.shifted_indexes_to_keep(speaker_labels=current_speaker_follower) + np.sum(self.samples_info['trial_lengths_follower1'][:-1])).tolist()
+                        self.samples_info['keep_indexes_leader2'] += (shifted_indexes_leader + np.sum(self.samples_info['trial_lengths_leader2'][:-1])).tolist()
+                        self.samples_info['keep_indexes_follower1'] += (shifted_indexes_follower + np.sum(self.samples_info['trial_lengths_follower1'][:-1])).tolist()
                 
                 # Concatenates data of each subject 
                 for key in trial_leader:
@@ -1679,7 +1689,6 @@ class Sesion_class:
                                 subject_follower1[key] = trial_follower[key]
                             else:
                                 subject_follower1[key] = np.concatenate((subject_follower1[key], trial_follower[key]), axis=0)
-
             # Empty trial
             except:
                 print(f"Trial {trial} of session {self.sesion} couldn't be loaded.")
@@ -1689,7 +1698,10 @@ class Sesion_class:
                 else:
                     self.samples_info['trial_lengths_leader2'][p_j] = 0
                     self.samples_info['trial_lengths_follower1'][p_j] = 0
-
+# TODO CUIDADO QUE SON LISTAS ACA NO MATRICES
+        self.samples_info['keep_indexes_leader1'], self.samples_info['keep_indexes_follower2'] = self.subsampling_indexes_to_minimum(self.samples_info['keep_indexes_leader1'], self.samples_info['keep_indexes_follower2'])
+        self.samples_info['keep_indexes_leader2'], self.samples_info['keep_indexes_follower1'] = self.subsampling_indexes_to_minimum(self.samples_info['keep_indexes_leader2'], self.samples_info['keep_indexes_follower1'])
+        
         # Get info of the setup that was exluded in the previous iteration
         info = trial_leader['info']
 
@@ -1745,7 +1757,77 @@ class Sesion_class:
         for stimulus in self.stim.split('_'):
             subject_leader1_return[stimulus], subject_leader2_return[stimulus], subject_follower1_return[stimulus], subject_follower2_return[stimulus] = funciones.load_pickle(path=os.path.join(self.export_paths[stimulus], f'Sesion{self.sesion}.pkl'))
         return {'Leader_1': subject_leader1_return, 'Leader_2': subject_leader2_return, 'Follower_1': subject_follower1_return, 'Follower_2': subject_follower2_return}, samples_info
-
+    def subsampling_indexes_to_minimum(
+        self, 
+        shifted_indexes_1:np.ndarray, 
+        shifted_indexes_2:np.ndarray
+        )->tuple:
+        """
+        Subsampling indexes to minimum length of either design_matrix passed as input
+        
+        Parameters
+        ----------
+        shifted_indexes_1 : np.ndarray
+            Shifted indexes of 1
+        shifted_indexes_follower : np.ndarray
+            Shifted indexes of 2
+        
+        Returns
+        -------
+        tuple
+            Tuple containing the shifted indexes of the 1 and 2, respectively (same order as input)
+        """
+        def random_downsample(
+            matrix:np.ndarray, 
+            cutoff:int,
+            random:bool=True
+            )->np.ndarray:
+            """
+            Downsample axis 0 of input to cutoff, removing random rows
+            
+            Parameters
+            ----------
+            matrix : np.ndarray
+                Matrix to downsample
+            cutoff : int
+                Number of rows to keep
+            random : bool
+                If True, random rows are removed, if False, the first cutoff rows are kept
+            
+            Returns
+            -------
+            np.ndarray
+                Downsampled shifted indexes
+            """
+            
+            number_of_indexes = len(matrix)
+            number_subsampled_indexes = number_of_indexes - cutoff
+            
+            if random:
+                indices_to_remove = np.random.choice(
+                    number_of_indexes, 
+                    size=number_subsampled_indexes, 
+                    replace=False
+                    )
+                return np.delete(matrix, indices_to_remove, axis=0)
+            else:
+                return matrix[:cutoff]
+        
+        # Resample to match minimum length of both shifted indexes
+        minimum_length = min(len(shifted_indexes_1), len(shifted_indexes_2))
+        
+        if minimum_length == len(shifted_indexes_1):
+            if minimum_length == len(shifted_indexes_2):
+                return shifted_indexes_1, shifted_indexes_2
+            else:
+                shifted_indexes_1_return = shifted_indexes_1
+                shifted_indexes_2_return = random_downsample(matrix=shifted_indexes_2, cutoff=minimum_length, random=False)
+        elif minimum_length == len(shifted_indexes_2):
+            shifted_indexes_2_return = shifted_indexes_2
+            shifted_indexes_1_return = random_downsample(matrix=shifted_indexes_1, cutoff=minimum_length, random=False)
+        
+        return shifted_indexes_1_return, shifted_indexes_2_return
+        
     def labeling(
         self, 
         trial:int, 
