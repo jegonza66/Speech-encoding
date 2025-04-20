@@ -7988,8 +7988,8 @@ for ax in fig.axes:
 
 fig.text(.05, .99, 'a)', fontsize=18, va='top', ha='right')
 fig.text(.565,.99, 'b)', fontsize=18, va='top', ha='right')
-fig.text(.565, .5, 'c)', fontsize=18, va='top', ha='right')
-fig.text(.05,.5, 'd)', fontsize=18, va='top', ha='right')
+fig.text(.05, .5, 'c)', fontsize=18, va='top', ha='right')
+fig.text(.565,.5, 'd)', fontsize=18, va='top', ha='right')
 
 # Ahora guardar la figura sin que se calcule el bbox de esos patches
 fig.savefig(
