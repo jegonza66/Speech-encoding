@@ -1782,14 +1782,14 @@ class Sesion_class:
         speaker_labels = np.where(speaker_labels==0, 4, speaker_labels)        
 
         # Computes shifted matrix
-        shifted_matrix_speaker_labels = processing.shifted_matrix_2(features=speaker_labels, delays=self.delays, use_gpu=config.use_gpu).astype(float)
+        shifted_matrix_speaker_labels = processing.shifted_matrix(features=speaker_labels, delays=self.delays, use_gpu=config.use_gpu).astype(float)
                
         if 'Silence' in self.situation and any(char.isdigit() for char in self.situation):
             # import numpy as np, config
-            # from processing import shifted_matrix_2
+            # from processing import shifted_matrix
             # features = np.array([1,1,1,1,1,1,1,1,4,4,4,4,4,4,4,4,1,1,1,1,4,4,4,2,2,2,2,2,3,3,3,3,3,3]).reshape(-1,1)
             # delays = [-3,-2,-1,0,1,2]
-            # shifted_matrix_speaker_labels = shifted_matrix_2(features=features, delays=delays, use_gpu=True).astype(float)
+            # shifted_matrix_speaker_labels = shifted_matrix(features=features, delays=delays, use_gpu=True).astype(float)
             # percentage = 100
 
             # filter_silence_external = ((shifted_matrix_speaker_labels==0)|(shifted_matrix_speaker_labels==4)|(shifted_matrix_speaker_labels==1)).all(axis=1)

@@ -9,7 +9,7 @@ from tqdm import tqdm
 import torch
 
 # Modules
-from processing import Normalize, Standarize, shifted_matrix, shifted_matrix_2
+from processing import Normalize, Standarize, shifted_matrix
 import config
 
 class TorchMtrf:
@@ -103,18 +103,19 @@ class TorchMtrf:
             If the input data shapes are not compatible with the model.
         """
         # Construct design matrix and transform for GPU computation
-        design_matrix = shifted_matrix_2(
+        design_matrix = shifted_matrix(
                     stims, 
                     delays=config.delays, 
                     use_gpu=self.use_gpu,
-                    indices_to_keep=self.relevant_indexes
+                    indices_to_keep=self.relevant_indexes,
+                    output_torch=True
                     )
         
-        n_samples, n_featuresbyn_delays = design_matrix.shape
+        n_samples, n_featuresbyn_delays = design_matrix.size()
         n_features = n_featuresbyn_delays // len(config.delays)
 
         # Get relevant indexes and transform to GPU
-        design_matrix = torch.tensor(design_matrix).to(self.device)
+        # design_matrix = torch.tensor(design_matrix).to(self.device)
         y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to(self.device)
         del stims, eeg
         
