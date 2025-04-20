@@ -5,527 +5,88 @@ from datetime import datetime
 # Specific libraries
 from scipy.cluster.hierarchy import linkage, leaves_list
 from scipy.spatial.distance import squareform
+from typing import Optional, Sequence
 from scipy import signal
 import torch
 
-class Standarize():
-    def __init__(
-        self, 
-        axis:int=0, 
-        by_gpu:bool=False
-        )->None:
-        """
-        Standarize train and test data to be used in a linear regressor model. 
+# def shifted_matrix_old(
+#     features: np.ndarray, 
+#     delays: np.ndarray, 
+#     use_gpu: bool = True
+#     ) -> np.ndarray:
+#     """
+#     Computes shifted matrix for a given array of delays, optimized and aligned with original implementation.
 
-        Parameters
-        ----------
-        axis : int, optional
-            Axis to perform standrize, by default 0
-        by_gpu : bool, optional
-            Whether to perform computation on GPU, by default False
-        """
-        self.axis = axis
-        self.by_gpu = by_gpu
-        self.device = torch.device("cuda" if by_gpu and torch.cuda.is_available() else "cpu")
+#     Parameters
+#     ----------
+#     features : array, shape (n_times, n_features)
+#         The time series to delay must be 2D array.
+#     delays : np.ndarray
+#         Index delays.
+#     use_gpu : bool, optional
+#         Whether to use GPU for computation (torch, CUDA), by default True.
 
-    def _to_device(
-        self, 
-        data:np.ndarray
-        )->torch.Tensor:
-        """
-        Move data to GPU if by_gpu is True, and ensure dtype is float32.
+#     Returns
+#     -------
+#     np.ndarray
+#         Concatenated shifted matrix of shape (samples, features * len(delays)).
+#     """
+#     if features.ndim == 1:
+#         features = features.reshape(-1, 1)
+
+#     device = torch.device("cuda" if use_gpu and torch.cuda.is_available() else "cpu")
+#     try:
+#         features_tensor = torch.tensor(features, dtype=torch.float32, device=device)
+
+#         n_samples, n_features = features_tensor.shape
+#         n_delays = len(delays)
+
+#         # Create design matrix
+#         shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float32, device=device)
+
+#         for i, delay in enumerate(delays):
+#             if delay < 0:
+#                 # Shift up
+#                 shifted[:delay, i, :] = features_tensor[-delay:, :]
+#             elif delay > 0:
+#                 # Shift dowm
+#                 shifted[delay:, i, :] = features_tensor[:-delay, :]
+#             else:
+#                 # Doesnt shift
+#                 shifted[:, i, :] = features_tensor
+
+#         # Reshpe to match desire output
+#         shifted_matrix = shifted.permute(0, 2, 1).reshape(n_samples, n_features * n_delays)
+#         return shifted_matrix.cpu().numpy()
+#     except Exception as e:
+#         # Fallback to CPU computation in case of memory issues
+#         print(f"CUDA out of memory: switching to CPU for computation.\n Following error occured: {e}.")
         
-        Parameters
-        ----------
-        data : np.ndarray
-            Data to be moved to GPU if by_gpu is True.
-            
-        Returns
-        -------
-        torch.Tensor
-            Data moved to GPU if by_gpu is True, in float32.
-        """
-        if isinstance(data, np.ndarray):
-            data = torch.tensor(data, dtype=torch.float32)
-        elif isinstance(data, torch.Tensor):
-            if (data.dtype != torch.float32):
-                data = data.to(dtype=torch.float32)
-            else:
-                pass
-        else:
-            raise TypeError("Input must be np.ndarray or torch.Tensor")
+#         device = torch.device("cpu")
+#         features_tensor = torch.tensor(features, dtype=torch.float32, device=device)
 
-        if self.by_gpu and torch.cuda.is_available():
-            return data.to(self.device)
-        else:
-            return data
+#         n_samples, n_features = features_tensor.shape
+#         n_delays = len(delays)
 
-    def fit_standarize_train(
-        self, 
-        train_data:np.ndarray
-        )->np.ndarray:
-        """
-        Standardize train data, also define mean and std to standardize future data.
-        
-        Parameters
-        ----------
-        train_data : np.ndarray
-            Train data to be standardized.
-            
-        Returns
-        -------
-        np.ndarray
-            Standardized train data.
-        """
-        train_data = self._to_device(train_data)
-        
-        # Fix mean and standard deviation with train data
-        if isinstance(train_data, torch.Tensor):
-            self.mean = train_data.mean(dim=self.axis)
-            self.std = train_data.std(dim=self.axis, unbiased=False)  # Use biased std for consistency with numpy
-        else:
-            self.mean = train_data.mean(axis=self.axis)
-            self.std = train_data.std(axis=self.axis)   
+#         # Create design matrix
+#         shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float32, device=device)
 
-        # Standardize data
-        train_data -= self.mean
-        train_data /= (self.std + 1e-12)  # Adding epsilon to avoid division by zero
-        
-        return train_data
+#         for i, delay in enumerate(delays):
+#             if delay < 0:
+#                 # Shift up
+#                 shifted[:delay, i, :] = features_tensor[-delay:, :]
+#             elif delay > 0:
+#                 # Shift dowm
+#                 shifted[delay:, i, :] = features_tensor[:-delay, :]
+#             else:
+#                 # Doesnt shift
+#                 shifted[:, i, :] = features_tensor
 
-    def fit_standarize_test(
-        self, 
-        test_data:np.ndarray
-        )->np.ndarray:
-        """
-        Standardize test data with mean and std of train data
-        
-        Parameters
-        ----------
-        test_data : np.ndarray
+#         # Reshpe to match desire output
+#         shifted_matrix = shifted.permute(0, 2, 1).reshape(n_samples, n_features * n_delays)
+#         return shifted_matrix.cpu().numpy()
 
-        Returns
-        -------
-        np.ndarray
-            Standardized test data.
-        """
-        test_data = self._to_device(test_data)
-        
-        # Standardize with mean and standard deviation of train
-        test_data -= self.mean
-        test_data /= (self.std + 1e-12)
-        
-        return test_data
-
-    def standarize_data(
-        self,
-        data:np.ndarray
-        )->np.ndarray:
-        """
-        Standardize data with its own mean and standard deviation.
-        
-        Parameters
-        ----------
-        data : np.ndarray
-            Data to be standardized.
-        
-        Returns
-        -------
-        np.ndarray
-            Standardized data.
-        """
-        data = self._to_device(data)
-        
-        if isinstance(data, torch.Tensor):
-            data -= data.mean(dim=self.axis)
-            data /= data.std(dim=self.axis, unbiased=False)  # Use biased std for consistency with numpy
-        else:
-            data -= data.mean(axis=self.axis)
-            data /= data.std(axis=self.axis)
-            
-        return data
-    
-class Normalize():
-    def __init__(
-        self, 
-        axis:int=0, 
-        porcent:float=5, 
-        by_gpu:bool=False
-        )->None:
-        """
-        Normalize train and test data to be used in a linear regressor model.
-
-        Parameters
-        ----------
-        axis : int, optional
-            Axis to perform normalize, by default 0
-        porcent : float, optional
-            Percentage for normalization, by default 5
-        by_gpu : bool, optional
-            Whether to perform computation on GPU, by default False
-        """
-        self.axis = axis
-        self.porcent = porcent
-        self.by_gpu = by_gpu
-        self.device = torch.device("cuda" if by_gpu and torch.cuda.is_available() else "cpu")
-
-    def _to_device(
-        self, 
-        data:np.ndarray
-        )->torch.Tensor:
-        """
-        Move data to GPU if by_gpu is True, and ensure dtype is float32.
-        
-        Parameters
-        ----------
-        data : np.ndarray
-            Data to be moved to GPU if by_gpu is True.
-            
-        Returns
-        -------
-        torch.Tensor
-            Data moved to GPU if by_gpu is True, in float32.
-        """
-        if isinstance(data, np.ndarray):
-            data = torch.tensor(data, dtype=torch.float32)
-        elif isinstance(data, torch.Tensor):
-            if (data.dtype != torch.float32):
-                data = data.to(dtype=torch.float32)
-            else:
-                pass
-        else:
-            raise TypeError("Input must be np.ndarray or torch.Tensor")
-
-        if self.by_gpu and torch.cuda.is_available():
-            return data.to(self.device)
-        else:
-            return data
-
-    def fit_normalize_train(
-        self, 
-        train_data:np.ndarray
-        )->np.ndarray:
-        """
-        Normalize train data, also define min and max to normalize future data
-        
-        Parameters
-        ----------
-        train_data : np.ndarray
-            Train data to be normalized.
-            
-        Returns
-        -------
-        np.ndarray
-            Normalized train data.
-        """
-        train_data = self._to_device(train_data)
-        
-        # Remove offset by minimum
-        if isinstance(train_data, torch.Tensor):
-            self.min = train_data.min(dim=self.axis)[0]
-        else:
-            self.min = train_data.min(axis=self.axis)
-        train_data -= self.min
-
-        # Normalize by maximum
-        if isinstance(train_data, torch.Tensor):
-            self.max = train_data.max(dim=self.axis)[0]
-        else:
-            self.max = train_data.max(axis=self.axis)
-            
-        train_data = train_data / (self.max + 1e-12)  # Adding epsilon to avoid division by zero
-        
-        return train_data
-
-    def fit_normalize_test(
-        self, 
-        test_data:np.ndarray
-        )->np.ndarray:
-        """
-        Normalize test data with min and max of train data.
-        
-        Parameters
-        ----------
-        test_data : np.ndarray
-            Test data to be normalized.
-        
-        Returns
-        -------
-        np.ndarray
-            Normalized test data.
-        """
-        test_data = self._to_device(test_data)
-        
-        test_data -= self.min
-        test_data = test_data / (self.max + 1e-12)
-        
-        return test_data
-
-    def normalize_data(
-        self, 
-        data:np.ndarray, 
-        kind:str="1"
-        )->np.ndarray:
-        """
-        Normalize data
-        
-        Parameters
-        ----------
-        data : np.ndarray
-            Data to be normalized.
-        kind : str, optional
-            Type of normalization, by default '1'
-        
-        Returns
-        -------
-        np.ndarray
-            Normalized data.
-        """
-        data = self._to_device(data)
-        
-        if isinstance(data, torch.Tensor):
-            data -= data.min(dim=self.axis)[0]
-            data /= data.max(dim=self.axis)[0]
-        else:
-            data -= data.min(axis=self.axis)
-            data /= data.max(axis=self.axis)
-        
-        if kind == '2':
-            data *= 2
-            data -= 1
-        
-        return data
-
-    def fit_normalize_percent(
-        self, 
-        data:np.ndarray
-        )->np.ndarray:
-        """
-        Normalize data using percentiles
-        
-        Parameters
-        ----------
-        data : np.ndarray
-            Data to be normalized.
-        
-        Returns
-        -------
-        np.ndarray
-            Normalized data.
-        """
-        data = self._to_device(data)
-        
-        # Calculate n
-        n = int((self.porcent * len(data) - 1) / 100) 
-        
-        # Find the n-th minimum and offset that value
-        sorted_data = copy.deepcopy(data)
-        sorted_data.sort(self.axis)
-        min_data_n = sorted_data[n]
-        data -= min_data_n
-
-        # Find the n-th maximum
-        sorted_data = copy.deepcopy(data)
-        sorted_data.sort(self.axis)
-        max_data_n = sorted_data[-n]
-        
-        # Normalize data
-        data = data / (max_data_n + 1e-12)  # Adding epsilon to avoid division by zero
-        
-        return data
-
-def shifted_matrix(
-    features: np.ndarray, 
-    delays: np.ndarray, 
-    use_gpu: bool = True
-    ) -> np.ndarray:
-    """
-    Computes shifted matrix for a given array of delays, optimized and aligned with original implementation.
-
-    Parameters
-    ----------
-    features : array, shape (n_times, n_features)
-        The time series to delay must be 2D array.
-    delays : np.ndarray
-        Index delays.
-    use_gpu : bool, optional
-        Whether to use GPU for computation (torch, CUDA), by default True.
-
-    Returns
-    -------
-    np.ndarray
-        Concatenated shifted matrix of shape (samples, features * len(delays)).
-    """
-    if features.ndim == 1:
-        features = features.reshape(-1, 1)
-
-    device = torch.device("cuda" if use_gpu and torch.cuda.is_available() else "cpu")
-    try:
-        features_tensor = torch.tensor(features, dtype=torch.float32, device=device)
-
-        n_samples, n_features = features_tensor.shape
-        n_delays = len(delays)
-
-        # Create design matrix
-        shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float32, device=device)
-
-        for i, delay in enumerate(delays):
-            if delay < 0:
-                # Shift up
-                shifted[:delay, i, :] = features_tensor[-delay:, :]
-            elif delay > 0:
-                # Shift dowm
-                shifted[delay:, i, :] = features_tensor[:-delay, :]
-            else:
-                # Doesnt shift
-                shifted[:, i, :] = features_tensor
-
-        # Reshpe to match desire output
-        shifted_matrix = shifted.permute(0, 2, 1).reshape(n_samples, n_features * n_delays)
-        return shifted_matrix.cpu().numpy()
-    except Exception as e:
-        # Fallback to CPU computation in case of memory issues
-        print(f"CUDA out of memory: switching to CPU for computation.\n Following error occured: {e}.")
-        
-        device = torch.device("cpu")
-        features_tensor = torch.tensor(features, dtype=torch.float32, device=device)
-
-        n_samples, n_features = features_tensor.shape
-        n_delays = len(delays)
-
-        # Create design matrix
-        shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float32, device=device)
-
-        for i, delay in enumerate(delays):
-            if delay < 0:
-                # Shift up
-                shifted[:delay, i, :] = features_tensor[-delay:, :]
-            elif delay > 0:
-                # Shift dowm
-                shifted[delay:, i, :] = features_tensor[:-delay, :]
-            else:
-                # Doesnt shift
-                shifted[:, i, :] = features_tensor
-
-        # Reshpe to match desire output
-        shifted_matrix = shifted.permute(0, 2, 1).reshape(n_samples, n_features * n_delays)
-        return shifted_matrix.cpu().numpy()
-
-
-def shifted_matrix_2(
-    features: np.ndarray,
-    delays: np.ndarray,
-    use_gpu: bool = True,
-    indices_to_keep: np.ndarray = None
-) -> np.ndarray:
-    """
-    Computes shifted matrix for given delays, optionally only for specified indices.
-
-    Parameters
-    ----------
-    features : array, (n_times, n_features)
-        Time series data.
-    delays : array
-        Index delays to apply.
-    use_gpu : bool
-        Whether to use GPU.
-    indices_to_keep : array, optional
-        Row indices to compute, avoiding full matrix creation.
-
-    Returns
-    -------
-    array
-        Shifted matrix, possibly only for specified rows.
-    """
-    device = torch.device("cuda" if use_gpu and torch.cuda.is_available() else "cpu")
-
-    if features.ndim == 1:
-        features = features.reshape(-1, 1)
-    features_tensor = torch.tensor(features, dtype=torch.float32, device=device)
-    n_samples, n_features = features_tensor.shape
-    n_delays = len(delays)
-    try:
-        if indices_to_keep is not None:
-            kept_indices = torch.tensor(indices_to_keep, device=device, dtype=torch.long)
-            n_kept = kept_indices.size(0)
-            shifted = torch.zeros((n_kept, n_delays, n_features), dtype=torch.float32, device=device)
-
-            for i, delay in enumerate(delays):
-                current_indices = kept_indices
-                if delay > 0:
-                    mask = (current_indices >= delay) & (current_indices < n_samples)
-                    valid_kept = mask.nonzero().squeeze()
-                    if valid_kept.numel() > 0:
-                        feature_indices = current_indices[valid_kept] - delay
-                        shifted[valid_kept, i, :] = features_tensor[feature_indices, :]
-                elif delay < 0:
-                    abs_delay = -delay
-                    max_valid = n_samples - abs_delay
-                    mask = current_indices < max_valid
-                    valid_kept = mask.nonzero().squeeze()
-                    if valid_kept.numel() > 0:
-                        feature_indices = current_indices[valid_kept] + abs_delay
-                        shifted[valid_kept, i, :] = features_tensor[feature_indices, :]
-                else:
-                    mask = (current_indices >= 0) & (current_indices < n_samples)
-                    valid_kept = mask.nonzero().squeeze()
-                    if valid_kept.numel() > 0:
-                        shifted[valid_kept, i, :] = features_tensor[current_indices[valid_kept], :]
-        else:
-            shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float32, device=device)
-            for i, delay in enumerate(delays):
-                if delay < 0:
-                    shifted[:delay, i, :] = features_tensor[-delay:, :]
-                elif delay > 0:
-                    shifted[delay:, i, :] = features_tensor[:-delay, :]
-                else:
-                    shifted[:, i, :] = features_tensor
-
-        shifted_matrix = shifted.permute(0, 2, 1).reshape(-1, n_features * n_delays)
-        return shifted_matrix.cpu().numpy()
-    except Exception as e:
-        print(f"CUDA out of memory: switching to CPU for computation.\nFollowing error occurred: {e}.")
-        device = torch.device("cpu")
-
-        if indices_to_keep is not None:
-            kept_indices = torch.tensor(indices_to_keep, dtype=torch.long, device=device)
-            n_kept = kept_indices.size(0)
-            shifted = torch.zeros((n_kept, n_delays, n_features), dtype=torch.float32, device=device)
-
-            for i, delay in enumerate(delays):
-                current_indices = kept_indices
-                if delay > 0:
-                    mask = (current_indices >= delay) & (current_indices < n_samples)
-                    valid_kept = mask.nonzero().squeeze()
-                    if valid_kept.numel() > 0:
-                        feature_indices = current_indices[valid_kept] - delay
-                        shifted[valid_kept, i, :] = features_tensor[feature_indices, :]
-                elif delay < 0:
-                    abs_delay = -delay
-                    max_valid = n_samples - abs_delay
-                    mask = current_indices < max_valid
-                    valid_kept = mask.nonzero().squeeze()
-                    if valid_kept.numel() > 0:
-                        feature_indices = current_indices[valid_kept] + abs_delay
-                        shifted[valid_kept, i, :] = features_tensor[feature_indices, :]
-                else:
-                    mask = (current_indices >= 0) & (current_indices < n_samples)
-                    valid_kept = mask.nonzero().squeeze()
-                    if valid_kept.numel() > 0:
-                        shifted[valid_kept, i, :] = features_tensor[current_indices[valid_kept], :]
-        else:
-            shifted = torch.zeros((n_samples, n_delays, n_features), dtype=torch.float32, device=device)
-            for i, delay in enumerate(delays):
-                if delay < 0:
-                    shifted[:delay, i, :] = features_tensor[-delay:, :]
-                elif delay > 0:
-                    shifted[delay:, i, :] = features_tensor[:-delay, :]
-                else:
-                    shifted[:, i, :] = features_tensor
-
-        shifted_matrix = shifted.permute(0, 2, 1).reshape(-1, n_features * n_delays)
-        return shifted_matrix.cpu().numpy()
-# def shifted_matrix_3(
+# def shifted_matrix_2(
 #     features: np.ndarray,
 #     delays: np.ndarray,
 #     use_gpu: bool = True,
@@ -562,11 +123,15 @@ def shifted_matrix_2(
 #             kept_indices = torch.tensor(indices_to_keep, device=device, dtype=torch.long)
 #             n_kept = kept_indices.size(0)
 #             shifted = torch.zeros((n_kept, n_delays, n_features), dtype=torch.float32, device=device)
-#             indices = torch.arange(n_samples, device=device)
 
 #             for i, delay in enumerate(delays):
+#                 current_indices = kept_indices
 #                 if delay > 0:
-#                     shifted[indices[d:], i, :] = features_tensor[kept_indices[d:], :]
+#                     mask = (current_indices >= delay) & (current_indices < n_samples)
+#                     valid_kept = mask.nonzero().squeeze()
+#                     if valid_kept.numel() > 0:
+#                         feature_indices = current_indices[valid_kept] - delay
+#                         shifted[valid_kept, i, :] = features_tensor[feature_indices, :]
 #                 elif delay < 0:
 #                     abs_delay = -delay
 #                     max_valid = n_samples - abs_delay
@@ -604,8 +169,11 @@ def shifted_matrix_2(
 #             for i, delay in enumerate(delays):
 #                 current_indices = kept_indices
 #                 if delay > 0:
-#                     shifted[indices[delay:], i, :] = features_tensor[kept_indices[delay:], :]
-
+#                     mask = (current_indices >= delay) & (current_indices < n_samples)
+#                     valid_kept = mask.nonzero().squeeze()
+#                     if valid_kept.numel() > 0:
+#                         feature_indices = current_indices[valid_kept] - delay
+#                         shifted[valid_kept, i, :] = features_tensor[feature_indices, :]
 #                 elif delay < 0:
 #                     abs_delay = -delay
 #                     max_valid = n_samples - abs_delay
@@ -631,13 +199,123 @@ def shifted_matrix_2(
 
 #         shifted_matrix = shifted.permute(0, 2, 1).reshape(-1, n_features * n_delays)
 #         return shifted_matrix.cpu().numpy()
+    
+def _compute_shifted(
+    feats_t: torch.Tensor,
+    delays: Sequence[int],
+    indices_to_keep: Optional[Sequence[int]]
+) -> torch.Tensor:
+    """
+    Compute shifted matrix for given features and delays.
 
+    Parameters
+    ----------
+    feats_t : torch.Tensor
+        Input features tensor of shape (n_samples, n_features).
+    delays : Sequence[int]
+        Delays to apply to the features.
+    indices_to_keep : Optional[Sequence[int]]
+        Specific indices to compute the shifted matrix for.
 
-# features = np.arange(10).reshape(-1,1)
-# delays = np.array([1, 2, 3])
-# # shifted_matrix_2(features=features, delays=delays, use_gpu=True, indices_to_keep=[1,2,5,7])
-# shifted_matrix_3(features=features, delays=delays, use_gpu=False, indices_to_keep=[1,2,5,7])
+    Returns
+    -------
+    torch.Tensor
+        Shifted matrix of shape (n_rows, n_delays, n_features).
+    """
+    n_samples, n_features = feats_t.shape
+    delays = torch.tensor(delays, device=feats_t.device, dtype=torch.int64)
 
+    if indices_to_keep is not None:
+        idx = torch.tensor(indices_to_keep, device=feats_t.device, dtype=torch.int64)
+        idx_shifted = idx[:, None] - delays[None, :]  # Shape: (n_rows, n_delays)
+    else:
+        idx_shifted = torch.arange(n_samples, device=feats_t.device)[:, None] - delays[None, :]  # Shape: (n_samples, n_delays)
+
+    # Mask for valid indices
+    valid_mask = (idx_shifted >= 0) & (idx_shifted < n_samples) # Shape: (n_rows, n_delays)
+
+    # Clamp indices to valid range (i.e: ensure values are between 0 and n_samples-1)
+    idx_clipped = idx_shifted.clamp(0, n_samples - 1)
+    
+    # Gather features and apply the mask
+    feats_exp = feats_t[idx_clipped]  # Shape: (n_rows, n_delays, n_features)
+    
+    # Broadcast mask to match feature dimensions (unsqueeze to add feature dimension)
+    feats_exp *= valid_mask.unsqueeze(-1)  # Shape: (n_rows, n_delays, n_features)
+
+    return feats_exp
+
+def shifted_matrix(
+    features: np.ndarray,
+    delays: Sequence[int],
+    use_gpu: bool = True,
+    indices_to_keep: Optional[Sequence[int]] = None,
+    output_torch:bool = False
+    ) -> np.ndarray:
+    """
+    Build a time-shifted design matrix for given features and delays.
+
+    This function stacks time-shifted versions of the input feature matrix along the second axis,
+    optionally computing only for specified row indices to reduce memory.
+
+    Parameters
+    ----------
+    features : np.ndarray, shape (n_times, n_features) or (n_times,)
+        Input time series data. If 1D, it is treated as a single feature.
+    delays : Sequence[int]
+        Relative time shifts (in samples). Positive delays shift past values,
+        negative delays shift future values, zero retains current.
+    use_gpu : bool, default True
+        Whether to attempt computation on CUDA device first. Falls back to CPU on OOM.
+    indices_to_keep : Sequence[int], optional
+        Specific time indices at which to compute rows of the shifted matrix.
+        If None, computes all rows.
+    output_torch : bool, default False
+        If True, returns a PyTorch tensor instead of a NumPy array.
+
+    Returns
+    -------
+    np.ndarray, shape (n_rows, n_features * n_delays)
+        Design matrix where each row contains concatenated features for each delay.
+    """
+    # Determine device order: try GPU first, then CPU
+    preferred = torch.device("cuda" if use_gpu and torch.cuda.is_available() else "cpu")
+    devices = [preferred]
+    if preferred.type == "cuda":
+        devices.append(torch.device("cpu"))
+
+    # Ensure features is 2D
+    feats = features.reshape(-1, 1) if features.ndim == 1 else features
+
+    for dev in devices:
+        try:
+            # Move data onto device
+            feats_t = torch.tensor(feats, dtype=torch.float32, device=dev)
+            shifted = _compute_shifted(feats_t, delays, indices_to_keep)
+            
+            # Reshape: (n_rows, n_delays, n_features) -> (n_rows, n_features * n_delays)
+            n_rows, n_delays, n_feat = shifted.shape
+            mat = shifted.permute(0, 2, 1).reshape(n_rows, n_feat * n_delays)
+            if output_torch:
+                return mat
+            else: 
+                return mat.cpu().numpy()
+
+        except RuntimeError as e:
+            if dev.type == "cuda":
+                print(f"CUDA OOM on device {dev}; retrying on CPU. Error: {e}")
+                continue
+            else:
+                raise
+    # If loop completes without return, something went wrong
+    raise RuntimeError("shifted_matrix failed on all devices")
+# features = torch.arange(10).reshape(-1,1)
+# delays = [-1, 0, 1]
+# indices_to_keep = [0, 1, 2, 3, 4]
+# shifted = _compute_shifted(features, delays, indices_to_keep)
+
+# n_rows, n_delays, n_feat = shifted.shape
+# mat = shifted.permute(0, 2, 1).reshape(n_rows, n_feat * n_delays)
 
 def butter_filter(
     data:np.ndarray, 
@@ -1137,3 +815,328 @@ def clustering_by_correlation(
 
 #     return eeg_train_val, eeg_test, dstims_train_val, dstims_test
 
+class Standarize():
+    def __init__(
+        self, 
+        axis:int=0, 
+        by_gpu:bool=False
+        )->None:
+        """
+        Standarize train and test data to be used in a linear regressor model. 
+
+        Parameters
+        ----------
+        axis : int, optional
+            Axis to perform standrize, by default 0
+        by_gpu : bool, optional
+            Whether to perform computation on GPU, by default False
+        """
+        self.axis = axis
+        self.by_gpu = by_gpu
+        self.device = torch.device("cuda" if by_gpu and torch.cuda.is_available() else "cpu")
+
+    def _to_device(
+        self, 
+        data:np.ndarray
+        )->torch.Tensor:
+        """
+        Move data to GPU if by_gpu is True, and ensure dtype is float32.
+        
+        Parameters
+        ----------
+        data : np.ndarray
+            Data to be moved to GPU if by_gpu is True.
+            
+        Returns
+        -------
+        torch.Tensor
+            Data moved to GPU if by_gpu is True, in float32.
+        """
+        if isinstance(data, np.ndarray):
+            data = torch.tensor(data, dtype=torch.float32)
+        elif isinstance(data, torch.Tensor):
+            if (data.dtype != torch.float32):
+                data = data.to(dtype=torch.float32)
+            else:
+                pass
+        else:
+            raise TypeError("Input must be np.ndarray or torch.Tensor")
+
+        if self.by_gpu and torch.cuda.is_available():
+            return data.to(self.device)
+        else:
+            return data
+
+    def fit_standarize_train(
+        self, 
+        train_data:np.ndarray
+        )->np.ndarray:
+        """
+        Standardize train data, also define mean and std to standardize future data.
+        
+        Parameters
+        ----------
+        train_data : np.ndarray
+            Train data to be standardized.
+            
+        Returns
+        -------
+        np.ndarray
+            Standardized train data.
+        """
+        train_data = self._to_device(train_data)
+        
+        # Fix mean and standard deviation with train data
+        if isinstance(train_data, torch.Tensor):
+            self.mean = train_data.mean(dim=self.axis)
+            self.std = train_data.std(dim=self.axis, unbiased=False)  # Use biased std for consistency with numpy
+        else:
+            self.mean = train_data.mean(axis=self.axis)
+            self.std = train_data.std(axis=self.axis)   
+
+        # Standardize data
+        train_data -= self.mean
+        train_data /= (self.std + 1e-12)  # Adding epsilon to avoid division by zero
+        
+        return train_data
+
+    def fit_standarize_test(
+        self, 
+        test_data:np.ndarray
+        )->np.ndarray:
+        """
+        Standardize test data with mean and std of train data
+        
+        Parameters
+        ----------
+        test_data : np.ndarray
+
+        Returns
+        -------
+        np.ndarray
+            Standardized test data.
+        """
+        test_data = self._to_device(test_data)
+        
+        # Standardize with mean and standard deviation of train
+        test_data -= self.mean
+        test_data /= (self.std + 1e-12)
+        
+        return test_data
+
+    def standarize_data(
+        self,
+        data:np.ndarray
+        )->np.ndarray:
+        """
+        Standardize data with its own mean and standard deviation.
+        
+        Parameters
+        ----------
+        data : np.ndarray
+            Data to be standardized.
+        
+        Returns
+        -------
+        np.ndarray
+            Standardized data.
+        """
+        data = self._to_device(data)
+        
+        if isinstance(data, torch.Tensor):
+            data -= data.mean(dim=self.axis)
+            data /= data.std(dim=self.axis, unbiased=False)  # Use biased std for consistency with numpy
+        else:
+            data -= data.mean(axis=self.axis)
+            data /= data.std(axis=self.axis)
+            
+        return data
+    
+class Normalize():
+    def __init__(
+        self, 
+        axis:int=0, 
+        porcent:float=5, 
+        by_gpu:bool=False
+        )->None:
+        """
+        Normalize train and test data to be used in a linear regressor model.
+
+        Parameters
+        ----------
+        axis : int, optional
+            Axis to perform normalize, by default 0
+        porcent : float, optional
+            Percentage for normalization, by default 5
+        by_gpu : bool, optional
+            Whether to perform computation on GPU, by default False
+        """
+        self.axis = axis
+        self.porcent = porcent
+        self.by_gpu = by_gpu
+        self.device = torch.device("cuda" if by_gpu and torch.cuda.is_available() else "cpu")
+
+    def _to_device(
+        self, 
+        data:np.ndarray
+        )->torch.Tensor:
+        """
+        Move data to GPU if by_gpu is True, and ensure dtype is float32.
+        
+        Parameters
+        ----------
+        data : np.ndarray
+            Data to be moved to GPU if by_gpu is True.
+            
+        Returns
+        -------
+        torch.Tensor
+            Data moved to GPU if by_gpu is True, in float32.
+        """
+        if isinstance(data, np.ndarray):
+            data = torch.tensor(data, dtype=torch.float32)
+        elif isinstance(data, torch.Tensor):
+            if (data.dtype != torch.float32):
+                data = data.to(dtype=torch.float32)
+            else:
+                pass
+        else:
+            raise TypeError("Input must be np.ndarray or torch.Tensor")
+
+        if self.by_gpu and torch.cuda.is_available():
+            return data.to(self.device)
+        else:
+            return data
+
+    def fit_normalize_train(
+        self, 
+        train_data:np.ndarray
+        )->np.ndarray:
+        """
+        Normalize train data, also define min and max to normalize future data
+        
+        Parameters
+        ----------
+        train_data : np.ndarray
+            Train data to be normalized.
+            
+        Returns
+        -------
+        np.ndarray
+            Normalized train data.
+        """
+        train_data = self._to_device(train_data)
+        
+        # Remove offset by minimum
+        if isinstance(train_data, torch.Tensor):
+            self.min = train_data.min(dim=self.axis)[0]
+        else:
+            self.min = train_data.min(axis=self.axis)
+        train_data -= self.min
+
+        # Normalize by maximum
+        if isinstance(train_data, torch.Tensor):
+            self.max = train_data.max(dim=self.axis)[0]
+        else:
+            self.max = train_data.max(axis=self.axis)
+            
+        train_data = train_data / (self.max + 1e-12)  # Adding epsilon to avoid division by zero
+        
+        return train_data
+
+    def fit_normalize_test(
+        self, 
+        test_data:np.ndarray
+        )->np.ndarray:
+        """
+        Normalize test data with min and max of train data.
+        
+        Parameters
+        ----------
+        test_data : np.ndarray
+            Test data to be normalized.
+        
+        Returns
+        -------
+        np.ndarray
+            Normalized test data.
+        """
+        test_data = self._to_device(test_data)
+        
+        test_data -= self.min
+        test_data = test_data / (self.max + 1e-12)
+        
+        return test_data
+
+    def normalize_data(
+        self, 
+        data:np.ndarray, 
+        kind:str="1"
+        )->np.ndarray:
+        """
+        Normalize data
+        
+        Parameters
+        ----------
+        data : np.ndarray
+            Data to be normalized.
+        kind : str, optional
+            Type of normalization, by default '1'
+        
+        Returns
+        -------
+        np.ndarray
+            Normalized data.
+        """
+        data = self._to_device(data)
+        
+        if isinstance(data, torch.Tensor):
+            data -= data.min(dim=self.axis)[0]
+            data /= data.max(dim=self.axis)[0]
+        else:
+            data -= data.min(axis=self.axis)
+            data /= data.max(axis=self.axis)
+        
+        if kind == '2':
+            data *= 2
+            data -= 1
+        
+        return data
+
+    def fit_normalize_percent(
+        self, 
+        data:np.ndarray
+        )->np.ndarray:
+        """
+        Normalize data using percentiles
+        
+        Parameters
+        ----------
+        data : np.ndarray
+            Data to be normalized.
+        
+        Returns
+        -------
+        np.ndarray
+            Normalized data.
+        """
+        data = self._to_device(data)
+        
+        # Calculate n
+        n = int((self.porcent * len(data) - 1) / 100) 
+        
+        # Find the n-th minimum and offset that value
+        sorted_data = copy.deepcopy(data)
+        sorted_data.sort(self.axis)
+        min_data_n = sorted_data[n]
+        data -= min_data_n
+
+        # Find the n-th maximum
+        sorted_data = copy.deepcopy(data)
+        sorted_data.sort(self.axis)
+        max_data_n = sorted_data[-n]
+        
+        # Normalize data
+        data = data / (max_data_n + 1e-12)  # Adding epsilon to avoid division by zero
+        
+        return data
