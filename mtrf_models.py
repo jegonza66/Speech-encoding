@@ -113,7 +113,6 @@ class TorchMtrf:
                     pred_indexes=self.test_indexes
                     )
         del stims
-        
         n_samples, n_featuresbyn_delays = len(self.relevant_indexes), X_train.shape[1]
         n_features = n_featuresbyn_delays // len(config.delays)
 
@@ -126,72 +125,90 @@ class TorchMtrf:
         except:
             X_train = X_train.cpu()
             X_pred =  X_pred.cpu()
+            
             y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to('cpu')
             del eeg            
             y_train = y_temp[self.train_indexes]
             y_test = y_temp[self.test_indexes]
-
-        # X_train = design_matrix[self.train_indexes]
-        # X_pred = design_matrix[self.test_indexes]
-        # del design_matrix
-        # y_train = y_temp[self.train_indexes]
-        # y_test = y_temp[self.test_indexes]
-        # del y_temp
         
-        # # Construct design matrix and transform for GPU computation
-        # design_matrix = shifted_matrix_2(
-        #             stims, 
-        #             delays=config.delays, 
-        #             use_gpu=self.use_gpu
-        #             )
-        # n_samples, n_featuresbyn_delays = design_matrix.shape
-        # n_features = n_featuresbyn_delays // len(config.delays)
-
-        # # Get relevant indexes and transform to GPU
-        # X_temp = design_matrix[self.relevant_indexes]
-        # del design_matrix
-        # X_temp = torch.tensor(X_temp).to(self.device)
-        # y_temp = torch.tensor(eeg[self.relevant_indexes]).to(self.device)
-        # del stims, eeg
-        
-        # # Separate into training and testing
-
-        # X_train = X_temp[self.train_indexes]
-        # y_train = y_temp[self.train_indexes]
-        # X_pred = X_temp[self.test_indexes]
-        # y_test = y_temp[self.test_indexes]
-        # del X_temp, y_temp
-        
-        if not self.validation:
+        if self.validation:
+            del X_pred
+            
+            # Make split for validation: validation sets, fixing the train percent of data
+            train_percent = .8
+            self.train_cutoff = int(train_percent * len(self.train_indexes))
+            try:
+                X_train_for_val = X_train[:self.train_cutoff]
+                X_val = X_train[self.train_cutoff:]
+                del X_train
+                y_train_for_val = y_train[:self.train_cutoff]
+                y_val = y_train[self.train_cutoff:]
+                del y_train
+            except:
+                X_train = X_train.cpu()
+                y_train = y_train.cpu()
+                
+                X_train_for_val = X_train[:self.train_cutoff]
+                X_val = X_train[self.train_cutoff:]
+                del X_train
+                y_train_for_val = y_train[:self.train_cutoff]
+                y_val = y_train[self.train_cutoff:]
+                del y_train
+                        
+            # Standarize and normalize 
+            X_train_for_val, y_train_for_val, X_pred, self.y_val = self.standarize_normalize(
+                                                                X_train=X_train_for_val, 
+                                                                X_pred=X_val, 
+                                                                y_train=y_train_for_val, 
+                                                                y_test=y_val
+                                                                )
+            del y_val
+            
+            # Fit the Ridge model
+            XTX_reg = X_train_for_val.T @ X_train_for_val + torch.tensor(self.alpha, dtype=torch.float32) *  torch.eye(X_train_for_val.shape[1], device=self.device) # X^T * X + alpha*I
+            mtrfs = torch.linalg.solve(XTX_reg, X_train_for_val.T @ y_train_for_val)
+            del X_train_for_val, y_train_for_val
+            
+            # Perform predictions
+            self.y_predicted = X_pred @ mtrfs
+            del X_pred
+            
+            # Store mtrfs
+            self.coefs = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1).cpu().numpy()
+             
+        else:
             if self.shuffle:
-                indices = np.arange(X_train.shape[0])
                 iterations = np.arange(config.random_permutations)
-                self.coefs = np.zeros((config.random_permutations, config.info_mne['nchan'], n_features, len(config.delays)), dtype=np.float16)
+                indices = np.arange(X_train.shape[0])
+                
+                self.coefs = np.zeros((config.random_permutations, config.info_mne['nchan'], n_features, len(config.delays)), dtype=np.float32)
                 self.correlations = np.zeros((config.random_permutations, config.info_mne['nchan']))
                 self.root_mean_square_error = np.zeros((config.random_permutations, config.info_mne['nchan']))
                 
                 # Shuffle the data, by requierment of random permutations
                 for s in tqdm(iterations, desc='Performing permutations', bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
                     indices_p = indices.copy()
-                    X_train_p = X_train.clone()
-                    X_pred_p = X_pred.clone()
-                    y_test_p = y_test.clone()
-                    y_train_p = y_train.clone()
-                    
                     np.random.shuffle(indices_p)
-                    X_train_p = X_train_p[indices_p]
                     
                     # TODO after first iteration its not neccesary to compute self.y_val
-                    X_train_p, y_train_p, X_pred_p, y_test_p = self.standarize_normalize(
-                                                X_train=X_train_p, 
-                                                X_pred=X_pred_p, 
-                                                y_train=y_train_p, 
-                                                y_test=y_test_p
-                                                )
-                    
+                    first_iteration_shuffle = True if s == 0 else False
+                    if first_iteration_shuffle:
+                        X_train_p, y_train_p, X_pred_p, y_test_p = self.standarize_normalize(
+                            X_train=X_train.clone()[indices_p], 
+                            X_pred=X_pred.clone(), 
+                            y_train=y_train.clone(), 
+                            y_test=y_test.clone()
+                            )
+                    else:
+                        X_train_p, X_pred_p = self.standarize_normalize(
+                            X_train=X_train.clone()[indices_p], 
+                            X_pred=X_pred.clone(), 
+                            )
+                   
                     # Fit the Ridge model (X^T X + alpha * I) * mtrfs = X^T * y_train_p 
                     XTX_reg = X_train_p.T @ X_train_p + self.alpha.astype(np.float32) *  torch.eye(X_train_p.shape[1], device=self.device) # X^T * X + alpha*I
                     mtrfs = torch.linalg.solve(XTX_reg, X_train_p.T @ y_train_p)
+                    del X_train_p
                     
                     # Perform predictions
                     y_predicted = X_pred_p @ mtrfs
@@ -209,7 +226,7 @@ class TorchMtrf:
                     self.correlations[s] = correlation_matrix
                     self.root_mean_square_error[s] = root_mean_square_error
                     self.coefs[s] = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1).cpu().numpy()
-                del X_train, y_train, X_pred, X_train_p, y_train_p, X_pred_p, y_test_p                    
+                del X_train, y_train, X_pred, y_train_p, y_test_p                    
             else:
                 # Standarize and normalize
                 X_train, y_train, X_pred, self.y_test = self.standarize_normalize(
@@ -223,44 +240,15 @@ class TorchMtrf:
                 # Fit the Ridge model
                 XTX_reg = X_train.T @ X_train + torch.tensor(self.alpha, dtype=torch.float32) *  torch.eye(X_train.shape[1], device=self.device) # X^T * X + alpha*I
                 mtrfs = torch.linalg.solve(XTX_reg, X_train.T @ y_train)
-                
+                del X_train, y_train
+               
                 # Perform predictions
                 self.y_predicted = X_pred @ mtrfs
                 del X_pred
                 
                 # Store mtrfs
                 self.coefs = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1).cpu().numpy()
-                del X_train, y_train 
-        else:
-            # Make split for validation: validation sets, fixing the train percent of data
-            train_percent = .8
-            self.train_cutoff = int(train_percent * len(self.train_indexes))
-            X_train_for_val = X_train[:self.train_cutoff]
-            y_train_for_val = y_train[:self.train_cutoff]
-            X_val = X_train[self.train_cutoff:]
-            y_val = y_train[self.train_cutoff:]
-            del X_train, y_train
-                        
-            # Standarize and normalize 
-            X_train_for_val, y_train_for_val, X_pred, self.y_val = self.standarize_normalize(
-                                                                X_train=X_train_for_val, 
-                                                                X_pred=X_val, 
-                                                                y_train=y_train_for_val, 
-                                                                y_test=y_val
-                                                                )
-            del y_val
             
-            # Fit the Ridge model
-            XTX_reg = X_train_for_val.T @ X_train_for_val + torch.tensor(self.alpha, dtype=torch.float32) *  torch.eye(X_train_for_val.shape[1], device=self.device) # X^T * X + alpha*I
-            mtrfs = torch.linalg.solve(XTX_reg, X_train_for_val.T @ y_train_for_val)
-            
-            # Perform predictions
-            self.y_predicted = X_pred @ mtrfs
-            del X_pred
-            
-            # Store mtrfs
-            self.coefs = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1).cpu().numpy()
-            del X_train_for_val, y_train_for_val
     def predict(
         self
         )->tuple:
@@ -293,8 +281,8 @@ class TorchMtrf:
         self, 
         X_train:np.ndarray, 
         X_pred:np.ndarray, 
-        y_train:np.ndarray, 
-        y_test:np.ndarray
+        y_train:np.ndarray=None, 
+        y_test:np.ndarray=None
         ):
         """
         Standarize|Normalize training and test data.
@@ -330,14 +318,16 @@ class TorchMtrf:
             for feat in range(X_train.shape[1]):
                 X_train[:, feat] = norm.fit_normalize_train(train_data=X_train[:, feat]) 
                 X_pred[:, feat] = norm.fit_normalize_test(test_data=X_pred[:, feat])
-        if self.eeg_preprocess=='Standarize':
-            y_train=estandar.fit_standarize_train(train_data=y_train)
-            y_test=estandar.fit_standarize_test(test_data=y_test)
-        if self.eeg_preprocess=='Normalize':
-            y_train=norm.fit_normalize_percent(data=y_train)
-            y_test=norm.fit_normalize_test(test_data=y_test)
-        return X_train, y_train, X_pred, y_test
-        
+        if y_train is None or y_test is None:                
+            return X_train, X_pred
+        else:
+            if self.eeg_preprocess=='Standarize':
+                y_train=estandar.fit_standarize_train(train_data=y_train)
+                y_test=estandar.fit_standarize_test(test_data=y_test)
+            if self.eeg_preprocess=='Normalize':
+                y_train=norm.fit_normalize_percent(data=y_train)
+                y_test=norm.fit_normalize_test(test_data=y_test)
+            return X_train, y_train, X_pred, y_test
 
 class ReceptiveFieldAdaptation:
     def __init__(

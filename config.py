@@ -15,32 +15,33 @@ sessions = [
             ]
 stimuli = [
         # 'Mistakes-Separated_Control-Separated',
-        # Redundant features
-        'Spectrogram_Mfccs',
-        'Phones-Phonet_Phonemes-Phonet',
 
-        # Combined 1st level features
-        'Envelope_Pitch-Log-Raw',
-        'Envelope_Spectrogram',
-        'Pitch-Log-Raw_Spectrogram',
-        'Envelope_Pitch-Log-Raw_Spectrogram',
+        # # Redundant features
+        # 'Spectrogram_Mfccs',
+        # 'Phones-Phonet_Phonemes-Phonet',
+
+        # # Combined 1st level features
+        # 'Envelope_Pitch-Log-Raw',
+        # 'Envelope_Spectrogram',
+        # 'Pitch-Log-Raw_Spectrogram',
+        # 'Envelope_Pitch-Log-Raw_Spectrogram',
         
-        # Combined best performance features
-        'Phonological_Spectrogram', 
-        'Phonemes-Phonet_Spectrogram',
-        'Phonological_Phonemes-Phonet',
-        'Phonological_Phonemes-Phonet_Spectrogram',
+        # # Combined best performance features
+        # 'Phonological_Spectrogram', 
+        # 'Phonemes-Phonet_Spectrogram',
+        # 'Phonological_Phonemes-Phonet',
+        # 'Phonological_Phonemes-Phonet_Spectrogram',
         
-        # Simples
+        # # Simples
         'Envelope',
-        'Pitch-Log-Raw',
-        'Spectrogram',
-        'Mfccs',
-        'Phonological',
-        'Phonemes-Phonet', 
-        'Phones-Phonet', 
-        'Phonemes-Discrete-Phonet',
-        'Phones-Discrete-Phonet',
+        # 'Pitch-Log-Raw',
+        # 'Spectrogram',
+        # 'Mfccs',
+        # 'Phonological',
+        # 'Phonemes-Phonet', 
+        # 'Phones-Phonet', 
+        # 'Phonemes-Discrete-Phonet',
+        # 'Phones-Discrete-Phonet',
         # 'Wav2vec2'
         ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situations = [
@@ -60,12 +61,12 @@ situations = [
         # 'External_Silence_100',
         ] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
 bands = [
-        'Delta', 
+        # 'Delta', 
         'Theta', 
-        'Alpha', 
-        'Beta1', 
-        'Beta2',
-        'All'
+        # 'Alpha', 
+        # 'Beta1', 
+        # 'Beta2',
+        # 'All'
         ] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
 
 # ==========================================

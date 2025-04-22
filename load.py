@@ -1379,7 +1379,7 @@ class Trial_channel:
 class Session_class: 
     def __init__(
         self, 
-        sesion:int=21, 
+        session:int=21, 
         stim:str='Envelope', 
         band:str='All', 
         sr:float=128, 
@@ -1397,7 +1397,7 @@ class Session_class:
         
         Parameters
         ----------
-        sesion : int
+        session : int
             Session number, by default 21
         stim : str
             Stimuli to use in the analysis, by default 'Envelope'. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
@@ -1473,7 +1473,7 @@ class Session_class:
             raise SyntaxError(f"{situation} is not an allowed situation. Allowed situations are: {allowed_situations}")
         
         # Define parameters
-        self.sesion = sesion
+        self.session = session
         self.l_freq_eeg, self.h_freq_eeg = processing.band_freq(band)
         self.sr = sr
         self.delays = delays
@@ -1485,8 +1485,8 @@ class Session_class:
         self.praat_executable_path = praat_executable_path
         self.preprocessed_data_path = preprocessed_data_path
         self.samples_info_path = os.path.join(self.preprocessed_data_path, f'samples_info/')
-        self.phn_path = f"Datos/phonemes/S{self.sesion}/"
-        self.phrases_path = f"Datos/phrases/S{self.sesion}/"
+        self.phn_path = f"Datos/phonemes/S{self.session}/"
+        self.phrases_path = f"Datos/phrases/S{self.session}/"
 
         # Define paths to export data
         self.export_paths = {}
@@ -1555,7 +1555,7 @@ class Session_class:
 
         # Try to open preprocessed info of samples, if not crates raw. This dictionary contains data of trial lengths and indexes to keep up to given trial
         try:
-            self.samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.sesion}.pkl'))
+            self.samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'))
             loaded_samples_info = True
         except:
             loaded_samples_info = False
@@ -1575,7 +1575,7 @@ class Session_class:
             # Create trial for both channels in order to extract features and EEG signal
             try:
                 channel_1 = Trial_channel(
-                        s=self.sesion, 
+                        s=self.session, 
                         trial=trial, 
                         channel=1,
                         band=self.band, 
@@ -1587,7 +1587,7 @@ class Session_class:
                         situation=self.situation,
                         )
                 channel_2 = Trial_channel(
-                        s=self.sesion,
+                        s=self.session,
                         trial=trial,
                         channel=2,
                         band=self.band,
@@ -1647,7 +1647,7 @@ class Session_class:
 
             # Empty trial
             except:
-                print(f"Trial {trial} of session {self.sesion} couldn't be loaded.")
+                print(f"Trial {trial} of session {self.session} couldn't be loaded.")
                 self.samples_info['trial_lengths1'][p] = 0
                 self.samples_info['trial_lengths2'][p] = 0
 
@@ -1656,7 +1656,7 @@ class Session_class:
 
         # Saves modified relevant indexes 
         os.makedirs(self.samples_info_path, exist_ok=True)
-        funciones.dump_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.sesion}.pkl'), obj=self.samples_info, rewrite=True)
+        funciones.dump_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'), obj=self.samples_info, rewrite=True)
 
         # Save results
         for key in subject_1:
@@ -1668,7 +1668,7 @@ class Session_class:
 
             # Save preprocesed data
             os.makedirs(self.export_paths[key], exist_ok=True)
-            funciones.dump_pickle(path=os.path.join(self.export_paths[key], f'Sesion{self.sesion}.pkl'), obj=[subject_1[key], subject_2[key]], rewrite=True)
+            funciones.dump_pickle(path=os.path.join(self.export_paths[key], f'Sesion{self.session}.pkl'), obj=[subject_1[key], subject_2[key]], rewrite=True)
 
         # Saves info of the setup                    
         funciones.dump_pickle(path=os.path.join(self.preprocessed_data_path, 'EEG/info.pkl'), obj=info, rewrite=True)
@@ -1693,15 +1693,15 @@ class Session_class:
             Sessions of both subjects.
         """
         # Load EEGs and procesed data
-        eeg_subject_1, eeg_subject_2 = funciones.load_pickle(path=os.path.join(self.export_paths['EEG'], f'Sesion{self.sesion}.pkl'))
+        eeg_subject_1, eeg_subject_2 = funciones.load_pickle(path=os.path.join(self.export_paths['EEG'], f'Sesion{self.session}.pkl'))
         info = funciones.load_pickle(path=os.path.join(self.preprocessed_data_path, f'EEG/info.pkl'))
-        samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.sesion}.pkl'))
+        samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'))
         subject_1 = {'EEG': eeg_subject_1, 'info': info}
         subject_2 = {'EEG': eeg_subject_2, 'info': info}
         
         # Loads stimuli to each subject
         for stimulus in self.stim.split('_'):
-            subject_1[stimulus], subject_2[stimulus] = funciones.load_pickle(path=os.path.join(self.export_paths[stimulus], f'Sesion{self.sesion}.pkl'))
+            subject_1[stimulus], subject_2[stimulus] = funciones.load_pickle(path=os.path.join(self.export_paths[stimulus], f'Sesion{self.session}.pkl'))
         return {'Subject_1': subject_1, 'Subject_2': subject_2}, samples_info
     
     def labeling(
@@ -1726,7 +1726,7 @@ class Session_class:
         """
         
         # Read phrases into pandas.DataFrame
-        ubi_speaker = os.path.join(self.phrases_path, f's{self.sesion}.objects.{trial:02d}.channel{channel}.phrases')
+        ubi_speaker = os.path.join(self.phrases_path, f's{self.session}.objects.{trial:02d}.channel{channel}.phrases')
         
         h1t = pd.read_table(ubi_speaker, header=None, sep="\t")
 
@@ -1739,7 +1739,7 @@ class Session_class:
         
         # Same with listener
         listener_channel = (channel - 3) * -1
-        ubi_listener = os.path.join(self.phrases_path, f's{self.sesion}.objects.{trial:02d}.channel{listener_channel}.phrases')
+        ubi_listener = os.path.join(self.phrases_path, f's{self.session}.objects.{trial:02d}.channel{listener_channel}.phrases')
         h2t = pd.read_table(ubi_listener, header=None, sep="\t")
 
         # Replace and '#' by ''. And then all text by 1 and silences by 0
@@ -1897,7 +1897,7 @@ class Session_class:
         return dic, speaker_labels, minimum
     
 def load_data(
-    sesion:int, 
+    session:int, 
     stim:str, 
     band:str,
     sr:float,
@@ -1914,7 +1914,7 @@ def load_data(
 
     Parameters
     ----------
-    sesion : int
+    session : int
         Session number.
     stim : str
         Stimuli to use in the analysis. If more than one stimulus is wanted, the separator should be '_'.
@@ -1990,7 +1990,7 @@ def load_data(
                 # Re-order stim and band to create just one file for each case: 'Phonemes_Envelope' --> 'Envelope_Phonemes'
                 ordered_stims = sorted(stim.split('_'))
                 ordered_band = sorted(band.split('_'))
-                sesion_obj = Session_class(sesion=sesion, 
+                session_obj = Session_class(session=session, 
                                         stim='_'.join(ordered_stims), 
                                         band='_'.join(ordered_band), 
                                         sr=sr,
@@ -2005,11 +2005,11 @@ def load_data(
                 # Try to load procesed data, if it fails it loads raw data
                 try:
                     print('Loading preprocesed data\n')
-                    Session, samples_info = sesion_obj.load_procesed()
+                    Session, samples_info = session_obj.load_procesed()
                     print('Data loaded succesfully\n')
                 except:
                     print("Couldn't load data, compute it from raw\n")
-                    Session, samples_info = sesion_obj.load_from_raw()
+                    Session, samples_info = session_obj.load_from_raw()
                 return Session['Subject_1'], Session['Subject_2'], samples_info
             else:
                 raise SyntaxError(f"{situation} is not an allowed situation. Allowed ones are: {allowed_situations}")
