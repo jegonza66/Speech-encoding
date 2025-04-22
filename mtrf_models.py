@@ -103,29 +103,40 @@ class TorchMtrf:
             If the input data shapes are not compatible with the model.
         """
         # Construct design matrix and transform for GPU computation
-        design_matrix = shifted_matrix(
-                    stims, 
+        X_train, X_pred = shifted_matrix(
+                    features=stims, 
                     delays=config.delays, 
                     use_gpu=self.use_gpu,
                     indices_to_keep=self.relevant_indexes,
-                    output_torch=True
+                    output_torch=True,
+                    train_indexes=self.train_indexes,
+                    pred_indexes=self.test_indexes
                     )
+        del stims
         
-        n_samples, n_featuresbyn_delays = design_matrix.size()
+        n_samples, n_featuresbyn_delays = len(self.relevant_indexes), X_train.shape[1]
         n_features = n_featuresbyn_delays // len(config.delays)
 
-        # Get relevant indexes and transform to GPU
-        # design_matrix = torch.tensor(design_matrix).to(self.device)
-        y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to(self.device)
-        del stims, eeg
-        
-        # Separate into training and testing
+        # Get relevant indexes and transform to device, if available. If not, transform to CPU
+        try:
+            y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to(self.device)
+            del eeg
+            y_train = y_temp[self.train_indexes]
+            y_test = y_temp[self.test_indexes]
+        except:
+            X_train = X_train.cpu()
+            X_pred =  X_pred.cpu()
+            y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to('cpu')
+            del eeg            
+            y_train = y_temp[self.train_indexes]
+            y_test = y_temp[self.test_indexes]
 
-        X_train = design_matrix[self.train_indexes]
-        y_train = y_temp[self.train_indexes]
-        X_pred = design_matrix[self.test_indexes]
-        y_test = y_temp[self.test_indexes]
-        del design_matrix, y_temp
+        # X_train = design_matrix[self.train_indexes]
+        # X_pred = design_matrix[self.test_indexes]
+        # del design_matrix
+        # y_train = y_temp[self.train_indexes]
+        # y_test = y_temp[self.test_indexes]
+        # del y_temp
         
         # # Construct design matrix and transform for GPU computation
         # design_matrix = shifted_matrix_2(

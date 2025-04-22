@@ -12,7 +12,7 @@ from load import load_data
 import config, plot
 
 # Load data by subject, EEG and info
-situation, sesion, stim, band = 'External', 21, 'Phones-Discrete-Phonet', 'Theta'
+situation, sesion, stim, band = 'External', 21, 'Phones-Phonet_Phonemes-Phonet', 'Theta'
 preprocessed_data_path = f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
 
 sujeto_1, sujeto_2, samples_info = load_data(
@@ -34,7 +34,7 @@ n_feats = [sujeto_1[stimulus].shape[1] for stimulus in stim.split('_')]
 delayed_length_per_stimuli = [n_feat*len(config.delays) for n_feat in n_feats]
 
 relevant_indexes = samples_info['keep_indexes1'].copy()
-from processing import shifted_matrix, shifted_matrix_2
+from processing import shifted_matrix#, shifted_matrix_2
 
 times_shifted = []
 times_shifted_base = []

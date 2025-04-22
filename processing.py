@@ -250,7 +250,9 @@ def shifted_matrix(
     delays: Sequence[int],
     use_gpu: bool = True,
     indices_to_keep: Optional[Sequence[int]] = None,
-    output_torch:bool = False
+    output_torch: bool = False,
+    train_indexes: np.ndarray = None,
+    pred_indexes: np.ndarray = None,
     ) -> np.ndarray:
     """
     Build a time-shifted design matrix for given features and delays.
@@ -270,8 +272,13 @@ def shifted_matrix(
     indices_to_keep : Sequence[int], optional
         Specific time indices at which to compute rows of the shifted matrix.
         If None, computes all rows.
-    output_torch : bool, default False
-        If True, returns a PyTorch tensor instead of a NumPy array.
+    output_torch : bool or float, default False
+        If True, returns a PyTorch tensor instead of a NumPy array. 
+        If False, returns a NumPy array.
+    train_indexes : np.ndarray, optional
+        Indices of training samples. If provided, only these indices are used for computation.
+    pred_indexes : np.ndarray, optional
+        Indices of prediction samples. If provided, only these indices are used for computation.
 
     Returns
     -------
@@ -296,10 +303,16 @@ def shifted_matrix(
             # Reshape: (n_rows, n_delays, n_features) -> (n_rows, n_features * n_delays)
             n_rows, n_delays, n_feat = shifted.shape
             mat = shifted.permute(0, 2, 1).reshape(n_rows, n_feat * n_delays)
-            if output_torch:
-                return mat
-            else: 
-                return mat.cpu().numpy()
+            if train_indexes is not None and pred_indexes is not None:
+                if output_torch:
+                    return mat[train_indexes, :], mat[pred_indexes, :]
+                else: 
+                    return mat[train_indexes, :].cpu().numpy(), mat[pred_indexes, :].cpu().numpy()
+            else:
+                if output_torch:
+                    return mat
+                else: 
+                    return mat.cpu().numpy()
 
         except RuntimeError as e:
             if dev.type == "cuda":
