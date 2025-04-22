@@ -43,15 +43,15 @@ for situation in config.situations:
             try:
                 alphas = load_pickle(path=alphas_path)
             except:
-                alphas = {s: {} for s in config.sesiones} 
+                alphas = {s: {} for s in config.sessions} 
         
             # Iterate over sessions
-            for sesion in config.sesiones:
-                print(f'\n\n------->\tStart of session {sesion}\n')
+            for session in config.sessions:
+                print(f'\n\n------->\tStart of session {session}\n')
 
                 # Load data by subject, EEG and info
-                sujeto_1, sujeto_2, samples_info = load_data(
-                                                sesion=sesion,
+                subject_1, subject_2, samples_info = load_data(
+                                                session=session,
                                                 stim=stim,
                                                 band=band,
                                                 sr=config.sr,
@@ -60,16 +60,16 @@ for situation in config.situations:
                                                 praat_executable_path=config.praat_executable_path,
                                                 situation=situation
                                                 )
-                eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
+                eeg_subject_1, eeg_subject_2, info = subject_1['EEG'], subject_2['EEG'], subject_1['info']
                 
                 if config.just_load_data:
                     continue
 
                 # Load stimuli by subject (i.e: concatenated stimuli features)
-                stims_sujeto_1 = np.hstack([sujeto_1[stimulus] for stimulus in stim.split('_')]) 
-                stims_sujeto_2 = np.hstack([sujeto_2[stimulus] for stimulus in stim.split('_')])
+                stims_subject_1 = np.hstack([subject_1[stimulus] for stimulus in stim.split('_')]) 
+                stims_subject_2 = np.hstack([subject_2[stimulus] for stimulus in stim.split('_')])
 
-                n_feats = [sujeto_1[stimulus].shape[1] for stimulus in stim.split('_')]
+                n_feats = [subject_1[stimulus].shape[1] for stimulus in stim.split('_')]
                 delayed_length_per_stimuli = [n_feat*len(config.delays) for n_feat in n_feats]
 
                 # Get relevant indexes
@@ -77,7 +77,7 @@ for situation in config.situations:
                 relevant_indexes_2 = samples_info['keep_indexes2'].copy()
 
                 # Run model for each subject
-                for subject, eeg, stims, relevant_indexes in zip((1, 2), (eeg_sujeto_1, eeg_sujeto_2), (stims_sujeto_1, stims_sujeto_2), (relevant_indexes_1, relevant_indexes_2)):
+                for subject, eeg, stims, relevant_indexes in zip((1, 2), (eeg_subject_1, eeg_subject_2), (stims_subject_1, stims_subject_2), (relevant_indexes_1, relevant_indexes_2)):
                     print(f'\n\n\t······  Running model for Subject {subject}\n')
 
                     # Take some metrics for each alpha
@@ -135,7 +135,8 @@ for situation in config.situations:
                                             correlations_std=correlations_std, 
                                             alpha_subject=alpha_subject,
                                             correlation_limit_percentage=config.val_correlation_limit_percentage, 
-                                            session=sesion, subject=subject, 
+                                            session=session, 
+                                            subject=subject, 
                                             stim=stim, 
                                             band=band, 
                                             save_path=figures_path, 
@@ -144,7 +145,7 @@ for situation in config.situations:
                                             )
 
                     # Update dictionary
-                    alphas[sesion][subject] = alpha_subject
+                    alphas[session][subject] = alpha_subject
 
                     # Save results
                     os.makedirs(name=path_validation, exist_ok=True)
@@ -152,7 +153,7 @@ for situation in config.situations:
                         dump_pickle(path=alphas_path, obj=alphas, rewrite=True)
                     
                 # Print the progress of the iteration
-                iteration_percentage(txt=f'\n------->\tEnd of session {sesion}\n', i=config.sesiones.index(sesion), length_of_iterator=len(config.sesiones))
+                iteration_percentage(txt=f'\n------->\tEnd of session {session}\n', i=config.sessions.index(session), length_of_iterator=len(config.sessions))
 
     # Get run time            
     run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)

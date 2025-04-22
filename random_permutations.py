@@ -40,12 +40,12 @@ for situation in config.situations:
                 alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
                             
             # Iterate over sessions
-            for sesion in config.sesiones:
-                print(f'\n------->\tStart of session {sesion}\n')
+            for session in config.sessions:
+                print(f'\n------->\tStart of session {session}\n')
                 
                 # Load data by subject, EEG and info
-                sujeto_1, sujeto_2, samples_info = load_data(
-                                                sesion=sesion,
+                subject_1, subject_2, samples_info = load_data(
+                                                session=session,
                                                 stim=stim,
                                                 band=band,
                                                 sr=config.sr,
@@ -54,15 +54,15 @@ for situation in config.situations:
                                                 praat_executable_path=config.praat_executable_path,
                                                 situation=situation
                                                 )
-                eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
+                eeg_subject_1, eeg_subject_2, info = subject_1['EEG'], subject_2['EEG'], subject_1['info']
 
                 if config.just_load_data:
                     continue
 
                 # Load stimuli by subject (i.e: concatenated stimuli features)
-                stims_sujeto_1 = np.hstack([sujeto_1[stimulus] for stimulus in stim.split('_')]) 
-                stims_sujeto_2 = np.hstack([sujeto_2[stimulus] for stimulus in stim.split('_')])
-                n_feats = [sujeto_1[stimulus].shape[1] for stimulus in stim.split('_')]
+                stims_subject_1 = np.hstack([subject_1[stimulus] for stimulus in stim.split('_')]) 
+                stims_subject_2 = np.hstack([subject_2[stimulus] for stimulus in stim.split('_')])
+                n_feats = [subject_1[stimulus].shape[1] for stimulus in stim.split('_')]
                 delayed_length_per_stimuli = [n_feat*len(config.delays) for n_feat in n_feats]
 
                 # Get relevant indexes
@@ -75,15 +75,15 @@ for situation in config.situations:
                 null_errors_per_fold = np.zeros((config.n_folds, config.random_permutations, info['nchan']))
 
                 # Run model for each subject
-                for sujeto, eeg, stims, relevant_indexes in zip((1, 2), (eeg_sujeto_1, eeg_sujeto_2), (stims_sujeto_1, stims_sujeto_2), (relevant_indexes_1, relevant_indexes_2)):
-                # for sujeto, eeg, stims, relevant_indexes in zip([2], [eeg_sujeto_2], [stims_sujeto_2], [relevant_indexes_2]):
-                    print(f'\n\t······  Running permutations for Subject {sujeto}\n')
+                for subject, eeg, stims, relevant_indexes in zip((1, 2), (eeg_subject_1, eeg_subject_2), (stims_subject_1, stims_subject_2), (relevant_indexes_1, relevant_indexes_2)):
+                # for subject, eeg, stims, relevant_indexes in zip([2], [eeg_subject_2], [stims_subject_2], [relevant_indexes_2]):
+                    print(f'\n\t······  Running permutations for Subject {subject}\n')
                     
                     # Set alpha for specific subject
                     if config.set_alpha is None:
                         try:
                             alphas = load_pickle(path=alphas_path)
-                            alpha = alphas[sesion][sujeto]
+                            alpha = alphas[session][subject]
                         except:
                             alpha = config.default_alpha
                     else:
@@ -114,7 +114,7 @@ for situation in config.situations:
                     # Save permutations
                     os.makedirs(path_null, exist_ok=True)
                     dump_pickle(
-                                path=path_null+ f'null_metrics_ses_{sesion}_sub_{sujeto}_{config.random_permutations}.pkl',
+                                path=path_null+ f'null_metrics_ses_{session}_sub_{subject}_{config.random_permutations}.pkl',
                                 obj={
                                     'null_correlation_per_channel_per_fold':null_correlation_per_channel_per_fold, 
                                     'null_errors_per_fold':null_errors_per_fold
@@ -122,15 +122,15 @@ for situation in config.situations:
                                 rewrite=True
                                 )
                     dump_pickle(
-                                path=path_null+ f'null_weights_ses_{sesion}_sub_{sujeto}_{config.random_permutations}.pkl',
+                                path=path_null+ f'null_weights_ses_{session}_sub_{subject}_{config.random_permutations}.pkl',
                                 obj=null_weights_per_fold.mean(axis=0),
                                 rewrite=True
                                 )
-                    print(f'\n\t······  Run permutations for Subject {sujeto}\n')
+                    print(f'\n\t······  Run permutations for Subject {subject}\n')
 
     # Get run time
     run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
-    text = f'\n\n\t\t\tPARAMETERS  \n\n\tModel: ' + config.model +f'\n\tBands: {config.bands}'+'\n\tStimuli: ' + f'{config.stimuli}'+'\n\tCondition: ' +situation+f'\n\tTime interval: ({config.tmin},{config.tmax})s'+f'\n\tSessions: {config.sesiones}'
+    text = f'\n\n\t\t\tPARAMETERS  \n\n\tModel: ' + config.model +f'\n\tBands: {config.bands}'+'\n\tStimuli: ' + f'{config.stimuli}'+'\n\tCondition: ' +situation+f'\n\tTime interval: ({config.tmin},{config.tmax})s'+f'\n\tSessions: {config.sessions}'
     if config.just_load_data:
         text += '\n\n\t\t\tJUST LOADING DATA'
     text += '\n\n\t\trandom_permutations.py'

@@ -1376,7 +1376,7 @@ class Trial_channel:
                 channel[stim] = self.f_phones_phonet(envelope=channel['Envelope'], kind=stim)
         return channel
 
-class Sesion_class: 
+class Session_class: 
     def __init__(
         self, 
         sesion:int=21, 
@@ -1546,8 +1546,8 @@ class Sesion_class:
         """
         
         # Subjects dictionaries, stores their data
-        sujeto_1 = {}
-        sujeto_2 = {}
+        subject_1 = {}
+        subject_2 = {}
 
         # Retrive number of files, i.e: trials. This is done this way because there are missing phonemes values
         trials = [int(fname.split('.')[2]) for fname in os.listdir(self.phn_path) if fname.endswith('TextGrid')]
@@ -1570,7 +1570,7 @@ class Sesion_class:
         for p, trial in enumerate(trials):
 
             # Update on number of trials
-            Sesion_class.print_trials(p, trial, trials)
+            Session_class.print_trials(p, trial, trials)
 
             # Create trial for both channels in order to extract features and EEG signal
             try:
@@ -1605,22 +1605,22 @@ class Sesion_class:
     
                 # Load data to dictionary taking own stimuli and eeg signal. I.e: each subject predicts its own EEG with its own stimuli
                 if self.situation.startswith('Internal'):
-                    trial_sujeto_1 = {key: trial_channel_1[key] for key in trial_channel_1.keys()}
-                    trial_sujeto_2 = {key: trial_channel_2[key] for key in trial_channel_2.keys()}              
+                    trial_subject_1 = {key: trial_channel_1[key] for key in trial_channel_1.keys()}
+                    trial_subject_2 = {key: trial_channel_2[key] for key in trial_channel_2.keys()}              
                 
                 # Load data to dictionary taking own eeg signal and interlocutors stimuli. I.e: predicts own EEG using stimuli from interlocutor
                 else:
-                    trial_sujeto_1 = {key: trial_channel_2[key] for key in trial_channel_2.keys() if key!='EEG'} 
-                    trial_sujeto_2 = {key: trial_channel_1[key] for key in trial_channel_1.keys() if key!='EEG'}
-                    trial_sujeto_1['EEG'], trial_sujeto_2['EEG'] = trial_channel_1['EEG'], trial_channel_2['EEG']
+                    trial_subject_1 = {key: trial_channel_2[key] for key in trial_channel_2.keys() if key!='EEG'} 
+                    trial_subject_2 = {key: trial_channel_1[key] for key in trial_channel_1.keys() if key!='EEG'}
+                    trial_subject_1['EEG'], trial_subject_2['EEG'] = trial_channel_1['EEG'], trial_channel_2['EEG']
 
                 # Labeling of current speaker. {3:both_speaking,2:speaks_locutor,1:speaks_interlocutor,0:silence}. La diferencia entre _1 y _2 ese que se permutan los valores 1 y 2 (cambia la perspectiva de quién es locutor e interlocutor)
                 current_speaker_1 = self.labeling(trial=trial, channel=2) # len matching eeg
                 current_speaker_2 = self.labeling(trial=trial, channel=1)
 
                 # Match length of speaker labels and trials with the info of its lengths
-                trial_sujeto_1, current_speaker_1, minimum1 = self.match_lengths(dic=trial_sujeto_1, speaker_labels=current_speaker_1)
-                trial_sujeto_2, current_speaker_2, minimum2 = self.match_lengths(dic=trial_sujeto_2, speaker_labels=current_speaker_2)
+                trial_subject_1, current_speaker_1, minimum1 = self.match_lengths(dic=trial_subject_1, speaker_labels=current_speaker_1)
+                trial_subject_2, current_speaker_2, minimum2 = self.match_lengths(dic=trial_subject_2, speaker_labels=current_speaker_2)
 
                 # Define/Re-define samples_info trial length
                 if not loaded_samples_info:
@@ -1632,18 +1632,18 @@ class Sesion_class:
                     self.samples_info['keep_indexes2'] += (self.shifted_indexes_to_keep(speaker_labels=current_speaker_2) + np.sum(self.samples_info['trial_lengths2'][:-1])).tolist()
                 
                 # Concatenates data of each subject 
-                for key in trial_sujeto_1:
+                for key in trial_subject_1:
                     if key != 'info':
-                        if key not in sujeto_1:
-                            sujeto_1[key] = trial_sujeto_1[key]
+                        if key not in subject_1:
+                            subject_1[key] = trial_subject_1[key]
                         else:
-                            sujeto_1[key] = np.concatenate((sujeto_1[key], trial_sujeto_1[key]), axis=0)
-                for key in trial_sujeto_2:
+                            subject_1[key] = np.concatenate((subject_1[key], trial_subject_1[key]), axis=0)
+                for key in trial_subject_2:
                     if key != 'info':
-                        if key not in sujeto_2:
-                            sujeto_2[key] = trial_sujeto_2[key]
+                        if key not in subject_2:
+                            subject_2[key] = trial_subject_2[key]
                         else:
-                            sujeto_2[key] = np.concatenate((sujeto_2[key], trial_sujeto_2[key]), axis=0)
+                            subject_2[key] = np.concatenate((subject_2[key], trial_subject_2[key]), axis=0)
 
             # Empty trial
             except:
@@ -1659,27 +1659,27 @@ class Sesion_class:
         funciones.dump_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.sesion}.pkl'), obj=self.samples_info, rewrite=True)
 
         # Save results
-        for key in sujeto_1:
+        for key in subject_1:
             # # Drops silences phoneme column
             # if key.startswith('Phonemes'):
             #     # Remove silence column, the last one by construction
-            #     sujeto_1[key] = np.delete(arr=sujeto_1[key], obj=-1, axis=1)
-            #     sujeto_2[key] = np.delete(arr=sujeto_2[key], obj=-1, axis=1)
+            #     subject_1[key] = np.delete(arr=subject_1[key], obj=-1, axis=1)
+            #     subject_2[key] = np.delete(arr=subject_2[key], obj=-1, axis=1)
 
             # Save preprocesed data
             os.makedirs(self.export_paths[key], exist_ok=True)
-            funciones.dump_pickle(path=os.path.join(self.export_paths[key], f'Sesion{self.sesion}.pkl'), obj=[sujeto_1[key], sujeto_2[key]], rewrite=True)
+            funciones.dump_pickle(path=os.path.join(self.export_paths[key], f'Sesion{self.sesion}.pkl'), obj=[subject_1[key], subject_2[key]], rewrite=True)
 
         # Saves info of the setup                    
         funciones.dump_pickle(path=os.path.join(self.preprocessed_data_path, 'EEG/info.pkl'), obj=info, rewrite=True)
 
         # Redefine subjects dictionaries to return only used stimuli
-        sujeto_1_return = {key: sujeto_1[key] for key in self.stim.split('_') + ['EEG']}
-        sujeto_2_return = {key: sujeto_2[key] for key in self.stim.split('_') + ['EEG']}
-        sujeto_1_return['info'] = info
-        sujeto_2_return['info'] = info
+        subject_1_return = {key: subject_1[key] for key in self.stim.split('_') + ['EEG']}
+        subject_2_return = {key: subject_2[key] for key in self.stim.split('_') + ['EEG']}
+        subject_1_return['info'] = info
+        subject_2_return['info'] = info
 
-        return {'Sujeto_1': sujeto_1_return, 'Sujeto_2': sujeto_2_return}, self.samples_info
+        return {'Subject_1': subject_1_return, 'Subject_2': subject_2_return}, self.samples_info
     
     def load_procesed(
         self
@@ -1693,16 +1693,16 @@ class Sesion_class:
             Sessions of both subjects.
         """
         # Load EEGs and procesed data
-        eeg_sujeto_1, eeg_sujeto_2 = funciones.load_pickle(path=os.path.join(self.export_paths['EEG'], f'Sesion{self.sesion}.pkl'))
+        eeg_subject_1, eeg_subject_2 = funciones.load_pickle(path=os.path.join(self.export_paths['EEG'], f'Sesion{self.sesion}.pkl'))
         info = funciones.load_pickle(path=os.path.join(self.preprocessed_data_path, f'EEG/info.pkl'))
         samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.sesion}.pkl'))
-        sujeto_1 = {'EEG': eeg_sujeto_1, 'info': info}
-        sujeto_2 = {'EEG': eeg_sujeto_2, 'info': info}
+        subject_1 = {'EEG': eeg_subject_1, 'info': info}
+        subject_2 = {'EEG': eeg_subject_2, 'info': info}
         
         # Loads stimuli to each subject
         for stimulus in self.stim.split('_'):
-            sujeto_1[stimulus], sujeto_2[stimulus] = funciones.load_pickle(path=os.path.join(self.export_paths[stimulus], f'Sesion{self.sesion}.pkl'))
-        return {'Sujeto_1': sujeto_1, 'Sujeto_2': sujeto_2}, samples_info
+            subject_1[stimulus], subject_2[stimulus] = funciones.load_pickle(path=os.path.join(self.export_paths[stimulus], f'Sesion{self.sesion}.pkl'))
+        return {'Subject_1': subject_1, 'Subject_2': subject_2}, samples_info
     
     def labeling(
         self, 
@@ -1990,7 +1990,7 @@ def load_data(
                 # Re-order stim and band to create just one file for each case: 'Phonemes_Envelope' --> 'Envelope_Phonemes'
                 ordered_stims = sorted(stim.split('_'))
                 ordered_band = sorted(band.split('_'))
-                sesion_obj = Sesion_class(sesion=sesion, 
+                sesion_obj = Session_class(sesion=sesion, 
                                         stim='_'.join(ordered_stims), 
                                         band='_'.join(ordered_band), 
                                         sr=sr,
@@ -2005,12 +2005,12 @@ def load_data(
                 # Try to load procesed data, if it fails it loads raw data
                 try:
                     print('Loading preprocesed data\n')
-                    Sesion, samples_info = sesion_obj.load_procesed()
+                    Session, samples_info = sesion_obj.load_procesed()
                     print('Data loaded succesfully\n')
                 except:
                     print("Couldn't load data, compute it from raw\n")
-                    Sesion, samples_info = sesion_obj.load_from_raw()
-                return Sesion['Sujeto_1'], Sesion['Sujeto_2'], samples_info
+                    Session, samples_info = sesion_obj.load_from_raw()
+                return Session['Subject_1'], Session['Subject_2'], samples_info
             else:
                 raise SyntaxError(f"{situation} is not an allowed situation. Allowed ones are: {allowed_situations}")
         else:

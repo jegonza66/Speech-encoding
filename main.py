@@ -53,17 +53,17 @@ for situation in config.situations:
             pvalues_rmse_subjects = []
             repeated_good_correlation_channels_subjects = []
             repeated_good_rmse_channels_subjects = []
-            phonemes_occurrences = {sesion:{} for sesion in config.sesiones}
+            phonemes_occurrences = {sesion:{} for sesion in config.sessions}
 
             # Store total number of subjects (18) to save figures and results just in this case
             total_number_of_subjects = 0
 
             # Iterate over sessions
-            for sesion in config.sesiones:
+            for sesion in config.sessions:
                 print(f'\n------->\tStart of session {sesion}\n')
 
                 # Load data by subject, EEG and info
-                sujeto_1, sujeto_2, samples_info = load_data(
+                subject_1, subject_2, samples_info = load_data(
                                                 sesion=sesion,
                                                 stim=stim,
                                                 band=band,
@@ -73,24 +73,24 @@ for situation in config.situations:
                                                 praat_executable_path=config.praat_executable_path,
                                                 situation=situation
                                                 )
-                eeg_sujeto_1, eeg_sujeto_2, info = sujeto_1['EEG'], sujeto_2['EEG'], sujeto_1['info']
+                eeg_subject_1, eeg_subject_2, info = subject_1['EEG'], subject_2['EEG'], subject_1['info']
 
                 if config.just_load_data:
                     continue
 
                 # Load stimuli by subject (i.e: concatenated stimuli features)
-                stims_sujeto_1 = np.hstack([sujeto_1[stimulus] for stimulus in stim.split('_')])
-                stims_sujeto_2 = np.hstack([sujeto_2[stimulus] for stimulus in stim.split('_')])
-                n_feats = [sujeto_1[stimulus].shape[1] for stimulus in stim.split('_')]
+                stims_subject_1 = np.hstack([subject_1[stimulus] for stimulus in stim.split('_')])
+                stims_subject_2 = np.hstack([subject_2[stimulus] for stimulus in stim.split('_')])
+                n_feats = [subject_1[stimulus].shape[1] for stimulus in stim.split('_')]
                 delayed_length_per_stimuli = [n_feat*len(config.delays) for n_feat in n_feats]
 
                 # # Store phonemes ocurrences to make boxplot
                 # for stimulus in stim.split('_'):
                 #     if stimulus.startswith('Phonemes'):
                 #         # Change to 1's every value that isn't 0. In this way the method works for every kind
-                #         matrix_1 = sujeto_1[stimulus].copy()
+                #         matrix_1 = subject_1[stimulus].copy()
                 #         matrix_1[matrix_1!=0.] = 1
-                #         matrix_2 = sujeto_2[stimulus].copy()
+                #         matrix_2 = subject_2[stimulus].copy()
                 #         matrix_2[matrix_2!=0.] = 1
                 #         matrix = matrix_1 + matrix_2
 
@@ -111,8 +111,8 @@ for situation in config.situations:
                 relevant_indexes_2 = samples_info['keep_indexes2'].copy()
 
                 # Run model for each subject
-                for sujeto, eeg, stims, relevant_indexes in zip((1, 2), (eeg_sujeto_1, eeg_sujeto_2), (stims_sujeto_1, stims_sujeto_2), (relevant_indexes_1, relevant_indexes_2)):
-                    print(f'\n\t······  Running model for Subject {sujeto}\n')
+                for subject, eeg, stims, relevant_indexes in zip((1, 2), (eeg_subject_1, eeg_subject_2), (stims_subject_1, stims_subject_2), (relevant_indexes_1, relevant_indexes_2)):
+                    print(f'\n\t······  Running model for Subject {subject}\n')
                     
                     # Initialize empty variables to store relevant data of each fold
                     weights_per_fold = np.zeros((config.n_folds, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float32)
@@ -133,7 +133,7 @@ for situation in config.situations:
                     if config.set_alpha is None:
                         try:
                             alphas = load_pickle(path=alphas_path)
-                            alpha = alphas[sesion][sujeto]
+                            alpha = alphas[sesion][subject]
                         except:
                             alpha = config.default_alpha
                     else:
@@ -162,7 +162,7 @@ for situation in config.situations:
                                             statistical_test=config.statistical_test,
                                             path_null=path_null,
                                             session=sesion,
-                                            subject=sujeto,                              
+                                            subject=subject,                              
                                             )
                                         )
                     # Store model output
@@ -240,7 +240,7 @@ for situation in config.situations:
                         plot.null_correlation_vs_correlation_good_channels(
                             display_interactive_mode=config.display_interactive_mode, 
                             session=sesion, 
-                            subject=sujeto,
+                            subject=subject,
                             save_path=path_figures, 
                             good_channels_indexes=corr_good_channel_indexes, 
                             correlation_per_channel=correlation_per_channel,
@@ -252,8 +252,8 @@ for situation in config.situations:
                             )
 
                     # Avergae p-values across all folds
-                    topo_pval_corr_sujeto = topo_pvalues_corr_per_fold.mean(axis=0)
-                    topo_pval_rmse_sujeto = topo_pvalues_rmse_per_fold.mean(axis=0)
+                    topo_pval_corr_subject = topo_pvalues_corr_per_fold.mean(axis=0)
+                    topo_pval_rmse_subject = topo_pvalues_rmse_per_fold.mean(axis=0)
 
                     # Plot head topomap across al channel for correlation and rmse
                     plot.topomap(
@@ -264,7 +264,7 @@ for situation in config.situations:
                         save=config.save_figures, 
                         display_interactive_mode=config.display_interactive_mode,
                         save_path=path_figures, 
-                        subject=sujeto, 
+                        subject=subject, 
                         session=sesion, 
                         no_figures=config.no_figures
                         )
@@ -276,7 +276,7 @@ for situation in config.situations:
                         save=config.save_figures, 
                         display_interactive_mode=config.display_interactive_mode,
                         save_path=path_figures, 
-                        subject=sujeto, 
+                        subject=subject, 
                         session=sesion, 
                         no_figures=config.no_figures #TODO: remove all config. parameters and put them in plot module
                         )
@@ -294,7 +294,7 @@ for situation in config.situations:
                         n_feats=n_feats, 
                         stim=stim, 
                         session=sesion, 
-                        subject=sujeto, 
+                        subject=subject, 
                         hierarchical_clustering=config.hierarchical_clustering,
                         display_interactive_mode=config.display_interactive_mode, 
                         no_figures=config.no_figures
@@ -304,8 +304,8 @@ for situation in config.situations:
                     average_weights_subjects.append(average_weights)
                     average_correlation_subjects.append(average_correlation)
                     average_rmse_subjects.append(average_rmse)
-                    pvalues_corr_subjects.append(topo_pval_corr_sujeto)
-                    pvalues_rmse_subjects.append(topo_pval_rmse_sujeto)
+                    pvalues_corr_subjects.append(topo_pval_corr_subject)
+                    pvalues_rmse_subjects.append(topo_pval_rmse_subject)
                     repeated_good_correlation_channels_subjects.append(repeated_good_correlation_channels)
                     repeated_good_rmse_channels_subjects.append(repeated_good_rmse_channels)
 
@@ -313,10 +313,10 @@ for situation in config.situations:
                     total_number_of_subjects+=1
 
                 # Print the progress of the iteration
-                iteration_percentage(txt=f'\n------->\tEnd of session {sesion}\n', i=config.sesiones.index(sesion), length_of_iterator=len(config.sesiones))
+                iteration_percentage(txt=f'\n------->\tEnd of session {sesion}\n', i=config.sessions.index(sesion), length_of_iterator=len(config.sessions))
 
                 # del average_weights, average_rmse, average_correlation, correlation_per_channel, rmse_per_channel, correlation_matrix, root_mean_square_error,\
-                #     eeg_test, eeg, stims, stims_sujeto_1, stims_sujeto_2, sujeto_1, sujeto_2, eeg_sujeto_1, eeg_sujeto_2
+                #     eeg_test, eeg, stims, stims_subject_1, stims_subject_2, subject_1, subject_2, eeg_subject_1, eeg_subject_2
 
             if config.just_load_data:
                 continue
@@ -476,7 +476,7 @@ for situation in config.situations:
                     )
             if config.perform_tfce:
                 del average_weights, average_rmse, average_correlation, correlation_per_channel, rmse_per_channel, correlation_matrix,\
-                    root_mean_square_error, eeg, stims, stims_sujeto_1, stims_sujeto_2, sujeto_1, sujeto_2, eeg_sujeto_1, eeg_sujeto_2
+                    root_mean_square_error, eeg, stims, stims_subject_1, stims_subject_2, subject_1, subject_2, eeg_subject_1, eeg_subject_2
                 try:
                     print("\nLoading TFCE data")
                     tvalue_tfce, pvalue_tfce = load_pickle(path=os.path.join(path_TFCE, band, stim + f'_{config.n_permutations}.pkl'))
@@ -514,7 +514,7 @@ for situation in config.situations:
 
     # Get run time
     run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
-    text = f'\n\n\t\t\tPARAMETERS  \n\n\tModel: ' + config.model +f'\n\tBands: {config.bands}'+'\n\tStimuli: ' + f'{config.stimuli}'+'\n\tCondition: ' +situation+f'\n\tTime interval: ({config.tmin},{config.tmax})s'+f'\n\tNumber of subjects analyzed: {total_number_of_subjects}. \n\tSessions: {config.sesiones}'
+    text = f'\n\n\t\t\tPARAMETERS  \n\n\tModel: ' + config.model +f'\n\tBands: {config.bands}'+'\n\tStimuli: ' + f'{config.stimuli}'+'\n\tCondition: ' +situation+f'\n\tTime interval: ({config.tmin},{config.tmax})s'+f'\n\tNumber of subjects analyzed: {total_number_of_subjects}. \n\tSessions: {config.sessions}'
     if config.just_load_data:
         text += '\n\n\t\t\tJUST LOADING DATA'
     text += '\n\n\t\t\tmain.py'

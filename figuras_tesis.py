@@ -1530,9 +1530,9 @@ figformat, dpi = 'png', 350
 # group2_index = [phonemes.index(ph) for ph in group2]
 
 # sp_group1, sp_group2 = [], []
-# for sesion in config.sesiones:
-#     ph_fname = os.path.join(phonemes_path, f'Sesion{sesion}.pkl')
-#     sp_fname = os.path.join(spectrogram_path, f'Sesion{sesion}.pkl')
+# for session in config.sessions:
+#     ph_fname = os.path.join(phonemes_path, f'Sesion{session}.pkl')
+#     sp_fname = os.path.join(spectrogram_path, f'Sesion{session}.pkl')
 #     ph_1, ph_2 = load_pickle(path=ph_fname)
 #     sp_1, sp_2 = load_pickle(path=sp_fname)
 
@@ -1575,8 +1575,8 @@ figformat, dpi = 'png', 350
 #     sp_group1.append(np.stack(spectrogram_group1_padded))
 #     sp_group2.append(np.stack(spectrogram_group2_padded))
 
-# sp_group1 = [sp_group1[i].mean(axis=0) for i in range(len(config.sesiones))]
-# sp_group2 = [sp_group2[i].mean(axis=0) for i in range(len(config.sesiones))]
+# sp_group1 = [sp_group1[i].mean(axis=0) for i in range(len(config.sessions))]
+# sp_group2 = [sp_group2[i].mean(axis=0) for i in range(len(config.sessions))]
 
 # max_len_group1 = max([len(sp) for sp in sp_group1])
 # max_len_group2 = max([len(sp) for sp in sp_group2])
@@ -1619,9 +1619,9 @@ figformat, dpi = 'png', 350
 # group2_index = [phonological.index(ph) for ph in group2]
 
 # fsp_group1, fsp_group2 = [], []
-# for sesion in config.sesiones:
-#     ph_fname = os.path.join(phonological_path, f'Sesion{sesion}.pkl')
-#     sp_fname = os.path.join(spectrogram_path, f'Sesion{sesion}.pkl')
+# for session in config.sessions:
+#     ph_fname = os.path.join(phonological_path, f'Sesion{session}.pkl')
+#     sp_fname = os.path.join(spectrogram_path, f'Sesion{session}.pkl')
 #     ph_1, ph_2 = load_pickle(path=ph_fname)
 #     sp_1, sp_2 = load_pickle(path=sp_fname)
 
@@ -1669,8 +1669,8 @@ figformat, dpi = 'png', 350
 #     fsp_group1.append(np.stack(spectrogram_group1_padded))
 #     fsp_group2.append(np.stack(spectrogram_group2_padded))
 
-# fsp_group1 = [fsp_group1[i].mean(axis=0) for i in range(len(config.sesiones))]
-# fsp_group2 = [fsp_group2[i].mean(axis=0) for i in range(len(config.sesiones))]
+# fsp_group1 = [fsp_group1[i].mean(axis=0) for i in range(len(config.sessions))]
+# fsp_group2 = [fsp_group2[i].mean(axis=0) for i in range(len(config.sessions))]
 
 # max_len_group1 = max([len(sp) for sp in fsp_group1])
 # max_len_group2 = max([len(sp) for sp in fsp_group2])
@@ -5089,7 +5089,7 @@ figformat, dpi = 'png', 350
 # from load import load_data
 # import config, plot
 
-# situation, band, stim, sesion, sujeto = 'External', 'Theta', 'Pitch-Log-Raw', 24, 1
+# situation, band, stim, session, sujeto = 'External', 'Theta', 'Pitch-Log-Raw', 24, 1
 # preprocessed_data_path = f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
 # path_null = f'saves/{config.model}/{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
 # path_validation = f'saves/{config.model}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
@@ -5101,11 +5101,11 @@ figformat, dpi = 'png', 350
 # pvalues_rmse_subjects = []
 # repeated_good_correlation_channels_subjects = []
 # repeated_good_rmse_channels_subjects = []
-# print(f'\n------->\tStart of session {sesion}\n')
+# print(f'\n------->\tStart of session {session}\n')
 
 # # Load data by subject, EEG and info
 # sujeto_1, sujeto_2, samples_info = load_data(
-#                                 sesion=sesion,
+#                                 session=session,
 #                                 stim=stim,
 #                                 band=band,
 #                                 sr=config.sr,
@@ -5132,7 +5132,7 @@ figformat, dpi = 'png', 350
 # if config.set_alpha is None:
 #     try:
 #         alphas = load_pickle(path=alphas_path)
-#         alpha = alphas[sesion][sujeto]
+#         alpha = alphas[session][sujeto]
 #     except:
 #         alpha = config.default_alpha
 # else:
@@ -5154,7 +5154,7 @@ figformat, dpi = 'png', 350
 #                         validation=False,
 #                         statistical_test=True,
 #                         path_null=path_null,
-#                         session=sesion,
+#                         session=session,
 #                         subject=sujeto,
 #                         )
 #                     )
@@ -5280,13 +5280,13 @@ figformat, dpi = 'png', 350
 # from model_implementations import fold_model
 # from sklearn.model_selection import KFold
 
-# situation, band, sesion = 'External', 'Theta', 21
+# situation, band, session = 'External', 'Theta', 21
 # preprocessed_data_path = os.path.normpath(f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/')
 
 # correlations_T, correlations_std_T, alpha_subject_T = [],[],[]
 # for stim in ['Envelope', 'Spectrogram']:
 #     sujeto_1, sujeto_2, samples_info = load_data(
-#                                                 sesion=sesion,
+#                                                 session=session,
 #                                                 stim=stim,
 #                                                 band=band,
 #                                                 sr=config.sr,
@@ -6597,8 +6597,8 @@ fig.show()
 # fig.show()
 # =======================================================
 # Ejemplo EEG y PSD (power spectral density) de un sujeto# TODO SIGUE SIN DAR CHARLAR CON JOACO
-sesion, sujeto = 21, 2
-RawEegPath = f'Datos/EEG/S{sesion}/s{sesion}-{sujeto}-Trial1-Deci-Filter-Trim-ICA-Pruned.set'
+session, sujeto = 21, 2
+RawEegPath = f'Datos/EEG/S{session}/s{session}-{sujeto}-Trial1-Deci-Filter-Trim-ICA-Pruned.set'
 # EegPath = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/EEG/All/Causal/Sesion21.pkl'
 
 raw = mne.io.read_raw_eeglab(
@@ -6946,7 +6946,7 @@ for sujeto in [1,2]:
 # preprocessed_data_path = r'saves\preprocessed_data\External\tmin-0.2_tmax0.6'
 
 # sujeto_1, sujeto_2, samples_info = load_data(
-#                                             sesion=21,
+#                                             session=21,
 #                                             stim=stim,
 #                                             band=band,
 #                                             sr=config.sr,

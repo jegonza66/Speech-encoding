@@ -208,26 +208,26 @@ def phonemes_ocurrences(
         return
     
     # Get number of phonemes stimuli 
-    sesions = list(ocurrences.keys())
-    stimuli = list(ocurrences[sesions[0]].keys())
+    sessions = list(ocurrences.keys())
+    stimuli = list(ocurrences[sessions[0]].keys())
 
     # Make plot for each stimulus
     for stimulus in stimuli:
         
         # The list of phonemes labels
         if stimulus.endswith('Phonet'):
-            phn = ocurrences[sesions[0]][stimulus]['phonemes'][:-1]
+            phn = ocurrences[sessions[0]][stimulus]['phonemes'][:-1]
         else:
-            phn = ocurrences[sesions[0]][stimulus]['phonemes']
+            phn = ocurrences[sessions[0]][stimulus]['phonemes']
 
         # Make a dict with the relevant data
         relevant_data = {}
-        relevant_data['Ocurrences'] = np.concatenate([ocurrences[sesion][stimulus]['count'].astype(int).reshape(-1,1) for sesion in sesions], axis = 1).flatten()
-        relevant_data['Labels'] = np.repeat(phn, (np.ones(shape=len(phn))*len(sesions)).astype(int))
-        relevant_data['Sesion'] = sesions * len(phn)
+        relevant_data['Ocurrences'] = np.concatenate([ocurrences[session][stimulus]['count'].astype(int).reshape(-1,1) for session in sessions], axis = 1).flatten()
+        relevant_data['Labels'] = np.repeat(phn, (np.ones(shape=len(phn))*len(sessions)).astype(int))
+        relevant_data['Session'] = sessions * len(phn)
         
         # Now arange data in pd.DataFrame
-        data = pd.DataFrame(data=relevant_data, columns = ['Ocurrences', 'Sesion', 'Labels'])
+        data = pd.DataFrame(data=relevant_data, columns = ['Ocurrences', 'Session', 'Labels'])
         
         # Make plot
         fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12,6), tight_layout=True)
@@ -863,7 +863,7 @@ def topo_repeated_channels(
 
     # Take mean across all subjects 
     sum_of_repeated_chan = repeated_good_coefficients_channels_subjects.sum(axis=0) # n_channs, the max value of each channel is the total_number_of_subjects
-    n_sub = len(config.sesiones)*2
+    n_sub = len(config.sessiones)*2
     
     # Create figure and title
     fig, ax = plt.subplots(nrows=1, ncols=1, layout='tight')
@@ -2471,7 +2471,7 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 #     return rect
 
 
-# def corr_sujeto_decoding(sesion, sujeto, Valores_promedio, display_interactive_mode, name, Save, Run_graficos_path):
+# def corr_subject_decoding(session, subject, Valores_promedio, display_interactive_mode, name, Save, Run_graficos_path):
 #     if display_interactive_mode:
 #         plt.ion()
 #     else:
@@ -2490,16 +2490,16 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 #     plt.title('{}:{:.3f} +/- {:.3f}'.format(name, np.mean(Valores_promedio), np.std(Valores_promedio), fontsize=19))
 
 #     if Save:
-#         save_path_cabezas = Run_graficos_path + 'Corr_sujetos/'
+#         save_path_cabezas = Run_graficos_path + 'Corr_subjects/'
 #         try:
 #             os.makedirs(save_path_cabezas)
 #         except:
 #             pass
-#         fig.savefig(save_path_cabezas + '{}_Sesion{}_Sujeto{}{config.figure_format}'.format(name, sesion, sujeto))
+#         fig.savefig(save_path_cabezas + '{}_Session{}_subject{}{config.figure_format}'.format(name, session, subject))
 
 
 
-# def Plot_PSD(sesion, sujeto, Band, situacion, display_interactive_mode, Save, save_path, info, data, fmin=0, fmax=40):
+# def Plot_PSD(session, subject, Band, situacion, display_interactive_mode, Save, save_path, info, data, fmin=0, fmax=40):
 #     psds_welch_mean, freqs_mean = mne.time_frequency.psd_array_welch(data, info['sfreq'], fmin, fmax)
 
 #     if display_interactive_mode:
@@ -2508,7 +2508,7 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 #         plt.ioff()
 
 #     fig, ax = plt.subplots()
-#     fig.suptitle('Sesion {} - Sujeto {} - Situacion {} - Band {}'.format(sesion, sujeto, situacion, Band))
+#     fig.suptitle('Session {} - subject {} - Situacion {} - Band {}'.format(session, subject, situacion, Band))
 
 #     evoked = mne.EvokedArray(psds_welch_mean, info)
 #     evoked.times = freqs_mean
@@ -2520,12 +2520,12 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 #     if Save:
 #         save_path_graficos = 'gráficos/PSD/Zoom/{}/{}/'.format(save_path, Band)
 #         os.makedirs(save_path_graficos, exist_ok=True)
-#         plt.savefig(save_path_graficos + 'Sesion{} - Sujeto{}{config.figure_format}'.format(sesion, sujeto, Band))
+#         plt.savefig(save_path_graficos + 'Session{} - subject{}{config.figure_format}'.format(session, subject, Band))
 
 
-# def violin_plot_decoding(Correlaciones_totales_sujetos, display_interactive_mode, Save, Run_graficos_path, title):
+# def violin_plot_decoding(Correlaciones_totales_subjects, display_interactive_mode, Save, Run_graficos_path, title):
 
-#     data = pd.DataFrame({title: Correlaciones_totales_sujetos.ravel()})
+#     data = pd.DataFrame({title: Correlaciones_totales_subjects.ravel()})
 #     if display_interactive_mode:
 #         plt.ion()
 #     else:
@@ -2535,19 +2535,19 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 #     sns.violinplot(data=data, ax=ax)
 #     plt.ylim([-0.2, 1])
 #     plt.ylabel(title)
-#     plt.title('{}:{:.3f} +/- {:.3f}'.format(title, np.mean(Correlaciones_totales_sujetos),
-#                                                      np.std(Correlaciones_totales_sujetos), fontsize=19))
+#     plt.title('{}:{:.3f} +/- {:.3f}'.format(title, np.mean(Correlaciones_totales_subjects),
+#                                                      np.std(Correlaciones_totales_subjects), fontsize=19))
 
 #     if Save:
 #         save_path_graficos = Run_graficos_path
 #         os.makedirs(save_path_graficos, exist_ok=True)
 #         fig.savefig(save_path_graficos + '{}_promedio{config.figure_format}'.format(title))
 
-#     return Correlaciones_totales_sujetos.mean(), Correlaciones_totales_sujetos.std()
+#     return Correlaciones_totales_subjects.mean(), Correlaciones_totales_subjects.std()
 
 
-# def Cabezas_3d(Correlaciones_totales_sujetos, info, display_interactive_mode, Save, Run_graficos_path, title):
-#     Correlaciones_promedio = Correlaciones_totales_sujetos.mean(0)
+# def Cabezas_3d(Correlaciones_totales_subjects, info, display_interactive_mode, Save, Run_graficos_path, title):
+#     Correlaciones_promedio = Correlaciones_totales_subjects.mean(0)
 
 #     if display_interactive_mode:
 #         plt.ion()
@@ -2606,11 +2606,11 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 #         fig.savefig(save_path_graficos + 'PSD Boxplot{config.figure_format}')
 
 
-# def weights_ERP(Pesos_totales_sujetos_todos_canales, info, times, display_interactive_mode,
+# def weights_ERP(Pesos_totales_subjects_todos_canales, info, times, display_interactive_mode,
 #                 Save, Run_graficos_path, Len_Estimulos, stim, decorrelation_times=None):
-#     # Armo pesos promedio por canal de todos los sujetos que por lo menos tuvieron un buen canal
-#     Pesos_totales_sujetos_todos_canales_copy = Pesos_totales_sujetos_todos_canales.swapaxes(0, 2)
-#     Pesos_totales_sujetos_todos_canales_copy = Pesos_totales_sujetos_todos_canales_copy.mean(0).transpose()
+#     # Armo pesos promedio por canal de todos los subjects que por lo menos tuvieron un buen canal
+#     Pesos_totales_subjects_todos_canales_copy = Pesos_totales_subjects_todos_canales.swapaxes(0, 2)
+#     Pesos_totales_subjects_todos_canales_copy = Pesos_totales_subjects_todos_canales_copy.mean(0).transpose()
 
 #     # Ploteo pesos y cabezas
 #     if display_interactive_mode:
@@ -2622,10 +2622,10 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 
 #     Cant_Estimulos = len(Len_Estimulos)
 #     for j in range(Cant_Estimulos):
-#         Pesos_totales_sujetos_todos_canales_copy[:, j * len(times):(j + 1) * len(times)].mean(0)
+#         Pesos_totales_subjects_todos_canales_copy[:, j * len(times):(j + 1) * len(times)].mean(0)
 
 #         evoked = mne.EvokedArray(
-#             np.flip(Pesos_totales_sujetos_todos_canales_copy[:, j * len(times):(j + 1) * len(times)], axis=1), info)
+#             np.flip(Pesos_totales_subjects_todos_canales_copy[:, j * len(times):(j + 1) * len(times)], axis=1), info)
 #         evoked.shift_time(-times[0], relative=True)
 
 #         fig, ax = plt.subplots(figsize=(15, 5))
@@ -2660,8 +2660,8 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 #                 Run_graficos_path + 'Regression_Weights_{}{config.figure_format}'.format(Stims_Order[j] if Cant_Estimulos > 1 else stim))
 
 
-# def decoding_t_lags(Correlaciones_totales_sujetos, times, Band, display_interactive_mode, Save, Run_graficos_path):
-#     Corr_time_sub = Correlaciones_totales_sujetos.mean(0)
+# def decoding_t_lags(Correlaciones_totales_subjects, times, Band, display_interactive_mode, Save, Run_graficos_path):
+#     Corr_time_sub = Correlaciones_totales_subjects.mean(0)
 #     mean_time_corr = np.flip(Corr_time_sub.mean(1))
 #     std_time_corr = np.flip(Corr_time_sub.std(1))
 
@@ -2694,7 +2694,7 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 #         fig.savefig(Run_graficos_path + 'Correlation_time_lags_{}{config.figure_format}'.format(Band))
 
 
-# def Brain_sync(data, Band, info, display_interactive_mode, Save, graficos_save_path, total_subjects=18, sesion=None, sujeto=None):
+# def Brain_sync(data, Band, info, display_interactive_mode, Save, graficos_save_path, total_subjects=18, session=None, subject=None):
 
 #     if display_interactive_mode:
 #         plt.ion()
@@ -2721,12 +2721,12 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 #         if data.shape == (total_subjects, info['nchan'], info['nchan']):
 #             plt.savefig(graficos_save_path + 'Inter Brain sync - {}{config.figure_format}'.format(Band))
 #         elif data.shape == (info['nchan'], info['nchan']):
-#             plt.savefig(graficos_save_path + 'Inter Brain sync - Sesion{}_Sujeto{}{config.figure_format}'.format(sesion, sujeto))
+#             plt.savefig(graficos_save_path + 'Inter Brain sync - Session{}_subject{}{config.figure_format}'.format(session, subject))
 
 
 
 # def ch_heatmap_topo(total_data, info, delays, times, display_interactive_mode, Save, graficos_save_path, title, total_subjects=18,
-#                     sesion=None, sujeto=None, fontsize=14):
+#                     session=None, subject=None, fontsize=14):
 
 #     if total_data.shape == (info['nchan'], len(delays)):
 #         phase_sync_ch = total_data
@@ -2799,7 +2799,7 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 #     if Save:
 #         os.makedirs(graficos_save_path, exist_ok=True)
 #         if total_data.shape == (info['nchan'], len(delays)):
-#             plt.savefig(graficos_save_path + 't_lags_{}_Sesion{}_Sujeto{}{config.figure_format}'.format(title, sesion, sujeto))
+#             plt.savefig(graficos_save_path + 't_lags_{}_Session{}_subject{}{config.figure_format}'.format(title, session, subject))
 #         elif total_data.shape == (total_subjects, info['nchan'], len(delays)):
 #             plt.savefig(graficos_save_path + 't_lags_{}{config.figure_format}'.format(title))
 
@@ -2811,12 +2811,12 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 
 # # ## VIEJAS NO SE USAN
 
-# # def Plot_instantes_interes(Pesos_totales_sujetos_todos_canales, info, Band, times, sr, display_interactive_mode_figure_instantes,
+# # def Plot_instantes_interes(Pesos_totales_subjects_todos_canales, info, Band, times, sr, display_interactive_mode_figure_instantes,
 # #                            Save_figure_instantes, Run_graficos_path, Cant_Estimulos, Stims_Order, stim,
 # #                            Autocorrelation_value=0.1):
-# #     # Armo pesos promedio por canal de todos los sujetos que por lo menos tuvieron un buen canal
-# #     Pesos_totales_sujetos_todos_canales_copy = Pesos_totales_sujetos_todos_canales.swapaxes(0, 2)
-# #     Pesos_totales_sujetos_todos_canales_copy = Pesos_totales_sujetos_todos_canales_copy.mean(0).transpose()
+# #     # Armo pesos promedio por canal de todos los subjects que por lo menos tuvieron un buen canal
+# #     Pesos_totales_subjects_todos_canales_copy = Pesos_totales_subjects_todos_canales.swapaxes(0, 2)
+# #     Pesos_totales_subjects_todos_canales_copy = Pesos_totales_subjects_todos_canales_copy.mean(0).transpose()
 
 # #     # Ploteo pesos y cabezas
 # #     if Display_figure_instantes:
@@ -2826,7 +2826,7 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 
 # #     returns = []
 # #     for j in range(Cant_Estimulos):
-# #         curva_pesos_totales = Pesos_totales_sujetos_todos_canales_copy[:, j * len(times):(j + 1) * len(times)].mean(0)
+# #         curva_pesos_totales = Pesos_totales_subjects_todos_canales_copy[:, j * len(times):(j + 1) * len(times)].mean(0)
 # #         returns.append(curva_pesos_totales)
 
 # #         if Autocorrelation_value and times[-1] > 0:
@@ -2856,7 +2856,7 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 # #                     pass
 # #                 fig.savefig(save_path_graficos + 'Weights Autocorrelation{config.figure_format}')
 
-# #         evoked = mne.EvokedArray(Pesos_totales_sujetos_todos_canales_copy[:, j * len(times):(j + 1) * len(times)], info)
+# #         evoked = mne.EvokedArray(Pesos_totales_subjects_todos_canales_copy[:, j * len(times):(j + 1) * len(times)], info)
 # #         evoked.shift_time(times[0], relative=True)
 
 # #         instantes_index = sgn.find_peaks(np.abs(evoked._data.mean(0)), height=np.abs(evoked._data.mean(0)).max() * 0.4)[
@@ -2915,19 +2915,19 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 # #     return returns
 
 
-# # def Matriz_corr(Pesos_totales_sujetos_promedio, Pesos_totales_sujetos_todos_canales, sujeto_total, Display, Save,
+# # def Matriz_corr(Pesos_totales_subjects_promedio, Pesos_totales_subjects_todos_canales, subject_total, Display, Save,
 # #                 Run_graficos_path):
 # #     # Armo df para correlacionar
-# #     Pesos_totales_sujetos_promedio = Pesos_totales_sujetos_promedio[:sujeto_total]
-# #     Pesos_totales_sujetos_promedio.append(
-# #         Pesos_totales_sujetos_todos_canales.transpose().mean(0).mean(1))  # agrego pesos promedio de todos los sujetos
+# #     Pesos_totales_subjects_promedio = Pesos_totales_subjects_promedio[:subject_total]
+# #     Pesos_totales_subjects_promedio.append(
+# #         Pesos_totales_subjects_todos_canales.transpose().mean(0).mean(1))  # agrego pesos promedio de todos los subjects
 # #     lista_nombres = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18",
 # #                      "Promedio"]
-# #     Pesos_totales_sujetos_df = pd.DataFrame(Pesos_totales_sujetos_promedio).transpose()
-# #     Pesos_totales_sujetos_df.columns = lista_nombres[:len(Pesos_totales_sujetos_df.columns) - 1] + [lista_nombres[-1]]
+# #     Pesos_totales_subjects_df = pd.DataFrame(Pesos_totales_subjects_promedio).transpose()
+# #     Pesos_totales_subjects_df.columns = lista_nombres[:len(Pesos_totales_subjects_df.columns) - 1] + [lista_nombres[-1]]
 
-# #     pvals_matrix = Pesos_totales_sujetos_df.corr(method=pearsonr_pval)
-# #     Correlation_matrix = np.array(Pesos_totales_sujetos_df.corr(method='pearson'))
+# #     pvals_matrix = Pesos_totales_subjects_df.corr(method=pearsonr_pval)
+# #     Correlation_matrix = np.array(Pesos_totales_subjects_df.corr(method='pearson'))
 # #     for i in range(len(Correlation_matrix)):
 # #         Correlation_matrix[i, i] = Correlation_matrix[-1, i]
 
@@ -2968,17 +2968,17 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 # #         fig.savefig(save_path_graficos + 'Correlation_matrix{config.figure_format}')
 
 
-# # def Matriz_std_channel_wise(Pesos_totales_sujetos_todos_canales, Display, Save, Run_graficos_path):
-# #     Pesos_totales_sujetos_todos_canales_average = np.dstack(
-# #         (Pesos_totales_sujetos_todos_canales, Pesos_totales_sujetos_todos_canales.mean(2)))
-# #     Correlation_matrices = np.zeros((Pesos_totales_sujetos_todos_canales_average.shape[0],
-# #                                      Pesos_totales_sujetos_todos_canales_average.shape[2],
-# #                                      Pesos_totales_sujetos_todos_canales_average.shape[2]))
-# #     for channel in range(len(Pesos_totales_sujetos_todos_canales_average)):
+# # def Matriz_std_channel_wise(Pesos_totales_subjects_todos_canales, Display, Save, Run_graficos_path):
+# #     Pesos_totales_subjects_todos_canales_average = np.dstack(
+# #         (Pesos_totales_subjects_todos_canales, Pesos_totales_subjects_todos_canales.mean(2)))
+# #     Correlation_matrices = np.zeros((Pesos_totales_subjects_todos_canales_average.shape[0],
+# #                                      Pesos_totales_subjects_todos_canales_average.shape[2],
+# #                                      Pesos_totales_subjects_todos_canales_average.shape[2]))
+# #     for channel in range(len(Pesos_totales_subjects_todos_canales_average)):
 # #         Correlation_matrices[channel] = np.array(
-# #             pd.DataFrame(Pesos_totales_sujetos_todos_canales_average[channel]).corr(method='pearson'))
+# #             pd.DataFrame(Pesos_totales_subjects_todos_canales_average[channel]).corr(method='pearson'))
 
-# #     # std por sujeto
+# #     # std por subject
 # #     std_matrix = Correlation_matrices.std(0)
 
 # #     for i in range(len(std_matrix)):
@@ -3021,8 +3021,8 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 # #         fig.savefig(save_path_graficos + 'Channelwise_std_matrix{config.figure_format}')
 
 
-# # def Cabezas_corr_promedio_scaled(Correlaciones_totales_sujetos, info, Display, Save, Run_graficos_path, title):
-# #     Correlaciones_promedio = Correlaciones_totales_sujetos.mean(0)
+# # def Cabezas_corr_promedio_scaled(Correlaciones_totales_subjects, info, Display, Save, Run_graficos_path, title):
+# #     Correlaciones_promedio = Correlaciones_totales_subjects.mean(0)
 
 # #     if Display:
 # #         plt.ion()
@@ -3045,14 +3045,14 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 # #         fig.savefig(save_path_graficos + '{}_promedio_sacled{config.figure_format}'.format(title))
 
 
-# # def Plot_instantes_casera(Pesos_totales_sujetos_todos_canales, info, Band, times, sr, Display_figure_instantes,
+# # def Plot_instantes_casera(Pesos_totales_subjects_todos_canales, info, Band, times, sr, Display_figure_instantes,
 # #                           Save_figure_instantes, Run_graficos_path):
-# #     # Armo pesos promedio por canal de todos los sujetos que por lo menos tuvieron un buen canal
-# #     Pesos_totales_sujetos_todos_canales_copy = Pesos_totales_sujetos_todos_canales.swapaxes(0, 2)
-# #     Pesos_totales_sujetos_todos_canales_copy = Pesos_totales_sujetos_todos_canales_copy.mean(0)
+# #     # Armo pesos promedio por canal de todos los subjects que por lo menos tuvieron un buen canal
+# #     Pesos_totales_subjects_todos_canales_copy = Pesos_totales_subjects_todos_canales.swapaxes(0, 2)
+# #     Pesos_totales_subjects_todos_canales_copy = Pesos_totales_subjects_todos_canales_copy.mean(0)
 
-# #     instantes_index = sgn.find_peaks(np.abs(Pesos_totales_sujetos_todos_canales_copy.mean(1)[50:]),
-# #                                 height=np.abs(Pesos_totales_sujetos_todos_canales_copy.mean(1)).max() * 0.3)[0] + 50
+# #     instantes_index = sgn.find_peaks(np.abs(Pesos_totales_subjects_todos_canales_copy.mean(1)[50:]),
+# #                                 height=np.abs(Pesos_totales_subjects_todos_canales_copy.mean(1)).max() * 0.3)[0] + 50
 
 # #     instantes_de_interes = [i/ sr + times[0] for i in instantes_index if i / sr + times[0] <= 0]
 
@@ -3063,7 +3063,7 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 # #         plt.ioff()
 
 # #     Blues = plt.cm.get_cmap('Blues').reversed()
-# #     cmaps = ['Reds' if Pesos_totales_sujetos_todos_canales_copy.mean(1)[i] > 0 else Blues for i in instantes_index if
+# #     cmaps = ['Reds' if Pesos_totales_subjects_todos_canales_copy.mean(1)[i] > 0 else Blues for i in instantes_index if
 # #              i / sr + times[0] <= 0]
 
 # #     fig, axs = plt.subplots(figsize=(10, 5), ncols=len(cmaps))
@@ -3072,17 +3072,17 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 # #         ax = axs[0, i]
 # #         ax.set_title('{} ms'.format(int(instantes_de_interes[i] * 1000)))
 # #         fig.tight_layout()
-# #         im = mne.viz.plot_topomap(Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].ravel(), info, axes=ax,
+# #         im = mne.viz.plot_topomap(Pesos_totales_subjects_todos_canales_copy[instantes_index[i]].ravel(), info, axes=ax,
 # #                                   show=False,
 # #                                   sphere=0.07, cmap=cmaps[i],
-# #                                   vmin=Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].min(),
-# #                                   vmax=Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].max())
+# #                                   vmin=Pesos_totales_subjects_todos_canales_copy[instantes_index[i]].min(),
+# #                                   vmax=Pesos_totales_subjects_todos_canales_copy[instantes_index[i]].max())
 # #         plt.colorbar(im[0], ax=ax, orientation='vertical', shrink=0.9,
 # #                      boundaries=np.linspace(
-# #                          Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].min().round(decimals=2),
-# #                          Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].max().round(decimals=2), 100),
-# #                      ticks=np.linspace(Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].min(),
-# #                                         Pesos_totales_sujetos_todos_canales_copy[instantes_index[i]].max(), 4).round(
+# #                          Pesos_totales_subjects_todos_canales_copy[instantes_index[i]].min().round(decimals=2),
+# #                          Pesos_totales_subjects_todos_canales_copy[instantes_index[i]].max().round(decimals=2), 100),
+# #                      ticks=np.linspace(Pesos_totales_subjects_todos_canales_copy[instantes_index[i]].min(),
+# #                                         Pesos_totales_subjects_todos_canales_copy[instantes_index[i]].max(), 4).round(
 # #                          decimals=2))
 
 # #     axs[0, -1].remove()
@@ -3091,14 +3091,14 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 # #             ax.remove()
 
 # #     ax = fig.add_subplot(3, 1, (2, 3))
-# #     evoked = mne.EvokedArray(Pesos_totales_sujetos_todos_canales_copy.transpose(), info)
+# #     evoked = mne.EvokedArray(Pesos_totales_subjects_todos_canales_copy.transpose(), info)
 # #     evoked.shift_time(times[0], relative=True)
 
 
 # #     evoked.plot(show=False, spatial_colors=True, scalings=dict(eeg=1, grad=1, mag=1),
 # #                 unit=True, units=dict(eeg='$w$'), axes=ax, zorder='unsorted', selectable=False,
 # #                 time_unit='ms')
-# #     ax.plot(times * 1000, Pesos_totales_sujetos_todos_canales_copy.mean(1),
+# #     ax.plot(times * 1000, Pesos_totales_subjects_todos_canales_copy.mean(1),
 # #             'k--', label='Mean', zorder=130, linewidth=2)
 
 # #     ax.axvspan(0, ax.get_xlim()[1], alpha=0.5, color='grey')
@@ -3118,7 +3118,7 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 # #             pass
 # #         fig.savefig(save_path_graficos + 'Instantes_interes{config.figure_format}')
 
-# #     return Pesos_totales_sujetos_todos_canales_copy.mean(1)
+# #     return Pesos_totales_subjects_todos_canales_copy.mean(1)
 
 
 
