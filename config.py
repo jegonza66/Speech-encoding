@@ -14,29 +14,29 @@ sesiones = [
             30
             ]
 stimuli = [
-        # 'Mistakes-Separated_Control-Separated',
+      #  'Mistakes-Separated_Control-Separated',
         # 'Spectrogram_Mfccs',
-        # 'Phones-Phonet_Phonemes-Phonet',
+        'Phones-Phonet_Phonemes-Phonet',
 
-        # 'Envelope_Pitch-Log-Raw',
-        # 'Envelope_Spectrogram',
-        # 'Pitch-Log-Raw_Spectrogram',
-        # 'Envelope_Pitch-Log-Raw_Spectrogram',
+        'Envelope_Pitch-Log-Raw',
+        'Envelope_Spectrogram',
+        'Pitch-Log-Raw_Spectrogram',
+        'Envelope_Pitch-Log-Raw_Spectrogram',
         
-        # 'Phonological_Spectrogram', 
-        # 'Phonemes-Phonet_Spectrogram',
-        # 'Phonological_Phonemes-Phonet',
-        # 'Phonological_Phonemes-Phonet_Spectrogram',
+        'Phonological_Spectrogram', 
+        'Phonemes-Phonet_Spectrogram',
+        'Phonological_Phonemes-Phonet',
+        'Phonological_Phonemes-Phonet_Spectrogram',
         
-        # 'Envelope',
-        # 'Pitch-Log-Raw',
+        'Envelope',
+        'Pitch-Log-Raw',
         'Spectrogram',
-        # 'Mfccs',
-        # 'Phonological',
-        # 'Phonemes-Phonet',
-        # 'Phones-Phonet', 
-        # 'Phonemes-Discrete-Phonet',
-        # 'Phones-Discrete-Phonet',
+        'Mfccs',
+        'Phonological',
+        'Phonemes-Phonet', 
+        'Phones-Phonet', 
+        'Phonemes-Discrete-Phonet',
+        'Phones-Discrete-Phonet',
         # 'Wav2vec2'
         ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situations = [
@@ -56,8 +56,8 @@ situations = [
         # 'External_Silence_100',
         ] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
 bands = [
-        'Delta', 
-        # 'Theta', 
+        # 'Delta', 
+        'Theta', 
         # 'Alpha', 
         # 'Beta1', 
         # 'Beta2',
@@ -67,19 +67,20 @@ bands = [
 # ==========================================
 # LOADING/SAVING DATA, FIGURE CONFIGURATIONS
 praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
-display_interactive_mode, save_results, save_figures, no_figures = False, True, True, False
+display_interactive_mode, save_results, save_figures, no_figures = False, True, True, True
 figure_format = '.png'
 just_load_data = False
 
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
-model = 'mtrf'
-estimator = 'ridge_torch' # ridge, ridge_torch or time_delaying_ridge
-statistical_test, perform_tfce, use_gpu = True, False, True
-precomputed_design_matrix = False
+external_validation = True # whether to use External hyperparameter or the one that maximize specific condition
+use_gpu = True
+statistical_test, perform_tfce = False, False
 stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 
-if estimator=='ridge':
+model = 'mtrf'
+estimator = 'ridge_torch'  
+if estimator=='ridge': #TODO ADAAPTAR BIEN
 	model = 'mtrf_ridge'
 elif estimator == 'ridge_torch':
     model = 'mtrf_ridge_torch'
