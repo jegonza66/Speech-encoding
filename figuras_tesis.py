@@ -8000,5 +8000,291 @@ fig.savefig(
 )
 fig.show()
 
-# ========================
-# Leadership vs. Following
+
+# =============
+# POSTER PROLEN
+# Relevant parameters
+situation = 'External'
+path_mtrfs = 'saves/mtrf_ridge_torch/External/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/Theta/Phonemes-Discrete-Phonet/total_weights_per_subject.pkl'
+average_weights_subjects = load_pickle(path=path_mtrfs)['average_weights_subjects'][:, :, :, :] #(n_sub, n_chans, n_feats, n_delays)
+data = load_pickle(path=os.path.normpath(os.path.join('saves', 'mtrf_ridge_torch', 'External', 'sensitivity_speech_latency', 'phonemes_discrete_phonet.pkl')))
+color_labels = {'Vocales':'#a93783', 'Consonantes':'#1567a3'}
+color_g = '#eb5b34'
+
+#FIGURA
+fig, axes = plt.subplots(
+    figsize=(5, 8),
+    tight_layout=True
+    )
+gs = fig.add_gridspec(
+    nrows=2,
+    ncols=1,
+    # width_ratios=[1, 1],
+    height_ratios=[1.25, 1]
+)
+# # Primer gráfico en la primera columna (comparte el eje x con el segundo gráfico)
+ax01 = plt.subplot(gs[0])
+feat_weights = average_weights_subjects.mean(axis=0).mean(axis=0)
+order, null_indexes = clustering_by_correlation(weights=feat_weights)
+feat_weights = feat_weights[order]
+
+im = ax01.pcolormesh(
+    config.times[:] * 1e3,
+    np.arange(feat_weights.shape[0]),
+    feat_weights[:, :],
+    cmap='RdBu_r',
+    shading='auto',
+    vmin=-np.abs(feat_weights).max(),
+    vmax=np.abs(feat_weights).max()
+    )
+
+# Set figure configuration
+tags = config.Exp_info().phonemes_phonet
+tags.remove('/sil/')
+ticks = np.arange(feat_weights.shape[0])
+tags = tags if order is None else [tags[i] for i in order]
+ax01.set_xlabel('', fontsize=16)
+ax01.xaxis.labelpad = 0
+
+ax01.set_ylabel('Phonemes', fontsize=16)
+ax01.set_xticks([0, 100, 200, 300, 400, 500], labels = ["","","", "", "", ""], fontsize=16)
+ax01.set_xlim(5,550)
+ax01.set_yticks(ticks, labels =tags, fontsize=16)
+
+# # Configure colorbar
+# cbar = fig.colorbar(
+#     im,
+#     ax=ax01,
+#     orientation='horizontal',
+#     shrink=1,
+#     fraction=.075,
+#     aspect=20
+#     )
+# cbar.set_label(label='Amplitude (U.A)',size=16)
+# cbar.ax.tick_params(labelsize=16)
+
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+divider = make_axes_locatable(ax01)
+cax = divider.append_axes("top", size="5%", pad=0.2)  # reducí `pad` para acercarla
+
+cbar = plt.colorbar(
+    im,
+    cax=cax,
+    orientation='horizontal'
+)
+
+cbar.set_label(label='Amplitude (U.A)', size=14)
+cbar.ax.tick_params(labelsize=14)
+cbar.ax.xaxis.set_ticks_position('top')
+cbar.ax.xaxis.set_label_position('top')
+
+# MÉTRICA
+ax11 = plt.subplot(gs[1])
+ax11.grid(True)
+selected_window_time = data['rolling_windows_centers'][data['selected_window']]*1e3
+ax11.vlines(selected_window_time, ymin=-0.06, ymax=.7, linestyle='-.', linewidth=1.5, color='black')
+
+# Percentiles y datos
+lower_percentile = np.percentile(data['Aris_random'], 5, axis=1)
+upper_percentile = np.percentile(data['Aris_random'], 95, axis=1)
+
+# Aplicamos el degradado basado en la densidad
+gradient_fill_density_based(
+    data['rolling_windows_centers']*1e3,
+    lower_percentile,
+    upper_percentile,
+    data['Aris_random'],
+    fill_color=color_g,
+    ax=ax11
+    )
+
+# Puntos significativos
+ax11.plot(
+    data['rolling_windows_centers'][data['Aris_significance'] == 1].flatten()*1e3,
+    max(data['Aris']) * 1.3 * np.ones(int(np.sum(data['Aris_significance']))),
+    '*',
+    color='black',
+    # label='Valores significativos',
+    zorder=4
+    )
+
+ax11.plot(data['rolling_windows_centers']*1e3, data['Aris'], color=color_g, zorder=3)
+ax11.scatter(data['rolling_windows_centers']*1e3, data['Aris'], color=color_g, s=6, zorder=3, label='Metric')
+
+# ax11.set(xlabel='Tiempo (ms)', ylabel='ari'.upper(), xlim=(5, 550))
+            #    title=r'\textit{Adjusted Rand Index}')
+ax11.set_xlabel('Time (ms)',fontsize=16)
+ax11.set_ylabel('Adjusted Rand Index', fontsize=16)
+ax11.set_xticks([0, 100, 200, 300, 400, 500], labels = [0, 100, 200, 300, 400, 500], fontsize=16)
+ax11.set_xlim(5, 550)
+
+gradient_patch = Patch(facecolor=color_g, alpha=0.5, label=r'Null distribution (5-95\%)')
+handles, labels = ax11.get_legend_handles_labels()
+handles = handles[::-1]
+labels = labels[::-1]
+handles.append(gradient_patch)
+labels.append(r'Null distribution (5\% - 95\%)')
+handles = handles[::-1]
+labels = labels[::-1]
+ax11.legend(handles=handles, labels=labels, loc=(.005,.65), fontsize=15)
+
+# # Visualization
+# ax10 = plt.subplot(gs[1, 0])
+# transfo ={'Vocales':'Grupo 1', 'Consonantes':'Grupo 2'}
+# for i, row in data['dataframes'][data['selected_window']].iterrows():
+#     ax10.scatter(row['Feature_1']*1e2, row['Feature_2']*1e1, c='black', s=.5, facecolors='none')#, label = f"Row {row['Original_Row_Index']}")#, fontsize=9, ha='right')
+#     ax10.text(row['Feature_1']*1e2, row['Feature_2']*1e1, r"\textbf{" + f"{data['phonemes'][i]}" + r"}", fontsize=13, ha='right', color=color_labels[data['keys_to_phonemes_labels'][i]])
+#     # ax10.text(row['Feature_1']*1e2, row['Feature_2']*1e1, r"\textbf{" + f"{data['phonemes'][i]}" + r"}", fontsize=15, ha='right', color=color_labels[keys_to_phonemes_labels[i]])
+
+# legend_handles = [Line2D([0], [0], color=color_labels[name], lw=4, label=transfo[name]) for name in color_labels]
+
+
+# ax10.ticklabel_format(style='scientific', axis='x', scilimits=(0, 0))
+# ax10.ticklabel_format(style='scientific', axis='y', scilimits=(0, 0))
+
+# ax10.legend(handles=legend_handles, title="Categorías", loc=(.55,.6), title_fontsize=16, fontsize=16)
+
+# f_s = data['F-scores'][data['selected_window']]
+# a_s = data['Aris'][data['selected_window']]
+# ax10.set_title(f'Ventana temporal: {selected_window_time:.1f} ms - ARI: {a_s:.2f}'.replace('.',','), fontsize=16)
+# ax10.set_xlabel('MDS 1 (U.A)', fontsize=16)
+# ax10.set_ylabel('MDS 2 (U.A)', fontsize=16)
+# ax10.set_xlim(ax10.get_xlim()[0]-.4, ax10.get_xlim()[-1])
+# # ax10.set_ylim(ax10.get_ylim()[0]-.005, ax10.get_ylim()[-1]+.005)
+# ax10.grid(True, alpha=.7)
+
+# Remover los patches de degradado
+for ax in fig.axes:
+    for im in ax.images:
+        im.set_clip_path(None)
+
+# fig.text(.05, .99, 'a)', fontsize=18, va='top', ha='right')
+# fig.text(.565,.99, 'b)', fontsize=18, va='top', ha='right')
+# fig.text(.05, .5, 'c)', fontsize=18, va='top', ha='right')
+# fig.text(.565,.5, 'd)', fontsize=18, va='top', ha='right')
+
+# # Ahora guardar la figura sin que se calcule el bbox de esos patches
+fig.savefig(
+    os.path.normpath(os.path.join('figures','figuras_tesis', 'resultados', 'poster_prolen_pesos.png')),
+    transparent=True,
+    # bbox_inches='tight',
+    dpi=750
+)
+fig.show()
+
+situation='External'
+
+correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+mtrf_path = os.path.normpath(f'saves/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
+bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
+stimuli = ['Pitch-Log-Raw', 'Envelope', 'Mfccs', 'Spectrogram', 'Phonemes-Phonet', 'Phonological']
+
+# Cálculo de correlaciones (como en tu código)
+correlations = {
+    (stim, band): load_pickle(path=os.path.join(correlations_path, band, stim + '.pkl'))['average_correlation_subjects'].mean(axis=0)
+    for stim in stimuli for band in bands
+}
+minimum_cor = min([corr.min() for corr in correlations.values()])
+maximum_cor = max([corr.max() for corr in correlations.values()])
+
+n_stims, n_bands = len(stimuli), len(bands)
+
+# Create figure and title
+fig, axes = plt.subplots(
+        figsize=(8,8),
+        nrows=n_bands,
+        ncols=n_stims,
+        layout="constrained"
+        )
+
+# Configure axis
+for ax, col in zip(axes[:,0], stimuli):
+    if col=='Phonemes-Phonet':
+        col = 'Phonemes'
+        ax.set_ylabel(col, rotation=90, fontsize=18)
+    elif col=='Pitch-Log-Raw':
+        col = 'Pitch-Log'
+        ax.set_ylabel(col, rotation=90, fontsize=18)
+    elif col=='Envelope':
+        # col = 'Envolvente'
+        ax.set_ylabel(col, rotation=90, fontsize=18)
+    elif col=='Phonological':
+        # col = 'C. Fonológicas'
+        ax.set_ylabel(col, rotation=90, fontsize=18)
+    elif col=='Spectrogram':
+        # col = 'Espectrograma'
+        ax.set_ylabel(col, rotation=90, fontsize=18)
+    elif col=='Mfccs':
+        col = 'Mel C.'
+        ax.set_ylabel(col, rotation=90, fontsize=18)
+    else:
+        ax.set_ylabel(col, rotation=90, fontsize=18)
+for ax, band in zip(axes[0], bands):
+    if band=='Beta1':
+        band=r'Beta$_1$'
+
+    if band=='Beta2':
+        band=r'Beta$_2$'
+
+    # if band=='All':
+    #     band='Ancha'
+    ax.set_title(band, fontsize=18)
+
+# Iterate over bands
+for j, band in enumerate(bands):
+    for i, stim in enumerate(stimuli):
+        # Get average correlation of each stimulus across subjects
+        average_correlation = correlations[(stim,band)]
+
+        # Plot topomap
+        mne.viz.plot_topomap(
+                data=average_correlation,
+                pos=config.info_mne,
+                axes=axes[i, j],
+                show=False,
+                sphere=0.07,
+                cmap='Reds',
+                # vlims=(minimum_cor, maximum_cor),
+                vlim=(average_correlation.min(),average_correlation.max())
+                )
+fig.savefig(
+    os.path.normpath(os.path.join('figures','figuras_tesis', 'resultados', 'poster_prolen_corr.png')),
+    transparent=True,
+    dpi=750
+)
+fig.show()
+
+# Visualization
+fig = plt.figure(
+    figsize=(5, 4), 
+    tight_layout=True
+    )
+transfo ={'Vocales':'1', 'Consonantes':'2'}
+for i, row in data['dataframes'][data['selected_window']].iterrows():
+    plt.scatter(row['Feature_1']*1e2, row['Feature_2']*1e1, c='black', s=.5, facecolors='none')#, label = f"Row {row['Original_Row_Index']}")#, fontsize=9, ha='right')
+    plt.text(row['Feature_1']*1e2, row['Feature_2']*1e1, r"\textbf{" + f"{data['phonemes'][i]}" + r"}", fontsize=16, ha='right', color=color_labels[data['keys_to_phonemes_labels'][i]])
+    # plt.text(row['Feature_1']*1e2, row['Feature_2']*1e1, r"\textbf{" + f"{data['phonemes'][i]}" + r"}", fontsize=15, ha='right', color=color_labels[keys_to_phonemes_labels[i]])
+
+legend_handles = [Line2D([0], [0], color=color_labels[name], lw=4, label=transfo[name]) for name in color_labels]
+
+
+plt.ticklabel_format(style='scientific', axis='x', scilimits=(0, 0))
+plt.ticklabel_format(style='scientific', axis='y', scilimits=(0, 0))
+
+plt.legend(handles=legend_handles, title="Groups", loc=(.55,.6), title_fontsize=18, fontsize=18)
+
+f_s = data['F-scores'][data['selected_window']]
+a_s = data['Aris'][data['selected_window']]
+plt.title(f'Window centered at {selected_window_time:.1f} ms - ARI: {a_s:.2f}'.replace('.',','), fontsize=18)
+plt.xlabel('MDS 1 (U.A)', fontsize=18)
+plt.ylabel('MDS 2 (U.A)', fontsize=18)
+plt.xlim(plt.gca().get_xlim()[0]-.8, plt.gca().get_xlim()[-1])
+plt.ylim(plt.gca().get_ylim()[0]-.005, plt.gca().get_ylim()[-1]+.5)
+plt.grid(True, alpha=.7)
+fig.savefig(
+    os.path.normpath(os.path.join('figures','figuras_tesis', 'resultados', 'poster_prolen_mapa.png')),
+    transparent=True,
+    dpi=750
+)
+fig.show()
