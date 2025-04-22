@@ -14,7 +14,7 @@ sesiones = [
             30
             ]
 stimuli = [
-      #  'Mistakes-Separated_Control-Separated',
+        # 'Mistakes-Separated_Control-Separated',
         # 'Spectrogram_Mfccs',
         'Phones-Phonet_Phonemes-Phonet',
 
@@ -56,12 +56,12 @@ situations = [
         # 'External_Silence_100',
         ] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
 bands = [
-        # 'Delta', 
+        'Delta', 
         'Theta', 
-        # 'Alpha', 
-        # 'Beta1', 
-        # 'Beta2',
-        # 'All'
+        'Alpha', 
+        'Beta1', 
+        'Beta2',
+        'All'
         ] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
 
 # ==========================================

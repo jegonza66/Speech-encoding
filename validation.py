@@ -22,8 +22,7 @@ api_token, chat_id = '5448153732:AAGhKraJQquEqMfpD3cb4rnTcrKB6U1ViMA', 103434754
 # ============
 
 # Start execution
-situations = ['External'] if config.external_validation else config.situations
-for situation in situations:
+for situation in config.situations:
     start_time = datetime.now()
     for band in config.bands:
         for stim in config.stimuli:
