@@ -2,7 +2,7 @@ import numpy as np, mne
 
 # ==========================================
 # SESSIONS, STIMULI, SITUATION AND EEG BANDS
-sesiones = [
+sessions = [
             21, 
             22, 
             23, 
@@ -15,19 +15,23 @@ sesiones = [
             ]
 stimuli = [
         # 'Mistakes-Separated_Control-Separated',
-        # 'Spectrogram_Mfccs',
+        # Redundant features
+        'Spectrogram_Mfccs',
         'Phones-Phonet_Phonemes-Phonet',
 
+        # Combined 1st level features
         'Envelope_Pitch-Log-Raw',
         'Envelope_Spectrogram',
         'Pitch-Log-Raw_Spectrogram',
         'Envelope_Pitch-Log-Raw_Spectrogram',
         
+        # Combined best performance features
         'Phonological_Spectrogram', 
         'Phonemes-Phonet_Spectrogram',
         'Phonological_Phonemes-Phonet',
         'Phonological_Phonemes-Phonet_Spectrogram',
         
+        # Simples
         'Envelope',
         'Pitch-Log-Raw',
         'Spectrogram',
@@ -67,7 +71,7 @@ bands = [
 # ==========================================
 # LOADING/SAVING DATA, FIGURE CONFIGURATIONS
 praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
-display_interactive_mode, save_results, save_figures, no_figures = False, True, True, True
+display_interactive_mode, save_results, save_figures, no_figures = False, True, True, False
 figure_format = '.png'
 just_load_data = False
 
@@ -76,8 +80,9 @@ just_load_data = False
 external_validation = True # whether to use External hyperparameter or the one that maximize specific condition
 use_gpu = True
 statistical_test, perform_tfce = False, False
-stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 
+
+stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 model = 'mtrf'
 estimator = 'ridge_torch'  
 if estimator=='ridge': #TODO ADAAPTAR BIEN
@@ -87,6 +92,10 @@ elif estimator == 'ridge_torch':
 else:
     model = 'mtrf'
     
+# ==============================
+# DEFAULT PENALIZATION PARAMETER 
+correlation_limit_percentage, default_alpha, set_alpha = 0.01, 400, None
+
 # ====================================================================
 # TFCE, T-TEST PARAMETERS, HIERARCHICAL_CLUSTERING and NUMBER OF FOLDS
 n_permutations, significance, number_of_jobs = 4096, .05, -1
@@ -107,10 +116,6 @@ random_permutations = 3000
 correlation_length_samples = 104
 power_n_bootstrap_samples = 1000
 significance_threshold = 0.05/128 # Bonferroni correction (the test is in # channels) #TODO
-
-# ==============================
-# DEFAULT PENALIZATION PARAMETER 
-correlation_limit_percentage, default_alpha, set_alpha = 0.01, 400, None
 
 # =========================
 # EEG SAMPLE RATE AND TIMES
