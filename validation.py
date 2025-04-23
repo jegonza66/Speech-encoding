@@ -84,7 +84,7 @@ for situation in config.situations:
                     correlations = np.zeros(len(config.alphas_swept))
                     correlations_std = np.zeros(len(config.alphas_swept))
                     
-                    # Make sweep
+                    # Make sweep #TODO REESTRUCTURAR ASI: hacer que el modelo coma la tira de alphas y ajuste cada fold para todos los alphas y eso se guarde. Finalmente se toma la correlación acorde
                     for i_alpha, alpha in tqdm(enumerate(config.alphas_swept), total=len(config.alphas_swept), desc='Sweeping progress', bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
                         weights_per_fold = np.zeros((config.n_folds, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float16)
                         correlation_per_channel = np.zeros((config.n_folds, info['nchan']))

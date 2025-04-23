@@ -101,7 +101,7 @@ for situation in config.situations:
                         # Run permutations 
                         null_weights_per_fold[fold], null_correlation_per_channel_per_fold[fold], null_errors_per_fold[fold] = fold_model(
                             fold=fold,
-                            alpha=np.float32(alpha),#TODO adapt inside
+                            alpha=alpha,
                             stims=stims,
                             eeg=eeg,
                             relevant_indexes=relevant_indexes,
