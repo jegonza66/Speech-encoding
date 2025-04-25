@@ -34,7 +34,7 @@ for situation in config.situations:
             
             # Relevant paths
             preprocessed_data_path = os.path.normpath(f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/')
-            figures_path = os.path.normpath(f'figures/{config.model}_trace/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}')
+            figures_path = os.path.normpath(f'figures/{config.model}_trace/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}')
             
             path_validation = f'saves/{config.model}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
             alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
@@ -84,42 +84,31 @@ for situation in config.situations:
                     correlations = np.zeros(len(config.alphas_swept))
                     correlations_std = np.zeros(len(config.alphas_swept))
                     
-                    # Make sweep #TODO REESTRUCTURAR ASI: hacer que el modelo coma la tira de alphas y ajuste cada fold para todos los alphas y eso se guarde. Finalmente se toma la correlación acorde
-                    for i_alpha, alpha in tqdm(enumerate(config.alphas_swept), total=len(config.alphas_swept), desc='Sweeping progress', bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
-                        weights_per_fold = np.zeros((config.n_folds, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float16)
-                        correlation_per_channel = np.zeros((config.n_folds, info['nchan']))
-                        rmse_per_channel = np.zeros((config.n_folds, info['nchan']))
+                    # Make sweep 
+                    correlation_per_channel = np.zeros((config.n_folds, len(config.alphas_swept)))
 
-                        # Make the Kfold test
-                        kf_test = KFold(config.n_folds, shuffle=False)
+                    # Make the Kfold test
+                    kf_test = KFold(config.n_folds, shuffle=False)
 
-                        # Keep relevant indexes for eeg
-                        relevant_eeg = eeg[relevant_indexes]
-                        
-                        # Run folds 
-                        k_models_output = []
-                        for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
-                            k_models_output.append(
-                                            fold_model(
-                                            fold=fold,
-                                            alpha=alpha,
-                                            stims=stims,
-                                            eeg=eeg,
-                                            relevant_indexes=relevant_indexes,
-                                            train_indexes=train_indexes,
-                                            test_indexes=test_indexes,  
-                                            validation=True
-                                            ) 
-                                            )     
-                        # Unpack model outputs  
-                        for fold, weights, correlation_matrix, root_mean_square_error in k_models_output:
-                            weights_per_fold[fold] = weights
-                            correlation_per_channel[fold] = correlation_matrix
-                            rmse_per_channel[fold] = root_mean_square_error
-                        
-                        # Calculate mean correlation and std
-                        correlations[i_alpha] = np.nan_to_num(np.nanmean(correlation_per_channel))
-                        correlations_std[i_alpha] = np.nan_to_num(np.nanstd(correlation_per_channel))
+                    # Keep relevant indexes for eeg
+                    relevant_eeg = eeg[relevant_indexes]
+                    
+                    # Run folds 
+                    for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
+                        correlation_per_channel[fold] = fold_model(
+                            fold=fold,
+                            alpha=config.alphas_swept,
+                            stims=stims,
+                            eeg=eeg,
+                            relevant_indexes=relevant_indexes,
+                            train_indexes=train_indexes,
+                            test_indexes=test_indexes,  
+                            validation=True
+                            )     
+
+                    # Calculate mean correlation and std
+                    correlations = np.nan_to_num(np.nanmean(correlation_per_channel, axis=0))
+                    correlations_std = np.nan_to_num(np.nanstd(correlation_per_channel, axis=0))
                     
                     # Find all indexes where the relative difference between the correlation and its maximum is within corr_limit_percent
                     relative_difference = abs((correlations.max() - correlations)/correlations.max())

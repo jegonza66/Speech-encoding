@@ -3,7 +3,8 @@ import numpy as np, os
 
 # Specific libraries
 from tqdm import tqdm
-    
+from typing import Union
+
 # Modules
 from mtrf_models import ReceptiveFieldAdaptation, TorchMtrf
 from processing import block_bootstrap
@@ -12,7 +13,7 @@ import config
 
 def fold_model(
     fold:int, 
-    alpha:float, 
+    alpha:Union[float, np.ndarray],  
     stims:np.ndarray, 
     eeg:np.ndarray, 
     relevant_indexes:np.ndarray,
@@ -34,8 +35,8 @@ def fold_model(
     ----------
     fold : int
         The fold number.
-    alpha : float
-        Regularization parameter for the model.
+    alpha : float or np.ndarray
+        Regularization parameter for the model. If validation is True, it can be an array of alphas.
     stims : np.ndarray
         Stimuli data array.
     eeg : np.ndarray
@@ -91,6 +92,21 @@ def fold_model(
                
         return weights, correlation_matrix, root_mean_square_error
             # return iteration, fold, weights, correlation_matrix, root_mean_square_error
+    elif validation:
+        mtrf = TorchMtrf(
+                alpha=alpha, 
+                relevant_indexes=np.array(relevant_indexes),
+                train_indexes=train_indexes, 
+                test_indexes=test_indexes, 
+                stims_preprocess=config.stims_preprocess, 
+                eeg_preprocess=config.eeg_preprocess,
+                fit_intercept=False,
+                validation=True,
+                shuffle=True, 
+                use_gpu=config.use_gpu,
+                )
+        # Returns directly correlations per alpha
+        return mtrf.fit(stims, eeg)
     else:
         # Implement mne model
         if config.model=='mtrf_ridge' or config.model=='mtrf':

@@ -5,6 +5,7 @@ mne.set_log_level(verbose='WARNING')
 # Specific libraries
 from mne.decoding import ReceptiveField, TimeDelayingRidge
 from sklearn.linear_model import Ridge
+from typing import Union
 from tqdm import tqdm
 import torch
 
@@ -15,7 +16,7 @@ import config
 class TorchMtrf:
     def __init__(
         self, 
-        alpha:float, 
+        alpha:Union[float, np.ndarray], 
         relevant_indexes:np.ndarray, 
         train_indexes:np.ndarray, 
         test_indexes:np.ndarray, 
@@ -31,8 +32,8 @@ class TorchMtrf:
 
         Parameters
         ----------
-        alpha : float
-            Regularization strength.
+        alpha : float or np.ndarray, optional
+            Regularization strength. If validation is True, this should be an array of alphas to be swept, by default None.
         relevant_indexes : np.ndarray
             Array of relevant indexes.
         train_indexes : np.ndarray
@@ -156,26 +157,38 @@ class TorchMtrf:
                 del y_train
                         
             # Standarize and normalize 
-            X_train_for_val, y_train_for_val, X_pred, self.y_val = self.standarize_normalize(
+            X_train_for_val, y_train_for_val, X_pred, y_val = self.standarize_normalize(
                                                                 X_train=X_train_for_val, 
                                                                 X_pred=X_val, 
                                                                 y_train=y_train_for_val, 
                                                                 y_test=y_val
                                                                 )
-            del y_val
-            
-            # Fit the Ridge model
-            XTX_reg = X_train_for_val.T @ X_train_for_val + torch.tensor(self.alpha, dtype=torch.float32) *  torch.eye(X_train_for_val.shape[1], device=self.device) # X^T * X + alpha*I
-            mtrfs = torch.linalg.solve(XTX_reg, X_train_for_val.T @ y_train_for_val)
-            del X_train_for_val, y_train_for_val
-            
-            # Perform predictions
-            self.y_predicted = X_pred @ mtrfs
-            del X_pred
-            
-            # Store mtrfs
-            self.coefs = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1).cpu().numpy()
-             
+            correlations = torch.zeros(len(self.alpha), device=self.device, dtype=torch.float32)
+            for i_alpha, alph in tqdm(enumerate(self.alpha), total=len(self.alpha), desc='Sweeping progress', bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
+            # for i_alpha, alph in enumerate(self.alpha):
+                
+                # Fit the Ridge model
+                XTX_reg = X_train_for_val.T @ X_train_for_val + torch.tensor(alph, dtype=torch.float32) *  torch.eye(X_train_for_val.shape[1], device=self.device) # X^T * X + alpha*I
+                y_predicted = X_pred @ torch.linalg.solve(XTX_reg, X_train_for_val.T @ y_train_for_val)
+                
+                # Compute correlation
+                try:
+                    y_pred_centered = y_predicted - y_predicted.mean(dim=0, keepdim=True)
+                    y_val_centered = y_val - y_val.mean(dim=0, keepdim=True)
+                    covariance = (y_val_centered * y_pred_centered).sum(dim=0)
+
+                    # .norm is more efficient than .std because the division by N or N-1 cancels in corr
+                    y_val_std = y_val_centered.norm(dim=0) 
+                    y_pred_std = y_pred_centered.norm(dim=0)
+                    if torch.any(y_val_std == 0) or torch.any(y_pred_std == 0):
+                        raise ZeroDivisionError("Error: null standard deviation")
+                    else:
+                        correlations[i_alpha] = (covariance / (y_val_std * y_pred_std)).mean()
+                except RuntimeWarning:
+                    correlations[i_alpha] = 0
+
+            del X_train_for_val, y_train_for_val, y_predicted, y_val, X_pred
+            return correlations.detach().cpu().numpy()
         else:
             if self.shuffle:
                 iterations = np.arange(config.random_permutations)
@@ -204,7 +217,8 @@ class TorchMtrf:
                     
                     # Perform predictions
                     y_predicted = X_pred @ mtrfs
-
+                    
+                    # TODO PASAR A TORCH
                     predicted = y_predicted.cpu().detach().numpy()
                     root_mean_square_error = np.array(np.sqrt(np.power((predicted - eeg_test), 2).mean(0)))
                     try:
