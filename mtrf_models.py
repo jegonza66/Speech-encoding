@@ -133,7 +133,7 @@ class TorchMtrf:
             y_test = y_temp[self.test_indexes]
         
         if self.validation:
-            del X_pred
+            del X_pred, y_test
             
             # Make split for validation: validation sets, fixing the train percent of data
             train_percent = .8
@@ -180,8 +180,8 @@ class TorchMtrf:
                     # .norm is more efficient than .std because the division by N or N-1 cancels in corr
                     y_val_std = y_val_centered.norm(dim=0) 
                     y_pred_std = y_pred_centered.norm(dim=0)
-                    if torch.any(y_val_std == 0) or torch.any(y_pred_std == 0):
-                        raise ZeroDivisionError("Error: null standard deviation")
+                    if torch.all(y_val_std == 0) or torch.all(y_pred_std == 0):
+                        print("\n Error: null standard deviation")
                     else:
                         correlations[i_alpha] = (covariance / (y_val_std * y_pred_std)).mean()
                 except RuntimeWarning:

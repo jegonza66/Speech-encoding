@@ -64,7 +64,7 @@ for situation in config.situations:
 
                 # Load data by subject, EEG and info
                 subject_1, subject_2, samples_info = load_data(
-                                                sesion=sesion,
+                                                session=sesion,
                                                 stim=stim,
                                                 band=band,
                                                 sr=config.sr,
