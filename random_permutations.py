@@ -70,9 +70,8 @@ for situation in config.situations:
                 relevant_indexes_2 = samples_info['keep_indexes2'].copy()
 
                 # Initialize empty variables to store relevant data of each fold 
-                null_weights_per_fold = np.zeros((config.n_folds, config.random_permutations, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float16)
-                null_correlation_per_channel_per_fold = np.zeros((config.n_folds, config.random_permutations, info['nchan']))
-                null_errors_per_fold = np.zeros((config.n_folds, config.random_permutations, info['nchan']))
+                null_weights_per_fold = np.zeros((config.n_folds, config.random_permutations, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float32)
+                null_correlation_per_channel_per_fold = np.zeros((config.n_folds, config.random_permutations, info['nchan']), dtype=np.float32)
 
                 # Run model for each subject
                 for subject, eeg, stims, relevant_indexes in zip((1, 2), (eeg_subject_1, eeg_subject_2), (stims_subject_1, stims_subject_2), (relevant_indexes_1, relevant_indexes_2)):
@@ -99,7 +98,7 @@ for situation in config.situations:
                         print(f'\n\t······  [{fold+1}/{config.n_folds}]')
 
                         # Run permutations 
-                        null_weights_per_fold[fold], null_correlation_per_channel_per_fold[fold], null_errors_per_fold[fold] = fold_model(
+                        null_weights_per_fold[fold], null_correlation_per_channel_per_fold[fold]  = fold_model(
                             fold=fold,
                             alpha=alpha,
                             stims=stims,
@@ -117,7 +116,6 @@ for situation in config.situations:
                                 path=path_null+ f'null_metrics_ses_{session}_sub_{subject}_{config.random_permutations}.pkl',
                                 obj={
                                     'null_correlation_per_channel_per_fold':null_correlation_per_channel_per_fold, 
-                                    'null_errors_per_fold':null_errors_per_fold
                                     },
                                 rewrite=True
                                 )

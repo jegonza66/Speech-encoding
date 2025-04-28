@@ -194,9 +194,16 @@ class TorchMtrf:
                 iterations = np.arange(config.random_permutations)
                 number_of_indices = X_train.shape[0]
                 
-                self.coefs = np.zeros((config.random_permutations, config.info_mne['nchan'], n_features, len(config.delays)), dtype=np.float32)
-                self.correlations = np.zeros((config.random_permutations, config.info_mne['nchan']))
-                self.root_mean_square_error = np.zeros((config.random_permutations, config.info_mne['nchan']))
+                coefs = torch.zeros(
+                    size=(config.random_permutations, config.info_mne['nchan'], n_features, len(config.delays)), 
+                    device=self.device, 
+                    dtype=np.float32
+                    )
+                correlations = torch.zeros(
+                    size=(config.random_permutations, config.info_mne['nchan']), 
+                    device=self.device, 
+                    dtype=torch.float32
+                    )
                 
                 X_train, y_train, X_pred, y_test = self.standarize_normalize(
                             X_train=X_train, 
@@ -204,33 +211,34 @@ class TorchMtrf:
                             y_train=y_train, 
                             y_test=y_test
                             )
-                eeg_test = y_test.cpu().detach().numpy()
-                del y_test                
                 # Shuffle the data, by requierment of random permutations
                 for s in tqdm(iterations, desc='Performing permutations', bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
                     X_train_p = X_train[torch.randperm(number_of_indices)] # TODO Shufflear y en vez de X
                    
                     # Fit the Ridge model (X^T X + alpha * I) * mtrfs = X^T * y_train_p 
                     XTX_reg = X_train_p.T @ X_train_p + self.alpha.astype(np.float32) *  torch.eye(X_train_p.shape[1], device=self.device) # X^T * X + alpha*I
-                    mtrfs = torch.linalg.solve(XTX_reg, X_train_p.T @ y_train)
-                    del X_train_p
-                    
-                    # Perform predictions
+                    mtrfs = torch.linalg.solve(XTX_reg, X_train.T @ y_train)
                     y_predicted = X_pred @ mtrfs
+                    coefs[s] = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1)
+                    del X_train_p, mtrfs
                     
-                    # TODO PASAR A TORCH
-                    predicted = y_predicted.cpu().detach().numpy()
-                    root_mean_square_error = np.array(np.sqrt(np.power((predicted - eeg_test), 2).mean(0)))
                     try:
-                        correlation_matrix = np.array([np.corrcoef(eeg_test[:, j], predicted[:, j])[0,1] for j in range(eeg_test.shape[1])])
+                        y_pred_centered = y_predicted - y_predicted.mean(dim=0, keepdim=True)
+                        y_test_centered = y_test - y_test.mean(dim=0, keepdim=True)
+                        covariance = (y_test_centered * y_pred_centered).sum(dim=0)
+
+                        # .norm is more efficient than .std because the division by N or N-1 cancels in corr
+                        y_test_std = y_test_centered.norm(dim=0) 
+                        y_pred_std = y_pred_centered.norm(dim=0)
+                        if torch.any(y_test_std == 0) or torch.any(y_pred_std == 0):
+                            raise ZeroDivisionError("Error: null standard deviation")
+                        else:
+                            correlations[s] = (covariance / (y_test_std * y_pred_std))
                     except RuntimeWarning:
-                        correlation_matrix = np.zeros(eeg_test.shape[1])
-                    
-                    # Store mtrfs and correlation
-                    self.correlations[s] = correlation_matrix
-                    self.root_mean_square_error[s] = root_mean_square_error
-                    self.coefs[s] = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1).cpu().numpy()
-                del X_train, y_train, X_pred, eeg_test
+                        correlations[s] = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
+                        
+                del X_train, y_train, X_pred, y_test, y_predicted
+                return coefs.cpu().numpy(), correlations.cpu().numpy()
             else:
                 # Standarize and normalize
                 X_train, y_train, X_pred, self.y_test = self.standarize_normalize(

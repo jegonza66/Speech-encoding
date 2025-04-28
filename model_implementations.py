@@ -86,12 +86,9 @@ def fold_model(
         # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
         mtrf.fit(stims, eeg)
         
-        weights = mtrf.coefs # n_iterations, n_chans, feats, delays
-        correlation_matrix = mtrf.correlations  # # n_iterations, n_chans
-        root_mean_square_error = mtrf.root_mean_square_error # n_iterations, n_chans
-               
-        return weights, correlation_matrix, root_mean_square_error
-            # return iteration, fold, weights, correlation_matrix, root_mean_square_error
+        # weights # n_iterations, n_chans, feats, delays
+        # correlation_matrix  # n_iterations, n_chans
+        return weights, correlation_matrix
     elif validation:
         mtrf = TorchMtrf(
                 alpha=alpha, 
