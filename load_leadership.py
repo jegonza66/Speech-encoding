@@ -1376,10 +1376,10 @@ class Trial_channel:
                 channel[stim] = self.f_phones_phonet(envelope=channel['Envelope'], kind=stim)
         return channel
 
-class Sesion_class: 
+class Session_class: 
     def __init__(
         self, 
-        sesion:int=21, 
+        session:int=21, 
         stim:str='Envelope', 
         band:str='All', 
         sr:float=128, 
@@ -1397,7 +1397,7 @@ class Sesion_class:
         
         Parameters
         ----------
-        sesion : int
+        session : int
             Session number, by default 21
         stim : str
             Stimuli to use in the analysis, by default 'Envelope'. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
@@ -1473,7 +1473,7 @@ class Sesion_class:
             raise SyntaxError(f"{situation} is not an allowed situation. Allowed situations are: {allowed_situations}")
         
         # Define parameters
-        self.sesion = sesion
+        self.session = session
         self.l_freq_eeg, self.h_freq_eeg = processing.band_freq(band)
         self.sr = sr
         self.delays = delays
@@ -1485,8 +1485,8 @@ class Sesion_class:
         self.praat_executable_path = praat_executable_path
         self.preprocessed_data_path = preprocessed_data_path
         self.samples_info_path = os.path.join(self.preprocessed_data_path, f'samples_info/')
-        self.phn_path = f"Datos/phonemes/S{self.sesion}/"
-        self.phrases_path = f"Datos/phrases/S{self.sesion}/"
+        self.phn_path = f"Datos/phonemes/S{self.session}/"
+        self.phrases_path = f"Datos/phrases/S{self.session}/"
 
         # Define paths to export data
         self.export_paths = {}
@@ -1560,7 +1560,7 @@ class Sesion_class:
         
         # Try to open preprocessed info of samples, if not crates raw. This dictionary contains data of trial lengths and indexes to keep up to given trial
         try:
-            self.samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.sesion}.pkl'))
+            self.samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'))
             loaded_samples_info = True
         except:
             loaded_samples_info = False
@@ -1591,12 +1591,12 @@ class Sesion_class:
                 p_j = p//2
 
             # Update on number of trials
-            Sesion_class.print_trials(p, trial, trials)
+            Session_class.print_trials(p, trial, trials)
 
             # Create trial for both channels in order to extract features and EEG signal
             try:
                 leader = Trial_channel(
-                        s=self.sesion, 
+                        s=self.session, 
                         trial=trial, 
                         channel=leadership,
                         band=self.band, 
@@ -1608,7 +1608,7 @@ class Sesion_class:
                         situation=self.situation,
                         )
                 follower = Trial_channel(
-                        s=self.sesion,
+                        s=self.session,
                         trial=trial,
                         channel=following,
                         band=self.band,
@@ -1658,6 +1658,7 @@ class Sesion_class:
                         # Preprocessing: calaculates the relevant indexes for the apropiate analysis. Add sum of all previous trials length. This is because at the end, all trials previous to the actual will be concatenated
                         shifted_indexes_leader = self.shifted_indexes_to_keep(speaker_labels=current_speaker_leader)
                         shifted_indexes_follower = self.shifted_indexes_to_keep(speaker_labels=current_speaker_follower)
+                        
                         # shifted_indexes_leader, shifted_indexes_follower = self.subsampling_indexes_to_minimum(shifted_indexes_leader, shifted_indexes_follower)
 
                         # Preprocessing: calaculates the relevant indexes for the apropiate analysis. Add sum of all previous trials length. This is because at the end, all trials previous to the actual will be concatenated
@@ -1691,7 +1692,7 @@ class Sesion_class:
                                 subject_follower1[key] = np.concatenate((subject_follower1[key], trial_follower[key]), axis=0)
             # Empty trial
             except:
-                print(f"Trial {trial} of session {self.sesion} couldn't be loaded.")
+                print(f"Trial {trial} of session {self.session} couldn't be loaded.")
                 if uneven:
                     self.samples_info['trial_lengths_leader1'][p_j] = 0
                     self.samples_info['trial_lengths_follower2'][p_j] = 0
@@ -1707,13 +1708,13 @@ class Sesion_class:
 
         # Saves modified relevant indexes 
         os.makedirs(self.samples_info_path, exist_ok=True)
-        funciones.dump_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.sesion}.pkl'), obj=self.samples_info, rewrite=True)
+        funciones.dump_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'), obj=self.samples_info, rewrite=True)
 
         # Save results
         for key in subject_leader1:
             os.makedirs(self.export_paths[key], exist_ok=True)
             funciones.dump_pickle(
-                path=os.path.join(self.export_paths[key], f'Sesion{self.sesion}.pkl'), 
+                path=os.path.join(self.export_paths[key], f'Sesion{self.session}.pkl'), 
                 obj=[subject_leader1[key], subject_leader2[key], subject_follower1[key], subject_follower2[key]], 
                 rewrite=True
                 )
@@ -1745,9 +1746,9 @@ class Sesion_class:
             Sessions of both subjects.
         """
         # Load EEGs and procesed data
-        eeg_leader_1, eeg_leader_2, eeg_follower_1, eeg_follower_2 = funciones.load_pickle(path=os.path.join(self.export_paths['EEG'], f'Sesion{self.sesion}.pkl'))
+        eeg_leader_1, eeg_leader_2, eeg_follower_1, eeg_follower_2 = funciones.load_pickle(path=os.path.join(self.export_paths['EEG'], f'Sesion{self.session}.pkl'))
         info = funciones.load_pickle(path=os.path.join(self.preprocessed_data_path, f'EEG/info.pkl'))
-        samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.sesion}.pkl'))
+        samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'))
         subject_leader1_return = {'EEG': eeg_leader_1, 'info': info}
         subject_leader2_return = {'EEG': eeg_leader_2, 'info': info}
         subject_follower1_return = {'EEG': eeg_follower_1, 'info': info}
@@ -1755,8 +1756,9 @@ class Sesion_class:
         
         # Loads stimuli to each subject
         for stimulus in self.stim.split('_'):
-            subject_leader1_return[stimulus], subject_leader2_return[stimulus], subject_follower1_return[stimulus], subject_follower2_return[stimulus] = funciones.load_pickle(path=os.path.join(self.export_paths[stimulus], f'Sesion{self.sesion}.pkl'))
+            subject_leader1_return[stimulus], subject_leader2_return[stimulus], subject_follower1_return[stimulus], subject_follower2_return[stimulus] = funciones.load_pickle(path=os.path.join(self.export_paths[stimulus], f'Sesion{self.session}.pkl'))
         return {'Leader_1': subject_leader1_return, 'Leader_2': subject_leader2_return, 'Follower_1': subject_follower1_return, 'Follower_2': subject_follower2_return}, samples_info
+    
     def subsampling_indexes_to_minimum(
         self, 
         shifted_indexes_1:np.ndarray, 
@@ -1798,8 +1800,7 @@ class Sesion_class:
             -------
             np.ndarray
                 Downsampled shifted indexes
-            """
-            
+            """                
             number_of_indexes = len(matrix)
             number_subsampled_indexes = number_of_indexes - cutoff
             
@@ -1809,9 +1810,15 @@ class Sesion_class:
                     size=number_subsampled_indexes, 
                     replace=False
                     )
-                return np.delete(matrix, indices_to_remove, axis=0)
+                if isinstance(matrix, list):
+                    return list(np.delete(matrix, indices_to_remove, axis=0))
+                else: 
+                    return np.delete(matrix, indices_to_remove, axis=0)
             else:
-                return matrix[:cutoff]
+                start = np.random.randint(0, number_subsampled_indexes)
+                return matrix[start:start + cutoff]
+        
+        
         
         # Resample to match minimum length of both shifted indexes
         minimum_length = min(len(shifted_indexes_1), len(shifted_indexes_2))
@@ -1850,7 +1857,7 @@ class Sesion_class:
         """
         
         # Read phrases into pandas.DataFrame
-        ubi_speaker = os.path.join(self.phrases_path, f's{self.sesion}.objects.{trial:02d}.channel{channel}.phrases')
+        ubi_speaker = os.path.join(self.phrases_path, f's{self.session}.objects.{trial:02d}.channel{channel}.phrases')
         
         h1t = pd.read_table(ubi_speaker, header=None, sep="\t")
 
@@ -1863,7 +1870,7 @@ class Sesion_class:
         
         # Same with listener
         listener_channel = (channel - 3) * -1
-        ubi_listener = os.path.join(self.phrases_path, f's{self.sesion}.objects.{trial:02d}.channel{listener_channel}.phrases')
+        ubi_listener = os.path.join(self.phrases_path, f's{self.session}.objects.{trial:02d}.channel{listener_channel}.phrases')
         h2t = pd.read_table(ubi_listener, header=None, sep="\t")
 
         # Replace and '#' by ''. And then all text by 1 and silences by 0
@@ -2020,7 +2027,7 @@ class Sesion_class:
         return dic, speaker_labels, minimum
     
 def load_data(
-    sesion:int, 
+    session:int, 
     stim:str, 
     band:str,
     sr:float,
@@ -2037,7 +2044,7 @@ def load_data(
 
     Parameters
     ----------
-    sesion : int
+    session : int
         Session number.
     stim : str
         Stimuli to use in the analysis. If more than one stimulus is wanted, the separator should be '_'.
@@ -2113,7 +2120,7 @@ def load_data(
                 # Re-order stim and band to create just one file for each case: 'Phonemes_Envelope' --> 'Envelope_Phonemes'
                 ordered_stims = sorted(stim.split('_'))
                 ordered_band = sorted(band.split('_'))
-                sesion_obj = Sesion_class(sesion=sesion, 
+                session_obj = Session_class(session=session, 
                                         stim='_'.join(ordered_stims), 
                                         band='_'.join(ordered_band), 
                                         sr=sr,
@@ -2128,12 +2135,12 @@ def load_data(
                 # Try to load procesed data, if it fails it loads raw data
                 try:
                     print('Loading preprocesed data\n')
-                    Sesion, samples_info = sesion_obj.load_procesed()
+                    Session, samples_info = session_obj.load_procesed()
                     print('Data loaded succesfully\n')
                 except:
                     print("Couldn't load data, compute it from raw\n")
-                    Sesion, samples_info = sesion_obj.load_from_raw()
-                return Sesion['Leader_1'], Sesion['Leader_2'], Sesion['Follower_1'], Sesion['Follower_2'], samples_info
+                    Session, samples_info = session_obj.load_from_raw()
+                return Session['Leader_1'], Session['Leader_2'], Session['Follower_1'], Session['Follower_2'], samples_info
             else:
                 raise SyntaxError(f"{situation} is not an allowed situation. Allowed ones are: {allowed_situations}")
         else:

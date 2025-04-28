@@ -63,12 +63,12 @@ for situation in ['External']:
             total_number_of_subjects_follower = 0
 
             # Iterate over sessions
-            for sesion in config.sesiones:
-                print(f'\n------->\tStart of session {sesion}\n')
+            for session in config.sessions:
+                print(f'\n------->\tStart of session {session}\n')
 
                 # Load data by subject, EEG and info
                 leader_1, leader_2, follower_1, follower_2, samples_info = load_data(
-                                                sesion=sesion,
+                                                session=session,
                                                 stim=stim,
                                                 band=band,
                                                 sr=config.sr,
@@ -119,7 +119,7 @@ for situation in ['External']:
                         try:
                             alphas = load_pickle(path=alphas_path)
                             suj = 1 if sujeto in [1,3] else 2
-                            alpha = alphas[sesion][suj]
+                            alpha = alphas[session][suj]
                         except:
                             alpha = config.default_alpha
                     else:
@@ -147,7 +147,7 @@ for situation in ['External']:
                                             validation=False,
                                             statistical_test=config.statistical_test,
                                             path_null=path_null,
-                                            session=sesion,
+                                            session=session,
                                             subject=sujeto,                              
                                             )
                                         )
@@ -225,7 +225,7 @@ for situation in ['External']:
                         # # Plot shadows for each subject
                         # plot.null_correlation_vs_correlation_good_channels(
                         #     display_interactive_mode=config.display_interactive_mode, 
-                        #     session=sesion, 
+                        #     session=session, 
                         #     subject=sujeto,
                         #     save_path=path_figures, 
                         #     good_channels_indexes=corr_good_channel_indexes, 
@@ -251,7 +251,7 @@ for situation in ['External']:
                         display_interactive_mode=config.display_interactive_mode,
                         save_path=path_figures, 
                         subject=sujeto, 
-                        session=sesion, 
+                        session=session, 
                         no_figures=config.no_figures
                         )
                     plot.topomap(
@@ -263,7 +263,7 @@ for situation in ['External']:
                         display_interactive_mode=config.display_interactive_mode,
                         save_path=path_figures, 
                         subject=sujeto, 
-                        session=sesion, 
+                        session=session, 
                         no_figures=config.no_figures #TODO: remove all config. parameters and put them in plot module
                         )
 
@@ -279,7 +279,7 @@ for situation in ['External']:
                         times=config.times,
                         n_feats=n_feats, 
                         stim=stim, 
-                        session=sesion, 
+                        session=session, 
                         subject=sujeto, 
                         hierarchical_clustering=config.hierarchical_clustering,
                         display_interactive_mode=config.display_interactive_mode, 
@@ -312,7 +312,7 @@ for situation in ['External']:
                         
 
                 # Print the progress of the iteration
-                iteration_percentage(txt=f'\n------->\tEnd of session {sesion}\n', i=config.sesiones.index(sesion), length_of_iterator=len(config.sesiones))
+                iteration_percentage(txt=f'\n------->\tEnd of session {session}\n', i=config.sessions.index(session), length_of_iterator=len(config.sessions))
                 
             if config.just_load_data:
                 continue
@@ -437,7 +437,7 @@ for situation in ['External']:
                 
     # Get run time
     run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
-    text = f'\n\n\t\t\tPARAMETERS  \n\n\tModel: ' + config.model +f'\n\tBands: {config.bands}'+'\n\tStimuli: ' + f'{config.stimuli}'+'\n\tCondition: ' +situation+f'\n\tTime interval: ({config.tmin},{config.tmax})s'+f'\n\tNumber of subjects analyzed: {total_number_of_subjects_leader}. \n\tSessions: {config.sesiones}'
+    text = f'\n\n\t\t\tPARAMETERS  \n\n\tModel: ' + config.model +f'\n\tBands: {config.bands}'+'\n\tStimuli: ' + f'{config.stimuli}'+'\n\tCondition: ' +situation+f'\n\tTime interval: ({config.tmin},{config.tmax})s'+f'\n\tNumber of subjects analyzed: {total_number_of_subjects_leader}. \n\tSessions: {config.sessions}'
     if config.just_load_data:
         text += '\n\n\t\t\tJUST LOADING DATA'
     text += '\n\n\t\t\tmain.py'
@@ -461,189 +461,189 @@ for situation in ['External']:
         mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=text)
     print(text)
 
-# ===========================
-# ANALYSIS: # TODO comentar la diferencia en pesos, está interesante. Pareciera ser que los pesos de los líderes tienen más orden que los de los seguidores.
-# Notar también la diferencia en la latencia, por ej. para Phonological.
+# # ===========================
+# # ANALYSIS: # TODO comentar la diferencia en pesos, está interesante. Pareciera ser que los pesos de los líderes tienen más orden que los de los seguidores.
+# # Notar también la diferencia en la latencia, por ej. para Phonological.
 
-import matplotlib.pyplot as plt, pandas as pd, numpy as np, seaborn as sns
-from scipy.stats import wilcoxon
-import config
-from funciones import load_pickle, dump_pickle
-import mne
+# import matplotlib.pyplot as plt, pandas as pd, numpy as np, seaborn as sns
+# from scipy.stats import wilcoxon
+# import config
+# from funciones import load_pickle, dump_pickle
+# import mne
 
 
-# ===================================================================
-# Comparación de pesos promedios entre dimensiones, sujetos y canales
-mtrfs_path = lambda stimulus, band: fr"leadership\saves\mtrf_ridge_torch\External\weights\stims_Normalize_EEG_Standarize\tmin-0.2_tmax0.6\{band}\{stimulus}\total_weights_per_subject.pkl"
-correlation_path = lambda stimulus, band: fr"leadership\saves\mtrf_ridge_torch\External\correlations\tmin-0.2_tmax0.6\{band}\{stimulus}.pkl"
-# stimulus, band = 'Phonemes-Discrete-Phonet', 'Theta'
-stimulus, band = 'Spectrogram', 'Theta'
-# stimulus, band = 'Phonological', 'Theta'
-# stimulus, band = 'Envelope', 'Theta'
+# # ===================================================================
+# # Comparación de pesos promedios entre dimensiones, sujetos y canales
+# mtrfs_path = lambda stimulus, band: fr"leadership\saves\mtrf_ridge_torch\External\weights\stims_Normalize_EEG_Standarize\tmin-0.2_tmax0.6\{band}\{stimulus}\total_weights_per_subject.pkl"
+# correlation_path = lambda stimulus, band: fr"leadership\saves\mtrf_ridge_torch\External\correlations\tmin-0.2_tmax0.6\{band}\{stimulus}.pkl"
+# # stimulus, band = 'Phonemes-Discrete-Phonet', 'Theta'
+# stimulus, band = 'Spectrogram', 'Theta'
+# # stimulus, band = 'Phonological', 'Theta'
+# # stimulus, band = 'Envelope', 'Theta'
 
-# Load data
-mtrfs = load_pickle(path=mtrfs_path(stimulus, band))
-correlations = load_pickle(path=correlation_path(stimulus, band))
-data = pd.DataFrame(data=
-                    {
-                    'average_correlation_subjects_follower': correlations['average_correlation_subjects_follower'].mean(axis=1), 
-                    'average_correlation_subjects_leader': correlations['average_correlation_subjects_leader'].mean(axis=1), 
-                    }
-                    )
-colors_leadership = {'average_correlation_subjects_follower':'#1567A3', 'average_correlation_subjects_leader':'#BD164F'}
+# # Load data
+# mtrfs = load_pickle(path=mtrfs_path(stimulus, band))
+# correlations = load_pickle(path=correlation_path(stimulus, band))
+# data = pd.DataFrame(data=
+#                     {
+#                     'average_correlation_subjects_follower': correlations['average_correlation_subjects_follower'].mean(axis=1), 
+#                     'average_correlation_subjects_leader': correlations['average_correlation_subjects_leader'].mean(axis=1), 
+#                     }
+#                     )
+# colors_leadership = {'average_correlation_subjects_follower':'#1567A3', 'average_correlation_subjects_leader':'#BD164F'}
 
-# Statistical test to find diff
-stat, p_val = wilcoxon(
-    data['average_correlation_subjects_follower'], 
-    data['average_correlation_subjects_leader'], 
-    alternative='two-sided'
-    )
+# # Statistical test to find diff
+# stat, p_val = wilcoxon(
+#     data['average_correlation_subjects_follower'], 
+#     data['average_correlation_subjects_leader'], 
+#     alternative='two-sided'
+#     )
 
-# Plot results
-fig = plt.figure(figsize=(10, 5))
-fig.suptitle(f'{stimulus}-{band}')
+# # Plot results
+# fig = plt.figure(figsize=(10, 5))
+# fig.suptitle(f'{stimulus}-{band}')
 
-# TRFs
-ax = plt.subplot(1, 2, 1)
-ax.plot(config.times*1e3, mtrfs['average_weights_subjects_follower'].mean(axis=(0,1,2)), label='Follower', color=colors_leadership['average_correlation_subjects_follower'])
-ax.plot(config.times*1e3, mtrfs['average_weights_subjects_leader'].mean(axis=(0,1,2)), label='Leader', color=colors_leadership['average_correlation_subjects_leader'])
-ax.set_title('Average MTRFs')
-ax.set_xlabel('Time (ms)')
-ax.set_ylabel('Amplitude (U.A)')
-ax.legend()
-ax.grid(True)
+# # TRFs
+# ax = plt.subplot(1, 2, 1)
+# ax.plot(config.times*1e3, mtrfs['average_weights_subjects_follower'].mean(axis=(0,1,2)), label='Follower', color=colors_leadership['average_correlation_subjects_follower'])
+# ax.plot(config.times*1e3, mtrfs['average_weights_subjects_leader'].mean(axis=(0,1,2)), label='Leader', color=colors_leadership['average_correlation_subjects_leader'])
+# ax.set_title('Average MTRFs')
+# ax.set_xlabel('Time (ms)')
+# ax.set_ylabel('Amplitude (U.A)')
+# ax.legend()
+# ax.grid(True)
 
-# Boxplot correlation diff
-ax2 = plt.subplot(1, 2, 2)
-sns.boxplot(
-    data=data, 
-    palette=colors_leadership, 
-    ax=ax2
-    )
-sns.stripplot(
-    data=data, 
-    palette=colors_leadership, 
-    ax=ax2, 
-    color='black', 
-    alpha=0.5
-    )
-ax2.set_xticklabels(['Follower', 'Leader'])
+# # Boxplot correlation diff
+# ax2 = plt.subplot(1, 2, 2)
+# sns.boxplot(
+#     data=data, 
+#     palette=colors_leadership, 
+#     ax=ax2
+#     )
+# sns.stripplot(
+#     data=data, 
+#     palette=colors_leadership, 
+#     ax=ax2, 
+#     color='black', 
+#     alpha=0.5
+#     )
+# ax2.set_xticklabels(['Follower', 'Leader'])
 
-ax2.text(0.5, 0.95, f'p = {p_val}', ha='center', va='center', transform=ax2.transAxes, fontsize=12, color='black')
-# if p_val < 0.005:
-#     ax2.text(0.5, 0.95, f'p < 0.005', ha='center', va='center', transform=ax2.transAxes, fontsize=12, color='black')
-# elif p_val < 0.01:
-#     ax2.text(0.5, 0.95, f'p < 0.001', ha='center', va='center', transform=ax2.transAxes, fontsize=12, color='black')
-# elif p_val < 0.05:
-#     ax2.text(0.5, 0.95, f'p < 0.05', ha='center', va='center', transform=ax2.transAxes, fontsize=12, color='black')
-# else:
-#     ax2.text(0.5, 0.95, f'N.S', ha='center', va='center', transform=ax2.transAxes, fontsize=12, color='black')
-ax2.set_title('Distribution between subjects')
-ax2.set_ylabel('Average correlation')
-ax2.grid(True)
-fig.show()
+# ax2.text(0.5, 0.95, f'p = {p_val}', ha='center', va='center', transform=ax2.transAxes, fontsize=12, color='black')
+# # if p_val < 0.005:
+# #     ax2.text(0.5, 0.95, f'p < 0.005', ha='center', va='center', transform=ax2.transAxes, fontsize=12, color='black')
+# # elif p_val < 0.01:
+# #     ax2.text(0.5, 0.95, f'p < 0.001', ha='center', va='center', transform=ax2.transAxes, fontsize=12, color='black')
+# # elif p_val < 0.05:
+# #     ax2.text(0.5, 0.95, f'p < 0.05', ha='center', va='center', transform=ax2.transAxes, fontsize=12, color='black')
+# # else:
+# #     ax2.text(0.5, 0.95, f'N.S', ha='center', va='center', transform=ax2.transAxes, fontsize=12, color='black')
+# ax2.set_title('Distribution between subjects')
+# ax2.set_ylabel('Average correlation')
+# ax2.grid(True)
+# fig.show()
 
-# ===================================================
-# Distribución topográfica de la diff follower-leader
+# # ===================================================
+# # Distribución topográfica de la diff follower-leader
 
-# Topographic distribution
-norm = 1#correlations['average_correlation_subjects_follower'].mean()
-diff_corr = (correlations['average_correlation_subjects_follower'].mean(axis=0)-correlations['average_correlation_subjects_leader'].mean(axis=0))/norm
+# # Topographic distribution
+# norm = 1#correlations['average_correlation_subjects_follower'].mean()
+# diff_corr = (correlations['average_correlation_subjects_follower'].mean(axis=0)-correlations['average_correlation_subjects_leader'].mean(axis=0))/norm
 
-# Statistical test # TODO revisr si es correcta la construcción
-significance = 0.05
-diff_corr_stat = (correlations['average_correlation_subjects_follower']-correlations['average_correlation_subjects_leader'])/norm
-wilc_sta, p_val = wilcoxon(diff_corr_stat, alternative='two-sided')
-p_val[p_val>significance] = 1
-log_pval = -np.log10(p_val)
+# # Statistical test # TODO revisr si es correcta la construcción
+# significance = 0.05
+# diff_corr_stat = (correlations['average_correlation_subjects_follower']-correlations['average_correlation_subjects_leader'])/norm
+# wilc_sta, p_val = wilcoxon(diff_corr_stat, alternative='two-sided')
+# p_val[p_val>significance] = 1
+# log_pval = -np.log10(p_val)
 
-# Plot results
-fig = plt.figure(
-    figsize=(8,5), 
-    layout='constrained'
-    )
-fig.suptitle(f'{stimulus}-{band}')
+# # Plot results
+# fig = plt.figure(
+#     figsize=(8,5), 
+#     layout='constrained'
+#     )
+# fig.suptitle(f'{stimulus}-{band}')
 
-# Normalized correlation diff
-ax1 = plt.subplot(1,2,1)
-im = mne.viz.plot_topomap(
-    data=diff_corr, 
-    pos=config.info_mne, 
-    axes=ax1, 
-    show=False, 
-    sphere=0.07, 
-    cmap='RdBu_r', 
-    vlim=(-diff_corr.max(), diff_corr.max()),
-)
-fig.colorbar(
-    im[0], 
-    ax=ax1,
-    shrink=0.85, 
-    label='Normalized correlation difference\n (by follower mean)', 
-    orientation='horizontal',
-    boundaries=np.linspace(-diff_corr.max().round(decimals=2), diff_corr.max().round(decimals=2), 100),
-    ticks=np.linspace(-diff_corr.max(), diff_corr.max(), 5).round(decimals=2)
-    )
+# # Normalized correlation diff
+# ax1 = plt.subplot(1,2,1)
+# im = mne.viz.plot_topomap(
+#     data=diff_corr, 
+#     pos=config.info_mne, 
+#     axes=ax1, 
+#     show=False, 
+#     sphere=0.07, 
+#     cmap='RdBu_r', 
+#     vlim=(-diff_corr.max(), diff_corr.max()),
+# )
+# fig.colorbar(
+#     im[0], 
+#     ax=ax1,
+#     shrink=0.85, 
+#     label='Normalized correlation difference\n (by follower mean)', 
+#     orientation='horizontal',
+#     boundaries=np.linspace(-diff_corr.max().round(decimals=2), diff_corr.max().round(decimals=2), 100),
+#     ticks=np.linspace(-diff_corr.max(), diff_corr.max(), 5).round(decimals=2)
+#     )
 
-# Statistical significance
-ax2 = plt.subplot(1,2,2)
-im = mne.viz.plot_topomap(
-    data=log_pval, 
-    pos=config.info_mne, 
-    axes=ax2, 
-    show=False, 
-    sphere=0.07, 
-    cmap='inferno', 
-    vlim=(log_pval.mean(axis=0).min(), log_pval.mean(axis=0).max()),
-)
-fig.colorbar(
-    im[0], 
-    ax=ax2,
-    shrink=0.85, 
-    label=r'$- Log_{10}(p_{value})$', 
-    orientation='horizontal',
-    boundaries=np.linspace(log_pval.min().round(decimals=2), log_pval.max().round(decimals=2), 100),
-    ticks=np.linspace(log_pval.min(), log_pval.max(), 5).round(decimals=2)
-    )
+# # Statistical significance
+# ax2 = plt.subplot(1,2,2)
+# im = mne.viz.plot_topomap(
+#     data=log_pval, 
+#     pos=config.info_mne, 
+#     axes=ax2, 
+#     show=False, 
+#     sphere=0.07, 
+#     cmap='inferno', 
+#     vlim=(log_pval.mean(axis=0).min(), log_pval.mean(axis=0).max()),
+# )
+# fig.colorbar(
+#     im[0], 
+#     ax=ax2,
+#     shrink=0.85, 
+#     label=r'$- Log_{10}(p_{value})$', 
+#     orientation='horizontal',
+#     boundaries=np.linspace(log_pval.min().round(decimals=2), log_pval.max().round(decimals=2), 100),
+#     ticks=np.linspace(log_pval.min(), log_pval.max(), 5).round(decimals=2)
+#     )
 
-fig.show()
+# fig.show()
 
-statistics = {
-    'leader1':[],
-    'leader2':[],
-    'follower1':[],
-    'follower2':[],
-}
-import os
-root_path= r'leadership\saves\preprocessed_data\External\tmin-0.2_tmax0.6\samples_info'
-for sesion, archive in enumerate(os.listdir(root_path)):
-    data = load_pickle(os.path.join(root_path, archive))
+# statistics = {
+#     'leader1':[],
+#     'leader2':[],
+#     'follower1':[],
+#     'follower2':[],
+# }
+# import os
+# root_path= r'leadership\saves\preprocessed_data\External\tmin-0.2_tmax0.6\samples_info'
+# for session, archive in enumerate(os.listdir(root_path)):
+#     data = load_pickle(os.path.join(root_path, archive))
     
-    statistics['leader1'].append(len(data['keep_indexes_leader1']))
-    statistics['leader2'].append(len(data['keep_indexes_leader2']))
-    statistics['follower1'].append(len(data['keep_indexes_follower1']))
-    statistics['follower2'].append(len(data['keep_indexes_follower2']))    
+#     statistics['leader1'].append(len(data['keep_indexes_leader1']))
+#     statistics['leader2'].append(len(data['keep_indexes_leader2']))
+#     statistics['follower1'].append(len(data['keep_indexes_follower1']))
+#     statistics['follower2'].append(len(data['keep_indexes_follower2']))    
     
-# Comparing distributions
-statistics_df = pd.DataFrame(statistics)
+# # Comparing distributions
+# statistics_df = pd.DataFrame(statistics)
 
-# Visualizar las distribuciones con un boxplot
-plt.figure(figsize=(10, 6))
-sns.boxplot(data=statistics_df, palette="Set2")
-plt.title("Distribuciones de líderes y seguidores")
-plt.ylabel("Número de ventanas en la regresión")
-plt.xlabel("Grupos")
-plt.grid(True)
-plt.show(block=False)
+# # Visualizar las distribuciones con un boxplot
+# plt.figure(figsize=(10, 6))
+# sns.boxplot(data=statistics_df, palette="Set2")
+# plt.title("Distribuciones de líderes y seguidores")
+# plt.ylabel("Número de ventanas en la regresión")
+# plt.xlabel("Grupos")
+# plt.grid(True)
+# plt.show(block=False)
 
-# Comparar distribuciones estadísticamente
-from scipy.stats import mannwhitneyu
-results = {}
-for group1, group2 in [("leader1", "leader2"), ("follower1", "follower2"), ("leader1", "follower1"), ("leader2", "follower2")]:
-    stat, p_value = mannwhitneyu(statistics[group1], statistics[group2], alternative='two-sided')
-    results[f"{group1} vs {group2}"] = p_value
+# # Comparar distribuciones estadísticamente
+# from scipy.stats import mannwhitneyu
+# results = {}
+# for group1, group2 in [("leader1", "leader2"), ("follower1", "follower2"), ("leader1", "follower1"), ("leader2", "follower2")]:
+#     stat, p_value = mannwhitneyu(statistics[group1], statistics[group2], alternative='two-sided')
+#     results[f"{group1} vs {group2}"] = p_value
 
-# Mostrar resultados de las pruebas estadísticas
-print("Resultados de las pruebas estadísticas (Mann-Whitney U):")
-for comparison, p_value in results.items():
-    print(f"{comparison}: p-value = {p_value:.4f}")
+# # Mostrar resultados de las pruebas estadísticas
+# print("Resultados de las pruebas estadísticas (Mann-Whitney U):")
+# for comparison, p_value in results.items():
+#     print(f"{comparison}: p-value = {p_value:.4f}")
