@@ -14,7 +14,7 @@ sessions = [
             30
             ]
 stimuli = [
-        # 'Mistakes-Separated_Control-Separated',
+        # # 'Mistakes-Separated_Control-Separated',
 
         # # Redundant features
         # 'Spectrogram_Mfccs',
@@ -32,17 +32,17 @@ stimuli = [
         # 'Phonological_Phonemes-Phonet',
         # 'Phonological_Phonemes-Phonet_Spectrogram',
         
-        # # Simples
+        # Simples
         'Envelope',
         # 'Pitch-Log-Raw',
-        # 'Spectrogram',
+        'Spectrogram',
         # 'Mfccs',
-        # 'Phonological',
-        # 'Phonemes-Phonet', 
+        'Phonological',
+        'Phonemes-Phonet', 
         # 'Phones-Phonet', 
         # 'Phonemes-Discrete-Phonet',
         # 'Phones-Discrete-Phonet',
-        # 'Wav2vec2'
+        # 'Wav2vec2' # TODO No esta bueno
         ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situations = [
         'External', 
