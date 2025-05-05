@@ -38,10 +38,9 @@ for situation in config.situations:
             
             if config.external_validation:
                 path_validation = f'saves/{config.model}/External/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-                alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
             else:
                 path_validation = f'saves/{config.model}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-                alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
+            alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
 
             path_TFCE = f'saves/{config.model}/{situation}/TFCE/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/'
 
@@ -148,7 +147,7 @@ for situation in config.situations:
                     # Run folds
                     k_models_output = []
                     for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
-                        print(f'\n\t······  [{fold+1}/{config.n_folds}]')
+                        print(f'\n\t······  [{fold+1}/{config.n_folds}]\t-->\t α:{alpha:.2f}')
                         k_models_output.append(
                                         fold_model(
                                             fold=fold,

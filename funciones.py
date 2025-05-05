@@ -389,6 +389,87 @@ def cohen_d(
     cohen_d = abs((np.mean(x) - np.mean(y))) / np.sqrt(((nx-1)*np.std(x, ddof=1) ** 2 + (ny-1)*np.std(y, ddof=1) ** 2) / dof)
     return cohen_d
 
+
+def load_phon_frequency_dict(
+    save_path:str=None,
+    plot_freq:bool=False
+    )->dict:
+    """
+    Loads phoneme frequency dictionary.
+    
+    Parameters
+    ----------
+    save : str, optional
+        If True, saves the phoneme frequency dictionary to the folder destination as a .pkl file, by default None.
+    plot_freq : bool, optional
+        If True, plots the phoneme frequency dictionary, by default False.
+
+    Returns
+    -------
+    dict
+        Dictionary with phoneme frequencies.
+    """
+    import config
+    from phoneme_implementation_from_phonet import Phones
+
+    exp_info = config.Exp_info()
+    phon_frequency_dict = {key:0 for key in exp_info.phonemes_phonet.copy()}
+    for session in config.sessions:
+        print(f'\n Loading session {session}\n')
+        # Retrive number of files, i.e: trials
+        trials = [int(fname.split('.')[2]) for fname in os.listdir(fr'Datos\phrases\S{session}') if fname.endswith('phrases')]
+        trials = list(set([tr for tr in trials if trials.count(tr) > 1]))
+        for trial in trials:
+            print(f'\n\t\t---> Loading traial {trial}/{len(trials)}\n')
+            for channel in [1,2]:
+                print(f'\n\t\t\t---> Channel {channel}\n')
+                
+                # Load labels and posterior probabilities
+                phonet_labels_phonemes = exp_info.phonemes_phonet.copy()
+                phonet_labels_phones = exp_info.ph_labels_phonet.copy()
+                phones_obj = Phones(audio_file=rf'Datos\wavs\S{session}\s{session}.objects.{trial:02d}.channel{channel}.wav')
+                posterior_prob = phones_obj.compute_phones(PLLR=True) #9167
+                
+                # Map phones to phonemes, making the sum
+                posterior_prob_phonemes = np.zeros(shape=(posterior_prob.shape[0], len(phonet_labels_phonemes)))
+
+                for h, phone in enumerate(phonet_labels_phones):
+                    phoneme_index = phonet_labels_phonemes.index(exp_info.phones_to_phonemes[phone])
+                    posterior_prob_phonemes[:, phoneme_index] += posterior_prob[:, h]
+                
+                # Calculate posterior llr
+                pllr = np.zeros(shape=posterior_prob_phonemes.shape)
+                number_of_phonemes = posterior_prob_phonemes.shape[1]
+                for ph in range(number_of_phonemes):
+                    pllr[:, ph] = np.log10(posterior_prob_phonemes[:, ph]/(1-posterior_prob_phonemes[:, ph]))
+                
+                # Centralize pllr
+                pllr = pllr - np.mean(pllr, axis=1, keepdims=True)  
+                
+                # Remove silences
+                phonemes = np.argmax(pllr, axis=1)
+                
+                ind, counts = np.unique(phonemes, return_counts=True)
+                
+                for i, count in zip(ind, counts):
+                    phon_frequency_dict[phonet_labels_phonemes[i]] += count
+                    
+    if save_path is not None:
+        dump_pickle(path=os.path.join(save_path, 'frequency_dict.pkl'), obj=phon_frequency_dict, rewrite=True)
+    if plot_freq:
+        import seaborn as sns, matplotlib.pyplot as plt, pandas as pd
+        phon_frequency_dict['/sil/'] = 0
+        df = pd.DataFrame.from_dict(phon_frequency_dict, orient='index', columns=[session])                
+        
+        plt.figure(figsize=(6, 4))
+        sns.barplot(x=df.index, y=session, data=df, palette='viridis')
+        plt.xticks(rotation=90)
+        plt.title(f'Phoneme frequency for session {session}')
+        plt.xlabel('Phoneme')
+        plt.ylabel('Frequency')
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_path, 'phon_frequency_dict.png'), dpi=300)
+    return phon_frequency_dict
 # def mne_to_numpy(obj:Union[mne.io.array.array.RawArray,mne.io.eeglab.eeglab.RawEEGLAB,list], verbose:bool=True):
 #     """Transform mne arrays and Raw EEG objects to numpy ndarrays. If obj is 1D, returns a flatten array.
 
