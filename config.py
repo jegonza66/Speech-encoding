@@ -34,13 +34,14 @@ stimuli = [
         
         # Simples
         'Envelope',
-        # 'Pitch-Log-Raw',
+        'Pitch-Log-Raw',
         'Spectrogram',
         # 'Mfccs',
         'Phonological',
-        'Phonemes-Phonet', 
-        # 'Phones-Phonet', 
+        # 'Phonemes-Phonet', 
         # 'Phonemes-Discrete-Phonet',
+        'Phonemes-Frequency-Phonet', 
+        # 'Phones-Phonet', 
         # 'Phones-Discrete-Phonet',
         # 'Wav2vec2' # TODO No esta bueno
         ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
