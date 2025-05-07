@@ -5,6 +5,7 @@ mne.set_log_level(verbose='WARNING')
 # Specific libraries
 from mne.decoding import ReceptiveField, TimeDelayingRidge
 from sklearn.linear_model import Ridge
+from scipy.fft import fft, ifft
 from typing import Union
 from tqdm import tqdm
 import torch
@@ -73,6 +74,86 @@ class TorchMtrf:
         self.use_gpu = use_gpu
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
+    # def fit2(
+    #     self, 
+    #     stims:np.ndarray, 
+    #     eeg:np.ndarray
+    #     )->None:
+    #     """
+    #     Fit the TorchMtrf model to the given stimuli and EEG data.
+
+    #     This method constructs the design matrix from the stimuli, applies the relevant indexes,
+    #     and separates the data into training and testing sets. It then standardizes and normalizes
+    #     the data, and fits a Ridge regression model to the training data. If validation is enabled,
+    #     it further splits the training data into training and validation sets and fits the model
+    #     accordingly.
+
+    #     Parameters
+    #     ----------
+    #     stims : np.ndarray
+    #         The input stimuli data, shape (n_samples, n_features).
+    #     eeg : np.ndarray
+    #         The EEG response data, shape (n_samples, n_channels).
+
+    #     Returns
+    #     -------
+    #     None
+
+    #     Raises
+    #     ------
+    #     ValueError
+    #         If the input data shapes are not compatible with the model.
+    #     """
+    #     # Construct design matrix and transform for GPU computation
+    #     X_train, X_pred = shifted_matrix(
+    #                 features=stims, 
+    #                 delays=config.delays, 
+    #                 use_gpu=self.use_gpu,
+    #                 indices_to_keep=self.relevant_indexes,
+    #                 output_torch=True,
+    #                 train_indexes=self.train_indexes,
+    #                 pred_indexes=self.test_indexes
+    #                 )
+    #     del stims
+    #     n_samples, n_featuresbyn_delays = len(self.relevant_indexes), X_train.shape[1]
+    #     n_features = n_featuresbyn_delays // len(config.delays)
+        
+    #     # Get relevant indexes and transform to device, if available. If not, transform to CPU
+    #     try:
+    #         y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to(self.device)
+    #         del eeg
+    #         y_train = y_temp[self.train_indexes]
+    #         y_test = y_temp[self.test_indexes]
+    #     except:
+    #         X_train = X_train.cpu()
+    #         X_pred =  X_pred.cpu()
+            
+    #         y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to('cpu')
+    #         del eeg            
+    #         y_train = y_temp[self.train_indexes]
+    #         y_test = y_temp[self.test_indexes]
+        
+    #     # Standarize and normalize
+    #     X_train, y_train, X_pred, self.y_test = self.standarize_normalize(
+    #                                         X_train=X_train, 
+    #                                         X_pred=X_pred, 
+    #                                         y_train=y_train, 
+    #                                         y_test=y_test
+    #                                         )
+    #     del y_test
+    #     trfs = np.zeros(shape=(X_train.shape[0], n_featuresbyn_delays), dtype=np.float32)
+    #     for chann in range(config.info_mne['nchan']):
+    #         for i_row in X_train.shape[0]:
+    #             f_s_i = fft(X_train[i_row])
+    #             f_y_i = fft(y_train[i_row])
+    #             f_trf_i = np.where(f_y_i/f_s_i==np.inf, 0, f_y_i/f_s_i)
+    #             trfs[i] = ifft(f_trf_i)
+                
+            
+            
+            
+            
+        
     def fit(
         self, 
         stims:np.ndarray, 
