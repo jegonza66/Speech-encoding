@@ -224,27 +224,174 @@ def _compute_shifted(
         Shifted matrix of shape (n_rows, n_delays, n_features).
     """
     n_samples, n_features = feats_t.shape
-    delays = torch.tensor(delays, device=feats_t.device, dtype=torch.int64)
+    device = feats_t.device
+    
+    # Convert delays to tensor only once
+    if not isinstance(delays, torch.Tensor):
+        delays = torch.tensor(delays, device=device, dtype=torch.int64)
 
     if indices_to_keep is not None:
-        idx = torch.tensor(indices_to_keep, device=feats_t.device, dtype=torch.int64)
-        idx_shifted = idx[:, None] - delays[None, :]  # Shape: (n_rows, n_delays)
+        # Convert indices to tensor only if not already a tensor
+        if not isinstance(indices_to_keep, torch.Tensor):
+            idx = torch.tensor(indices_to_keep, device=device, dtype=torch.int64)
+        else:
+            idx = indices_to_keep.to(device=device, dtype=torch.int64)
+        n_rows = idx.shape[0]
+        idx_shifted = idx.unsqueeze(1) - delays.unsqueeze(0)  # More explicit broadcasting
     else:
-        idx_shifted = torch.arange(n_samples, device=feats_t.device)[:, None] - delays[None, :]  # Shape: (n_samples, n_delays)
+        n_rows = n_samples
+        idx_shifted = torch.arange(n_samples, device=device, dtype=torch.int64).unsqueeze(1) - delays.unsqueeze(0)
 
-    # Mask for valid indices
-    valid_mask = (idx_shifted >= 0) & (idx_shifted < n_samples) # Shape: (n_rows, n_delays)
+    # Mask for valid indices - combine operations
+    valid_mask = (idx_shifted >= 0) & (idx_shifted < n_samples)
 
-    # Clamp indices to valid range (i.e: ensure values are between 0 and n_samples-1)
-    idx_clipped = idx_shifted.clamp(0, n_samples - 1)
+    # Pre-allocate output tensor with correct shape
+    feats_exp = torch.zeros((n_rows, delays.shape[0], n_features), 
+                           dtype=feats_t.dtype, device=device)
     
-    # Gather features and apply the mask
-    feats_exp = feats_t[idx_clipped]  # Shape: (n_rows, n_delays, n_features)
-    
-    # Broadcast mask to match feature dimensions (unsqueeze to add feature dimension)
-    feats_exp *= valid_mask.unsqueeze(-1)  # Shape: (n_rows, n_delays, n_features)
+    # Only process valid indices to avoid unnecessary operations
+    if valid_mask.any():
+        # Clamp and gather only valid indices
+        idx_clipped = idx_shifted.clamp(0, n_samples - 1)
+        
+        # Use advanced indexing more efficiently
+        feats_gathered = feats_t[idx_clipped]  # Shape: (n_rows, n_delays, n_features)
+        
+        # Apply mask in-place to avoid extra memory allocation
+        feats_gathered.masked_fill_(~valid_mask.unsqueeze(-1), 0.0)
+        feats_exp = feats_gathered
 
     return feats_exp
+
+# Alternative ultra-optimized version for specific use cases
+def _compute_shifted_vectorized(
+    feats_t: torch.Tensor,
+    delays: torch.Tensor,
+    indices_to_keep: Optional[torch.Tensor] = None
+) -> torch.Tensor:
+    """
+    Ultra-optimized version using fully vectorized operations.
+    Best for cases where delays are small and memory is abundant.
+    """
+    n_samples, n_features = feats_t.shape
+    device = feats_t.device
+    
+    if indices_to_keep is not None:
+        idx = indices_to_keep.to(device=device, dtype=torch.int64)
+        n_rows = idx.shape[0]
+    else:
+        idx = torch.arange(n_samples, device=device, dtype=torch.int64)
+        n_rows = n_samples
+    
+    n_delays = delays.shape[0]
+    
+    # Fully vectorized computation - compute all shifts at once
+    idx_shifted = idx.unsqueeze(1) - delays.unsqueeze(0)  # (n_rows, n_delays)
+    valid_mask = (idx_shifted >= 0) & (idx_shifted < n_samples)
+    
+    # Clamp indices to valid range for gathering
+    idx_clipped = idx_shifted.clamp(0, n_samples - 1)
+    
+    # Gather all features at once - this is the most memory-intensive operation
+    # but also the fastest for medium-sized arrays
+    gathered = feats_t[idx_clipped]  # Shape: (n_rows, n_delays, n_features)
+    
+    # Apply mask to zero out invalid entries
+    result = torch.where(valid_mask.unsqueeze(-1), gathered, 
+                        torch.zeros_like(gathered))
+    
+    return result
+
+# Optimized version specifically for medium-sized delay arrays (like 104)
+def _compute_shifted_optimized_medium(
+    feats_t: torch.Tensor,
+    delays: Sequence[int],
+    indices_to_keep: Optional[Sequence[int]] = None
+) -> torch.Tensor:
+    """
+    Optimized for medium-sized delay arrays (~100 delays).
+    Uses memory-efficient chunking with vectorized operations.
+    """
+    n_samples, n_features = feats_t.shape
+    device = feats_t.device
+    
+    # Convert to tensor once
+    if not isinstance(delays, torch.Tensor):
+        delays = torch.tensor(delays, device=device, dtype=torch.int64)
+    
+    if indices_to_keep is not None:
+        if not isinstance(indices_to_keep, torch.Tensor):
+            idx = torch.tensor(indices_to_keep, device=device, dtype=torch.int64)
+        else:
+            idx = indices_to_keep.to(device=device, dtype=torch.int64)
+        n_rows = idx.shape[0]
+    else:
+        idx = torch.arange(n_samples, device=device, dtype=torch.int64)
+        n_rows = n_samples
+    
+    n_delays = delays.shape[0]
+    
+    # Pre-allocate output
+    result = torch.zeros((n_rows, n_delays, n_features), 
+                        dtype=feats_t.dtype, device=device)
+    
+    # Process in chunks to balance memory vs speed
+    chunk_size = min(32, n_delays)  # Adjust based on your GPU memory
+    
+    for start_delay in range(0, n_delays, chunk_size):
+        end_delay = min(start_delay + chunk_size, n_delays)
+        delay_chunk = delays[start_delay:end_delay]
+        
+        # Vectorized computation for this chunk
+        idx_shifted = idx.unsqueeze(1) - delay_chunk.unsqueeze(0)
+        valid_mask = (idx_shifted >= 0) & (idx_shifted < n_samples)
+        
+        # Only process if there are valid indices
+        if valid_mask.any():
+            idx_clipped = idx_shifted.clamp(0, n_samples - 1)
+            chunk_result = feats_t[idx_clipped]
+            chunk_result.masked_fill_(~valid_mask.unsqueeze(-1), 0.0)
+            result[:, start_delay:end_delay, :] = chunk_result
+    
+    return result
+
+# JIT compiled version for maximum speed (use after warming up)
+@torch.jit.script
+def _compute_shifted_jit(
+    feats_t: torch.Tensor,
+    delays: torch.Tensor,
+    indices_to_keep: Optional[torch.Tensor] = None
+) -> torch.Tensor:
+    """
+    JIT-compiled version for maximum speed.
+    Call this after the first few runs for best performance.
+    """
+    n_samples, n_features = feats_t.shape
+    device = feats_t.device
+    
+    if indices_to_keep is not None:
+        idx = indices_to_keep
+        n_rows = idx.shape[0]
+    else:
+        idx = torch.arange(n_samples, device=device, dtype=torch.int64)
+        n_rows = n_samples
+    
+    # Vectorized computation
+    idx_shifted = idx.unsqueeze(1) - delays.unsqueeze(0)
+    valid_mask = (idx_shifted >= 0) & (idx_shifted < n_samples)
+    
+    # Pre-allocate and fill
+    result = torch.zeros((n_rows, delays.shape[0], n_features), 
+                        dtype=feats_t.dtype, device=device)
+    
+    if valid_mask.any():
+        idx_clipped = idx_shifted.clamp(0, n_samples - 1)
+        gathered = feats_t[idx_clipped]
+        gathered = torch.where(valid_mask.unsqueeze(-1), gathered, 
+                              torch.zeros_like(gathered))
+        result = gathered
+    
+    return result
 
 def shifted_matrix(
     features: np.ndarray,
@@ -323,13 +470,6 @@ def shifted_matrix(
                 raise
     # If loop completes without return, something went wrong
     raise RuntimeError("shifted_matrix failed on all devices")
-# features = torch.arange(10).reshape(-1,1)
-# delays = [-1, 0, 1]
-# indices_to_keep = [0, 1, 2, 3, 4]
-# shifted = _compute_shifted(features, delays, indices_to_keep)
-
-# n_rows, n_delays, n_feat = shifted.shape
-# mat = shifted.permute(0, 2, 1).reshape(n_rows, n_feat * n_delays)
 
 def butter_filter(
     data:np.ndarray, 
