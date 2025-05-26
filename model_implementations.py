@@ -145,6 +145,7 @@ def fold_model(
                 )
             
             # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
+            # mtrf.fit2(stims, eeg)
             mtrf.fit(stims, eeg)
             
             weights = mtrf.coefs # Coefficients shape n_chans, feats, delays
@@ -154,7 +155,7 @@ def fold_model(
         if (predicted==0).all():
             print(f'\n\t\tFold {fold+1}/{config.n_folds} prediction is null, this may be due to the sparsity of weights. If there are\n\t\ttoo many zeros when making product with selected stimuli, the product may be null.')
 
-        # Calculates and saves correlation of each channel
+        # Calculates and saves correlation of each channel # TODO HACER SOLO DE 0  EN ADELANTE
         try:
             correlation_matrix = np.array([np.corrcoef(eeg_test[:, j], predicted[:, j])[0,1] for j in range(eeg_test.shape[1])])
         except RuntimeWarning:

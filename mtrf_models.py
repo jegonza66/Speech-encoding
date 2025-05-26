@@ -74,86 +74,126 @@ class TorchMtrf:
         self.use_gpu = use_gpu
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    # def fit2(
-    #     self, 
-    #     stims:np.ndarray, 
-    #     eeg:np.ndarray
-    #     )->None:
-    #     """
-    #     Fit the TorchMtrf model to the given stimuli and EEG data.
+    def fit2(
+        self, 
+        stims:np.ndarray, 
+        eeg:np.ndarray
+        )->None:
+        """
+        Fit the TorchMtrf model to the given stimuli and EEG data.
 
-    #     This method constructs the design matrix from the stimuli, applies the relevant indexes,
-    #     and separates the data into training and testing sets. It then standardizes and normalizes
-    #     the data, and fits a Ridge regression model to the training data. If validation is enabled,
-    #     it further splits the training data into training and validation sets and fits the model
-    #     accordingly.
+        This method constructs the design matrix from the stimuli, applies the relevant indexes,
+        and separates the data into training and testing sets. It then standardizes and normalizes
+        the data, and fits a Ridge regression model to the training data. If validation is enabled,
+        it further splits the training data into training and validation sets and fits the model
+        accordingly.
 
-    #     Parameters
-    #     ----------
-    #     stims : np.ndarray
-    #         The input stimuli data, shape (n_samples, n_features).
-    #     eeg : np.ndarray
-    #         The EEG response data, shape (n_samples, n_channels).
+        Parameters
+        ----------
+        stims : np.ndarray
+            The input stimuli data, shape (n_samples, n_features).
+        eeg : np.ndarray
+            The EEG response data, shape (n_samples, n_channels).
 
-    #     Returns
-    #     -------
-    #     None
+        Returns
+        -------
+        None
 
-    #     Raises
-    #     ------
-    #     ValueError
-    #         If the input data shapes are not compatible with the model.
-    #     """
-    #     # Construct design matrix and transform for GPU computation
-    #     X_train, X_pred = shifted_matrix(
-    #                 features=stims, 
-    #                 delays=config.delays, 
-    #                 use_gpu=self.use_gpu,
-    #                 indices_to_keep=self.relevant_indexes,
-    #                 output_torch=True,
-    #                 train_indexes=self.train_indexes,
-    #                 pred_indexes=self.test_indexes
-    #                 )
-    #     del stims
-    #     n_samples, n_featuresbyn_delays = len(self.relevant_indexes), X_train.shape[1]
-    #     n_features = n_featuresbyn_delays // len(config.delays)
+        Raises
+        ------
+        ValueError
+            If the input data shapes are not compatible with the model.
+        """
+        samples_right = config.delays[-1]
+        samples_left = -config.delays[0]
+        window = samples_right + samples_left
         
-    #     # Get relevant indexes and transform to device, if available. If not, transform to CPU
-    #     try:
-    #         y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to(self.device)
-    #         del eeg
-    #         y_train = y_temp[self.train_indexes]
-    #         y_test = y_temp[self.test_indexes]
-    #     except:
-    #         X_train = X_train.cpu()
-    #         X_pred =  X_pred.cpu()
-            
-    #         y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to('cpu')
-    #         del eeg            
-    #         y_train = y_temp[self.train_indexes]
-    #         y_test = y_temp[self.test_indexes]
+        self.relevant_indexes = torch.tensor(self.relevant_indexes).to(torch.long).to(self.device)
+        stims = torch.tensor(stims).to(torch.long).to(self.device)
+        eeg  = torch.tensor(eeg).to(torch.long).to(self.device)
         
-    #     # Standarize and normalize
-    #     X_train, y_train, X_pred, self.y_test = self.standarize_normalize(
-    #                                         X_train=X_train, 
-    #                                         X_pred=X_pred, 
-    #                                         y_train=y_train, 
-    #                                         y_test=y_test
-    #                                         )
-    #     del y_test
-    #     trfs = np.zeros(shape=(X_train.shape[0], n_featuresbyn_delays), dtype=np.float32)
-    #     for chann in range(config.info_mne['nchan']):
-    #         for i_row in X_train.shape[0]:
-    #             f_s_i = fft(X_train[i_row])
-    #             f_y_i = fft(y_train[i_row])
-    #             f_trf_i = np.where(f_y_i/f_s_i==np.inf, 0, f_y_i/f_s_i)
-    #             trfs[i] = ifft(f_trf_i)
-                
-            
-            
-            
-            
+        # deltas = np.diff(self.relevant_indexes)
+        deltas = self.relevant_indexes[1:] - self.relevant_indexes[:-1]
         
+        # Get gaps greater than one step
+        filter_deltas_considerable = (deltas>1).to(device=self.device)
+        deltas_indices = torch.where(filter_deltas_considerable)[0]
+        deltas_values = deltas[deltas_indices]
+        to_add = []
+
+        # Stick gaps smaller than TRF's window, else add left and right edges
+        for i, gap in zip(deltas_indices, deltas_values):
+            left_edge = self.relevant_indexes[i].item()
+            right_edge = self.relevant_indexes[i + 1].item()
+            
+            # Stick the edges together
+            if gap < window:
+                to_add.append(torch.arange(left_edge + 1, right_edge, device=self.device))
+            
+            # Add left and right edges
+            else:
+                to_add.append(torch.arange(left_edge + 1, left_edge + samples_right + 1, device=self.device))
+                to_add.append(torch.arange(right_edge - samples_left, right_edge, device=self.device))
+
+        # concatenar y unificar
+        self.relevant_indexes = torch.unique(torch.cat([self.relevant_indexes] + to_add)) #torch.tensor(to_add, device=self.device)
+        
+        X = stims[self.relevant_indexes]
+        Y = eeg[self.relevant_indexes]
+        del stims, eeg
+        
+        number_of_samples, number_of_feature_dimensions = X.shape
+        trf_support = len(config.delays)
+
+        # FFT a lo largo del tiempo (eje 0)
+        X_f = torch.fft.fft(X, n=number_of_samples, dim=0)  # shape (number_of_samples, D)
+        del X
+        Y_f = torch.fft.fft(Y, n=number_of_samples, dim=0)  # shape (number_of_samples, C)
+        del Y
+        # Estimación de H_f (shape: number_of_samples x D x C) freqsxdimensionsxchanns
+        # numerator = X_f[:, :, None].conj() * Y_f[:, None, :]        # (number_of_samples, D, C)
+        # denominator = (np.abs(X_f)**2).sum(axis=1)[:, None] + self.alpha*number_of_samples  # (number_of_samples, 1) # TODO chequear la regularización
+        # H_f = numerator / denominator[:, None, :]                   # (number_of_samples, D, C)
+        numerator = X_f.unsqueeze(-1).conj() * Y_f.unsqueeze(1)
+        # numerator = X_f.unsqueeze(-1) * Y_f.unsqueeze(1)
+        denominator = (X_f.conj).sum(dim=1, keepdim=True) + self.alpha
+        # del X_f, Y_f
+        # H_f = numerator / denominator.unsqueeze(-1)
+        # del numerator, denominator
+        
+        X_f = torch.fft.rfft(X, n=number_of_samples, dim=0)  # shape (number_of_samples, D)
+        del X
+        Y_f = torch.fft.rfft(Y, n=number_of_samples, dim=0)  # shape (number_of_samples, C)
+        del Y
+        # Estimación de H_f (shape: number_of_samples x D x C) freqsxdimensionsxchanns
+        # numerator = X_f[:, :, None].conj() * Y_f[:, None, :]        # (number_of_samples, D, C)
+        # denominator = (np.abs(X_f)**2).sum(axis=1)[:, None] + self.alpha*number_of_samples  # (number_of_samples, 1) # TODO chequear la regularización
+        # H_f = numerator / denominator[:, None, :]                   # (number_of_samples, D, C)
+        # numerator = X_f.unsqueeze(-1).conj() * Y_f.unsqueeze(1)
+        numerator = X_f.T @ Y_f
+        denominator = (X_f.T@X_f) + torch.tensor(self.alpha, dtype=torch.float32) *  torch.eye(X_f.shape[1], device=self.device)
+        del X_f, Y_f
+        H_f = torch.linalg.solve(denominator,numerator)
+        
+        del numerator, denominator
+
+        # IFFT para recuperar TRF en el tiempo
+        # h_full = np.fft.ifft(H_f, axis=0).real  # (number_of_samples, D, C)
+        h_full = torch.fft.irfft(H_f, n=number_of_samples, dim=0).real
+
+        # Alineación temporal: centramos la TRF en number_of_samples=0
+        # h_full = np.roll(h_full, -number_of_samples // 2, axis=0)  # shift temporal
+        # mtrfs = h_full[-number_of_samples // 2+config.delays[0]: -number_of_samples // 2+ config.delays[-1], :, :]  # (L, D, C)
+        indices = (config.delays % number_of_samples)  
+        mtrfs = h_full[indices, :]
+        
+        import matplotlib.pyplot as plt
+        import mne
+        
+        plt.figure()
+        plt.plot(mtrfs.detach().cpu().numpy().mean(axis=(1,2)))
+        plt.show()
+ 
     def fit(
         self, 
         stims:np.ndarray, 
