@@ -1,8 +1,9 @@
 # Standard libraries
-import numpy as np
+import numpy as np, os
 from scipy.io.wavfile import read
 
 # Specific libraries
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Silencia warnings de TensorFlow
 from phonet import Phonet
 from scipy.signal import resample_poly
 
@@ -90,7 +91,7 @@ class Phones(Phonet):
 if __name__=="__main__":
     import scipy.io.wavfile as wavfile
     from scipy import signal as sgn
-    import processing
+    import utils.processing as processing
     wav_file = r'Datos\wavs\S21\s21.objects.01.channel1.wav'
     # Read file
     wav = wavfile.read(wav_file)[1]

@@ -1,4 +1,7 @@
 import numpy as np, mne
+# leadership_criterion_path = r'Datos/turns/leader_according_number_of_ipus.pkl'
+# leadership_criterion_path = r'Datos/turns/leader_according_len_of_ipus.pkl'
+# leadership_criterion_path = None
 
 # ==========================================
 # SESSIONS, STIMULI, SITUATION AND EEG BANDS
@@ -34,15 +37,15 @@ stimuli = [
         
         # Simples
         'Envelope',
-        'Pitch-Log-Raw',
+        # 'Pitch-Log-Raw',
         'Spectrogram',
         # 'Mfccs',
-        'Phonological',
+        # 'Phonological',
         # 'Phonemes-Phonet', 
         # 'Phonemes-Discrete-Phonet',
         'Phonemes-Frequency-Phonet', 
         # 'Phones-Phonet', 
-        # 'Phones-Discrete-Phonet',
+        'Phones-Discrete-Phonet',
         # 'Wav2vec2' # TODO No esta bueno
         ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situations = [
@@ -76,6 +79,8 @@ praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octa
 display_interactive_mode, save_results, save_figures, no_figures = False, True, True, False
 figure_format = '.png'
 just_load_data = False
+leadership_kind_of_subsampling = 'optimized_trials' #'ordered_trials' #'random_trials'
+tollerance = 0.1
 
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG

@@ -27,9 +27,9 @@ from matplotlib import rc, cm
 import seaborn as sns
 import scienceplots
 
-from funciones import load_pickle, all_possible_combinations, get_maximum_correlation_channels
-from processing import clustering_by_correlation
-from plot import define_ticks, gradient_fill_density_based
+from utils.funciones import load_pickle, all_possible_combinations, get_maximum_correlation_channels
+from utils.processing import clustering_by_correlation
+from utils.plot import define_ticks, gradient_fill_density_based
 import config
 
 pylab.rcParams.update({
@@ -6612,7 +6612,7 @@ raw = mne.io.read_raw_eeglab(
 #     scalings=dict(eeg=2e-5)
 # )
 
-from processing import subsample
+from utils.processing import subsample
 
 
 

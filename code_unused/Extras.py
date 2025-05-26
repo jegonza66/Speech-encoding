@@ -7,8 +7,8 @@ from sklearn.model_selection import KFold
 
 import load
 import mtrf_models
-import plot
-import processing
+import utils.plot as plot
+import utils.processing as processing
 
 # WHAT TO DO
 Plot_EEG_PSD = False

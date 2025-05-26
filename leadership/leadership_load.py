@@ -18,8 +18,8 @@ from scipy import signal as sgn
 import resampy
 
 # Modules
-from phoneme_implementation_from_phonet import Phones
-import processing, funciones, config
+from utils.phoneme_implementation_from_phonet import Phones
+import utils.processing as processing, utils.funciones as funciones, config
 
 # Review this If we want to update packages
 warnings.filterwarnings("ignore", category=DeprecationWarning)

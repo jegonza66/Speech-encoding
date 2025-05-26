@@ -6,11 +6,11 @@ import os, numpy as np
 from sklearn.model_selection import KFold
 
 # Modules
-from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
+from utils.funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
 from model_implementations import fold_model
-from processing import tfce, subsampling_indexes_to_minimum
-from leadership_load import load_data
-import config, plot
+from utils.processing import tfce, subsampling_indexes_to_minimum
+from leadership.leadership_load import load_data
+import config, utils.plot as plot
 
 # Notification bot
 from labos.notificacion_bot import mensaje_tel
@@ -501,7 +501,7 @@ if __name__=='__main__':
     import matplotlib.pyplot as plt, pandas as pd, numpy as np, seaborn as sns, os
     from scipy.stats import wilcoxon
     import config
-    from funciones import load_pickle, dump_pickle
+    from utils.funciones import load_pickle, dump_pickle
     import mne
 
     # Fz electrode

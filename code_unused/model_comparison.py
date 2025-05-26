@@ -13,8 +13,8 @@ from scipy.spatial import ConvexHull
 from scipy.stats import wilcoxon
 
 # Modules
-from funciones import load_pickle, cohen_d, all_possible_combinations, get_maximum_correlation_channels
-from plot import save_figure
+from utils.funciones import load_pickle, cohen_d, all_possible_combinations, get_maximum_correlation_channels
+from utils.plot import save_figure
 import config
 exp_info = config.Exp_info()
 

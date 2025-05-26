@@ -1,5 +1,5 @@
 import numpy as np, os, mne, matplotlib.pyplot as plt
-from funciones import load_pickle
+from utils.funciones import load_pickle
 
 # ==================================================================
 # Read and extract weights to compute porcentual relative difference

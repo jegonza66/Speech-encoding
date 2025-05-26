@@ -6,11 +6,11 @@ import os, numpy as np
 from sklearn.model_selection import KFold
 
 # Modules
-from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
+from utils.funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
 from model_implementations import fold_model
-from processing import tfce 
+from utils.processing import tfce 
 from load import load_data
-import config, plot
+import config, utils.plot as plot
 
 # Notification bot
 from labos.notificacion_bot import mensaje_tel

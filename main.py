@@ -6,15 +6,15 @@ import os, numpy as np
 from sklearn.model_selection import KFold
 
 # Modules
-from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
+from utils.funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
 from model_implementations import fold_model
-from processing import tfce 
+from utils.processing import tfce 
 from load import load_data
-import config, plot
+import config, get_general_plots
 
 # Notification bot
-from labos.notificacion_bot import mensaje_tel
-api_token, chat_id = '5448153732:AAGhKraJQquEqMfpD3cb4rnTcrKB6U1ViMA', 1034347542
+from utils.notification_telegram import tel_message
+from telegram_config import API_TOKEN, CHAT_ID
 
 # ============
 # RUN ANALYSIS
@@ -47,11 +47,14 @@ for situation in config.situations:
             # Make lists to store relevant data across sobjects
             average_weights_subjects = []
             average_correlation_subjects = []
+            correlation_per_channel_subjects = []
+            null_correlation_per_channel_subjects = []
             average_rmse_subjects = []
             pvalues_corr_subjects = []
             pvalues_rmse_subjects = []
             repeated_good_correlation_channels_subjects = []
             repeated_good_rmse_channels_subjects = []
+            alphas_subjects = []
             phonemes_occurrences = {sesion:{} for sesion in config.sessions}
 
             # Store total number of subjects (18) to save figures and results just in this case
@@ -83,28 +86,6 @@ for situation in config.situations:
                 n_feats = [subject_1[stimulus].shape[1] for stimulus in stim.split('_')]
                 delayed_length_per_stimuli = [n_feat*len(config.delays) for n_feat in n_feats]
 
-                # # Store phonemes ocurrences to make boxplot
-                # for stimulus in stim.split('_'):
-                #     if stimulus.startswith('Phonemes'):
-                #         # Change to 1's every value that isn't 0. In this way the method works for every kind
-                #         matrix_1 = subject_1[stimulus].copy()
-                #         matrix_1[matrix_1!=0.] = 1
-                #         matrix_2 = subject_2[stimulus].copy()
-                #         matrix_2[matrix_2!=0.] = 1
-                #         matrix = matrix_1 + matrix_2
-
-                #         # Identify the phonemes
-                #         phonemes = config.Exp_info()
-                #         if stimulus.endswith('Manual'):
-                #             phonemes = phonemes.ph_labels_man
-                #         elif stimulus.endswith('Phonet'):
-                #             phonemes = [el if el!='<p:>' else '' for el in phonemes.ph_labels_phonet]
-                #         else:
-                #             phonemes = phonemes.ph_labels
-                #         phonemes_occurrences[sesion][stimulus] = {'phonemes':phonemes, 'count':np.sum(matrix, axis=0)}
-                #     else:
-                #         pass
-
                 # Get relevant indexes
                 relevant_indexes_1 = samples_info['keep_indexes1'].copy()
                 relevant_indexes_2 = samples_info['keep_indexes2'].copy()
@@ -125,8 +106,6 @@ for situation in config.situations:
                     # Variable to store p-value of significant channels
                     proba_correlation_per_channel = np.ones((config.n_folds, info['nchan']))
                     proba_rmse_per_channel = np.ones((config.n_folds, info['nchan']))
-                    # power_correlation_per_channel = np.zeros((config.n_folds, info['nchan']))
-                    # power_rmse_per_channel = np.zeros((config.n_folds, info['nchan']))
 
                     # Set alpha for specific subject
                     if config.set_alpha is None:
@@ -137,6 +116,7 @@ for situation in config.situations:
                             alpha = config.default_alpha
                     else:
                         alpha = config.set_alpha
+                    alphas_subjects.append(alpha)
 
                     # Make the Kfold test
                     kf_test = KFold(config.n_folds, shuffle=False)
@@ -184,11 +164,6 @@ for situation in config.situations:
                             # all p-values for topographic distribution across channels
                             topo_pvalues_corr_per_fold[fold] = p_corr
                             topo_pvalues_rmse_per_fold[fold] = p_rmse
-                            
-                            # Estimate power
-                            # power_correlation_per_channel[fold] = significant_corr_count / (config.power_n_bootstrap_samples * eeg.shape[1])
-                            # power_rmse_per_channel[fold] = significant_rmse_count / (config.power_n_bootstrap_samples * eeg.shape[1])
-                    
                     print(f'\n\t······  Run model\n')
 
                     # Take average weights, avoiding folds entirely filled with zeros
@@ -217,7 +192,7 @@ for situation in config.situations:
                     repeated_good_correlation_channels = np.zeros(info['nchan'])
                     repeated_good_rmse_channels = np.zeros(info['nchan'])
 
-                    if config.statistical_test:
+                    if config.statistical_test: #TODO CAMBIAR GOOD CHs A ALGO APILABLE EN SUJETOS COSA QUE SE PUEDA SEPARAR LUEGO PARA GRAFICAR CADA SUJ
                         # Find good indexes by checking where all folds (at the same time) are significant
                         try:
                             corr_good_channel_indexes, = np.where(
@@ -232,81 +207,25 @@ for situation in config.situations:
                             print('No significant channels found')   
 
                         # Saves passing channels by subject
-                        repeated_good_correlation_channels[corr_good_channel_indexes] += 1 # binary array with ones where significant
-                        repeated_good_rmse_channels[rmse_good_channel_indexes] += 1
-
-                        # Plot shadows for each subject
-                        plot.null_correlation_vs_correlation_good_channels(
-                            display_interactive_mode=config.display_interactive_mode, 
-                            session=sesion, 
-                            subject=subject,
-                            save_path=path_figures, 
-                            good_channels_indexes=corr_good_channel_indexes, 
-                            correlation_per_channel=correlation_per_channel,
-                            null_correlation_per_channel=null_correlation_per_channel, 
-                            # power_correlation=power_correlation_per_channel.mean(),
-                            # power_rmse=power_rmse_per_channel.mean(),
-                            save=config.save_figures, 
-                            no_figures=config.no_figures
-                            )
+                        # repeated_good_correlation_channels[corr_good_channel_indexes] += 1 # binary array with ones where significant
+                        # repeated_good_rmse_channels[rmse_good_channel_indexes] += 1
 
                     # Avergae p-values across all folds
                     topo_pval_corr_subject = topo_pvalues_corr_per_fold.mean(axis=0)
                     topo_pval_rmse_subject = topo_pvalues_rmse_per_fold.mean(axis=0)
 
-                    # Plot head topomap across al channel for correlation and rmse
-                    plot.topomap(
-                        good_channels_indexes=corr_good_channel_indexes, 
-                        average_coefficient=average_correlation, 
-                        info=info,
-                        coefficient_name='Correlation', 
-                        save=config.save_figures, 
-                        display_interactive_mode=config.display_interactive_mode,
-                        save_path=path_figures, 
-                        subject=subject, 
-                        session=sesion, 
-                        no_figures=config.no_figures
-                        )
-                    plot.topomap(
-                        good_channels_indexes=rmse_good_channel_indexes, 
-                        average_coefficient=average_rmse, 
-                        info=info,
-                        coefficient_name='RMSE', 
-                        save=config.save_figures, 
-                        display_interactive_mode=config.display_interactive_mode,
-                        save_path=path_figures, 
-                        subject=subject, 
-                        session=sesion, 
-                        no_figures=config.no_figures #TODO: remove all config. parameters and put them in plot module
-                        )
-
-                    # Plot weights
-                    plot.channel_weights(
-                        info=info, 
-                        save=config.save_figures, 
-                        save_path=path_figures, 
-                        average_correlation=average_correlation,
-                        average_rmse=average_rmse, 
-                        best_alpha=alpha, 
-                        average_weights=average_weights, 
-                        times=config.times,
-                        n_feats=n_feats, 
-                        stim=stim, 
-                        session=sesion, 
-                        subject=subject, 
-                        hierarchical_clustering=config.hierarchical_clustering,
-                        display_interactive_mode=config.display_interactive_mode, 
-                        no_figures=config.no_figures
-                        )
-
                     # Saves average correlation, RMSE and weights between folds of each channel of each subject to take average above subjects channels
                     average_weights_subjects.append(average_weights)
+                    null_correlation_per_channel_subjects.append(null_correlation_per_channel) if config.statistical_test else null_correlation_per_channel_subjects.append(np.zeros((config.n_folds, info['nchan'])))
+                    correlation_per_channel_subjects.append(correlation_per_channel)
                     average_correlation_subjects.append(average_correlation)
                     average_rmse_subjects.append(average_rmse)
                     pvalues_corr_subjects.append(topo_pval_corr_subject)
                     pvalues_rmse_subjects.append(topo_pval_rmse_subject)
-                    repeated_good_correlation_channels_subjects.append(repeated_good_correlation_channels)
-                    repeated_good_rmse_channels_subjects.append(repeated_good_rmse_channels)
+                    repeated_good_correlation_channels_subjects.append(corr_good_channel_indexes)
+                    repeated_good_rmse_channels_subjects.append(rmse_good_channel_indexes)
+                    # repeated_good_correlation_channels_subjects.append(repeated_good_correlation_channels)
+                    # repeated_good_rmse_channels_subjects.append(repeated_good_rmse_channels)
 
                     # Update the number of subjects
                     total_number_of_subjects+=1
@@ -314,12 +233,9 @@ for situation in config.situations:
                 # Print the progress of the iteration
                 iteration_percentage(txt=f'\n------->\tEnd of session {sesion}\n', i=config.sessions.index(sesion), length_of_iterator=len(config.sessions))
 
-                # del average_weights, average_rmse, average_correlation, correlation_per_channel, rmse_per_channel, correlation_matrix, root_mean_square_error,\
-                #     eeg_test, eeg, stims, stims_subject_1, stims_subject_2, subject_1, subject_2, eeg_subject_1, eeg_subject_2
-
             if config.just_load_data:
                 continue
-
+            
             # Get desire shape n_subject, shape of array. For ex.: shape(average_weights_subjects) = n_subj, n_chans, n_feats, n_delays
             average_weights_subjects = np.stack(average_weights_subjects, axis=0) # n_subj, n_chans, n_feats, n_delays
             average_correlation_subjects = np.stack(average_correlation_subjects , axis=0) # n_subj, n_chans
@@ -352,127 +268,6 @@ for situation in config.situations:
                         rewrite=True
                         )
 
-            # Plot phoneme ocurrences
-            # if np.array([bool(d) for d in phonemes_occurrences.values()]).any():
-            #     plot.phonemes_occurrences(occurrences=phonemes_occurrences, save_path=path_figures, save=save_figures, no_figures=config.no_figures)
-
-            # Plot average results only if all subjects are analyzed
-            config.no_figures=True if (total_number_of_subjects!=18) else config.no_figures
-
-            # Plot average topomap metrics across each subject
-            plot.average_topomap(
-                average_coefficient_subjects=average_rmse_subjects, 
-                stim=stim, 
-                info=info, 
-                display_interactive_mode=config.display_interactive_mode,
-                save=config.save_figures, 
-                save_path=path_figures, 
-                coefficient_name='RMSE', 
-                no_figures=config.no_figures
-                )
-            plot.average_topomap(
-                average_coefficient_subjects=average_correlation_subjects, 
-                stim=stim, 
-                display_interactive_mode=config.display_interactive_mode,
-                info=info, 
-                save=config.save_figures, 
-                save_path=path_figures,
-                coefficient_name='Correlation', 
-                test_result=False, 
-                no_figures=config.no_figures
-                ) 
-
-            # Plot topomap with relevant times
-            plot.topo_map_relevant_times(
-                average_weights_subjects=average_weights_subjects, 
-                info=info, 
-                n_feats=n_feats,
-                band=band,
-                stim=stim, 
-                times=config.times,
-                sample_rate=config.sr, 
-                save_path=path_figures, 
-                save=config.save_figures, 
-                display_interactive_mode=config.display_interactive_mode, 
-                no_figures=config.no_figures
-                )
-
-            # Plot channel-wise correlation topomap
-            plot.channel_wise_correlation_topomap(
-                average_weights_subjects=average_weights_subjects,
-                info=info,
-                stim=stim, 
-                save=config.save_figures,
-                save_path=path_figures, 
-                display_interactive_mode=config.display_interactive_mode, 
-                no_figures=config.no_figures
-                )
-
-            # Plot weights
-            plot.average_regression_weights(
-                average_weights_subjects=average_weights_subjects, 
-                info=info, 
-                save=config.save_figures, 
-                save_path=path_figures, 
-                hierarchical_clustering=config.hierarchical_clustering,
-                times=config.times, 
-                n_feats=n_feats, 
-                stim=stim, 
-                display_interactive_mode=config.display_interactive_mode,
-                no_figures=config.no_figures
-                )
-
-            # Plot correlation matrix between subjects
-            plot.correlation_matrix_subjects(
-                average_weights_subjects=average_weights_subjects,
-                stim=stim, 
-                n_feats=n_feats, 
-                save=config.save_figures,
-                save_path=path_figures, 
-                display_interactive_mode=config.display_interactive_mode, 
-                no_figures=config.no_figures
-                )
-
-            if config.statistical_test:
-                # Plot topomap of average p-values across all subject
-                plot.topo_average_pval(
-                    pvalues_coefficient_subjects=pvalues_corr_subjects, 
-                    info=info, 
-                    display_interactive_mode=config.display_interactive_mode,
-                    save=config.save_figures, 
-                    save_path=path_figures,
-                    coefficient_name='correlation', 
-                    no_figures=config.no_figures
-                    )
-                plot.topo_average_pval(
-                    pvalues_coefficient_subjects=pvalues_rmse_subjects, 
-                    info=info, 
-                    display_interactive_mode=config.display_interactive_mode,
-                    save=config.save_figures, 
-                    save_path=path_figures, 
-                    coefficient_name='RMSE', 
-                    no_figures=config.no_figures
-                    )
-
-                # Plot topomap of sum of repeated channels across all subject
-                plot.topo_repeated_channels(
-                    repeated_good_coefficients_channels_subjects=repeated_good_correlation_channels_subjects,
-                    info=info, 
-                    display_interactive_mode=config.display_interactive_mode, 
-                    save=config.save_figures,
-                    save_path=path_figures,
-                    coefficient_name='correlation',
-                    no_figures=config.no_figures
-                    )
-                plot.topo_repeated_channels(
-                    repeated_good_coefficients_channels_subjects=repeated_good_rmse_channels_subjects,
-                    info=info, 
-                    display_interactive_mode=config.display_interactive_mode, 
-                    save=config.save_figures,
-                    save_path=path_figures,
-                    coefficient_name='RMSE',
-                    no_figures=config.no_figures
-                    )
             if config.perform_tfce:
                 del average_weights, average_rmse, average_correlation, correlation_per_channel, rmse_per_channel, correlation_matrix,\
                     root_mean_square_error, eeg, stims, stims_subject_1, stims_subject_2, subject_1, subject_2, eeg_subject_1, eeg_subject_2
@@ -495,22 +290,26 @@ for situation in config.situations:
                     # Save TFCE
                     os.makedirs(os.path.join(path_TFCE, band), exist_ok=True)
                     dump_pickle(path=os.path.join(path_TFCE, band, stim + f'_{config.n_permutations}.pkl'), obj=(tvalue_tfce, pvalue_tfce), rewrite=True)
-
-                # Plot t and p values
-                plot.plot_pvalue_tfce(
-                    average_weights_subjects=average_weights_subjects, 
-                    pvalue=pvalue_tfce, 
-                    times=config.times, 
-                    stim=stim,
-                    n_feats=n_feats, 
-                    info=info, 
-                    significance=config.significance, 
-                    save_path=path_figures, 
-                    display_interactive_mode=config.display_interactive_mode,
-                    save=config.save_figures, 
-                    no_figures=config.no_figures
-                    )
-
+        
+        # if not config.no_figures:
+        #     get_general_plots.main(
+        #         band=band,
+        #         stim=stim,
+        #         n_feats=n_feats,
+        #         path_figures=path_figures,
+        #         total_number_of_subjects=total_number_of_subjects,
+        #         alphas_subjects=alphas_subjects,
+        #         average_weights_subjects=average_weights_subjects,
+        #         average_rmse_subjects=average_rmse_subjects,
+        #         pvalues_corr_subjects=pvalues_corr_subjects,
+        #         pvalues_rmse_subjects=pvalues_rmse_subjects,
+        #         average_correlation_subjects=average_correlation_subjects,
+        #         repeated_good_rmse_channels_subjects=repeated_good_rmse_channels_subjects,
+        #         repeated_good_correlation_channels_subjects=repeated_good_correlation_channels_subjects,
+        #         correlation_per_channel_subjects=correlation_per_channel_subjects,
+        #         null_correlation_per_channel_subjects=null_correlation_per_channel_subjects
+        #     )
+            
     # Get run time
     run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
     text = f'\n\n\t\t\tPARAMETERS  \n\n\tModel: ' + config.model +f'\n\tBands: {config.bands}'+'\n\tStimuli: ' + f'{config.stimuli}'+'\n\tCondition: ' +situation+f'\n\tTime interval: ({config.tmin},{config.tmax})s'+f'\n\tNumber of subjects analyzed: {total_number_of_subjects}. \n\tSessions: {config.sessions}'
@@ -533,6 +332,11 @@ for situation in config.situations:
                 )
 
     # Send text to telegram bot
-    with Suppress_print():
-        mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=text)
+    # with Suppress_print():
+    tel_message(
+        api_token=API_TOKEN,
+        chat_id=CHAT_ID, 
+        message=text,
+        caption='Run finished'
+        )
     print(text)

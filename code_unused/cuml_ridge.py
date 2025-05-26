@@ -9,7 +9,7 @@ from cuml.preprocessing import MinMaxScaler, StandardScaler
 import cupy as cp
 
 # Modules
-from processing import shifted_matrix
+from utils.processing import shifted_matrix
 import config
     
     

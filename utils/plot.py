@@ -34,8 +34,8 @@ pylab.rcParams.update(params)
 matplotlib_colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan']
 
 # Modules
-from processing import clustering_by_correlation
-import funciones, config
+from utils.processing import clustering_by_correlation
+import utils.funciones as funciones, config
 # plt.style.use([plt.style.available[23]])
 
 # ===================

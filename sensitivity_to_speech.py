@@ -28,8 +28,8 @@ from matplotlib import rc
 import scienceplots
 
 # Modules
-from funciones import load_pickle, dump_pickle, get_maximum_correlation_channels
-import config, plot 
+from utils.funciones import load_pickle, dump_pickle, get_maximum_correlation_channels
+import config, utils.plot as plot 
 
 rc('text', usetex=True)
 plt.style.use(['science'])

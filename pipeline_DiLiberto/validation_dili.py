@@ -7,9 +7,9 @@ from sklearn.model_selection import KFold
 from tqdm import tqdm 
 
 # Modules
-from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
+from utils.funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
 from model_implementations import fold_model
-from plot import hyperparameter_selection
+from utils.plot import hyperparameter_selection
 from load import load_data
 import config
 

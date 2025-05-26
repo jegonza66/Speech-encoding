@@ -5,7 +5,7 @@ import numpy as np
 import glob
 
 import config
-from funciones import dump_pickle
+from utils.funciones import dump_pickle
 
 
 number_of_ipus = {session: {'ch1':[], 'ch2':[]} for session in config.sessions}

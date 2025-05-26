@@ -2,13 +2,13 @@
 import numpy as np, os
 
 # Specific libraries
-from tqdm import tqdm
 from typing import Union
+from tqdm import tqdm
 
 # Modules
 from mtrf_models import ReceptiveFieldAdaptation, TorchMtrf
-from processing import block_bootstrap
-from funciones import load_pickle
+from utils.processing import block_bootstrap
+from utils.funciones import load_pickle
 import config
 
 def fold_model(

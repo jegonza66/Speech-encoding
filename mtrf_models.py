@@ -11,7 +11,7 @@ from tqdm import tqdm
 import torch
 
 # Modules
-from processing import Normalize, Standarize, shifted_matrix
+from utils.processing import Normalize, Standarize, shifted_matrix
 import config
 
 class TorchMtrf:
@@ -232,7 +232,8 @@ class TorchMtrf:
                     indices_to_keep=self.relevant_indexes,
                     output_torch=True,
                     train_indexes=self.train_indexes,
-                    pred_indexes=self.test_indexes
+                    pred_indexes=self.test_indexes,
+                    optimized_shifted=True
                     )
         del stims
         n_samples, n_featuresbyn_delays = len(self.relevant_indexes), X_train.shape[1]

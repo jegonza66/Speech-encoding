@@ -3,10 +3,12 @@ import numpy as np, pandas as pd, os, warnings, time
 from tqdm import tqdm
 
 # Specific libraries
-import torch, mne, librosa, opensmile, textgrids
-from praatio import pitch_and_intensity
-from phonet.phonet import Phonet
+import torch, mne, librosa, opensmile, textgrids #
+from praatio import pitch_and_intensity #
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Silencia warnings de TensorFlow
+from phonet.phonet import Phonet #
 
+#
 from transformers import WhisperProcessor, WhisperModel # from transformers import Wav2Vec2Model, Wav2Vec2Processor
 
 from sklearn.cross_decomposition import CCA
@@ -15,11 +17,11 @@ from sklearn.decomposition import PCA
 from scipy.interpolate import interp1d
 import scipy.io.wavfile as wavfile
 from scipy import signal as sgn
-import resampy
+import resampy#
 
 # Modules
-import processing, funciones, config
-from phoneme_implementation_from_phonet import Phones
+import utils.processing as processing, utils.funciones as funciones, config
+from utils.phoneme_implementation_from_phonet import Phones
 
 # Review this If we want to update packages
 warnings.filterwarnings("ignore", category=DeprecationWarning)
