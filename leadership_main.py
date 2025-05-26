@@ -1,7 +1,5 @@
-kind_of_subsampling = 'cutoff'
 # Standard libraries
 from datetime import datetime
-from typing import Tuple
 import os, numpy as np
 
 # Specific libraries
@@ -10,128 +8,13 @@ from sklearn.model_selection import KFold
 # Modules
 from funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
 from model_implementations import fold_model
-from processing import tfce
+from processing import tfce, subsampling_indexes_to_minimum
 from leadership_load import load_data
 import config, plot
 
 # Notification bot
 from labos.notificacion_bot import mensaje_tel
 api_token, chat_id = '5448153732:AAGhKraJQquEqMfpD3cb4rnTcrKB6U1ViMA', 1034347542
-
-    
-def subsampling_indexes_to_minimum(
-    samples_info : dict,
-    tollerance : float=0.1,
-    kind : str='random_trials',
-    seed : int = 42
-    )-> Tuple[list, list, list, list]:
-    """
-    Subsampling indexes to minimum length of either design_matrix passed as input
-
-    Parameters
-    ----------
-    samples_info : dict
-        Dictionary containing the shifted indexes and trial lengths of leader and follower.
-    tollerance : float
-        Tollerance to downsample the indexes. Default is 0.1.
-        If the relative difference to the minimum between the two indexes is less than this value, it will not be downsampled.
-    kind : str
-        Type of downsampling to be performed. Default is 'random_trials'.
-        If 'random', random rows are removed. 
-        Elif 'random_trials', random trials are removed, until difference is less than 10% 
-        Else 'cutoff', select a contiguous segment of cutoff rows
-    seed : int
-        Seed to use in random algorithms
-
-    Returns
-    -------
-    tuple
-        Tuple containing the shifted indexes of the 1 and 2, respectively (same order as input)
-    """
-    np.random.seed(seed=seed)
-    assert kind=='random' or kind=='random_trials' or kind=='cutoff', f'`{kind}` is not a valid kind of subsampling. Choose `random`, `random_trials` or `cutoff`'
-     
-    results = {
-        'shifted_indexes_leader1': None,
-        'shifted_indexes_leader2': None,
-        'shifted_indexes_follower1': None,
-        'shifted_indexes_follower2': None
-    }
-    
-    for subject in [1,2]:
-        # Load trials
-        shifted_indexes_follower = samples_info[f'keep_indexes_follower{subject}'].copy()
-        shifted_indexes_leader = samples_info[f'keep_indexes_leader{subject}'].copy()
-        
-        trial_lengths_follower = samples_info[f'trial_lengths_follower{subject}'].copy()
-        trial_lengths_leader = samples_info[f'trial_lengths_leader{subject}'].copy()
-        
-        # Compute trial difference
-        minimum_length = min(len(shifted_indexes_leader), len(shifted_indexes_follower))
-        relative_diff = (len(shifted_indexes_follower)-len(shifted_indexes_leader))/minimum_length
-        
-        if np.abs(relative_diff) >= tollerance:
-            # Decide which gets cut
-            if relative_diff > 0:
-                exceded = 'follower'
-                shift_exceded = shifted_indexes_follower
-                shift_target = shifted_indexes_leader
-                trial_lengths_exceded = trial_lengths_follower
-            else:
-                exceded = 'leader'
-                shift_exceded = shifted_indexes_leader
-                shift_target = shifted_indexes_follower
-                trial_lengths_exceded = trial_lengths_leader
-                
-            # Usefull variables
-            number_of_indexes = len(shift_exceded)
-            cutoff = len(shift_target)
-            number_subsampled_indexes = number_of_indexes - cutoff
-            trial_lengths_exceded_to_rem = trial_lengths_exceded.copy()
-
-            # Remove indexes til tollerance is achieved
-            while np.abs(relative_diff) > tollerance and len(trial_lengths_exceded_to_rem)!=1:
-                
-                # Remove a random trial
-                if kind=='random_trials':
-                    trial_to_remove = trial_lengths_exceded_to_rem.index(
-                        np.random.choice(trial_lengths_exceded_to_rem[1:]) # 1: to avoid "trial 0"
-                        )
-                    _ = trial_lengths_exceded_to_rem.pop(trial_to_remove)
-                    
-                    lower_bound = sum(trial_lengths_exceded[:trial_to_remove])<np.array(shift_exceded)
-                    upper_bound = np.array(shift_exceded)<sum(trial_lengths_exceded[:trial_to_remove]) + trial_lengths_exceded[trial_to_remove]
-                    
-                    shift_exceded = np.array(shift_exceded)[~(lower_bound&upper_bound)].tolist()
-                
-                # Remove samples at random
-                elif kind=='random':
-                    indices_to_remove = np.random.choice(
-                                number_of_indexes,
-                                size=number_subsampled_indexes,
-                                replace=False
-                                )
-                    shift_exceded = list(np.delete(shift_exceded, indices_to_remove, axis=0))
-                
-                # Select a chunk of desire length
-                else:
-                    start = np.random.randint(0, number_subsampled_indexes)
-                    shift_exceded = shift_exceded[start:start + cutoff]
-                relative_diff = (len(shift_exceded)-cutoff)/minimum_length
-        else:
-            exceded = None
-            
-        if exceded=="follower":
-            results[f'shifted_indexes_follower{subject}'] = shift_exceded
-            results[f'shifted_indexes_leader{subject}'] = shift_target
-        elif exceded=="leader":
-            results[f'shifted_indexes_follower{subject}'] = shift_target
-            results[f'shifted_indexes_leader{subject}'] = shift_exceded
-        else:
-            results[f'shifted_indexes_follower{subject}'] = shifted_indexes_follower
-            results[f'shifted_indexes_leader{subject}'] = shifted_indexes_leader
-        
-    return results['shifted_indexes_leader1'], results['shifted_indexes_follower1'], results['shifted_indexes_leader2'], results['shifted_indexes_follower2']
 
 # ============
 # RUN ANALYSIS
@@ -147,13 +30,36 @@ for situation in ['External']:
             print('\n===========================\n','\tPARAMETERS\n\n','Model: ' + config.model+'\n','Band: ' + str(band)+'\n','Stimulus: ' + stim+'\n','Condition: ' + situation+'\n',f'Time interval: ({config.tmin},{config.tmax})s\n','\n===========================\n')
 
             # Relevant paths
-
-            save_results_path = f'leadership/saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/{band}/'
+            save_results_path = f'leadership/saves/{config.model}/{situation}/{config.leadership_kind_of_subsampling}/tollerance_{config.tollerance}/correlations/tmin{config.tmin}_tmax{config.tmax}/{band}/'
             preprocessed_data_path = f'leadership/saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
-            path_weights = f'leadership/saves/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+            path_weights = f'leadership/saves/{config.model}/{situation}/{config.leadership_kind_of_subsampling}/tollerance_{config.tollerance}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
             path_null = f'leadership/saves/{config.model}/{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-            path_figures_leader = f'figures/leadership/leader/{config.model}/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-            path_figures_follower = f'figures/leadership/follower/{config.model}/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+            path_figures_leader = f'figures/leadership/leader/{config.model}/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{config.leadership_kind_of_subsampling}/tollerance_{config.tollerance}/{band}/{stim}/'
+            path_figures_follower = f'figures/leadership/follower/{config.model}/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{config.leadership_kind_of_subsampling}/tollerance_{config.tollerance}/{band}/{stim}/'
+            
+            if config.leadership_criterion_path == r'Datos/turns/leader_according_number_of_ipus.pkl':
+                edition_index = save_results_path.index('leadership/') + len('leadership/') 
+                edition_index_figs = path_figures_leader.index('/leadership/') + len('/leadership/')
+                
+                # Insert criterion word in edition index
+                save_results_path = save_results_path[:edition_index] + 'criterion' + '/' + save_results_path[edition_index:]  
+                preprocessed_data_path = preprocessed_data_path[:edition_index] + 'criterion' + '/' + preprocessed_data_path[edition_index:]  
+                path_weights = path_weights[:edition_index] + 'criterion' + '/' + path_weights[edition_index:]  
+                path_null = path_null[:edition_index] + 'criterion' + '/' + path_null[edition_index:]  
+                path_figures_leader = path_figures_leader[:edition_index_figs] + 'criterion' + '/' + path_figures_leader[edition_index_figs:]  
+                path_figures_follower = path_figures_follower[:edition_index_figs] + 'criterion' + '/' + path_figures_follower[edition_index_figs:]  
+            
+            elif config.leadership_criterion_path == r'Datos/turns/leader_according_len_of_ipus.pkl':
+                edition_index = save_results_path.index('leadership/') + len('leadership/') 
+                edition_index_figs = path_figures_leader.index('/leadership/') + len('/leadership/')
+                
+                # Insert criterion word in edition index
+                save_results_path = save_results_path[:edition_index] + 'criterion2' + '/' + save_results_path[edition_index:]  
+                preprocessed_data_path = preprocessed_data_path[:edition_index] + 'criterion2' + '/' + preprocessed_data_path[edition_index:]  
+                path_weights = path_weights[:edition_index] + 'criterion2' + '/' + path_weights[edition_index:]  
+                path_null = path_null[:edition_index] + 'criterion2' + '/' + path_null[edition_index:]  
+                path_figures_leader = path_figures_leader[:edition_index_figs] + 'criterion2' + '/' + path_figures_leader[edition_index_figs:]  
+                path_figures_follower = path_figures_follower[:edition_index_figs] + 'criterion2' + '/' + path_figures_follower[edition_index_figs:]  
 
             if config.external_validation:
                 path_validation = f'saves/{config.model}/External/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
@@ -197,7 +103,9 @@ for situation in ['External']:
                                                 praat_executable_path=config.praat_executable_path,
                                                 situation=situation
                                                 )
+                # eeg_leader_1, eeg_leader_2, eeg_follower_1, eeg_follower_2, info = leader_1['EEG'], leader_2['EEG'], follower_1['EEG'], follower_2['EEG'], leader_1['info']
                 eeg_leader_1, eeg_leader_2, eeg_follower_1, eeg_follower_2, info = leader_1['EEG'], leader_2['EEG'], follower_1['EEG'], follower_2['EEG'], leader_1['info']
+                
 
                 if config.just_load_data:
                     continue
@@ -216,7 +124,7 @@ for situation in ['External']:
                 relevant_indexes_leader_1, relevant_indexes_follower_1, relevant_indexes_leader_2, relevant_indexes_follower_2 = subsampling_indexes_to_minimum(
                     samples_info=samples_info,
                     tollerance=0.1,
-                    kind=kind_of_subsampling,
+                    kind=config.leadership_kind_of_subsampling,
                     seed=42
                     )
 
@@ -590,23 +498,42 @@ if __name__=='__main__':
     # ANALYSIS: # TODO comentar la diferencia en pesos, está interesante. Pareciera ser que los pesos de los líderes tienen más orden que los de los seguidores.
     # Notar también la diferencia en la latencia, por ej. para Phonological.
 
-    import matplotlib.pyplot as plt, pandas as pd, numpy as np, seaborn as sns
+    import matplotlib.pyplot as plt, pandas as pd, numpy as np, seaborn as sns, os
     from scipy.stats import wilcoxon
     import config
     from funciones import load_pickle, dump_pickle
     import mne
 
-
+    # Fz electrode
+    # electrodes = [config.info_mne['ch_names'].index(f'C{i}') for i in [20,21,22,12,25]]
     # ===================================================================
+    
     # Comparación de pesos promedios entre dimensiones, sujetos y canales
-    mtrfs_path = lambda stimulus, band: fr"leadership\saves\mtrf_ridge_torch\External\weights\stims_Normalize_EEG_Standarize\tmin-0.2_tmax0.6\{band}\{stimulus}\total_weights_per_subject.pkl"
-    correlation_path = lambda stimulus, band: fr"leadership\saves\mtrf_ridge_torch\External\correlations\tmin-0.2_tmax0.6\{band}\{stimulus}.pkl"
+    figs_subsampling_path = f'figures/leadership/{config.leadership_kind_of_subsampling}/tollerance_{config.tollerance}'
+    config.leadership_criterion_path = r'Datos/turns/leader_according_len_of_ipus.pkl'
+    config.leadership_criterion_path = r'Datos/turns/leader_according_number_of_ipus.pkl'
+    config.leadership_criterion_path = None
+    if config.leadership_criterion_path  == r'Datos/turns/leader_according_number_of_ipus.pkl':
+        edition_index_figs = figs_subsampling_path.index('/leadership/') + len('/leadership/')
+        figs_subsampling_path = figs_subsampling_path[:edition_index_figs] + 'criterion' + '/' + figs_subsampling_path[edition_index_figs:]  
+        mtrfs_path = lambda stimulus, band: fr"leadership\criterion\saves\mtrf_ridge_torch\External\{config.leadership_kind_of_subsampling}\tollerance_{config.tollerance}\weights\stims_Normalize_EEG_Standarize\tmin-0.2_tmax0.6\{band}\{stimulus}\total_weights_per_subject.pkl"
+        correlation_path = lambda stimulus, band: fr"leadership\criterion\saves\mtrf_ridge_torch\External\{config.leadership_kind_of_subsampling}\tollerance_{config.tollerance}\correlations\tmin-0.2_tmax0.6\{band}\{stimulus}.pkl"
+    elif config.leadership_criterion_path == r'Datos/turns/leader_according_number_of_ipus.pkl':
+        edition_index_figs = figs_subsampling_path.index('/leadership/') + len('/leadership/')
+        figs_subsampling_path = figs_subsampling_path[:edition_index_figs] + 'criterion2' + '/' + figs_subsampling_path[edition_index_figs:]  
+        mtrfs_path = lambda stimulus, band: fr"leadership\criterion2\saves\mtrf_ridge_torch\External\{config.leadership_kind_of_subsampling}\tollerance_{config.tollerance}\weights\stims_Normalize_EEG_Standarize\tmin-0.2_tmax0.6\{band}\{stimulus}\total_weights_per_subject.pkl"
+        correlation_path = lambda stimulus, band: fr"leadership\criterion2\saves\mtrf_ridge_torch\External\{config.leadership_kind_of_subsampling}\tollerance_{config.tollerance}\correlations\tmin-0.2_tmax0.6\{band}\{stimulus}.pkl"
+    else:
+        mtrfs_path = lambda stimulus, band: fr"leadership\saves\mtrf_ridge_torch\External\{config.leadership_kind_of_subsampling}\tollerance_{config.tollerance}\weights\stims_Normalize_EEG_Standarize\tmin-0.2_tmax0.6\{band}\{stimulus}\total_weights_per_subject.pkl"
+        correlation_path = lambda stimulus, band: fr"leadership\saves\mtrf_ridge_torch\External\{config.leadership_kind_of_subsampling}\tollerance_{config.tollerance}\correlations\tmin-0.2_tmax0.6\{band}\{stimulus}.pkl"
+    os.makedirs(figs_subsampling_path, exist_ok=True)
+
     band = 'Theta'
     stimuli = [
         'Envelope',
         # 'Pitch-Log-Raw',
         'Spectrogram',
-        'Phonological',
+        # 'Phonological',
         'Phonemes-Frequency-Phonet', 
     ]
 
@@ -626,6 +553,8 @@ if __name__=='__main__':
         data = pd.DataFrame({
             'average_correlation_subjects_follower': correlations['average_correlation_subjects_follower'].mean(axis=1),
             'average_correlation_subjects_leader': correlations['average_correlation_subjects_leader'].mean(axis=1),
+            # 'average_correlation_subjects_follower': correlations['average_correlation_subjects_follower'][:, electrodes].mean(axis=1),
+            # 'average_correlation_subjects_leader': correlations['average_correlation_subjects_leader'][:, electrodes].mean(axis=1),
         })
         colors_leadership = {
             'average_correlation_subjects_follower': '#BD164F',
@@ -640,12 +569,14 @@ if __name__=='__main__':
         axes[0, i].plot(
             config.times*1e3,
             mtrfs['average_weights_subjects_follower'].mean(axis=(0,1,2)),
+            # mtrfs['average_weights_subjects_follower'][:,electrodes,:,:].mean(axis=(0,1,2)),
             label='Follower',
             color=colors_leadership['average_correlation_subjects_follower']
             )
         axes[0, i].plot(
             config.times*1e3,
             mtrfs['average_weights_subjects_leader'].mean(axis=(0,1,2)),
+            # mtrfs['average_weights_subjects_leader'][:,electrodes,:,:].mean(axis=(0,1,2)),
             label='Leader',
             color=colors_leadership['average_correlation_subjects_leader']
             )
@@ -738,6 +669,7 @@ if __name__=='__main__':
             ticks=np.linspace(log_pval.min(), log_pval.max(), 5).round(2)
             )
     fig.show()
+    # fig.savefig(f'figures/leadership/{config.leadership_kind_of_subsampling}/tollerance_{config.tollerance}/difference.png')
 
 
     # =====================
@@ -754,7 +686,7 @@ if __name__=='__main__':
     for session, archive in enumerate(os.listdir(root_path)):
         session, archive
         data = load_pickle(os.path.join(root_path, archive))
-        shifted_indexes_leader1, shifted_indexes_follower1, shifted_indexes_leader2, shifted_indexes_follower2 = subsampling_indexes_to_minimum(samples_info=data, tollerance=0.1, kind=kind_of_subsampling, seed=42)
+        shifted_indexes_leader1, shifted_indexes_follower1, shifted_indexes_leader2, shifted_indexes_follower2 = subsampling_indexes_to_minimum(samples_info=data, tollerance=0.1, kind=config.leadership_kind_of_subsampling, seed=42)
         
         statistics['leader1'].append(len(shifted_indexes_leader1))
         statistics['follower1'].append(len(shifted_indexes_follower1))
@@ -773,4 +705,4 @@ if __name__=='__main__':
     plt.title('Número de muestras por condición')
     plt.grid(True)
     plt.tight_layout()
-    plt.show()
+    # plt.savefig(f'figures/leadership/{config.leadership_kind_of_subsampling}/tollerance_{config.tollerance}/statistics.png')

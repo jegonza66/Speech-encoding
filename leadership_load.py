@@ -18,8 +18,8 @@ from scipy import signal as sgn
 import resampy
 
 # Modules
-import processing, funciones, config
 from phoneme_implementation_from_phonet import Phones
+import processing, funciones, config
 
 # Review this If we want to update packages
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -1588,21 +1588,26 @@ class Session_class:
                                 'keep_indexes_follower1':[],
                                 'keep_indexes_follower2':[]
                                 }
-
         # Retrive and concatenate data of all trials
         for p, trial in enumerate(trials):
             
             # Define leadership: if trial is uneven leader is ch1, if even ch2
-            if trial%2!=0:
-                uneven=True
-                leadership = 1 
-                following = 2
-                p_j = p//2
+            if config.leadership_criterion_path is not None:
+                criterion = funciones.load_pickle(path=config.leadership_criterion_path)
+                leadership = criterion[self.session]['lead'][trial-1]
+                following = 3 - leadership
+                p_j = criterion[self.session]['indexes'][trial-1]
             else:
-                uneven=False
-                leadership = 2
-                following = 1
-                p_j = p//2
+                if trial%2!=0:
+                    uneven=True
+                    leadership = 1 
+                    following = 2
+                    p_j = p//2
+                else:
+                    uneven=False
+                    leadership = 2
+                    following = 1
+                    p_j = p//2
 
             # Update on number of trials
             Session_class.print_trials(p, trial, trials)
@@ -1653,36 +1658,29 @@ class Session_class:
 
                 # Define/Re-define samples_info trial length
                 if not loaded_samples_info:
-                    if uneven:
+                    if leadership==1:
                         self.samples_info['trial_lengths_leader1'].append(minimum_leader)
                         self.samples_info['trial_lengths_follower2'].append(minimum_follower)
 
                         # Preprocessing: calaculates the relevant indexes for the apropiate analysis. Add sum of all previous trials length. This is because at the end, all trials previous to the actual will be concatenated
                         shifted_indexes_leader = self.shifted_indexes_to_keep(speaker_labels=current_speaker_leader)
                         shifted_indexes_follower = self.shifted_indexes_to_keep(speaker_labels=current_speaker_follower)
-                        
-                        # shifted_indexes_leader, shifted_indexes_follower = self.subsampling_indexes_to_minimum(shifted_indexes_leader, shifted_indexes_follower)
-                        
                         self.samples_info['keep_indexes_leader1'] += (shifted_indexes_leader + np.sum(self.samples_info['trial_lengths_leader1'][:-1])).tolist()
                         self.samples_info['keep_indexes_follower2'] += (shifted_indexes_follower + np.sum(self.samples_info['trial_lengths_follower2'][:-1])).tolist()
                     else:
                         self.samples_info['trial_lengths_leader2'].append(minimum_leader)
                         self.samples_info['trial_lengths_follower1'].append(minimum_follower)
-                        
+
                         # Preprocessing: calaculates the relevant indexes for the apropiate analysis. Add sum of all previous trials length. This is because at the end, all trials previous to the actual will be concatenated
                         shifted_indexes_leader = self.shifted_indexes_to_keep(speaker_labels=current_speaker_leader)
                         shifted_indexes_follower = self.shifted_indexes_to_keep(speaker_labels=current_speaker_follower)
-                        
-                        # shifted_indexes_leader, shifted_indexes_follower = self.subsampling_indexes_to_minimum(shifted_indexes_leader, shifted_indexes_follower)
-
-                        # Preprocessing: calaculates the relevant indexes for the apropiate analysis. Add sum of all previous trials length. This is because at the end, all trials previous to the actual will be concatenated
                         self.samples_info['keep_indexes_leader2'] += (shifted_indexes_leader + np.sum(self.samples_info['trial_lengths_leader2'][:-1])).tolist()
                         self.samples_info['keep_indexes_follower1'] += (shifted_indexes_follower + np.sum(self.samples_info['trial_lengths_follower1'][:-1])).tolist()
-                
+
                 # Concatenates data of each subject 
                 for key in trial_leader:
                     if key != 'info':
-                        if uneven:
+                        if leadership==1:
                             if key not in subject_leader1:
                                 subject_leader1[key] = trial_leader[key]
                             else:
@@ -1694,7 +1692,7 @@ class Session_class:
                                 subject_leader2[key] = np.concatenate((subject_leader2[key], trial_leader[key]), axis=0)
                 for key in trial_follower:
                     if key != 'info':
-                        if uneven:
+                        if leadership==1:
                             if key not in subject_follower2:
                                 subject_follower2[key] = trial_follower[key]
                             else:
@@ -1707,15 +1705,12 @@ class Session_class:
             # Empty trial
             except:
                 print(f"Trial {trial} of session {self.session} couldn't be loaded.")
-                if uneven:
+                if leadership==1:
                     self.samples_info['trial_lengths_leader1'][p_j] = 0
                     self.samples_info['trial_lengths_follower2'][p_j] = 0
                 else:
                     self.samples_info['trial_lengths_leader2'][p_j] = 0
                     self.samples_info['trial_lengths_follower1'][p_j] = 0
-        # # TODO CUIDADO QUE SON LISTAS ACA NO MATRICES
-        # self.samples_info['keep_indexes_leader1'], self.samples_info['keep_indexes_follower2'] = self.subsampling_indexes_to_minimum(self.samples_info['keep_indexes_leader1'], self.samples_info['keep_indexes_follower2'])
-        # self.samples_info['keep_indexes_leader2'], self.samples_info['keep_indexes_follower1'] = self.subsampling_indexes_to_minimum(self.samples_info['keep_indexes_leader2'], self.samples_info['keep_indexes_follower1'])
         
         # Get info of the setup that was exluded in the previous iteration
         info = trial_leader['info']
@@ -2134,17 +2129,19 @@ def load_data(
                 # Re-order stim and band to create just one file for each case: 'Phonemes_Envelope' --> 'Envelope_Phonemes'
                 ordered_stims = sorted(stim.split('_'))
                 ordered_band = sorted(band.split('_'))
-                session_obj = Session_class(session=session, 
-                                        stim='_'.join(ordered_stims), 
-                                        band='_'.join(ordered_band), 
-                                        sr=sr,
-                                        causal_filter_eeg=causal_filter_eeg,
-                                        envelope_filter=envelope_filter, 
-                                        situation=situation,
-                                        silence_threshold=silence_threshold, 
-                                        preprocessed_data_path=preprocessed_data_path, 
-                                        praat_executable_path=praat_executable_path,
-                                        delays=delays)
+                session_obj = Session_class(
+                    session=session, 
+                    stim='_'.join(ordered_stims), 
+                    band='_'.join(ordered_band), 
+                    sr=sr,
+                    causal_filter_eeg=causal_filter_eeg,
+                    envelope_filter=envelope_filter, 
+                    situation=situation,
+                    silence_threshold=silence_threshold, 
+                    preprocessed_data_path=preprocessed_data_path, 
+                    praat_executable_path=praat_executable_path,
+                    delays=delays
+                    )
 
                 # Try to load procesed data, if it fails it loads raw data
                 try:

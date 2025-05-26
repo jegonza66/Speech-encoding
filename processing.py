@@ -1,6 +1,7 @@
 # Standard libraries
 import numpy as np, copy, mne
 from datetime import datetime
+from typing import Tuple
 
 # Specific libraries
 from scipy.cluster.hierarchy import linkage, leaves_list
@@ -637,6 +638,155 @@ def clustering_by_correlation(
         null_indexes = None
     return ordered_indices, null_indexes
 
+def subsampling_indexes_to_minimum(
+    samples_info : dict,
+    tollerance : float=0.1,
+    kind : str='random_trials',
+    seed : int = 42
+    )-> Tuple[list, list, list, list]:
+    """
+    Subsampling indexes to minimum length of either design_matrix passed as input
+
+    Parameters
+    ----------
+    samples_info : dict
+        Dictionary containing the shifted indexes and trial lengths of leader and follower.
+    tollerance : float
+        Tollerance to downsample the indexes. Default is 0.1.
+        If the relative difference to the minimum between the two indexes is less than this value, it will not be downsampled.
+    kind : str
+        Type of downsampling to be performed. Default is 'random_trials'.
+        If 'random', random rows are removed. 
+        Elif 'random_trials', random trials are removed, until difference is less than tollerance%
+        Elif 'ordered_trials', bigger trials are removed first (enabling tradeoff to calculate rel. diff.), until difference is less than tollerance
+        Else 'cutoff', select a contiguous segment of cutoff rows
+    seed : int
+        Seed to use in random algorithms
+
+    Returns
+    -------
+    tuple
+        Tuple containing the shifted indexes of the 1 and 2, respectively (same order as input)
+    """
+    kinds_of_sub = ['random', 'random_trials', 'ordered_trials', 'optimized_trials', 'cutoff']
+    assert kind in kinds_of_sub, f'`{kind}` is not a valid kind of subsampling. Choose among {kinds_of_sub}'
+    np.random.seed(seed=seed)
+     
+    results = {
+        'shifted_indexes_leader1': None,
+        'shifted_indexes_leader2': None,
+        'shifted_indexes_follower1': None,
+        'shifted_indexes_follower2': None
+    }
+    
+    for subject in [1,2]:
+        # Load trials
+        shifted_indexes_follower = samples_info[f'keep_indexes_follower{subject}'].copy()
+        shifted_indexes_leader = samples_info[f'keep_indexes_leader{subject}'].copy()
+        
+        trial_lengths_follower = samples_info[f'trial_lengths_follower{subject}'].copy()
+        trial_lengths_leader = samples_info[f'trial_lengths_leader{subject}'].copy()
+        
+        # Compute trial difference
+        minimum_length = min(len(shifted_indexes_leader), len(shifted_indexes_follower))
+        relative_diff = (len(shifted_indexes_follower)-len(shifted_indexes_leader))/minimum_length
+        
+        if np.abs(relative_diff) >= tollerance:
+            # Decide which gets cut
+            if relative_diff > 0:
+                exceded = 'follower'
+                shift_exceded = shifted_indexes_follower
+                shift_target = shifted_indexes_leader
+                trial_lengths_exceded = trial_lengths_follower
+            else:
+                exceded = 'leader'
+                shift_exceded = shifted_indexes_leader
+                shift_target = shifted_indexes_follower
+                trial_lengths_exceded = trial_lengths_leader
+                tollerance *=-1
+                                
+            # Usefull variables
+            number_of_indexes = len(shift_exceded)
+            cutoff = len(shift_target)
+            number_subsampled_indexes = number_of_indexes - cutoff
+            trial_lengths_exceded_to_rem = trial_lengths_exceded.copy()
+
+            # Remove indexes til tollerance is achieved
+            while relative_diff > tollerance and len(trial_lengths_exceded_to_rem)!=1:
+                
+                # Remove a random trial
+                if kind=='random_trials':
+                    trial_to_remove = trial_lengths_exceded_to_rem.index(
+                        np.random.choice(trial_lengths_exceded_to_rem[1:]) # 1: to avoid "trial 0"
+                        )
+                    _ = trial_lengths_exceded_to_rem.pop(trial_to_remove)
+                    
+                    lower_bound = sum(trial_lengths_exceded[:trial_to_remove])<np.array(shift_exceded)
+                    upper_bound = np.array(shift_exceded)<sum(trial_lengths_exceded[:trial_to_remove]) + trial_lengths_exceded[trial_to_remove]
+                    
+                    shift_exceded = np.array(shift_exceded)[~(lower_bound&upper_bound)].tolist()
+                    
+                # Remove a ordered trial
+                elif kind=='ordered_trials':
+                    trial_lengths_exceded_to_rem = sorted(trial_lengths_exceded_to_rem)
+                    trial_to_remove = trial_lengths_exceded.index(trial_lengths_exceded_to_rem[-1])
+                    
+                    _ = trial_lengths_exceded_to_rem.pop(len(trial_lengths_exceded_to_rem)-1)
+                    
+                    lower_bound = sum(trial_lengths_exceded[:trial_to_remove])<np.array(shift_exceded)
+                    upper_bound = np.array(shift_exceded)<sum(trial_lengths_exceded[:trial_to_remove]) + trial_lengths_exceded[trial_to_remove]
+                    
+                    shift_exceded = np.array(shift_exceded)[~(lower_bound&upper_bound)].tolist()
+                
+                elif kind=='optimized_trials':
+                    relative_differences = []
+                    
+                    # Calculate the relative diff for all trials
+                    for trial in trial_lengths_exceded_to_rem:
+                        trial_to_remove_ = trial_lengths_exceded.index(trial)
+                        lower_bound_ = sum(trial_lengths_exceded[:trial_to_remove_])<np.array(shift_exceded)
+                        upper_bound_ = np.array(shift_exceded)<sum(trial_lengths_exceded[:trial_to_remove_]) + trial_lengths_exceded[trial_to_remove_]
+                        shift_exceded_ = np.array(shift_exceded)[~(lower_bound_&upper_bound_)].tolist()
+                        relative_differences.append((len(shift_exceded_)-cutoff)/minimum_length)
+                    
+                    # Select the one that leave the rel. diff. closest to tollerance
+                    trial_to_remove_rem = (np.abs(np.array(relative_differences))-np.abs(tollerance)).argmin()
+                    trial_to_remove = trial_lengths_exceded.index(trial_lengths_exceded_to_rem[trial_to_remove_rem])
+                    _ = trial_lengths_exceded_to_rem.pop(trial_to_remove_rem)
+                    
+                    lower_bound = sum(trial_lengths_exceded[:trial_to_remove])<np.array(shift_exceded)
+                    upper_bound = np.array(shift_exceded)<sum(trial_lengths_exceded[:trial_to_remove]) + trial_lengths_exceded[trial_to_remove]
+                    
+                    shift_exceded = np.array(shift_exceded)[~(lower_bound&upper_bound)].tolist()
+                
+                # Remove samples at random
+                elif kind=='random':
+                    indices_to_remove = np.random.choice(
+                                number_of_indexes,
+                                size=number_subsampled_indexes,
+                                replace=False
+                                )
+                    shift_exceded = list(np.delete(shift_exceded, indices_to_remove, axis=0))
+                
+                # Select a chunk of desire length
+                else:
+                    start = np.random.randint(0, number_subsampled_indexes)
+                    shift_exceded = shift_exceded[start:start + cutoff]
+                relative_diff = (len(shift_exceded)-cutoff)/minimum_length
+        else:
+            exceded = None
+            
+        if exceded=="follower":
+            results[f'shifted_indexes_follower{subject}'] = shift_exceded
+            results[f'shifted_indexes_leader{subject}'] = shift_target
+        elif exceded=="leader":
+            results[f'shifted_indexes_follower{subject}'] = shift_target
+            results[f'shifted_indexes_leader{subject}'] = shift_exceded
+        else:
+            results[f'shifted_indexes_follower{subject}'] = shifted_indexes_follower
+            results[f'shifted_indexes_leader{subject}'] = shifted_indexes_leader
+        
+    return results['shifted_indexes_leader1'], results['shifted_indexes_follower1'], results['shifted_indexes_leader2'], results['shifted_indexes_follower2']
 
 
 # ###############
