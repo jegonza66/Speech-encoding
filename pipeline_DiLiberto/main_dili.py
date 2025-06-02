@@ -13,8 +13,9 @@ from load import load_data
 import config, utils.plot as plot
 
 # Notification bot
-from labos.notificacion_bot import mensaje_tel
-api_token, chat_id = '5448153732:AAGhKraJQquEqMfpD3cb4rnTcrKB6U1ViMA', 1034347542
+from utils.notification_telegram import tel_message, generate_completion_message
+from telegram_config import API_TOKEN, CHAT_ID
+
 
 # ============
 # RUN ANALYSIS
