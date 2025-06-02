@@ -5,10 +5,11 @@ from tqdm import tqdm
 # Specific libraries
 import torch, mne, librosa, opensmile, textgrids #
 from praatio import pitch_and_intensity #
+import gc
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Silencia warnings de TensorFlow
 from phonet.phonet import Phonet #
 
-#
 from transformers import WhisperProcessor, WhisperModel # from transformers import Wav2Vec2Model, Wav2Vec2Processor
 
 from sklearn.cross_decomposition import CCA
@@ -790,7 +791,7 @@ class Trial_channel:
             ['Phonemes-Phonet','Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet'].
         """
         # Check if given kind is a permited input value
-        allowed_kind = ['Phonemes-Phonet','Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet']
+        allowed_kind = ['Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet']
         if kind not in allowed_kind:
             raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
         
@@ -801,8 +802,9 @@ class Trial_channel:
             
             phones_obj = Phones(audio_file=self.wav_fname)
             posterior_prob = phones_obj.compute_phones(PLLR=True) #9167
-            
-            
+            del phones_obj
+            gc.collect()  # ← Limpia huérfanos
+                        
             # Match features length
             difference = len(posterior_prob) - len(envelope)
 
@@ -836,6 +838,8 @@ class Trial_channel:
         else:
             phones_obj = Phones(audio_file=self.wav_fname)
             time,  sec_phones = phones_obj.compute_phones() #9167
+            del phones_obj
+            gc.collect()  # ← Limpia huérfanos
         
         # Remove silences, since it won't be used in prediction (when silence occurs, all phoneme are 0)
         phonet_labels = exp_info.phonemes_phonet.copy()
@@ -876,19 +880,6 @@ class Trial_channel:
             for i, tagg in enumerate(sec_phones):
                 if (tagg!='<p:>') and (tagg!='sil'):
                     phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1/freq[exp_info.phones_to_phonemes[tagg]]
-        elif kind.startswith('Phonemes-Frequency'):
-            try:
-                freq = funciones.load_pickle('Datos/phon_frequency_dict/frequency_dict.pkl')
-            except:
-                print("Frequency dictionary isn't Load. \n ---> loading it now...")
-                os.makedirs('Datos/phon_frequency_dict', exist_ok=True)
-                freq = funciones.load_phon_frequency_dict(
-                    save_path='Datos/phon_frequency_dict',
-                    plot_freq=True,
-                    )
-            for i, tagg in enumerate(sec_phones):
-                if (tagg!='<p:>') and (tagg!='sil'):
-                    phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1/freq['/'+tagg+'/']
         elif kind.startswith('Phonemes-Onset'):
             # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
             phonemes_onset = [sec_phones[0]]
@@ -946,6 +937,8 @@ class Trial_channel:
             
             phones_obj = Phones(audio_file=self.wav_fname)
             posterior_prob = phones_obj.compute_phones(PLLR=True) #9167
+            del phones_obj
+            gc.collect()  # ← Limpia huérfanos
             
             # Match features length
             difference = len(posterior_prob) - len(envelope)
@@ -974,6 +967,8 @@ class Trial_channel:
             # Extract phones
             phones_obj = Phones(audio_file=self.wav_fname)
             _,  sec_phones = phones_obj.compute_phones() 
+            del phones_obj
+            gc.collect()  # ← Limpia huérfanos
         
         # Get phonet phoneme labels
         phonet_labels = exp_info.ph_labels_phonet.copy()
@@ -1166,7 +1161,11 @@ class Trial_channel:
             Matrix with phonological features with shape SAMPLES X FEATURES
         """
         # Define phonological instance and phonological features
-        phon_features = Phonet(["all"]).get_PLLR(audio_file=self.wav_fname, plot_flag=False)
+        phonet = Phonet(["all"])
+        phon_features = phonet.get_PLLR(audio_file=self.wav_fname, plot_flag=False)
+        
+        del phonet
+        gc.collect()  # ← Limpia huérfanos
         # phon_features = Phonet(['all']).get_PLLR(audio_file=r'Datos/wavs/S21/s21.objects.01.channel1.wav', plot_flag=False)
         
         # Interpole data in desire times
@@ -1579,7 +1578,7 @@ class Session_class:
         subject_2 = {}
 
         # Retrive number of files, i.e: trials. This is done this way because there are missing phonemes values
-        trials = [int(fname.split('.')[2]) for fname in os.listdir(self.phn_path) if fname.endswith('TextGrid')]
+        trials = [int(fname.split('.')[2]) for fname in os.listdir(self.phrases_path) if fname.endswith('TextGrid')]
         trials = list(set([tr for tr in trials if trials.count(tr) > 1]))
 
         # Try to open preprocessed info of samples, if not crates raw. This dictionary contains data of trial lengths and indexes to keep up to given trial
@@ -1677,8 +1676,8 @@ class Session_class:
             # Empty trial
             except:
                 print(f"Trial {trial} of session {self.session} couldn't be loaded.")
-                self.samples_info['trial_lengths1'][p] = 0
-                self.samples_info['trial_lengths2'][p] = 0
+                self.samples_info['trial_lengths1'].append(0)
+                self.samples_info['trial_lengths2'].append(0)
 
         # Get info of the setup that was exluded in the previous iteration
         info = trial_channel_1['info']
@@ -1764,7 +1763,9 @@ class Session_class:
         
         # Take difference in time and multiply it by sample rate in order to match envelope length (almost, miss by a sample or two)
         samples = np.round((h1t[1] - h1t[0]) * self.sr).astype("int")
-        speaker = np.repeat(h1t.iloc[:, 2], samples).ravel()
+        
+        # Repeat speaker labels by the number of samples in each phrase
+        speaker = np.repeat(h1t.iloc[:, 2], samples)
         
         # Same with listener
         listener_channel = (channel - 3) * -1
@@ -1774,7 +1775,7 @@ class Session_class:
         # Replace and '#' by ''. And then all text by 1 and silences by 0
         h2t.iloc[:, 2] = (h2t.iloc[:, 2].replace("#", "").apply(len) > 0).apply(int)
         samples = np.round((h2t[1] - h2t[0]) * self.sr).astype("int")
-        listener = np.repeat(h2t.iloc[:, 2], samples).ravel()
+        listener = np.repeat(h2t.iloc[:, 2], samples)
 
         # If there are differences in length, corrects them with 0-padding
         diff = len(speaker) - len(listener)

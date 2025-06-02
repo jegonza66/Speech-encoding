@@ -2,15 +2,8 @@
 .pylint.d/
 Datos/
 figures/
-gráficos/
+figures2/
 saves/
-Praat/
 __pycache__/
-.idea/
 .vscode/
-.venv/
-pysptk
-no_hup_commands.txt
-run_main.sh
-script_output.log
-script_output.log
+*.pyc

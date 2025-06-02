@@ -34,75 +34,118 @@ def main(
     Returns:
         str: Path to the generated plot.
     """
-    import IPython 
-    IPython.embed()
-    for session in config.sessions:
-        for subject in range(average_weights_subjects.shape[0]):
+    print("\n\n🎨 Iniciando generación de gráficos...\n")
+    print(f"\n 🔄 Total de sujetos a procesar: {average_weights_subjects.shape[0]}")
+    print(f"\n📈 Sesiones: {config.sessions}\n")
+    
+    all_errors = []
+    
+    subjects_per_session = 2  # Always 2 subjects per session
+    
+    for session_idx, session in enumerate(config.sessions):
+        print(f"\r📊 Sesión {session_idx+1}/{len(config.sessions)}: {session}", end='', flush=True)
+        
+        for subject_in_session in range(subjects_per_session):
+            subject = session_idx * subjects_per_session + subject_in_session
+            
+            # Skip if subject index exceeds available subjects
+            if subject >= average_weights_subjects.shape[0]:
+                continue
+                
+            # Initialize progress indicators
+            corr_null_status = "⊘" if config.statistical_test else "⊘"
+            topo_status = "⊘"
+            weights_status = "⊘"
+            
+            print(f"\r📊 Sesión {session_idx+1}/{len(config.sessions)}: {session} -> 👤 Sujeto {subject_in_session+1}/2 -> correlación nula {corr_null_status}, topomapas {topo_status}, pesos {weights_status}", end='', flush=True)
             
             if config.statistical_test:
-                # Plot shadows for each subject
-                plot.null_correlation_vs_correlation_good_channels(
-                    display_interactive_mode=config.display_interactive_mode, 
-                    session=session, 
-                    subject=subject,
-                    save_path=path_figures, 
+                try:
+                    # Plot shadows for each subject
+                    plot.null_correlation_vs_correlation_good_channels(
+                        display_interactive_mode=config.display_interactive_mode, 
+                        session=session, 
+                        subject=subject,
+                        save_path=path_figures, 
+                        good_channels_indexes=repeated_good_correlation_channels_subjects[subject], 
+                        correlation_per_channel=correlation_per_channel_subjects[subject],
+                        null_correlation_per_channel=null_correlation_per_channel_subjects[subject], 
+                        # power_correlation=power_correlation_per_channel.mean(),
+                        # power_rmse=power_rmse_per_channel.mean(),
+                        save=config.save_figures, 
+                        no_figures=config.no_figures
+                        )
+                    corr_null_status = "✓"
+                except Exception as e:
+                    all_errors.append(f"Sesión {session}, Sujeto {subject+1}: Error en correlación nula - {str(e)}")
+                    corr_null_status = "✗"
+                print(f"\r📊 Sesión {session_idx+1}/{len(config.sessions)}: {session} -> 👤 Sujeto {subject_in_session+1}/2 -> correlación nula {corr_null_status}, topomapas {topo_status}, pesos {weights_status}", end='', flush=True)
+            
+            try:
+                # Plot head topomap across al channel for correlation and rmse
+                plot.topomap(
                     good_channels_indexes=repeated_good_correlation_channels_subjects[subject], 
-                    correlation_per_channel=correlation_per_channel_subjects[subject],
-                    null_correlation_per_channel=null_correlation_per_channel_subjects[subject], 
-                    # power_correlation=power_correlation_per_channel.mean(),
-                    # power_rmse=power_rmse_per_channel.mean(),
+                    average_coefficient=average_correlation_subjects[subject], 
+                    info=config.info_mne,
+                    coefficient_name='Correlation', 
                     save=config.save_figures, 
+                    display_interactive_mode=config.display_interactive_mode,
+                    save_path=path_figures, 
+                    subject=subject, 
+                    session=session, 
                     no_figures=config.no_figures
                     )
-            
-            # Plot head topomap across al channel for correlation and rmse
-            plot.topomap(
-                good_channels_indexes=repeated_good_correlation_channels_subjects[subject], 
-                average_coefficient=average_correlation_subjects[subject], 
-                info=config.info_mne,
-                coefficient_name='Correlation', 
-                save=config.save_figures, 
-                display_interactive_mode=config.display_interactive_mode,
-                save_path=path_figures, 
-                subject=subject, 
-                session=session, 
-                no_figures=config.no_figures
-                )
-            plot.topomap(
-                good_channels_indexes=repeated_good_rmse_channels_subjects[subject], 
-                average_coefficient=average_rmse_subjects[subject], 
-                info=config.info_mne,
-                coefficient_name='RMSE', 
-                save=config.save_figures, 
-                display_interactive_mode=config.display_interactive_mode,
-                save_path=path_figures, 
-                subject=subject, 
-                session=session, 
-                no_figures=config.no_figures #TODO: remove all config. parameters and put them in plot module
-                )
+                plot.topomap(
+                    good_channels_indexes=repeated_good_rmse_channels_subjects[subject], 
+                    average_coefficient=average_rmse_subjects[subject], 
+                    info=config.info_mne,
+                    coefficient_name='RMSE', 
+                    save=config.save_figures, 
+                    display_interactive_mode=config.display_interactive_mode,
+                    save_path=path_figures, 
+                    subject=subject, 
+                    session=session, 
+                    no_figures=config.no_figures #TODO: remove all config. parameters and put them in plot module
+                    )
+                topo_status = "✓"
+            except Exception as e:
+                all_errors.append(f"Sesión {session}, Sujeto {subject+1}: Error en topomapas - {str(e)}")
+                topo_status = "✗"
+            print(f"\r📊 Sesión {session_idx+1}/{len(config.sessions)}: {session} -> 👤 Sujeto {subject_in_session+1}/2 -> correlación nula {corr_null_status}, topomapas {topo_status}, pesos {weights_status}", end='', flush=True)
 
-            # Plot weights
-            plot.channel_weights(
-                info=config.info_mne, 
-                save=config.save_figures, 
-                save_path=path_figures, 
-                average_correlation=average_correlation_subjects[subject],
-                average_rmse=average_rmse_subjects[subject], 
-                best_alpha=alphas_subjects[subject], 
-                average_weights=average_weights_subjects[subject], 
-                times=config.times,
-                n_feats=n_feats, 
-                stim=stim, 
-                session=session, 
-                subject=subject, 
-                hierarchical_clustering=config.hierarchical_clustering,
-                display_interactive_mode=config.display_interactive_mode, 
-                no_figures=config.no_figures
-                )
+            try:
+                # Plot weights
+                plot.channel_weights(
+                    info=config.info_mne, 
+                    save=config.save_figures, 
+                    save_path=path_figures, 
+                    average_correlation=average_correlation_subjects[subject],
+                    average_rmse=average_rmse_subjects[subject], 
+                    best_alpha=alphas_subjects[subject], 
+                    average_weights=average_weights_subjects[subject], 
+                    times=config.times,
+                    n_feats=n_feats, 
+                    stim=stim, 
+                    session=session, 
+                    subject=subject, 
+                    hierarchical_clustering=config.hierarchical_clustering,
+                    display_interactive_mode=config.display_interactive_mode, 
+                    no_figures=config.no_figures
+                    )
+                weights_status = "✓"
+            except Exception as e:
+                all_errors.append(f"Sesión {session}, Sujeto {subject+1}: Error en pesos - {str(e)}")
+                weights_status = "✗"
+            print(f"\r📊 Sesión {session_idx+1}/{len(config.sessions)}: {session} -> 👤 Sujeto {subject_in_session+1}/2 -> correlación nula {corr_null_status}, topomapas {topo_status}, pesos {weights_status}", end='', flush=True)
+    
+    print()  # Add final newline after completing all sessions
+    
+    print("\n📈 Generando gráficos promedio de todos los sujetos...")
     
     # Plot average results only if all subjects are analyzed
     config.no_figures=True if (total_number_of_subjects!=18) else config.no_figures
 
+    print("  ✓ Generando topomapas promedio de métricas...")
     # Plot average topomap metrics across each subject
     plot.average_topomap(
         average_coefficient_subjects=average_rmse_subjects, 
@@ -126,6 +169,7 @@ def main(
         no_figures=config.no_figures
         ) 
 
+    print("  ✓ Generando topomapa de tiempos relevantes...")
     # Plot topomap with relevant times
     plot.topo_map_relevant_times(
         average_weights_subjects=average_weights_subjects, 
@@ -141,6 +185,7 @@ def main(
         no_figures=config.no_figures
         )
 
+    print("  ✓ Generando topomapa de correlación por canal...")
     # Plot channel-wise correlation topomap
     plot.channel_wise_correlation_topomap(
         average_weights_subjects=average_weights_subjects,
@@ -152,6 +197,7 @@ def main(
         no_figures=config.no_figures
         )
 
+    print("  ✓ Generando gráfico de pesos promedio de regresión...")
     # Plot weights
     plot.average_regression_weights(
         average_weights_subjects=average_weights_subjects, 
@@ -166,6 +212,7 @@ def main(
         no_figures=config.no_figures
         )
 
+    print("  ✓ Generando matriz de correlación entre sujetos...")
     # Plot correlation matrix between subjects
     plot.correlation_matrix_subjects(
         average_weights_subjects=average_weights_subjects,
@@ -178,6 +225,9 @@ def main(
         )
 
     if config.statistical_test:
+        print("\n Generando gráficos de análisis estadístico...")
+        
+        print("  ✓ Generando topomapas de p-valores promedio...")
         # Plot topomap of average p-values across all subject
         plot.topo_average_pval(
             pvalues_coefficient_subjects=pvalues_corr_subjects, 
@@ -198,6 +248,7 @@ def main(
             no_figures=config.no_figures
             )
 
+        print("  ✓ Generando topomapas de canales repetidos...")
         # Plot topomap of sum of repeated channels across all subject
         plot.topo_repeated_channels(
             repeated_good_coefficients_channels_subjects=repeated_good_correlation_channels_subjects,
@@ -218,6 +269,7 @@ def main(
             no_figures=config.no_figures
             )
         if config.perform_tfce:
+            print("  ✓ Generando gráfico de p-valores TFCE...")
             # Plot t and p values
             plot.plot_pvalue_tfce(
                 average_weights_subjects=average_weights_subjects, 
@@ -232,6 +284,16 @@ def main(
                 save=config.save_figures, 
                 no_figures=config.no_figures
                 )
+    
+    # Global summary
+    if all_errors:
+        print(f"\n⚠️  Se encontraron {len(all_errors)} errores:")
+        for error in all_errors:
+            print(f"    {error}")
+    else:
+        print("\n🎉 ¡Sin errores")
+    
+    print(f"\n📁 Gráficos guardados en: {path_figures}\n")
     
     
 if __name__ == "__main__":

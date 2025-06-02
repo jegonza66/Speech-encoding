@@ -178,7 +178,7 @@ def shifted_matrix(
     for dev in devices:
         try:
             # Move data onto device
-            feats_t = torch.tensor(feats, dtype=torch.float32, device=dev)
+            feats_t = torch.tensor(feats.astype(np.float64), dtype=torch.float32, device=dev)
             if optimized_shifted:
                 shifted = _compute_shifted_optimized(feats_t, delays, indices_to_keep)
             else:

@@ -1,5 +1,8 @@
 from typing import Optional, Union
+from datetime import datetime
+from typing import Dict
 import requests
+import config
 import os
 
 def tel_message(
@@ -42,7 +45,7 @@ def _send_text(api_token: str, chat_id: str, message: str, verbose: bool):
     
     success = response.status_code == 200
     if verbose:
-        print("✅ Message sent" if success else f"❌ Error: {response.status_code}")
+        print("✓ Message sent" if success else f"✗ Error: {response.status_code}")
     return success
 
 def _send_image(api_token: str, chat_id: str, image: Union[str, bytes], 
@@ -57,7 +60,7 @@ def _send_image(api_token: str, chat_id: str, image: Union[str, bytes],
     if isinstance(image, str):
         if not os.path.exists(image):
             if verbose:
-                print(f"❌ File not found: {image}")
+                print(f"✗ File not found: {image}")
             return False
         with open(image, 'rb') as f:
             files = {'photo': f}
@@ -69,10 +72,75 @@ def _send_image(api_token: str, chat_id: str, image: Union[str, bytes],
     
     else:
         if verbose:
-            print("❌ Invalid image format")
+            print("✗ Invalid image format")
         return False
     
     success = response.status_code == 200
     if verbose:
-        print("✅ Image sent" if success else f"❌ Error: {response.status_code}")
+        print("✓ Image sent" if success else f"✗ Error: {response.status_code}")
     return success
+
+
+def generate_completion_message(
+    situation: str,
+    total_number_of_subjects: int,
+    stimulus_runtimes: Dict[str, str],
+    total_runtime: str
+) -> str:
+    """
+    Generate a formatted completion message for the analysis.
+    
+    Args:
+        situation: The current situation being analyzed
+        total_number_of_subjects: Total number of subjects processed
+        stimulus_runtimes: Dictionary with stimulus runtimes
+        total_runtime: Total runtime for the entire analysis
+    
+    Returns:
+        Formatted completion message string
+    """
+    text = f"""\n
+✅ ANÁLISIS COMPLETADO\n
+
+📋 PARÁMETROS:
+• Modelo: {config.model}
+• Bandas: {config.bands}
+• Estímulos: {config.stimuli}
+• Condición: {situation}
+• Tiempo: ({config.tmin}, {config.tmax})s
+• Sujetos: {total_number_of_subjects}/18
+• Sesiones: {config.sessions}
+
+\n⚙️ \t CONFIGURACIÓN:
+• Folds: {config.n_folds} | Delays: {config.delays[0]}, ...,{config.delays[-1]} | SR: {config.sr} Hz"""
+
+    if config.statistical_test:
+        text += f"\n• Test estadístico: ✓ (p < {config.significance})"
+    else:
+        text += f"\n• Test estadístico: ✗"
+
+    if config.perform_tfce:
+        text += f"\n• TFCE: ✓ ({config.n_permutations} perm.)"
+    else:
+        text += f"\n• TFCE: ✗"
+
+    if config.just_load_data:
+        text += f"\n• Modo: 📁 Solo carga"
+    else:
+        text += f"\n• Modo: 🔬 Completo"
+
+    text += f"""
+
+\n⏱️ \t TIEMPOS DE EJECUCIÓN:"""
+    for stim_key, runtime in stimulus_runtimes.items():
+        text += f"\n• {stim_key}: {runtime}"
+    
+    text += f"""
+• Total: {total_runtime}
+
+\n📂 Resultados: saves/{config.model}/{situation}/
+🎨 Figuras: figures/{config.model}/{situation}/
+\n📅 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+"""
+    
+    return text

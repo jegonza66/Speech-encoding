@@ -1,5 +1,11 @@
 # Standard libraries
-import numpy as np, pandas as pd, matplotlib.pyplot as plt, os, seaborn as sns, mne, scipy.signal as sgn, warnings
+import numpy as np, pandas as pd, os, seaborn as sns, mne, scipy.signal as sgn, warnings
+
+# Fix matplotlib Qt backend issue  
+import matplotlib
+matplotlib.use('Agg')  # Non-interactive backend
+import matplotlib.pyplot as plt
+
 current_working_directory = os.getcwd()
 warnings.filterwarnings("ignore", message="This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.")
 warnings.filterwarnings("ignore", message="FixedFormatter should only be used together with FixedLocator")
@@ -9,7 +15,6 @@ warnings.filterwarnings("ignore", message="Tight layout not applied. tight_layou
 # Specific libraries
 from scipy.stats import wilcoxon#, pearsonr
 from scipy.stats import gaussian_kde, mode
-from statannot import add_stat_annotation
 import librosa
 
 # Default size is 10 pts, the scalings (10pts*scale) are:
@@ -704,22 +709,17 @@ def average_topomap(
         # Figure properties
         ax.set_ylabel('Correlation')
 
-        # Disable print
-        with funciones.Suppress_print():
-            add_stat_annotation(
-                        ax, 
-                        data=data, 
-                        box_pairs=[('Left', 'Right')],
-                        test='Wilcoxon', 
-                        text_format='full', 
-                        loc='outside', 
-                        fontsize='xx-large', 
-                        verbose=0
-                        )
-        
-        # Make Wilcoxon test for comparisson
+        # Make Wilcoxon test for comparison
         test_results = wilcoxon(data['Left'], data['Right'])
+        p_value = test_results.pvalue
 
+        # Agregar texto del p-value directamente
+        y_max = max(data['Left'].max(), data['Right'].max())
+        y_offset = (y_max - min(data['Left'].min(), data['Right'].min())) * 0.1
+        ax.text(0.5, y_max + y_offset, f'p = {p_value:.4f}', 
+                ha='center', va='bottom', fontsize='xx-large',
+                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
+        
         # PLot and save lateralized channels used
         lateralized_channels(
                     info=info, 

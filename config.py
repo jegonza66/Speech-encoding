@@ -38,14 +38,14 @@ stimuli = [
         # Simples
         'Envelope',
         # 'Pitch-Log-Raw',
-        'Spectrogram',
+        # 'Spectrogram',
         # 'Mfccs',
         # 'Phonological',
         # 'Phonemes-Phonet', 
         # 'Phonemes-Discrete-Phonet',
-        'Phonemes-Frequency-Phonet', 
+        # 'Phonemes-Frequency-Phonet', 
         # 'Phones-Phonet', 
-        'Phones-Discrete-Phonet',
+        # 'Phones-Discrete-Phonet',
         # 'Wav2vec2' # TODO No esta bueno
         ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situations = [
@@ -88,17 +88,9 @@ external_validation = True # whether to use External hyperparameter or the one t
 use_gpu = True
 statistical_test, perform_tfce = False, False
 
-
 stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
-model = 'mtrf'
-estimator = 'ridge_torch'  
-if estimator=='ridge': #TODO ADAAPTAR BIEN
-	model = 'mtrf_ridge'
-elif estimator == 'ridge_torch':
-    model = 'mtrf_ridge_torch'
-else:
-    model = 'mtrf'
-    
+model = 'mtrf_ridge_torch' # 'mtrf_ridge'
+
 # ==============================
 # DEFAULT PENALIZATION PARAMETER 
 correlation_limit_percentage, default_alpha, set_alpha = 0.01, 400, None
