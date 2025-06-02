@@ -6,7 +6,7 @@ import os, numpy as np
 from sklearn.model_selection import KFold
 
 # Modules
-from utils.funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
+from utils.general_functions import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
 from model_implementations import fold_model
 from utils.processing import tfce, subsampling_indexes_to_minimum
 from leadership.leadership_load import load_data
@@ -37,7 +37,7 @@ for situation in ['External']:
             path_figures_leader = f'figures/leadership/leader/{config.model}/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{config.leadership_kind_of_subsampling}/tollerance_{config.tollerance}/{band}/{stim}/'
             path_figures_follower = f'figures/leadership/follower/{config.model}/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{config.leadership_kind_of_subsampling}/tollerance_{config.tollerance}/{band}/{stim}/'
             
-            if config.leadership_criterion_path == r'Datos/turns/leader_according_number_of_ipus.pkl':
+            if config.leadership_criterion_path == r'data/turns/leader_according_number_of_ipus.pkl':
                 edition_index = save_results_path.index('leadership/') + len('leadership/') 
                 edition_index_figs = path_figures_leader.index('/leadership/') + len('/leadership/')
                 
@@ -49,7 +49,7 @@ for situation in ['External']:
                 path_figures_leader = path_figures_leader[:edition_index_figs] + 'criterion' + '/' + path_figures_leader[edition_index_figs:]  
                 path_figures_follower = path_figures_follower[:edition_index_figs] + 'criterion' + '/' + path_figures_follower[edition_index_figs:]  
             
-            elif config.leadership_criterion_path == r'Datos/turns/leader_according_len_of_ipus.pkl':
+            elif config.leadership_criterion_path == r'data/turns/leader_according_len_of_ipus.pkl':
                 edition_index = save_results_path.index('leadership/') + len('leadership/') 
                 edition_index_figs = path_figures_leader.index('/leadership/') + len('/leadership/')
                 
@@ -501,7 +501,7 @@ if __name__=='__main__':
     import matplotlib.pyplot as plt, pandas as pd, numpy as np, seaborn as sns, os
     from scipy.stats import wilcoxon
     import config
-    from utils.funciones import load_pickle, dump_pickle
+    from utils.general_functions import load_pickle, dump_pickle
     import mne
 
     # Fz electrode
@@ -510,15 +510,15 @@ if __name__=='__main__':
     
     # Comparación de pesos promedios entre dimensiones, sujetos y canales
     figs_subsampling_path = f'figures/leadership/{config.leadership_kind_of_subsampling}/tollerance_{config.tollerance}'
-    config.leadership_criterion_path = r'Datos/turns/leader_according_len_of_ipus.pkl'
-    config.leadership_criterion_path = r'Datos/turns/leader_according_number_of_ipus.pkl'
+    config.leadership_criterion_path = r'data/turns/leader_according_len_of_ipus.pkl'
+    config.leadership_criterion_path = r'data/turns/leader_according_number_of_ipus.pkl'
     config.leadership_criterion_path = None
-    if config.leadership_criterion_path  == r'Datos/turns/leader_according_number_of_ipus.pkl':
+    if config.leadership_criterion_path  == r'data/turns/leader_according_number_of_ipus.pkl':
         edition_index_figs = figs_subsampling_path.index('/leadership/') + len('/leadership/')
         figs_subsampling_path = figs_subsampling_path[:edition_index_figs] + 'criterion' + '/' + figs_subsampling_path[edition_index_figs:]  
         mtrfs_path = lambda stimulus, band: fr"leadership\criterion\saves\mtrf_ridge_torch\External\{config.leadership_kind_of_subsampling}\tollerance_{config.tollerance}\weights\stims_Normalize_EEG_Standarize\tmin-0.2_tmax0.6\{band}\{stimulus}\total_weights_per_subject.pkl"
         correlation_path = lambda stimulus, band: fr"leadership\criterion\saves\mtrf_ridge_torch\External\{config.leadership_kind_of_subsampling}\tollerance_{config.tollerance}\correlations\tmin-0.2_tmax0.6\{band}\{stimulus}.pkl"
-    elif config.leadership_criterion_path == r'Datos/turns/leader_according_number_of_ipus.pkl':
+    elif config.leadership_criterion_path == r'data/turns/leader_according_number_of_ipus.pkl':
         edition_index_figs = figs_subsampling_path.index('/leadership/') + len('/leadership/')
         figs_subsampling_path = figs_subsampling_path[:edition_index_figs] + 'criterion2' + '/' + figs_subsampling_path[edition_index_figs:]  
         mtrfs_path = lambda stimulus, band: fr"leadership\criterion2\saves\mtrf_ridge_torch\External\{config.leadership_kind_of_subsampling}\tollerance_{config.tollerance}\weights\stims_Normalize_EEG_Standarize\tmin-0.2_tmax0.6\{band}\{stimulus}\total_weights_per_subject.pkl"

@@ -21,7 +21,7 @@ from scipy import signal as sgn
 import resampy#
 
 # Modules
-import utils.processing as processing, utils.funciones as funciones, config
+import utils.processing as processing, utils.general_functions as general_functions, config
 from utils.phoneme_implementation_from_phonet import Phones
 
 # Review this If we want to update packages
@@ -115,15 +115,15 @@ class Trial_channel:
 
         # Relevant paths
         self.praat_executable_path = praat_executable_path
-        self.eeg_fname = os.path.normpath(f"Datos/EEG/S{s}/s{s}-{channel}-Trial{trial}-Deci-Filter-Trim-ICA-Pruned.set")
-        self.wav_fname = os.path.normpath(f"Datos/wavs/S{s}/s{s}.objects.{trial:02d}.channel{channel}.wav")
+        self.eeg_fname = os.path.normpath(f"data/EEG/S{s}/s{s}-{channel}-Trial{trial}-Deci-Filter-Trim-ICA-Pruned.set")
+        self.wav_fname = os.path.normpath(f"data/wavs/S{s}/s{s}.objects.{trial:02d}.channel{channel}.wav")
         self.pitch_fname = os.path.normpath(f"S{s}/s{s}.objects.{trial:02d}.channel{channel}.txt")
-        self.phn_fname = os.path.normpath(f"Datos/phonemes/S{s}/s{s}.objects.{trial:02d}.channel{channel}.aligned_fa.TextGrid")
-        self.phn_fname_manual = os.path.normpath(f"Datos/phonemes/S{s}/manual/s{s}_objects_{trial:02d}_channel{channel}_aligned_faTAMARA.TextGrid")
-        self.phrases_fname = os.path.normpath(f"Datos/phrases/S{s}/s{s}.objects.{trial:02d}.channel{channel}.phrases")
-        # self.mistakes_path = os.path.normpath(f"Datos/mistakes/filtered_session{s}_trial{trial:02d}_channel{channel}.TextGrid")
-        self.mistakes_path = os.path.normpath(f"Datos/mistakes_corrected/filtered_session{s}_trial{trial:02d}_channel{channel}.TextGrid")
-        self.mistakes_control_path = os.path.normpath(f"Datos/mistakes_control/filtered_session{s}_trial{trial:02d}_channel{channel}.TextGrid")
+        self.phn_fname = os.path.normpath(f"data/phonemes/S{s}/s{s}.objects.{trial:02d}.channel{channel}.aligned_fa.TextGrid")
+        self.phn_fname_manual = os.path.normpath(f"data/phonemes/S{s}/manual/s{s}_objects_{trial:02d}_channel{channel}_aligned_faTAMARA.TextGrid")
+        self.phrases_fname = os.path.normpath(f"data/phrases/S{s}/s{s}.objects.{trial:02d}.channel{channel}.phrases")
+        # self.mistakes_path = os.path.normpath(f"data/mistakes/filtered_session{s}_trial{trial:02d}_channel{channel}.TextGrid")
+        self.mistakes_path = os.path.normpath(f"data/mistakes_corrected/filtered_session{s}_trial{trial:02d}_channel{channel}.TextGrid")
+        self.mistakes_control_path = os.path.normpath(f"data/mistakes_control/filtered_session{s}_trial{trial:02d}_channel{channel}.TextGrid")
         
     def f_eeg(
         self
@@ -142,7 +142,7 @@ class Trial_channel:
         """
         # Read the .set file. warning of annotations and 'boundry' events -data discontinuities-.
         eeg = mne.io.read_raw_eeglab(input_fname=self.eeg_fname, preload=True) 
-        # eeg = mne.io.read_raw_eeglab(input_fname=r'Datos\EEG\S21\s21-1-Trial1-Deci-Filter-Trim-ICA-Pruned.set', preload=True) 
+        # eeg = mne.io.read_raw_eeglab(input_fname=r'data\EEG\S21\s21-1-Trial1-Deci-Filter-Trim-ICA-Pruned.set', preload=True) 
         
         # Apply a lowpass filter
         if self.band:
@@ -355,7 +355,7 @@ class Trial_channel:
         """
         # Read file
         wav = wavfile.read(self.wav_fname)[1]
-        # wav = wavfile.read(r'Datos\wavs\S21\s21.objects.01.channel1.wav')[1]
+        # wav = wavfile.read(r'data\wavs\S21\s21.objects.01.channel1.wav')[1]
         
         wav = wav.astype("float")
 
@@ -462,7 +462,7 @@ class Trial_channel:
         wav = wav.astype("float")
         
         # Identify which moments of the given condition are present in the audio file
-        samples_info = funciones.load_pickle(path=f'saves/preprocessed_data/{self.situation}/tmin-0.2_tmax0.6/samples_info/samples_info_{self.session}.pkl')
+        samples_info = general_functions.load_pickle(path=f'saves/preprocessed_data/{self.situation}/tmin-0.2_tmax0.6/samples_info/samples_info_{self.session}.pkl')
         keepindexes = samples_info[f'keep_indexes{self.channel}']
         len_trial = samples_info[f'trial_lengths{self.channel}'][self.trial]
         keepindexes = [keep for keep in keepindexes if keep<=len_trial]
@@ -737,7 +737,7 @@ class Trial_channel:
         shimmer = y['shimmerLocaldB_sma3nz']
         
         # Calculate the least common multiple between envelope and jitter lengths (jimmer length is the same as jitter)
-        mcm = funciones.minimo_comun_multiplo(len(jitter), len(envelope))
+        mcm = general_functions.minimo_comun_multiplo(len(jitter), len(envelope))
         
         # Repeat each value the number of times it takes the length of jitter to achive the mcm. The result is that jitter length matches mcm
         jitter = np.repeat(jitter, mcm / len(jitter))
@@ -869,12 +869,12 @@ class Trial_channel:
                     phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1
         elif kind.startswith('Phonemes-Frequency'):
             try:
-                freq = funciones.load_pickle('Datos/phon_frequency_dict/frequency_dict.pkl')
+                freq = general_functions.load_pickle('data/phon_frequency_dict/frequency_dict.pkl')
             except:
                 print("Frequency dictionary isn't Load. \n ---> loading it now...")
-                os.makedirs('Datos/phon_frequency_dict', exist_ok=True)
-                freq = funciones.load_phon_frequency_dict(
-                    save_path='Datos/phon_frequency_dict',
+                os.makedirs('data/phon_frequency_dict', exist_ok=True)
+                freq = general_functions.load_phon_frequency_dict(
+                    save_path='data/phon_frequency_dict',
                     plot_freq=True,
                     )
             for i, tagg in enumerate(sec_phones):
@@ -1055,12 +1055,12 @@ class Trial_channel:
 
         # Get trial total time length
         phrases = pd.read_table(self.phrases_fname, header=None, sep="\t")
-        # phrases = pd.read_table(r'C:\repos\Speech-encoding\repo_speech_encoding\Datos\phrases\S21\s21.objects.01.channel1.phrases', header=None, sep="\t")
+        # phrases = pd.read_table(r'C:\repos\Speech-encoding\repo_speech_encoding\data\phrases\S21\s21.objects.01.channel1.phrases', header=None, sep="\t")
         trial_tmax = phrases[1].iloc[-1]
 
         # Load transcription
         grid = textgrids.TextGrid(self.phn_fname)
-        # grid = textgrids.TextGrid(r'C:\repos\Speech-encoding\repo_speech_encoding\Datos\phonemes\S21\s21.objects.01.channel1.aligned_fa.TextGrid')
+        # grid = textgrids.TextGrid(r'C:\repos\Speech-encoding\repo_speech_encoding\data\phonemes\S21\s21.objects.01.channel1.aligned_fa.TextGrid')
 
         # Get phonemes
         phonemes_grid = grid['transcription : phones']
@@ -1166,7 +1166,7 @@ class Trial_channel:
         
         del phonet
         gc.collect()  # ← Limpia huérfanos
-        # phon_features = Phonet(['all']).get_PLLR(audio_file=r'Datos/wavs/S21/s21.objects.01.channel1.wav', plot_flag=False)
+        # phon_features = Phonet(['all']).get_PLLR(audio_file=r'data/wavs/S21/s21.objects.01.channel1.wav', plot_flag=False)
         
         # Interpole data in desire times
         desire_time = np.linspace(0, envelope.shape[0]/self.sr + 1/self.sr , envelope.shape[0])
@@ -1220,7 +1220,7 @@ class Trial_channel:
             raise SyntaxError(f"{kind} is not an allowed kind of pitch. Allowed phonemes are: {allowed_kind}")
         
         # Makes path for storing data
-        output_folder = os.path.normpath(f'Datos/{kind}_threshold_{self.silence_threshold}/')
+        output_folder = os.path.normpath(f'data/{kind}_threshold_{self.silence_threshold}/')
         
         # Create paths and distinguish subject
         os.makedirs(output_folder, exist_ok=True)
@@ -1512,8 +1512,8 @@ class Session_class:
         self.praat_executable_path = praat_executable_path
         self.preprocessed_data_path = preprocessed_data_path
         self.samples_info_path = os.path.join(self.preprocessed_data_path, f'samples_info/')
-        self.phn_path = f"Datos/phonemes/S{self.session}/"
-        self.phrases_path = f"Datos/phrases/S{self.session}/"
+        self.phn_path = f"data/phonemes/S{self.session}/"
+        self.phrases_path = f"data/phrases/S{self.session}/"
 
         # Define paths to export data
         self.export_paths = {}
@@ -1583,7 +1583,7 @@ class Session_class:
 
         # Try to open preprocessed info of samples, if not crates raw. This dictionary contains data of trial lengths and indexes to keep up to given trial
         try:
-            self.samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'))
+            self.samples_info = general_functions.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'))
             loaded_samples_info = True
         except:
             loaded_samples_info = False
@@ -1684,7 +1684,7 @@ class Session_class:
 
         # Saves modified relevant indexes 
         os.makedirs(self.samples_info_path, exist_ok=True)
-        funciones.dump_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'), obj=self.samples_info, rewrite=True)
+        general_functions.dump_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'), obj=self.samples_info, rewrite=True)
 
         # Save results
         for key in subject_1:
@@ -1696,10 +1696,10 @@ class Session_class:
 
             # Save preprocesed data
             os.makedirs(self.export_paths[key], exist_ok=True)
-            funciones.dump_pickle(path=os.path.join(self.export_paths[key], f'Sesion{self.session}.pkl'), obj=[subject_1[key], subject_2[key]], rewrite=True)
+            general_functions.dump_pickle(path=os.path.join(self.export_paths[key], f'Sesion{self.session}.pkl'), obj=[subject_1[key], subject_2[key]], rewrite=True)
 
         # Saves info of the setup                    
-        funciones.dump_pickle(path=os.path.join(self.preprocessed_data_path, 'EEG/info.pkl'), obj=info, rewrite=True)
+        general_functions.dump_pickle(path=os.path.join(self.preprocessed_data_path, 'EEG/info.pkl'), obj=info, rewrite=True)
 
         # Redefine subjects dictionaries to return only used stimuli
         subject_1_return = {key: subject_1[key] for key in self.stim.split('_') + ['EEG']}
@@ -1721,15 +1721,15 @@ class Session_class:
             Sessions of both subjects.
         """
         # Load EEGs and procesed data
-        eeg_subject_1, eeg_subject_2 = funciones.load_pickle(path=os.path.join(self.export_paths['EEG'], f'Sesion{self.session}.pkl'))
-        info = funciones.load_pickle(path=os.path.join(self.preprocessed_data_path, f'EEG/info.pkl'))
-        samples_info = funciones.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'))
+        eeg_subject_1, eeg_subject_2 = general_functions.load_pickle(path=os.path.join(self.export_paths['EEG'], f'Sesion{self.session}.pkl'))
+        info = general_functions.load_pickle(path=os.path.join(self.preprocessed_data_path, f'EEG/info.pkl'))
+        samples_info = general_functions.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'))
         subject_1 = {'EEG': eeg_subject_1, 'info': info}
         subject_2 = {'EEG': eeg_subject_2, 'info': info}
         
         # Loads stimuli to each subject
         for stimulus in self.stim.split('_'):
-            subject_1[stimulus], subject_2[stimulus] = funciones.load_pickle(path=os.path.join(self.export_paths[stimulus], f'Sesion{self.session}.pkl'))
+            subject_1[stimulus], subject_2[stimulus] = general_functions.load_pickle(path=os.path.join(self.export_paths[stimulus], f'Sesion{self.session}.pkl'))
         return {'Subject_1': subject_1, 'Subject_2': subject_2}, samples_info
     
     def labeling(

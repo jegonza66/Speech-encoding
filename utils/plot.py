@@ -40,7 +40,7 @@ matplotlib_colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purp
 
 # Modules
 from utils.processing import clustering_by_correlation
-import utils.funciones as funciones, config
+import utils.general_functions as general_functions, config
 # plt.style.use([plt.style.available[23]])
 
 # ===================

@@ -28,7 +28,7 @@ from matplotlib import rc
 import scienceplots
 
 # Modules
-from utils.funciones import load_pickle, dump_pickle, get_maximum_correlation_channels
+from utils.general_functions import load_pickle, dump_pickle, get_maximum_correlation_channels
 import config, utils.plot as plot 
 
 rc('text', usetex=True)

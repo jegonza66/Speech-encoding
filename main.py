@@ -6,7 +6,7 @@ import os, numpy as np
 from sklearn.model_selection import KFold
 
 # Modules
-from utils.funciones import load_pickle, dump_pickle, dict_to_csv, iteration_percentage 
+from utils.general_functions import load_pickle, dump_pickle, dict_to_csv, iteration_percentage 
 from model_implementations import fold_model
 from utils.processing import tfce 
 from load import load_data

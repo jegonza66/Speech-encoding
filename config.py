@@ -1,6 +1,6 @@
 import numpy as np, mne
-# leadership_criterion_path = r'Datos/turns/leader_according_number_of_ipus.pkl'
-# leadership_criterion_path = r'Datos/turns/leader_according_len_of_ipus.pkl'
+# leadership_criterion_path = r'data/turns/leader_according_number_of_ipus.pkl'
+# leadership_criterion_path = r'data/turns/leader_according_len_of_ipus.pkl'
 # leadership_criterion_path = None
 
 # ==========================================

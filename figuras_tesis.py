@@ -27,7 +27,7 @@ from matplotlib import rc, cm
 import seaborn as sns
 import scienceplots
 
-from utils.funciones import load_pickle, all_possible_combinations, get_maximum_correlation_channels
+from utils.general_functions import load_pickle, all_possible_combinations, get_maximum_correlation_channels
 from utils.processing import clustering_by_correlation
 from utils.plot import define_ticks, gradient_fill_density_based
 import config
@@ -5944,7 +5944,7 @@ figformat, dpi = 'png', 350
 
 # =======================================
 # ENVOLVENETE + AUDIO + EEG PARA DIAGRAMA DE PIPELINE
-WavPath = 'Datos/wavs/S21/s21.objects.01.channel1.wav'
+WavPath = 'data/wavs/S21/s21.objects.01.channel1.wav'
 WindowLeft, WindowRight, EegSr = 32, 34, 128
 
 sr, audio = wavfile.read(WavPath)
@@ -5997,8 +5997,8 @@ plt.axis('off')
 #     )
 fig.show()
 
-EegPath = f'Datos/EEG/S21/s21-{1}-Trial13-Deci-Filter-Trim-ICA-Pruned.set'
-WavPath = f'Datos/wavs/S21/s21.objects.01.channel{1}.wav'
+EegPath = f'data/EEG/S21/s21-{1}-Trial13-Deci-Filter-Trim-ICA-Pruned.set'
+WavPath = f'data/wavs/S21/s21.objects.01.channel{1}.wav'
 raw = mne.io.read_raw_eeglab(
     EegPath,
     preload=True,
@@ -6445,7 +6445,7 @@ fig.show()
 
 # # ========================
 # # Tono de voz del hablante
-# WavPath = 'Datos/wavs/S21/s21.objects.01.channel1.wav'
+# WavPath = 'data/wavs/S21/s21.objects.01.channel1.wav'
 # PitchPath = "saves/preprocessed_data/External/tmin-0.2_tmax0.6/Pitch-Log-Raw_threshold_0.03/Sesion21.pkl"
 # WindowLeft, WindowRight = 32, 34
 
@@ -6494,7 +6494,7 @@ fig.show()
 
 # # ===============================
 # # Envlovente de la señal de audio
-# WavPath = 'Datos/wavs/S21/s21.objects.01.channel1.wav'
+# WavPath = 'data/wavs/S21/s21.objects.01.channel1.wav'
 # WindowLeft, WindowRight, EegSr = 32, 34, 128
 
 # sr, audio = wavfile.read(WavPath)
@@ -6541,7 +6541,7 @@ fig.show()
 
 # # ===============
 # # AUTOCORRELACIÓN
-# WavPath = 'Datos/wavs/S21/s21.objects.01.channel1.wav'
+# WavPath = 'data/wavs/S21/s21.objects.01.channel1.wav'
 # WindowLeft, WindowRight, EegSr = 32, 34, 128
 
 # sr, audio = wavfile.read(WavPath)
@@ -6598,7 +6598,7 @@ fig.show()
 # =======================================================
 # Ejemplo EEG y PSD (power spectral density) de un sujeto# TODO SIGUE SIN DAR CHARLAR CON JOACO
 session, sujeto = 21, 2
-RawEegPath = f'Datos/EEG/S{session}/s{session}-{sujeto}-Trial1-Deci-Filter-Trim-ICA-Pruned.set'
+RawEegPath = f'data/EEG/S{session}/s{session}-{sujeto}-Trial1-Deci-Filter-Trim-ICA-Pruned.set'
 # EegPath = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/EEG/All/Causal/Sesion21.pkl'
 
 raw = mne.io.read_raw_eeglab(
@@ -6716,8 +6716,8 @@ fig.show()
 # =================================
 # Tarea comportamental: EEG y audio
 for sujeto in [1,2]:
-    EegPath = f'Datos/EEG/S21/s21-{sujeto}-Trial13-Deci-Filter-Trim-ICA-Pruned.set'
-    WavPath = f'Datos/wavs/S21/s21.objects.01.channel{sujeto}.wav'
+    EegPath = f'data/EEG/S21/s21-{sujeto}-Trial13-Deci-Filter-Trim-ICA-Pruned.set'
+    WavPath = f'data/wavs/S21/s21.objects.01.channel{sujeto}.wav'
     raw = mne.io.read_raw_eeglab(
         EegPath,
         preload=True,
@@ -7912,7 +7912,7 @@ ax11.grid(True)
 selected_window_time = data['rolling_windows_centers'][data['selected_window']]*1e3
 ax11.vlines(selected_window_time, ymin=-0.06, ymax=.7, linestyle='-.', linewidth=1.5, color='black')
 
-# Percentiles y datos
+# Percentiles y data
 lower_percentile = np.percentile(data['Aris_random'], 5, axis=1)
 upper_percentile = np.percentile(data['Aris_random'], 95, axis=1)
 
@@ -8085,7 +8085,7 @@ ax11.grid(True)
 selected_window_time = data['rolling_windows_centers'][data['selected_window']]*1e3
 ax11.vlines(selected_window_time, ymin=-0.06, ymax=.7, linestyle='-.', linewidth=1.5, color='black')
 
-# Percentiles y datos
+# Percentiles y data
 lower_percentile = np.percentile(data['Aris_random'], 5, axis=1)
 upper_percentile = np.percentile(data['Aris_random'], 95, axis=1)
 

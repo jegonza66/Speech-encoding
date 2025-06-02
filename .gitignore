@@ -1,9 +1,10 @@
 .ipynb_checkpoints/
 .pylint.d/
-Datos/
+data/
 figures/
 figures2/
 saves/
 __pycache__/
 .vscode/
 *.pyc
+leadership/output

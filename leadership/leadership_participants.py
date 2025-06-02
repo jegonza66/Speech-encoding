@@ -5,13 +5,13 @@ import numpy as np
 import glob
 
 import config
-from utils.funciones import dump_pickle
+from utils.general_functions import dump_pickle
 
 
 number_of_ipus = {session: {'ch1':[], 'ch2':[]} for session in config.sessions}
 len_of_ipus = {session: {'ch1':[], 'ch2':[]} for session in config.sessions}
 
-data = pd.read_csv(r'Datos\turns\turn_table.csv')
+data = pd.read_csv(r'data\turns\turn_table.csv')
 
 for session in config.sessions:
     session_data = data[data['session_number']==session]
@@ -106,7 +106,7 @@ for session in config.sessions:
     indexes[(leader_according_number_of_ipus[session]['lead']==1)] = np.arange((leader_according_number_of_ipus[session]['lead']==1).sum())
     indexes[(leader_according_number_of_ipus[session]['lead']==2)] = np.arange((leader_according_number_of_ipus[session]['lead']==2).sum())
     leader_according_number_of_ipus[session]['indexes'] = indexes
-dump_pickle(path=r'Datos/turns/leader_according_number_of_ipus.pkl', obj=leader_according_number_of_ipus, rewrite=True)
+dump_pickle(path=r'data/turns/leader_according_number_of_ipus.pkl', obj=leader_according_number_of_ipus, rewrite=True)
 
 leader_according_len_of_ipus = {
     session: {
@@ -126,7 +126,7 @@ for session in config.sessions:
     indexes[(leader_according_len_of_ipus[session]['lead']==1)] = np.arange((leader_according_len_of_ipus[session]['lead']==1).sum())
     indexes[(leader_according_len_of_ipus[session]['lead']==2)] = np.arange((leader_according_len_of_ipus[session]['lead']==2).sum())
     leader_according_len_of_ipus[session]['indexes'] = indexes
-dump_pickle(path=r'Datos/turns/leader_according_len_of_ipus.pkl', obj=leader_according_len_of_ipus, rewrite=True)
+dump_pickle(path=r'data/turns/leader_according_len_of_ipus.pkl', obj=leader_according_len_of_ipus, rewrite=True)
 
 
 # total_number_of_ipus = {
@@ -185,7 +185,7 @@ def calcular_proporcion_habla(filepath):
 tiempo_hablado = {session:{'ch1':None, 'ch2':None} for session in config.sessions}
 
 for session in config.sessions:
-    archivos = glob.glob(fr"Datos/phrases/S{session}/*.phrases")
+    archivos = glob.glob(fr"data/phrases/S{session}/*.phrases")
     archivos1 = [archivo for archivo in archivos if archivo.endswith("1.phrases")]
     archivos2 = [archivo for archivo in archivos if archivo.endswith("2.phrases")]
 

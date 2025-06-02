@@ -6,7 +6,7 @@ import os
 
 # Modules
 from mtrf_models import ReceptiveFieldAdaptation, TorchMtrf
-from utils.funciones import load_pickle
+from utils.general_functions import load_pickle
 import config
 
 def fold_model(

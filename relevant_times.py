@@ -19,7 +19,7 @@ params = {
 pylab.rcParams.update(params)
 
 # Modules
-from utils.funciones import load_pickle, dump_pickle
+from utils.general_functions import load_pickle, dump_pickle
 from utils.processing import tfce
 from config import Exp_info
 phonological_labels = list(Exp_info().phonological_labels)

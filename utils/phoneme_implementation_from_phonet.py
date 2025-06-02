@@ -52,7 +52,7 @@ class Phones(Phonet):
         """
         # Read the audio (.wav) file
         fs, signal = read(self.audio_file)
-        # fs, signal = read(r'C:\Users\User\repos\Speech-encoding\Datos\wavs\S21\s21.objects.01.channel1.wav')
+        # fs, signal = read(r'C:\Users\User\repos\Speech-encoding\data\wavs\S21\s21.objects.01.channel1.wav')
         if fs!=16000:
             signal, fs = resample_poly(signal, 16000, fs), 16e3
         
@@ -112,7 +112,7 @@ if __name__=="__main__":
     from utils.processing import  butter_filter
     
     
-    wav_file = r'Datos\wavs\S21\s21.objects.01.channel1.wav'
+    wav_file = r'data\wavs\S21\s21.objects.01.channel1.wav'
     # Read file
     wav = wavfile.read(wav_file)[1]
     wav = wav.astype("float")
