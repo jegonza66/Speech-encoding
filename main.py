@@ -21,16 +21,11 @@ from telegram_config import API_TOKEN, CHAT_ID
 # Logging
 from utils.logs import setup_logger
 
-# Logging configuration
-LOG_LEVEL = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
-LOG_TO_FILE = True
-LOG_DIR = "saves/detailed_logs"
-
 # Initialize logger
 logger = setup_logger(
     name='main',
     log_to_file=config.LOG_TO_FILE,
-    log_dir=os.path.join(config.LOG_DIR, datetime.now().strftime('%Y-%m-%d--%H-%M-%S') + '.log') if config.LOG_TO_FILE else None,
+    log_dir=config.LOG_DIR if config.LOG_TO_FILE else None,
     level=config.LOG_LEVEL
 )
 # from utils.general_functions import load_pickle

@@ -206,34 +206,34 @@ def log_progress(current: int, total: int, message: str = "Progress"):
         logger.info(f"🎯 {message}: {current}/{total} ({percentage:.1f}%)")
 
 
-# Example usage and testing
-if __name__ == "__main__":
-    # Setup logger with different levels
-    logger = setup_logger("test_logger", level="DEBUG")
+# # Example usage and testing
+# if __name__ == "__main__":
+#     # Setup logger with different levels
+#     logger = setup_logger("test_logger", level="DEBUG")
     
-    # Test different log levels
-    logger.debug("🔍 This is a debug message")
-    logger.info("ℹ️ This is an info message")
-    logger.warning("⚠️ This is a warning message")
-    logger.error("❌ This is an error message")
-    logger.critical("🚨 This is a critical message")
+#     # Test different log levels
+#     logger.debug("🔍 This is a debug message")
+#     logger.info("ℹ️ This is an info message")
+#     logger.warning("⚠️ This is a warning message")
+#     logger.error("❌ This is an error message")
+#     logger.critical("🚨 This is a critical message")
     
-    # Test progress logging
-    for i in range(0, 101, 25):
-        log_progress(i, 100, "Training")
+#     # Test progress logging
+#     for i in range(0, 101, 25):
+#         log_progress(i, 100, "Training")
     
-    # Test function decorator
-    @log_function_call
-    def example_function(x, y=10):
-        import time
-        time.sleep(0.1)  # Simulate work
-        return x + y
+#     # Test function decorator
+#     @log_function_call
+#     def example_function(x, y=10):
+#         import time
+#         time.sleep(0.1)  # Simulate work
+#         return x + y
     
-    result = example_function(5, y=15)
-    logger.info(f"Result: {result}")
+#     result = example_function(5, y=15)
+#     logger.info(f"Result: {result}")
     
-    # Test memory logging
-    log_memory_usage()
+#     # Test memory logging
+#     log_memory_usage()
 # else:
 #     # Make config logger
 #     import config

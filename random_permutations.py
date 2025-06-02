@@ -22,7 +22,7 @@ from utils.logs import setup_logger
 logger = setup_logger(
     name='random_permutations',
     log_to_file=config.LOG_TO_FILE,
-    log_dir=os.path.join(config.LOG_DIR, datetime.now().strftime('%Y-%m-%d--%H-%M-%S') + '_permutations.log') if config.LOG_TO_FILE else None,
+    log_dir=config.LOG_DIR if config.LOG_TO_FILE else None,
     level=config.LOG_LEVEL
 )
 

@@ -200,7 +200,6 @@ def dict_to_csv(
     except:
         raise Exception("Something went wrong when saving")
 
-@log_function_call
 def iteration_percentage(
     txt:str, 
     i:int, 

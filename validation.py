@@ -14,7 +14,7 @@ from load import load_data
 import config
 
 # Notification bot
-from utils.notification_telegram import tel_message, generate_validation_completion_message
+from utils.notification_telegram import tel_message, generate_completion_message
 from telegram_config import API_TOKEN, CHAT_ID
 
 # Logging
@@ -189,7 +189,7 @@ for situation in config.situations:
     total_runtime = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
     
     # Generate completion message
-    text = generate_validation_completion_message(
+    text = generate_completion_message(
         situation=situation,
         total_number_of_subjects=len(config.sessions) * 2,
         stimulus_runtimes=stimulus_runtimes,

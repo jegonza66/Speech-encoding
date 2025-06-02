@@ -43,7 +43,7 @@ def main(
     logger = setup_logger(
         name='get_general_plots',
         log_to_file=config.LOG_TO_FILE,
-        log_dir=os.path.join(config.LOG_DIR, datetime.now().strftime('%Y-%m-%d--%H-%M-%S') + '_plots.log') if config.LOG_TO_FILE else None,
+        log_dir=config.LOG_DIR if config.LOG_TO_FILE else None,
         level=config.LOG_LEVEL
     )
     

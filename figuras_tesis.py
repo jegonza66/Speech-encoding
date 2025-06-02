@@ -1,7 +1,6 @@
 import numpy as np, os, pandas as pd
 
 from scipy.stats import mannwhitneyu, wilcoxon
-from statannot import add_stat_annotation
 from scipy.optimize import curve_fit
 from scipy.io import wavfile
 from scipy import signal
@@ -7412,16 +7411,29 @@ sns.boxplot(
     palette={'Izquierda':colors[2], 'Derecha':colors[-2]},
     ax=axes[2,1],
 )
-add_stat_annotation(
-                    ax=axes[2,1],
-                    data=data_plot,
-                    box_pairs=[('Izquierda', 'Derecha')],
-                    test='Wilcoxon',
-                    text_format='star',
-                    loc='inside',
-                    fontsize='xx-large',
-                    verbose=0
-                    )
+stat, p_val = wilcoxon(data_plot['Izquierda'], data_plot['Derecha'])
+
+# Determinar posición para el texto
+y_max = max(data_plot['Izquierda'].max(), data_plot['Derecha'].max())
+y_pos = y_max + (y_max - axes[2,1].get_ylim()[0]) * 0.1
+
+# Agregar línea horizontal entre las cajas
+x1, x2 = 0, 1
+axes[2,1].plot([0, 1], [y_pos, y_pos], 'k-', linewidth=1)
+axes[2,1].plot([0, 0], [y_pos-0.005, y_pos], 'k-', linewidth=1)
+axes[2,1].plot([1, 1], [y_pos-0.005, y_pos], 'k-', linewidth=1)
+
+# Agregar p-value
+p_text = f'p = {p_val:.4e}'
+
+axes[2,1].text(
+    .5, 
+    y_pos + 0.01, 
+    p_text, 
+    ha='center', 
+    va='bottom', 
+    fontsize=12
+)
 
 for patch in axes[2,1].artists:
     r, g, b, alpha = patch.get_facecolor()

@@ -177,31 +177,3 @@ def generate_permutation_completion_message(situation, total_permutations_run, s
 📅 Completed: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 """
     return message
-
-
-def generate_validation_completion_message(situation, total_number_of_subjects, stimulus_runtimes, total_runtime):
-    """
-    Generate a completion message for validation analysis
-    
-    Args:
-        situation: Analysis situation/condition
-        total_number_of_subjects: Total number of subjects processed
-        stimulus_runtimes: Dictionary with stimulus runtimes
-        total_runtime: Total runtime as string
-    
-    Returns:
-        Formatted completion message
-    """
-    message = f"🔍 VALIDATION ANALYSIS COMPLETED\n\n"
-    message += f"📋 PARAMETERS:\n"
-    message += f"• Condition: {situation}\n"
-    message += f"• Subjects processed: {total_number_of_subjects}\n\n"
-    
-    message += f"⏱️ STIMULUS RUNTIMES:\n"
-    for stimulus, runtime in stimulus_runtimes.items():
-        message += f"• {stimulus}: {runtime}\n"
-    
-    message += f"\n🎯 TOTAL RUNTIME: {total_runtime}\n"
-    message += f"✅ Validation process completed successfully!"
-    
-    return message
