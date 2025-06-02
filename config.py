@@ -1,7 +1,9 @@
 import numpy as np, mne
-# leadership_criterion_path = r'data/turns/leader_according_number_of_ipus.pkl'
-# leadership_criterion_path = r'data/turns/leader_according_len_of_ipus.pkl'
-# leadership_criterion_path = None
+
+# Logging configuration
+LOG_LEVEL = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+LOG_TO_FILE = True
+LOG_DIR = "saves/detailed_logs"
 
 # ==========================================
 # SESSIONS, STIMULI, SITUATION AND EEG BANDS
@@ -86,7 +88,7 @@ tollerance = 0.1
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
 external_validation = True # whether to use External hyperparameter or the one that maximize specific condition
 use_gpu = True
-statistical_test, perform_tfce = False, False
+statistical_test, perform_tfce = True, False
 
 stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 model = 'mtrf_ridge_torch' # 'mtrf_ridge'

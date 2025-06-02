@@ -144,3 +144,64 @@ def generate_completion_message(
 """
     
     return text
+
+
+def generate_permutation_completion_message(situation, total_permutations_run, stimulus_runtimes, total_runtime):
+    """Generate completion message for random permutations analysis"""
+    message = f"""
+🎲\t RANDOM PERMUTATIONS ANALYSIS COMPLETED
+
+📊\t PARAMETERS:
+• Model: {config.model}
+• Bands: {config.bands}
+• Stimuli: {config.stimuli}
+• Condition: {situation}
+• Time interval: ({config.tmin},{config.tmax})s
+• Sessions: {config.sessions}
+• Permutations: {config.random_permutations}
+
+📈\t RESULTS:
+• Total permutations run: {total_permutations_run}
+• Subjects processed: {len(config.sessions) * 2}
+
+⏱️\t RUNTIME BREAKDOWN:"""
+    
+    for stim_band, runtime in stimulus_runtimes.items():
+        message += f"\n• {stim_band}: {runtime}"
+    
+    message += f"""
+
+🏁 TOTAL RUNTIME: {total_runtime}
+
+📁 Script: random_permutations.py
+📅 Completed: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+"""
+    return message
+
+
+def generate_validation_completion_message(situation, total_number_of_subjects, stimulus_runtimes, total_runtime):
+    """
+    Generate a completion message for validation analysis
+    
+    Args:
+        situation: Analysis situation/condition
+        total_number_of_subjects: Total number of subjects processed
+        stimulus_runtimes: Dictionary with stimulus runtimes
+        total_runtime: Total runtime as string
+    
+    Returns:
+        Formatted completion message
+    """
+    message = f"🔍 VALIDATION ANALYSIS COMPLETED\n\n"
+    message += f"📋 PARAMETERS:\n"
+    message += f"• Condition: {situation}\n"
+    message += f"• Subjects processed: {total_number_of_subjects}\n\n"
+    
+    message += f"⏱️ STIMULUS RUNTIMES:\n"
+    for stimulus, runtime in stimulus_runtimes.items():
+        message += f"• {stimulus}: {runtime}\n"
+    
+    message += f"\n🎯 TOTAL RUNTIME: {total_runtime}\n"
+    message += f"✅ Validation process completed successfully!"
+    
+    return message

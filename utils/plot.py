@@ -788,7 +788,13 @@ def topo_average_pval(
 
     # Take mean across all subjects
     topo_pval = pvalues_coefficient_subjects.mean(axis=0)
-
+    
+    # Turn 1 not siginificants
+    topo_pval[topo_pval>config.significance] = 1
+    
+    # Adjust to log scale
+    topo_pval = -np.log10(topo_pval) 
+    
     # Create figure and title
     fig, ax = plt.subplots(nrows=1, ncols=1, layout='tight')
     plt.suptitle(f"Mean p-values - {coefficient_name}")
@@ -796,17 +802,28 @@ def topo_average_pval(
 
     # Make topomap
     im = mne.viz.plot_topomap(data=topo_pval, 
-                              pos=info, 
-                              cmap='OrRd',
-                              vlim=(0, topo_pval.max()),
-                              show=False, 
-                              sphere=0.07,
-                              axes=ax)
+        pos=info, 
+    #   cmap='OrRd',
+        cmap='inferno',
+        vlim=(0, topo_pval.max()),
+        show=False, 
+        sphere=0.07,
+        axes=ax
+    )
     # And colorbar
-    plt.colorbar(im[0], 
-                 shrink=0.85, 
-                 orientation='vertical',
-                 label='p-value')
+    # plt.colorbar(im[0], 
+    #              shrink=0.85, 
+    #              orientation='vertical',
+    #              label='p-value')
+    plt.colorbar(
+                im[0], 
+                ax=ax, 
+                shrink=0.85, 
+                label='-log10(p-value)', 
+                orientation='horizontal',
+                boundaries=np.linspace(0, topo_pval.max(), 100),
+                ticks=np.linspace(0, topo_pval.max(), 9).round(decimals=3)
+                )   
 
     # Save figure
     if save:
@@ -862,8 +879,13 @@ def topo_repeated_channels(
         plt.ioff()
 
     # Take mean across all subjects 
-    sum_of_repeated_chan = repeated_good_coefficients_channels_subjects.sum(axis=0) # n_channs, the max value of each channel is the total_number_of_subjects
-    n_sub = len(config.sessiones)*2
+    
+    sum_of_repeated_chan = np.zeros(info['nchan'])# n_channs, the max value of each channel is the total_number_of_subjects
+    for sub, channels in enumerate(repeated_good_coefficients_channels_subjects):
+        sum_of_repeated_chan += np.isin(np.arange(info["nchan"]), channels)
+    # sum_of_repeated_chan = repeated_good_coefficients_channels_subjects.sum(axis=0) 
+    
+    n_sub = len(config.sessions)*2
     
     # Create figure and title
     fig, ax = plt.subplots(nrows=1, ncols=1, layout='tight')

@@ -1,3 +1,4 @@
+#TODO implement solvers
 # Standard libraries
 import numpy as np, mne
 mne.set_log_level(verbose='WARNING')
@@ -198,11 +199,16 @@ class TorchMtrf:
                 coefs = torch.zeros(
                     size=(config.random_permutations, config.info_mne['nchan'], n_features, len(config.delays)), 
                     device=self.device, 
-                    dtype=np.float32
+                    dtype=torch.float32
                     )
                 correlations = torch.zeros(
                     size=(config.random_permutations, config.info_mne['nchan']), 
                     device=self.device, 
+                    dtype=torch.float32
+                    )
+                root_mean_square_error = torch.zeros(
+                    size=(config.random_permutations, config.info_mne['nchan']),
+                    device=self.device,
                     dtype=torch.float32
                     )
                 
@@ -217,8 +223,8 @@ class TorchMtrf:
                     X_train_p = X_train[torch.randperm(number_of_indices)] # TODO Shufflear y en vez de X
                    
                     # Fit the Ridge model (X^T X + alpha * I) * mtrfs = X^T * y_train_p 
-                    XTX_reg = X_train_p.T @ X_train_p + self.alpha.astype(np.float32) *  torch.eye(X_train_p.shape[1], device=self.device) # X^T * X + alpha*I
-                    mtrfs = torch.linalg.solve(XTX_reg, X_train.T @ y_train)
+                    XTX_reg = X_train_p.T @ X_train_p + torch.tensor(self.alpha, dtype=torch.float32) *  torch.eye(X_train_p.shape[1], device=self.device) # X^T * X + alpha*I
+                    mtrfs = torch.linalg.solve(XTX_reg, X_train_p.T @ y_train)
                     y_predicted = X_pred @ mtrfs
                     coefs[s] = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1)
                     del X_train_p, mtrfs
@@ -236,8 +242,11 @@ class TorchMtrf:
                             correlations[s] = (covariance / (y_test_std * y_pred_std))
                     except RuntimeWarning:
                         correlations[s] = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
+                    
+                    root_mean_square_error[s] = torch.sqrt(torch.pow(y_predicted - y_test, 2).mean(dim=0))
+                    
                 del X_train, y_train, X_pred, y_test, y_predicted
-                return coefs.cpu().numpy(), correlations.cpu().numpy()
+                return coefs.cpu().numpy(), correlations.cpu().numpy(), root_mean_square_error.cpu().numpy()
             else:
                 # Standarize and normalize
                 X_train, y_train, X_pred, y_test = self.standarize_normalize(

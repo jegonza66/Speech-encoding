@@ -1,6 +1,8 @@
 # Standard libraries
 from typing import Union
 import numpy as np
+import os
+from datetime import datetime
 
 # Specific libraries
 import fire
@@ -9,6 +11,8 @@ import fire
 import config
 import utils.plot as plot
 
+# Logging
+from utils.logs import setup_logger
 
 def main(
     band: str,
@@ -34,16 +38,24 @@ def main(
     Returns:
         str: Path to the generated plot.
     """
-    print("\n\n🎨 Iniciando generación de gráficos...\n")
-    print(f"\n 🔄 Total de sujetos a procesar: {average_weights_subjects.shape[0]}")
-    print(f"\n📈 Sesiones: {config.sessions}\n")
+    
+    # Initialize logger for plotting module
+    logger = setup_logger(
+        name='get_general_plots',
+        log_to_file=config.LOG_TO_FILE,
+        log_dir=os.path.join(config.LOG_DIR, datetime.now().strftime('%Y-%m-%d--%H-%M-%S') + '_plots.log') if config.LOG_TO_FILE else None,
+        level=config.LOG_LEVEL
+    )
+    
+    logger.info(f"🔄 Total de sujetos a procesar: {average_weights_subjects.shape[0]}")
+    logger.info(f"📈 Sesiones: {config.sessions}")
     
     all_errors = []
     
     subjects_per_session = 2  # Always 2 subjects per session
     
     for session_idx, session in enumerate(config.sessions):
-        print(f"\r📊 Sesión {session_idx+1}/{len(config.sessions)}: {session}", end='', flush=True)
+        logger.debug(f"📊 Procesando sesión {session_idx+1}/{len(config.sessions)}: {session}")
         
         for subject_in_session in range(subjects_per_session):
             subject = session_idx * subjects_per_session + subject_in_session
@@ -52,12 +64,7 @@ def main(
             if subject >= average_weights_subjects.shape[0]:
                 continue
                 
-            # Initialize progress indicators
-            corr_null_status = "⊘" if config.statistical_test else "⊘"
-            topo_status = "⊘"
-            weights_status = "⊘"
-            
-            print(f"\r📊 Sesión {session_idx+1}/{len(config.sessions)}: {session} -> 👤 Sujeto {subject_in_session+1}/2 -> correlación nula {corr_null_status}, topomapas {topo_status}, pesos {weights_status}", end='', flush=True)
+            logger.debug(f"👤 Procesando sujeto {subject_in_session+1}/2 de la sesión {session}")
             
             if config.statistical_test:
                 try:
@@ -70,16 +77,14 @@ def main(
                         good_channels_indexes=repeated_good_correlation_channels_subjects[subject], 
                         correlation_per_channel=correlation_per_channel_subjects[subject],
                         null_correlation_per_channel=null_correlation_per_channel_subjects[subject], 
-                        # power_correlation=power_correlation_per_channel.mean(),
-                        # power_rmse=power_rmse_per_channel.mean(),
                         save=config.save_figures, 
                         no_figures=config.no_figures
                         )
-                    corr_null_status = "✓"
+                    logger.debug(f"✓ Correlación nula completada para sesión {session}, sujeto {subject_in_session+1}")
                 except Exception as e:
-                    all_errors.append(f"Sesión {session}, Sujeto {subject+1}: Error en correlación nula - {str(e)}")
-                    corr_null_status = "✗"
-                print(f"\r📊 Sesión {session_idx+1}/{len(config.sessions)}: {session} -> 👤 Sujeto {subject_in_session+1}/2 -> correlación nula {corr_null_status}, topomapas {topo_status}, pesos {weights_status}", end='', flush=True)
+                    error_msg = f"Sesión {session}, Sujeto {subject+1}: Error en correlación nula - {str(e)}"
+                    all_errors.append(error_msg)
+                    logger.error(error_msg)
             
             try:
                 # Plot head topomap across al channel for correlation and rmse
@@ -107,11 +112,11 @@ def main(
                     session=session, 
                     no_figures=config.no_figures #TODO: remove all config. parameters and put them in plot module
                     )
-                topo_status = "✓"
+                logger.debug(f"✓ Topomapas completados para sesión {session}, sujeto {subject_in_session+1}")
             except Exception as e:
-                all_errors.append(f"Sesión {session}, Sujeto {subject+1}: Error en topomapas - {str(e)}")
-                topo_status = "✗"
-            print(f"\r📊 Sesión {session_idx+1}/{len(config.sessions)}: {session} -> 👤 Sujeto {subject_in_session+1}/2 -> correlación nula {corr_null_status}, topomapas {topo_status}, pesos {weights_status}", end='', flush=True)
+                error_msg = f"Sesión {session}, Sujeto {subject+1}: Error en topomapas - {str(e)}"
+                all_errors.append(error_msg)
+                logger.error(error_msg)
 
             try:
                 # Plot weights
@@ -132,20 +137,18 @@ def main(
                     display_interactive_mode=config.display_interactive_mode, 
                     no_figures=config.no_figures
                     )
-                weights_status = "✓"
+                logger.debug(f"✓ Pesos completados para sesión {session}, sujeto {subject_in_session+1}")
             except Exception as e:
-                all_errors.append(f"Sesión {session}, Sujeto {subject+1}: Error en pesos - {str(e)}")
-                weights_status = "✗"
-            print(f"\r📊 Sesión {session_idx+1}/{len(config.sessions)}: {session} -> 👤 Sujeto {subject_in_session+1}/2 -> correlación nula {corr_null_status}, topomapas {topo_status}, pesos {weights_status}", end='', flush=True)
+                error_msg = f"Sesión {session}, Sujeto {subject+1}: Error en pesos - {str(e)}"
+                all_errors.append(error_msg)
+                logger.error(error_msg)
     
-    print()  # Add final newline after completing all sessions
-    
-    print("\n📈 Generando gráficos promedio de todos los sujetos...")
+    logger.info("📈 Generando gráficos promedio de todos los sujetos...")
     
     # Plot average results only if all subjects are analyzed
     config.no_figures=True if (total_number_of_subjects!=18) else config.no_figures
 
-    print("  ✓ Generando topomapas promedio de métricas...")
+    logger.debug("✓ Generando topomapas promedio de métricas...")
     # Plot average topomap metrics across each subject
     plot.average_topomap(
         average_coefficient_subjects=average_rmse_subjects, 
@@ -169,7 +172,7 @@ def main(
         no_figures=config.no_figures
         ) 
 
-    print("  ✓ Generando topomapa de tiempos relevantes...")
+    logger.debug("✓ Generando topomapa de tiempos relevantes...")
     # Plot topomap with relevant times
     plot.topo_map_relevant_times(
         average_weights_subjects=average_weights_subjects, 
@@ -185,7 +188,7 @@ def main(
         no_figures=config.no_figures
         )
 
-    print("  ✓ Generando topomapa de correlación por canal...")
+    logger.debug("✓ Generando topomapa de correlación por canal...")
     # Plot channel-wise correlation topomap
     plot.channel_wise_correlation_topomap(
         average_weights_subjects=average_weights_subjects,
@@ -197,7 +200,7 @@ def main(
         no_figures=config.no_figures
         )
 
-    print("  ✓ Generando gráfico de pesos promedio de regresión...")
+    logger.debug("✓ Generando gráfico de pesos promedio de regresión...")
     # Plot weights
     plot.average_regression_weights(
         average_weights_subjects=average_weights_subjects, 
@@ -212,7 +215,7 @@ def main(
         no_figures=config.no_figures
         )
 
-    print("  ✓ Generando matriz de correlación entre sujetos...")
+    logger.debug("✓ Generando matriz de correlación entre sujetos...")
     # Plot correlation matrix between subjects
     plot.correlation_matrix_subjects(
         average_weights_subjects=average_weights_subjects,
@@ -225,9 +228,9 @@ def main(
         )
 
     if config.statistical_test:
-        print("\n Generando gráficos de análisis estadístico...")
+        logger.info("Generando gráficos de análisis estadístico...")
         
-        print("  ✓ Generando topomapas de p-valores promedio...")
+        logger.debug("✓ Generando topomapas de p-valores promedio...")
         # Plot topomap of average p-values across all subject
         plot.topo_average_pval(
             pvalues_coefficient_subjects=pvalues_corr_subjects, 
@@ -248,7 +251,7 @@ def main(
             no_figures=config.no_figures
             )
 
-        print("  ✓ Generando topomapas de canales repetidos...")
+        logger.debug("✓ Generando topomapas de canales repetidos...")
         # Plot topomap of sum of repeated channels across all subject
         plot.topo_repeated_channels(
             repeated_good_coefficients_channels_subjects=repeated_good_correlation_channels_subjects,
@@ -268,34 +271,33 @@ def main(
             coefficient_name='RMSE',
             no_figures=config.no_figures
             )
-        if config.perform_tfce:
-            print("  ✓ Generando gráfico de p-valores TFCE...")
-            # Plot t and p values
-            plot.plot_pvalue_tfce(
-                average_weights_subjects=average_weights_subjects, 
-                pvalue=pvalue_tfce, 
-                times=config.times, 
-                stim=stim,
-                n_feats=n_feats, 
-                info=config.info_mne, 
-                significance=config.significance, 
-                save_path=path_figures, 
-                display_interactive_mode=config.display_interactive_mode,
-                save=config.save_figures, 
-                no_figures=config.no_figures
-                )
+    if config.perform_tfce:
+        logger.info("✓ Generando gráfico de p-valores TFCE...")
+        # Plot t and p values
+        plot.plot_pvalue_tfce(
+            average_weights_subjects=average_weights_subjects, 
+            pvalue=pvalue_tfce, 
+            times=config.times, 
+            stim=stim,
+            n_feats=n_feats, 
+            info=config.info_mne, 
+            significance=config.significance, 
+            save_path=path_figures, 
+            display_interactive_mode=config.display_interactive_mode,
+            save=config.save_figures, 
+            no_figures=config.no_figures
+            )
     
     # Global summary
     if all_errors:
-        print(f"\n⚠️  Se encontraron {len(all_errors)} errores:")
+        logger.warning(f"Se encontraron {len(all_errors)} errores:")
         for error in all_errors:
-            print(f"    {error}")
+            logger.warning(f"    {error}")
     else:
-        print("\n🎉 ¡Sin errores")
+        logger.info("🎉 ¡Sin errores!")
     
-    print(f"\n📁 Gráficos guardados en: {path_figures}\n")
-    
-    
+    logger.info(f"📁 Gráficos guardados en: {path_figures}")
+
 if __name__ == "__main__":
     fire.Fire(
         main

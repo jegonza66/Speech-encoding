@@ -79,11 +79,11 @@ def fold_model(
         )
             
         # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
-        weights, correlation_matrix = mtrf.fit( # n_iterations, n_chans, feats, delays; # n_iterations, n_chans
+        weights, correlation_matrix, root_mean_square_error = mtrf.fit( # n_iterations, n_chans, feats, delays; # n_iterations, n_chans
             stims, 
             eeg
             )
-        return weights, correlation_matrix 
+        return weights, correlation_matrix, root_mean_square_error
     elif validation:
         mtrf = TorchMtrf(
                 relevant_indexes=np.array(relevant_indexes),
@@ -129,13 +129,7 @@ def fold_model(
             )
             
             # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
-            weights, correlation_matrix, root_mean_square_error = mtrf.fit(stims, eeg)
-            # weights, correlation_matrix, root_mean_square_error = mtrf.fit2(stims, eeg)
-            # weights, correlation_matrix, root_mean_square_error = mtrf.fit3(stims, eeg)
-            # weights, correlation_matrix, root_mean_square_error = mtrf.fit4(stims, eeg) #TODO CORRER
-            # weights, correlation_matrix, root_mean_square_error = mtrf.fit5(stims, eeg) #TODO CORRER
-            
-            
+            weights, correlation_matrix, root_mean_square_error = mtrf.fit(stims, eeg) 
         
         # Perform statistical test
         if statistical_test:
@@ -153,7 +147,7 @@ def fold_model(
             # (null_correlation_matrix > correlation_matrix) is the number of iterations that surpasses the measured values for each channel (n_channels)
             p_corr = ((null_correlation_matrix > correlation_matrix).sum(axis=0) + 1) / (iterations + 1) # +1 to avoid division by zero, right tail test
             p_rmse = ((null_root_mean_square_error < root_mean_square_error).sum(axis=0) + 1) / (iterations + 1) # left tail test
-            return fold, weights, correlation_matrix, root_mean_square_error, p_corr, p_rmse, null_correlation_per_channel
+            return fold, weights, correlation_matrix, root_mean_square_error, p_corr, p_rmse, null_correlation_per_channel, null_errors
         else:
             return fold, weights, correlation_matrix, root_mean_square_error
 

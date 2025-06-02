@@ -13,11 +13,21 @@ from utils.plot import hyperparameter_selection
 from load import load_data
 import config
 
-# Notofication bot
-from utils.notification_telegram import tel_message, generate_completion_message
+# Notification bot
+from utils.notification_telegram import tel_message, generate_validation_completion_message
 from telegram_config import API_TOKEN, CHAT_ID
 
-     
+# Logging
+from utils.logs import setup_logger
+
+# Initialize logger
+logger = setup_logger(
+    name='validation',
+    log_to_file=config.LOG_TO_FILE,
+    log_dir=os.path.join(config.LOG_DIR, datetime.now().strftime('%Y-%m-%d--%H-%M-%S') + '_validation.log') if config.LOG_TO_FILE else None,
+    level=config.LOG_LEVEL
+)
+
 # ============
 # RUN ANALYSIS
 # ============
@@ -25,13 +35,25 @@ from telegram_config import API_TOKEN, CHAT_ID
 # Start execution
 for situation in config.situations:
     start_time = datetime.now()
+    stimulus_runtimes = {}
+    
     for band in config.bands:
         for stim in config.stimuli:
+            stim_start_time = datetime.now()
             ordered_stims, ordered_band = sorted(stim.split('_')), sorted(band.split('_'))
             stim, band = '_'.join(ordered_stims), '_'.join(ordered_band)
             
             # Update
-            print('\n===========================\n','\tPARAMETERS\n\n','Model: ' + config.model+'\n','Band: ' + str(band)+'\n','Stimulus: ' + stim+'\n','Condition: ' + situation+'\n',f'Time interval: ({config.tmin},{config.tmax})s\n','\n===========================\n')
+            logger.info(
+                '\n===========================\n'
+                '\tPARAMETERS\n\n'
+                f'Model: {config.model}\n'
+                f'Band: {band}\n'
+                f'Stimulus: {stim}\n'
+                f'Condition: {situation}\n'
+                f'Time interval: ({config.tmin},{config.tmax})s\n'
+                '\n===========================\n'
+            )
             
             # Relevant paths
             preprocessed_data_path = os.path.normpath(f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/')
@@ -96,6 +118,7 @@ for situation in config.situations:
                     
                     # Run folds 
                     for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
+                        logger.debug(f'\n\t······  [{fold+1}/{config.n_folds}]\t-->\t Validation fold')
                         correlation_per_channel[fold] = fold_model(
                             fold=fold,
                             alpha=config.alphas_swept,
@@ -143,17 +166,43 @@ for situation in config.situations:
                         dump_pickle(path=alphas_path, obj=alphas, rewrite=True)
                     
                 # Print the progress of the iteration
-                iteration_percentage(txt=f'\n------->\tEnd of session {session}\n', i=config.sessions.index(session), length_of_iterator=len(config.sessions))
+                iteration_percentage(
+                    txt=f'\n------->\tEnd of session {session}\n', 
+                    i=config.sessions.index(session), 
+                    length_of_iterator=len(config.sessions)
+                )
 
-    # Get run time            
-    run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
-    text = f'PARAMETERS  \nModel: ' + config.model +f'\nBands: {config.bands}'+'\nStimuli: ' + f'{config.stimuli}'+'\nCondition: ' +situation+f'\nTime interval: ({config.tmin},{config.tmax})s'
-    if config.just_load_data:
-        text += '\n\n\tJUST LOADING DATA'
-    else:
-        text += f'\n\n\tvalidation.py'
-    text += f'\n\n\t\t RUN TIME \n\n\t\t{run_time} hours'
-    print(text)
+            # Calculate runtime for this stimulus
+            stim_runtime = datetime.now().replace(microsecond=0) - stim_start_time.replace(microsecond=0)
+            stimulus_runtimes[f"{band}_{stim}"] = stim_runtime
+            
+            # Print stimulus completion time
+            logger.info(
+                f"\n\t{'='*40}\n"
+                f"\t✅ STIMULUS COMPLETED: {band}_{stim}\n\n"
+                f"\t⏱️  Runtime: {stim_runtime}\n"
+                f"\t📊 Subjects processed: {len(config.sessions) * 2}\n"
+                f"\t{'='*40}\n"
+            )
+
+    # Get total run time            
+    total_runtime = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
+    
+    # Generate completion message
+    text = generate_validation_completion_message(
+        situation=situation,
+        total_number_of_subjects=len(config.sessions) * 2,
+        stimulus_runtimes=stimulus_runtimes,
+        total_runtime=str(total_runtime)
+    )
+    
+    # Send text to telegram bot
+    tel_message(
+        api_token=API_TOKEN,
+        chat_id=CHAT_ID, 
+        message=text,
+        caption='Validation Analysis Completed'
+    )
 
     # Dump metadata
     metadata_path = f'saves/log/validation/{datetime.now().strftime("%Y-%m-%d--%H-%M-%S")}/'
@@ -161,14 +210,13 @@ for situation in config.situations:
     metadata = {
             name: getattr(config, name) for name in dir(config) 
             if (not name.startswith("__")) and (not callable(getattr(config, name)) and (name not in ['phonemes_to_ipa','ordered_phonemes']))
-            }
+    }
 
     dict_to_csv(
                 path=metadata_path+'metadata.csv',
                 obj=metadata,
                 rewrite=True
-                )
+    )
 
-    # Send text to telegram bot
-    with Suppress_print():
-        mensaje_tel(api_token=api_token, chat_id=chat_id, mensaje=text)
+    # Print the completion message
+    logger.info(text)

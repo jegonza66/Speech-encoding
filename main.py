@@ -6,7 +6,8 @@ import os, numpy as np
 from sklearn.model_selection import KFold
 
 # Modules
-from utils.general_functions import load_pickle, dump_pickle, dict_to_csv, iteration_percentage 
+from utils.general_functions import load_pickle, dump_pickle, dict_to_csv
+from utils.general_functions import iteration_percentage
 from model_implementations import fold_model
 from utils.processing import tfce 
 from load import load_data
@@ -16,6 +17,32 @@ import config
 # Notification bot
 from utils.notification_telegram import tel_message, generate_completion_message
 from telegram_config import API_TOKEN, CHAT_ID
+
+# Logging
+from utils.logs import setup_logger
+
+# Logging configuration
+LOG_LEVEL = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+LOG_TO_FILE = True
+LOG_DIR = "saves/detailed_logs"
+
+# Initialize logger
+logger = setup_logger(
+    name='main',
+    log_to_file=config.LOG_TO_FILE,
+    log_dir=os.path.join(config.LOG_DIR, datetime.now().strftime('%Y-%m-%d--%H-%M-%S') + '.log') if config.LOG_TO_FILE else None,
+    level=config.LOG_LEVEL
+)
+# from utils.general_functions import load_pickle
+# import numpy as np
+# viejo = load_pickle(path=r"output\mtrf_ridge_torch\External\TFCE\stims_Normalize_EEG_Standarize\tmin-0.2_tmax0.6\Theta\Envelope_4096VIEJO.pkl")
+# nuevo = load_pickle(path=r"output\mtrf_ridge_torch\External\TFCE\stims_Normalize_EEG_Standarize\tmin-0.2_tmax0.6\Theta\Envelope_4096.pkl")
+# np.array_equal(viejo[1], nuevo[1])
+# np.allclose(viejo[1], nuevo[1], atol=1e-02, equal_nan=False)
+# viejo[0].shape
+# nuevo[0].shape
+# viejo[1].shape
+# nuevo[1].shape
 
 # ============
 # RUN ANALYSIS
@@ -31,21 +58,21 @@ for situation in config.situations:
             stim, band = '_'.join(sorted_stimuli), '_'.join(sorted_bands)
 
             # Update
-            print(
-                '\n===========================\n',
-                '\tPARAMETERS\n\n',
-                'Model: ' + config.model+'\n',
-                'Band: ' + str(band)+'\n',
-                'Stimulus: ' + stim+'\n',
-                'Condition: ' + situation+'\n',
-                f'Time interval: ({config.tmin},{config.tmax})s\n',
+            logger.info(
+                '\n===========================\n'
+                '\tPARAMETERS\n\n'
+                f'Model: {config.model}\n'
+                f'Band: {band}\n'
+                f'Stimulus: {stim}\n'
+                f'Condition: {situation}\n'
+                f'Time interval: ({config.tmin},{config.tmax})s\n'
                 '\n===========================\n'
             )
 
             # Relevant paths
             path_weights = f'output/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
             path_null = f'output/{config.model}/{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-            path_figures = f'figures2/{config.model}/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+            path_figures = f'figures/{config.model}/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
             path_TFCE = f'output/{config.model}/{situation}/TFCE/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/'
             save_results_path = f'output/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/{band}/'
             preprocessed_data_path = f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
@@ -58,8 +85,9 @@ for situation in config.situations:
 
             # Make lists to store relevant data across sobjects
             repeated_good_correlation_channels_subjects = []
-            null_correlation_per_channel_subjects = []
             repeated_good_rmse_channels_subjects = []
+            null_correlation_per_channel_subjects = []
+            null_rmse_per_channel_subjects = []
             correlation_per_channel_subjects = []
             average_correlation_subjects = []
             average_weights_subjects = []
@@ -73,7 +101,7 @@ for situation in config.situations:
 
             # Iterate over sessions
             for sesion in config.sessions:
-                print(f'\n------->\tStart of session {sesion}\n')
+                print(f'\n-------> Start of session {sesion}\n')
 
                 # Load data by subject, EEG and info
                 subject_1, subject_2, samples_info = load_data(
@@ -142,7 +170,7 @@ for situation in config.situations:
                     
                     # Run folds
                     for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
-                        print(f'\n\t······  [{fold+1}/{config.n_folds}]\t-->\t α:{alpha:.2f}')
+                        logger.debug(f'\n\t······  [{fold+1}/{config.n_folds}]\t-->\t α:{alpha:.2f}')
 
                         # Store model output
                         output = fold_model(
@@ -164,7 +192,7 @@ for situation in config.situations:
                         
                         # If statistical test is performed, get p-values and null correlation
                         if config.statistical_test:
-                            p_corr, p_rmse, null_correlation_per_channel = output[4:]
+                            p_corr, p_rmse, null_correlation_per_channel, null_rmse_per_channel = output[4:]
 
                             # p-values for significant channels (the rest are ones, i.e: not significant)
                             proba_correlation_per_channel[fold][p_corr < config.significance_threshold] = p_corr[p_corr < config.significance_threshold]
@@ -173,14 +201,13 @@ for situation in config.situations:
                             # all p-values for topographic distribution across channels
                             topo_pvalues_corr_per_fold[fold] = p_corr
                             topo_pvalues_rmse_per_fold[fold] = p_rmse
-                    print(f'\n\t······  Run model\n')
 
                     # Take average weights, avoiding folds entirely filled with zeros
                     empty_mask = np.array([np.all(weight == 0) for weight in weights_per_fold])
                     if empty_mask.any():
                         empty_fold_indices = np.where(empty_mask)[0]
                         weights_per_fold[empty_mask] = np.nan
-                        print(f'\n\t\t{">" * 26}\n'
+                        logger.warning(f'\n\t\t{">" * 26}\n'
                             f'\t\tFolds {", ".join(map(str, empty_fold_indices + 1))} out of {config.n_folds} are empty\n'
                             f'\t\t{">" * 26}')
                             
@@ -202,17 +229,18 @@ for situation in config.situations:
 
                     # Find good indexes by checking where all folds (at the same time) are significant
                     if config.statistical_test: 
-                        try:
-                            corr_good_channel_indexes, = np.where(
-                                np.all((proba_correlation_per_channel < 1), axis=0)
-                            )
-                            rmse_good_channel_indexes, = np.where(
-                                np.all((proba_rmse_per_channel < 1), axis=0)
-                            )
-                        except:
+                        corr_good_channel_indexes, = np.where(
+                            np.all((proba_correlation_per_channel < 1), axis=0)
+                        )
+                        rmse_good_channel_indexes, = np.where(
+                            np.all((proba_rmse_per_channel < 1), axis=0)
+                        )
+                        if len(corr_good_channel_indexes) == 0:
+                            logger.warning('No significant channels found (correlation)')   
                             corr_good_channel_indexes = []
+                        if len(rmse_good_channel_indexes) == 0:
+                            logger.warning('No significant channels found (RMSE)')   
                             rmse_good_channel_indexes = []
-                            print('No significant channels found')   
 
                     # Avergae p-values across all folds
                     topo_pval_corr_subject = topo_pvalues_corr_per_fold.mean(axis=0)
@@ -221,9 +249,13 @@ for situation in config.situations:
                     # Saves average correlation, RMSE and weights between folds of each channel of each subject to take average above subjects channels
                     if config.statistical_test:
                         null_correlation_per_channel_subjects.append(null_correlation_per_channel)  
+                        null_rmse_per_channel_subjects.append(null_rmse_per_channel)
                     else: 
                         null_correlation_per_channel_subjects.append(
                             np.zeros((config.n_folds, info['nchan'])) # Null correlation is zeros
+                            )
+                        null_rmse_per_channel_subjects.append(
+                            np.zeros((config.n_folds, info['nchan'])) # Null RMSE is zeros
                             )
                     repeated_good_correlation_channels_subjects.append(corr_good_channel_indexes)
                     repeated_good_rmse_channels_subjects.append(rmse_good_channel_indexes)
@@ -238,14 +270,17 @@ for situation in config.situations:
                     total_number_of_subjects+=1
 
                 # Print the progress of the iteration
-                iteration_percentage(txt=f'\n------->\tEnd of session {sesion}\n', i=config.sessions.index(sesion), length_of_iterator=len(config.sessions))
+                iteration_percentage(
+                    txt=f'\n-------> End of session {sesion}\n', 
+                    i=config.sessions.index(sesion), 
+                    length_of_iterator=len(config.sessions),
+                    # logger=logger
+                )
 
             if config.just_load_data:
                 continue
             
             # Get desire shape n_subject, shape of array. For ex.: shape(average_weights_subjects) = n_subj, n_chans, n_feats, n_delays
-            repeated_good_correlation_channels_subjects = np.stack(repeated_good_correlation_channels_subjects , axis=0) # n_subj, n_chans
-            repeated_good_rmse_channels_subjects = np.stack(repeated_good_rmse_channels_subjects , axis=0) # n_subj, n_chans
             average_correlation_subjects = np.stack(average_correlation_subjects , axis=0) # n_subj, n_chans
             average_weights_subjects = np.stack(average_weights_subjects, axis=0) # n_subj, n_chans, n_feats, n_delays
             average_rmse_subjects = np.stack(average_rmse_subjects , axis=0) # n_subj, n_chans
@@ -265,7 +300,8 @@ for situation in config.situations:
                     verbose=True
                 )
                 # Significant channels
-                if np.sum(repeated_good_correlation_channels_subjects)!=0:
+                has_significant_channels = any(len(channels) > 0 for channels in repeated_good_correlation_channels_subjects)
+                if has_significant_channels:
                     dump_pickle(
                     path=save_results_path+f'{stim}_significant_channels.pkl',
                     obj={'significant_channels':repeated_good_correlation_channels_subjects},
@@ -281,13 +317,14 @@ for situation in config.situations:
                             
             if config.perform_tfce:
                 try:
-                    print("\nLoading TFCE data")
+                    logger.info("Loading TFCE data")
                     tvalue_tfce, pvalue_tfce = load_pickle(
                         path=os.path.join(path_TFCE, band, stim + f'_{config.n_permutations}.pkl')
                         )
-                    print('Succesfull load')
+                    logger.info('Successful load ✓')
                 except:
-                    print("\nLoad fail", f"\nComputing TFCE: {config.n_permutations} permutations.")
+                    logger.warning("Load fail")
+                    logger.info(f"Computing TFCE: {config.n_permutations} permutations.")
 
                     # Compute TFCE to get p-value
                     tvalue_tfce, pvalue_tfce = tfce(
@@ -310,13 +347,16 @@ for situation in config.situations:
             stimulus_runtimes[f"{band}_{stim}"] = stim_runtime
             
             # Print stimulus completion time
-            print(f"\n{'='*50}")
-            print(f"✅ STIMULUS COMPLETED: {band}_{stim}")
-            print(f"⏱️  Runtime: {stim_runtime}")
-            print(f"📊 Subjects processed: {total_number_of_subjects}")
-            print(f"{'='*50}\n")
+            logger.info(
+                f"\n\t{'='*40}\n"
+                f"\t✅ STIMULUS COMPLETED: {band}_{stim}\n\n"
+                f"\t⏱️  Runtime: {stim_runtime}\n"
+                f"\t📊 Subjects processed: {total_number_of_subjects}\n"
+                f"\t{'='*40}\n"
+            )
             
             if not config.no_figures:
+                logger.info("🎨 Iniciando generación de gráficos...")
                 get_general_plots.main(
                     repeated_good_correlation_channels_subjects=repeated_good_correlation_channels_subjects,
                     null_correlation_per_channel_subjects=null_correlation_per_channel_subjects,
@@ -330,6 +370,7 @@ for situation in config.situations:
                     pvalues_rmse_subjects=pvalues_rmse_subjects,
                     alphas_subjects=alphas_subjects,
                     path_figures=path_figures,
+                    pvalue_tfce=pvalue_tfce if config.perform_tfce else None,
                     n_feats=n_feats,
                     band=band,
                     stim=stim
@@ -366,5 +407,4 @@ for situation in config.situations:
     )
     
     # Print the completion message
-    print(text)
-    
+    logger.info(text)

@@ -2,6 +2,8 @@
 import numpy as np, pickle, os, sys, mne, csv#, warnings, pandas as pd, scipy
 # from typing import Union
 
+from utils.logs import log_function_call
+
 class Suppress_print:
     """
     A context manager to suppress the standard output (stdout).
@@ -198,10 +200,12 @@ def dict_to_csv(
     except:
         raise Exception("Something went wrong when saving")
 
+@log_function_call
 def iteration_percentage(
     txt:str, 
     i:int, 
-    length_of_iterator:int
+    length_of_iterator:int,
+    logger=None
     )->None:
     """
     Display the iteration progress as a percentage bar.
@@ -214,6 +218,8 @@ def iteration_percentage(
         Current iteration index.
     length_of_iterator : int
         Total number of iterations.
+    logger : logging.Logger, optional
+        Logger instance to use for output. If None, uses sys.stdout.write.
     
     Returns
     -------
@@ -221,10 +227,16 @@ def iteration_percentage(
     """
     l = int(50*(i+1)/length_of_iterator)
     if (i+1) == length_of_iterator:
-        percentage_bar =  f"[{'*'*(l):50s}] {(l*2)/100:.0%}\n"
+        percentage_bar =  f"[{'*'*(l):50s}] {(l*2)/100:.0%}"
     else:
-        percentage_bar =  f"[{'·'*(l):50s}] {(l*2)/100:.0%}\n"
-    sys.stdout.write(txt+'\n'+percentage_bar)
+        percentage_bar =  f"[{'·'*(l):50s}] {(l*2)/100:.0%}"
+    
+    message = f"{txt}\n{percentage_bar}\n\n"
+    
+    if logger is not None:
+        logger.info(message)
+    else:
+        sys.stdout.write(message + '\n')
 
 def get_maximum_correlation_channels(
     average_correlation_across_subject:np.ndarray,
@@ -304,7 +316,7 @@ def get_maximum_correlation_channels(
 def maximo_comun_divisor(
     a:int, 
     b:int
-    )->int:
+   )->int:
     """
     Calculate the greatest common divisor (GCD) of two integers using the Euclidean algorithm.
     

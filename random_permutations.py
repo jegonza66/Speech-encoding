@@ -6,28 +6,52 @@ from datetime import datetime
 from sklearn.model_selection import KFold
 
 # Modules
-from utils.general_functions import load_pickle, dump_pickle, dict_to_csv, Suppress_print
+from utils.general_functions import load_pickle, dump_pickle, dict_to_csv, iteration_percentage
 from model_implementations import fold_model
 from load import load_data
 import config
 
-# Notofication bot
-from utils.notification_telegram import tel_message, generate_completion_message
+# Notification bot
+from utils.notification_telegram import tel_message, generate_permutation_completion_message
 from telegram_config import API_TOKEN, CHAT_ID
 
+# Logging
+from utils.logs import setup_logger
+
+# Initialize logger
+logger = setup_logger(
+    name='random_permutations',
+    log_to_file=config.LOG_TO_FILE,
+    log_dir=os.path.join(config.LOG_DIR, datetime.now().strftime('%Y-%m-%d--%H-%M-%S') + '_permutations.log') if config.LOG_TO_FILE else None,
+    level=config.LOG_LEVEL
+)
 
 # ============
 # RUN ANALYSIS
 # ============
 for situation in config.situations:
     start_time = datetime.now()
+    stimulus_runtimes = {}
+    total_permutations_run = 0
+    
     for band in config.bands:
         for stim in config.stimuli:
+            stim_start_time = datetime.now()
             ordered_stims, ordered_band = sorted(stim.split('_')), sorted(band.split('_'))
             stim, band = '_'.join(ordered_stims), '_'.join(ordered_band)
 
             # Update
-            print('\n===========================\n','\tPARAMETERS\n\n','Model: ' + config.model+'\n','Band: ' + str(band)+'\n','Stimulus: ' + stim+'\n','Condition: ' + situation+'\n',f'Time interval: ({config.tmin},{config.tmax})s\n','\n===========================\n')
+            logger.info(
+                '\n===========================\n'
+                '\tPARAMETERS\n\n'
+                f'Model: {config.model}\n'
+                f'Band: {band}\n'
+                f'Stimulus: {stim}\n'
+                f'Condition: {situation}\n'
+                f'Time interval: ({config.tmin},{config.tmax})s\n'
+                f'Permutations: {config.random_permutations}\n'
+                '\n===========================\n'
+            )
             
             # Relevant paths
             preprocessed_data_path = os.path.normpath(f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/')
@@ -35,10 +59,9 @@ for situation in config.situations:
             
             if config.external_validation:
                 path_validation = f'output/{config.model}/External/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-                alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
             else:
                 path_validation = f'output/{config.model}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-                alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
+            alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
                             
             # Iterate over sessions
             for session in config.sessions:
@@ -73,10 +96,10 @@ for situation in config.situations:
                 # Initialize empty variables to store relevant data of each fold 
                 null_weights_per_fold = np.zeros((config.n_folds, config.random_permutations, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float32)
                 null_correlation_per_channel_per_fold = np.zeros((config.n_folds, config.random_permutations, info['nchan']), dtype=np.float32)
-
+                null_errors_per_channel_per_fold = np.zeros((config.n_folds, config.random_permutations, info['nchan']), dtype=np.float32)
+                
                 # Run model for each subject
                 for subject, eeg, stims, relevant_indexes in zip((1, 2), (eeg_subject_1, eeg_subject_2), (stims_subject_1, stims_subject_2), (relevant_indexes_1, relevant_indexes_2)):
-                # for subject, eeg, stims, relevant_indexes in zip([2], [eeg_subject_2], [stims_subject_2], [relevant_indexes_2]):
                     print(f'\n\t······  Running permutations for Subject {subject}\n')
                     
                     # Set alpha for specific subject
@@ -96,10 +119,10 @@ for situation in config.situations:
                     relevant_eeg = eeg[relevant_indexes]
 
                     for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
-                        print(f'\n\t······  [{fold+1}/{config.n_folds}]')
+                        logger.debug(f'\n\t······  [{fold+1}/{config.n_folds}]\t-->\t α:{alpha:.2f}\t🎲 {config.random_permutations} permutations')
 
                         # Run permutations 
-                        null_weights_per_fold[fold], null_correlation_per_channel_per_fold[fold]  = fold_model(
+                        null_weights_per_fold[fold], null_correlation_per_channel_per_fold[fold], null_errors_per_channel_per_fold[fold]  = fold_model(
                             fold=fold,
                             alpha=alpha,
                             stims=stims,
@@ -111,12 +134,14 @@ for situation in config.situations:
                             shuffle=True,
                             statistical_test=False,
                             )                        
+                    
                     # Save permutations
                     os.makedirs(path_null, exist_ok=True)
                     dump_pickle(
                                 path=path_null+ f'null_metrics_ses_{session}_sub_{subject}_{config.random_permutations}.pkl',
                                 obj={
                                     'null_correlation_per_channel_per_fold':null_correlation_per_channel_per_fold, 
+                                    'null_errors_per_fold':null_errors_per_channel_per_fold
                                     },
                                 rewrite=True
                                 )
@@ -125,15 +150,51 @@ for situation in config.situations:
                                 obj=null_weights_per_fold.mean(axis=0),
                                 rewrite=True
                                 )
-                    print(f'\n\t······  Run permutations for Subject {subject}\n')
+                    
+                    # Update permutations counter
+                    total_permutations_run += config.random_permutations * config.n_folds
+                    
+                    print(f'\n\t······ ✓ Completed permutations for Subject {subject}\n')
 
-    # Get run time
-    run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
-    text = f'\n\n\t\t\tPARAMETERS  \n\n\tModel: ' + config.model +f'\n\tBands: {config.bands}'+'\n\tStimuli: ' + f'{config.stimuli}'+'\n\tCondition: ' +situation+f'\n\tTime interval: ({config.tmin},{config.tmax})s'+f'\n\tSessions: {config.sessions}'
-    if config.just_load_data:
-        text += '\n\n\t\t\tJUST LOADING DATA'
-    text += '\n\n\t\trandom_permutations.py'
-    text += f'\n\n\t\t\tRUN TIME:{run_time}'
+                # Print the progress of the iteration
+                iteration_percentage(
+                    txt=f'\n------->\tEnd of session {session}\n', 
+                    i=config.sessions.index(session), 
+                    length_of_iterator=len(config.sessions)
+                )
+
+            # Calculate runtime for this stimulus
+            stim_runtime = datetime.now().replace(microsecond=0) - stim_start_time.replace(microsecond=0)
+            stimulus_runtimes[f"{band}_{stim}"] = stim_runtime
+            
+            # Print stimulus completion time
+            logger.info(
+                f"\n\t{'='*40}\n"
+                f"\t✅ STIMULUS COMPLETED: {band}_{stim}\n\n"
+                f"\t⏱️  Runtime: {stim_runtime}\n"
+                f"\t🎲 Permutations run: {config.random_permutations * config.n_folds * len(config.sessions) * 2}\n"
+                f"\t📊 Subjects processed: {len(config.sessions) * 2}\n"
+                f"\t{'='*40}\n"
+            )
+
+    # Get total run time
+    total_runtime = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
+    
+    # Generate completion message
+    text = generate_permutation_completion_message(
+        situation=situation,
+        total_permutations_run=total_permutations_run,
+        stimulus_runtimes=stimulus_runtimes,
+        total_runtime=str(total_runtime)
+    )
+    
+    # Send text to telegram bot
+    tel_message(
+        api_token=API_TOKEN,
+        chat_id=CHAT_ID, 
+        message=text,
+        caption='Random Permutations Analysis Completed'
+    )
 
     # Dump metadata
     metadata_path = f'saves/log/permutations/{datetime.now().strftime("%Y-%m-%d--%H-%M-%S")}/'
@@ -141,14 +202,13 @@ for situation in config.situations:
     metadata = {
             name: getattr(config, name) for name in dir(config) 
             if (not name.startswith("__")) and (not callable(getattr(config, name)) and (name not in ['phonemes_to_ipa','ordered_phonemes']))
-            }
+    }
     dict_to_csv(
                 path=metadata_path+'metadata.csv',
                 obj=metadata,
                 rewrite=True
-                )
-
-    # Send text to telegram bot
-    with Suppress_print():
-        mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=text)
-    print(text)
+    )
+    
+    # Print the completion message
+    logger.info(text)
+    
