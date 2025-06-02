@@ -46,15 +46,15 @@ for situation in config.situations:
                 
                 # Load data by subject, EEG and info
                 subject_1, subject_2, samples_info = load_data(
-                                                session=session,
-                                                stim=stim,
-                                                band=band,
-                                                sr=config.sr,
-                                                delays=config.delays,
-                                                preprocessed_data_path=preprocessed_data_path,
-                                                praat_executable_path=config.praat_executable_path,
-                                                situation=situation
-                                                )
+                    praat_executable_path=config.praat_executable_path,
+                    preprocessed_data_path=preprocessed_data_path,
+                    delays=config.delays,
+                    situation=situation,
+                    session=session,
+                    sr=config.sr,
+                    stim=stim,
+                    band=band
+                )
                 eeg_subject_1, eeg_subject_2, info = subject_1['EEG'], subject_2['EEG'], subject_1['info']
 
                 if config.just_load_data:
