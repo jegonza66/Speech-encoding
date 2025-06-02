@@ -8,3 +8,5 @@ __pycache__/
 .vscode/
 *.pyc
 leadership/output
+output/
+preprocessed_data/

@@ -49,8 +49,8 @@ pylab.rcParams.update(
 # Relevant paths
 situation, band = 'External', 'Theta'
 figures_path = os.path.normpath(f'figures/{config.model}/{situation}/sensitivity_speech_latency/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
-correlation_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonemes-Discrete-Phonet.pkl')
-mtrfs_path = os.path.normpath(f'saves/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonemes-Discrete-Phonet/total_weights_per_subject.pkl')
+correlation_path = os.path.normpath(f'output/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonemes-Discrete-Phonet.pkl')
+mtrfs_path = os.path.normpath(f'output/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonemes-Discrete-Phonet/total_weights_per_subject.pkl')
 
 # Hyper parameters
 NUMBER_OF_CLUSTERS = 2 
@@ -346,8 +346,8 @@ fig.show()
 # Relevant paths
 situation, band = 'External', 'Theta'
 figures_path = os.path.normpath(f'figures/{config.model}/{situation}/sensitivity_speech_latency/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
-correlation_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonological.pkl')
-mtrfs_path = os.path.normpath(f'saves/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonological/total_weights_per_subject.pkl')
+correlation_path = os.path.normpath(f'output/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonological.pkl')
+mtrfs_path = os.path.normpath(f'output/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonological/total_weights_per_subject.pkl')
 
 # Hyper parameters
 NUMBER_OF_CLUSTERS = 2 

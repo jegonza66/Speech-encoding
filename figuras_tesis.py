@@ -71,7 +71,7 @@ figformat, dpi = 'png', 350
 
 # # Relevant parameters
 # for situation in situations:
-#     correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+#     correlations_path = os.path.normpath(f'output/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
 #     for stimulus in stimuli:
 #         for i, band in enumerate(bands):
 #             data = load_pickle(path=os.path.join(correlations_path, band, stimulus +'.pkl'))
@@ -209,7 +209,7 @@ figformat, dpi = 'png', 350
 
 # # Relevant parameters
 # for situation in situations:
-#     correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+#     correlations_path = os.path.normpath(f'output/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
 #     for stimulus in stimuli:
 #         for i, band in enumerate(bands):
 #             data = load_pickle(path=os.path.join(correlations_path, band, stimulus +'.pkl'))
@@ -338,7 +338,7 @@ figformat, dpi = 'png', 350
 # # ==================
 # # CONVEX HULL # TODO PENDIENTE 'Phonemes-Phonet_Phonological_Spectrogram'
 # situation='External'
-# correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+# correlations_path = os.path.normpath(f'output/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
 # renombre = {'Spectrogram':'Espectrograma', 'Phonological':'Características fonológicas', 'Mfccs':'Coeficientes Mel',
 #             'Pitch-Log-Raw':'Tono de voz','Envelope':'Envolvente', 'Phonemes-Phonet':'Fonemas'}
 # colores_st = {'Spectrogram':'C0', 'Phonological':'C1', 'Mfccs':'C2', 'Pitch-Log-Raw':'C3','Envelope':'C4', 'Phonemes-Phonet':'C5', 'Phones-Phonet':'C6'}
@@ -436,7 +436,7 @@ figformat, dpi = 'png', 350
 # # DIAGRAMAS DE VENN #TODO REHACER CON PHONEMES-PHONET y PHONOLOGICAL NUEVO
 # situation='External'
 # # situation='External_BS'
-# correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+# correlations_path = os.path.normpath(f'output/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
 # # 'Envelope_Pitch-Log-Raw',
 # # 'Envelope_Spectrogram',
 # # 'Pitch-Log-Raw_Spectrogram',
@@ -818,7 +818,7 @@ figformat, dpi = 'png', 350
 # # ==================================================================
 # # Violin plots para todos los atributos las distintas bandas de frecs
 # situation='External'
-# correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+# correlations_path = os.path.normpath(f'output/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
 
 # # Relevant parameters
 # bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
@@ -1035,7 +1035,7 @@ figformat, dpi = 'png', 350
 # # TOPOGRAPHIC DISTRIBUTION HEATMAPS: make heatmaps with topographic information across features, situations and bands # TODO SUMAR CANALES SIGNIFICATIVOS PARA EL ESTADISTICO ENTRE SUJETOS EN VEZ DE CANALES
 # # ===================================================================================================================
 # situation = 'External'
-# correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+# correlations_path = os.path.normpath(f'output/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
 
 # # Relevant parameters
 # bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
@@ -1856,8 +1856,8 @@ figformat, dpi = 'png', 350
 # # ==========================================
 # # MATRIZ CORRELACIONES Y SIMILARIDAD CABEZAS
 # situation = 'External'
-# correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
-# mtrf_path = os.path.normpath(f'saves/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
+# correlations_path = os.path.normpath(f'output/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+# mtrf_path = os.path.normpath(f'output/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
 # bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
 # stimuli = ['Pitch-Log-Raw', 'Envelope', 'Mfccs', 'Spectrogram', 'Phonemes-Phonet', 'Phonological']
 
@@ -5091,8 +5091,8 @@ figformat, dpi = 'png', 350
 
 # situation, band, stim, session, sujeto = 'External', 'Theta', 'Pitch-Log-Raw', 24, 1
 # preprocessed_data_path = f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
-# path_null = f'saves/{config.model}/{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-# path_validation = f'saves/{config.model}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+# path_null = f'output/{config.model}/{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+# path_validation = f'output/{config.model}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
 # alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
 # average_weights_subjects = []
 # average_correlation_subjects = []
@@ -6024,7 +6024,7 @@ fig.show()
 
 # Get average weights across subjects
 situation='External'
-mtrf_path = os.path.normpath(f'saves/{config.model}/{situation}/weights//stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
+mtrf_path = os.path.normpath(f'output/{config.model}/{situation}/weights//stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
 weights = load_pickle(path=os.path.join(mtrf_path, 'Theta', 'Envelope', 'total_weights_per_subject.pkl'))['average_weights_subjects'].mean(axis=0).mean(axis=1)
 
 # Create figure and title
@@ -6988,7 +6988,7 @@ for sujeto in [1,2]:
 # TOPOGRAPHIC DISTRIBUTION HEATMAPS: make heatmaps with topographic information across features, situations and bands # TODO SUMAR CANALES SIGNIFICATIVOS PARA EL ESTADISTICO ENTRE SUJETOS EN VEZ DE CANALES
 # ===================================================================================================================
 situation = 'External'
-correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+correlations_path = os.path.normpath(f'output/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
 
 # Relevant parameters
 bands = ['Delta', 'Theta', 'Alpha', 'All']
@@ -7736,7 +7736,7 @@ stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Phonemes-Discrete-Phonet
 n_stims, n_bands = len(stimuli), len(bands)
 
 # Get mean correlations across subjects and total max and min
-correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+correlations_path = os.path.normpath(f'output/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
 
 correlations = {(stim,band):load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
 minimum_cor, maximum_cor = min([correlation.mean() for correlation in correlations.values()]), max([correlation.mean() for correlation in correlations.values()])
@@ -7787,7 +7787,7 @@ stimuli = ['Pitch-Log-Raw', 'Envelope', 'Spectrogram', 'Phonemes-Discrete-Phonet
 n_stims, n_bands = len(stimuli), len(bands)
 
 # Get mean correlations across subjects and total max and min
-correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+correlations_path = os.path.normpath(f'output/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
 
 correlations = {(stim,band):load_pickle(path=os.path.join(correlations_path, band, stim +'.pkl'))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
 minimum_cor, maximum_cor = min([correlation.mean() for correlation in correlations.values()]), max([correlation.mean() for correlation in correlations.values()])
@@ -8175,8 +8175,8 @@ fig.show()
 
 situation='External'
 
-correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
-mtrf_path = os.path.normpath(f'saves/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
+correlations_path = os.path.normpath(f'output/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+mtrf_path = os.path.normpath(f'output/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
 bands = ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
 stimuli = ['Pitch-Log-Raw', 'Envelope', 'Mfccs', 'Spectrogram', 'Phonemes-Phonet', 'Phonological']
 

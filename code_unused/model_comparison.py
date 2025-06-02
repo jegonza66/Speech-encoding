@@ -37,8 +37,8 @@ pylab.rcParams.update(params)
 # Relevant paths
 situation=config.situations[0]
 path_figures = os.path.normpath(f'figures/{config.model}/model_comparison/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
-correlations_path = os.path.normpath(f'saves/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
-mtrf_path = os.path.normpath(f'saves/{config.model}/{situation}/weights//stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
+correlations_path = os.path.normpath(f'output/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/')
+mtrf_path = os.path.normpath(f'output/{config.model}/{situation}/weights//stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
 preprocesed_data_path = os.path.normpath(f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/') 
 
 # # ================================================================================
