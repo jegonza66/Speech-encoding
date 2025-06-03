@@ -28,16 +28,6 @@ logger = setup_logger(
     log_dir=config.LOG_DIR if config.LOG_TO_FILE else None,
     level=config.LOG_LEVEL
 )
-# from utils.general_functions import load_pickle
-# import numpy as np
-# viejo = load_pickle(path=r"output\mtrf_ridge_torch\External\TFCE\stims_Normalize_EEG_Standarize\tmin-0.2_tmax0.6\Theta\Envelope_4096VIEJO.pkl")
-# nuevo = load_pickle(path=r"output\mtrf_ridge_torch\External\TFCE\stims_Normalize_EEG_Standarize\tmin-0.2_tmax0.6\Theta\Envelope_4096.pkl")
-# np.array_equal(viejo[1], nuevo[1])
-# np.allclose(viejo[1], nuevo[1], atol=1e-02, equal_nan=False)
-# viejo[0].shape
-# nuevo[0].shape
-# viejo[1].shape
-# nuevo[1].shape
 
 # ============
 # RUN ANALYSIS

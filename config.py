@@ -40,7 +40,7 @@ stimuli = [
         # Simples
         'Envelope',
         # 'Pitch-Log-Raw',
-        # 'Spectrogram',
+        'Spectrogram',
         # 'Mfccs',
         # 'Phonological',
         # 'Phonemes-Phonet', 
@@ -67,12 +67,12 @@ situations = [
         # 'External_Silence_100',
         ] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
 bands = [
-        # 'Delta', 
+        'Delta', 
         'Theta', 
-        # 'Alpha', 
-        # 'Beta1', 
-        # 'Beta2',
-        # 'All'
+        'Alpha', 
+        'Beta1', 
+        'Beta2',
+        'All'
         ] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
 
 # ==========================================
@@ -88,7 +88,7 @@ tollerance = 0.1
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
 external_validation = True # whether to use External hyperparameter or the one that maximize specific condition
 use_gpu = True
-statistical_test, perform_tfce = True, False
+statistical_test, perform_tfce = False, False
 
 stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 model = 'mtrf_ridge_torch' # 'mtrf_ridge'
