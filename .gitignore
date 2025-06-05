@@ -10,3 +10,4 @@ __pycache__/
 leadership/output
 output/
 preprocessed_data/
+saves_old/

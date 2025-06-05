@@ -40,7 +40,7 @@ stimuli = [
         # Simples
         'Envelope',
         # 'Pitch-Log-Raw',
-        'Spectrogram',
+        # 'Spectrogram',
         # 'Mfccs',
         # 'Phonological',
         # 'Phonemes-Phonet', 
@@ -52,19 +52,19 @@ stimuli = [
         ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situations = [
         'External', 
-        # 'Internal', 
-        # 'External_BS',
-        # 'Internal_BS'
-        # 'External_Silence_10', 
-        # 'External_Silence_20',
-        # 'External_Silence_30',
-        # 'External_Silence_40',
-        # 'External_Silence_50',
-        # 'External_Silence_60',
-        # 'External_Silence_70',
-        # 'External_Silence_80',
-        # 'External_Silence_90',
-        # 'External_Silence_100',
+        'Internal', 
+        'External_BS',
+        'Internal_BS'
+        'External_Silence_10', 
+        'External_Silence_20',
+        'External_Silence_30',
+        'External_Silence_40',
+        'External_Silence_50',
+        'External_Silence_60',
+        'External_Silence_70',
+        'External_Silence_80',
+        'External_Silence_90',
+        'External_Silence_100',
         ] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
 bands = [
         'Delta', 
@@ -93,6 +93,8 @@ statistical_test, perform_tfce = False, False
 stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 model = 'mtrf_ridge_torch' # 'mtrf_ridge'
 
+causal_filter_eeg = True
+envelope_filter = False 
 # ==============================
 # DEFAULT PENALIZATION PARAMETER 
 correlation_limit_percentage, default_alpha, set_alpha = 0.01, 400, None
@@ -228,3 +230,7 @@ class Exp_info:
             "velar"       :["k","g", "G"],
             "pause"       :  ["sil", "<p:>"]
             }
+
+# ==========================================
+# INSTANTIATE EXPERIMENTAL INFO
+exp_info = Exp_info()

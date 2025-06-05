@@ -1,82 +1,118 @@
 # Standard libraries
-import numpy as np, pandas as pd, os, warnings, time
+from typing import Union
 from tqdm import tqdm
-
-# Specific libraries
-import torch, mne, librosa, opensmile, textgrids #
-from praatio import pitch_and_intensity #
+import pandas as pd
+import numpy as np
+import warnings
+import resampy
+import torch
+import time
+import os
 import gc
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Silencia warnings de TensorFlow
-from phonet.phonet import Phonet #
-
-from transformers import WhisperProcessor, WhisperModel # from transformers import Wav2Vec2Model, Wav2Vec2Processor
-
+# Specific libraries
+from praatio import pitch_and_intensity #
 from sklearn.cross_decomposition import CCA
 from sklearn.decomposition import PCA
-
 from scipy.interpolate import interp1d
 import scipy.io.wavfile as wavfile
 from scipy import signal as sgn
-import resampy#
+import opensmile
+import textgrids
+import librosa
+import mne
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow warnings
+from phonet.phonet import Phonet 
+
+# from transformers import Wav2Vec2Model, Wav2Vec2Processor # In case we want to use Wav2Vec2
+from transformers import WhisperProcessor, WhisperModel 
 
 # Modules
-import utils.processing as processing, utils.general_functions as general_functions, config
 from utils.phoneme_implementation_from_phonet import Phones
+import utils.general_functions as general_functions
+import utils.processing as processing
+import config
+
+# Logging
+from utils.logs import setup_logger
+
+# Initialize logger
+logger = setup_logger(
+    name='load',
+    log_to_file=config.LOG_TO_FILE,
+    log_dir=config.LOG_DIR if config.LOG_TO_FILE else None,
+    level=config.LOG_LEVEL
+)
 
 # Review this If we want to update packages
-warnings.filterwarnings("ignore", category=DeprecationWarning)
+# warnings.filterwarnings("ignore", category=DeprecationWarning)
 mne.set_log_level(verbose='CRITICAL')
-exp_info = config.Exp_info()
 
+# Extra parameters
 TRANSFORMER_MODEL = "openai/whisper-base"
 # TRANSFORMER_MODEL = "openai/whisper-tiny"
 # TRANSFORMER_MODEL = "facebook/wav2vec2-large-xlsr-53-distilled"
 # TRANSFORMER_MODEL = "facebook/wav2vec2-base"
 
-class Trial_channel:
+exp_info = config.Exp_info()
+SEX_LIST = ['M', 'M', 'M', 'F', 'F', 'F', 'F', 'M', 'M', 'M', 'F', 'F', 'F', 'F', 'M', 'M', 'M', 'F', 'F', 'M']
+ALLOWED_BANDS = [
+    'Delta',
+    'Theta',
+    'Alpha',
+    'Beta1',
+    'Beta2',
+    'All',
+    'Delta_Theta',
+    'Alpha_Delta_Theta'
+]
+ALLOWED_SITUATIONS = [
+    'Internal',
+    'External',
+    'Internal_BS',
+    'External_BS', 
+    'Internal_All_Times',
+    'External_All_Times'
+]
+ALLOWED_STIMULI = [
+    'Envelope', 'Phonological', 'Spectrogram', 'Mfccs', 'Mfccs-Deltas', 
+    'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 
+    'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 
+    'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Phonemes-Envelope', 
+    'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Envelope-Manual', 
+    'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 
+    'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 
+    'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet', 'Phones-Onset-Manual', 
+    'Phones-Phonet', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet',
+    'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
+    'Wav2vec2'
+]
+
+class TrialChannelData:
     def __init__(
         self, 
-        s:int=21, 
-        trial:int=1, 
-        channel:int=1, 
-        band:str='All', 
-        sr:float=128, 
-        causal_filter_eeg:bool=True, 
-        envelope_filter:bool=False, 
-        silence_threshold:float=0.03,
         situation:str='External',
-        praat_executable_path:str=r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe"
+        band:str='Theta', 
+        session:int=21, 
+        channel:int=1, 
+        trial:int=1, 
         )->None: 
         """
-        Initializes the Trial_channel class with the given parameters.
+        Initializes the TrialChannelData class with the given parameters.
 
         Parameters
         ----------
-        s : int, optional
+        session : int, optional
             Session number, by default 21
         trial : int, optional
             Trial number, by default 1
         channel : int, optional
-            Channel number used to record the audio (it can be from subject 1 or subject 2), by default 1
+            Channel number used to record the audio (it can be from subject 1 or subject 2)
         band : str, optional
-            EEG frequency band, by default 'All'. It could be one of:
-            ['Delta','Theta',Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
-        sr : float, optional
-            Sampling rate, by default 128
-        causal_filter_eeg : bool, optional
-            Whether to use a causal filter for EEG, by default True
-        envelope_filter : bool, optional
-            Whether to use an envelope filter, by default False
-        silence_threshold : float, optional
-            Silence threshold of the dialogue, by default 0.03
+            EEG frequency band, by default 'All'.
         situation : str, optional
-            Situation considered when performing the analysis, by default 'External'. Allowed situations are:
-            ['Internal', 'Internal_BS', 'External', 'External_BS', 'Internal_All_Times', 'External_All_Times'].
-            Also any of the above options concatenated by '_Silence_x', where x is an integer that represents 
-            the percentage of samples with silence within a row of the design matrix.
-        praat_executable_path : str, optional
-            Path to Praat executable, by default r'C:\\Users\\User\\Downloads\\programas_descargados_por_octavio\\Praat.exe'
+            Situation considered when performing the analysis, by default 'External'. 
 
         Returns
         -------
@@ -85,47 +121,44 @@ class Trial_channel:
         Raises
         ------
         SyntaxError
-            If the band is not in the allowed_band_frequencies list. It must be one of:
-            ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
+            If band or situation are not allowed values.
         """
-        
+        check_syntax(band=band, situation=situation)
+        self.situation = situation        
+        self.session = session
+        self.channel = channel
+        self.trial = trial
+        self.band = band
+
         # Participants sex, ordered by session
-        sex_list = ['M', 'M', 'M', 'F', 'F', 'F', 'F', 'M', 'M', 'M', 'F', 'F', 'F', 'F', 'M', 'M', 'M', 'F', 'F', 'M']
-        allowed_band_frequencies = ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
-        if band in allowed_band_frequencies:
-            self.band= band
-        else:
-            raise SyntaxError(f"{band} is not an allowed band frecuency. Allowed bands are: {allowed_band_frequencies}")
+        self.sex = SEX_LIST[(session - 21) * 2 + channel - 1] 
 
         # Minimum and maximum frequency allowed within specified band
         self.l_freq_eeg, self.h_freq_eeg = processing.band_freq(self.band)
-        self.sr = sr
-        self.silence_threshold = silence_threshold
+        
+        # Silence threshold for pitch processing
+        self.silence_threshold = 0.03
         self.audio_sr = 16000
-        self.sex = sex_list[(s - 21) * 2 + channel - 1]
-        self.causal_filter_eeg = causal_filter_eeg
-        self.envelope_filter = envelope_filter
-        self.situation = situation
-        self.session = s
-        self.trial = trial
-        self.channel = channel
         
-        # To be filled with loaded data
-        self.eeg = None
+        # EEG sampling rate
+        self.sr = config.sr
 
-        # Relevant paths
-        self.praat_executable_path = praat_executable_path
-        self.eeg_fname = os.path.normpath(f"data/EEG/S{s}/s{s}-{channel}-Trial{trial}-Deci-Filter-Trim-ICA-Pruned.set")
-        self.wav_fname = os.path.normpath(f"data/wavs/S{s}/s{s}.objects.{trial:02d}.channel{channel}.wav")
-        self.pitch_fname = os.path.normpath(f"S{s}/s{s}.objects.{trial:02d}.channel{channel}.txt")
-        self.phn_fname = os.path.normpath(f"data/phonemes/S{s}/s{s}.objects.{trial:02d}.channel{channel}.aligned_fa.TextGrid")
-        self.phn_fname_manual = os.path.normpath(f"data/phonemes/S{s}/manual/s{s}_objects_{trial:02d}_channel{channel}_aligned_faTAMARA.TextGrid")
-        self.phrases_fname = os.path.normpath(f"data/phrases/S{s}/s{s}.objects.{trial:02d}.channel{channel}.phrases")
-        # self.mistakes_path = os.path.normpath(f"data/mistakes/filtered_session{s}_trial{trial:02d}_channel{channel}.TextGrid")
-        self.mistakes_path = os.path.normpath(f"data/mistakes_corrected/filtered_session{s}_trial{trial:02d}_channel{channel}.TextGrid")
-        self.mistakes_control_path = os.path.normpath(f"data/mistakes_control/filtered_session{s}_trial{trial:02d}_channel{channel}.TextGrid")
+        # Define filters
+        self.causal_filter_eeg = config.causal_filter_eeg
+        self.envelope_filter = config.envelope_filter
         
-    def f_eeg(
+        # Relevant paths
+        self.praat_executable_path = config.praat_executable_path
+        self.mistakes_control_path = os.path.normpath(f"data/mistakes_control/filtered_session{session}_trial{trial:02d}_channel{channel}.TextGrid")
+        self.mistakes_path = os.path.normpath(f"data/mistakes_corrected/filtered_session{session}_trial{trial:02d}_channel{channel}.TextGrid")
+        self.phonemes_fname = os.path.normpath(f"data/phonemes/S{session}/s{session}.objects.{trial:02d}.channel{channel}.aligned_fa.TextGrid")
+        self.eeg_fname = os.path.normpath(f"data/EEG/S{session}/s{session}-{channel}-Trial{trial}-Deci-Filter-Trim-ICA-Pruned.set")
+        # self.mistakes_path = os.path.normpath(f"data/mistakes/filtered_session{session}_trial{trial:02d}_channel{channel}.TextGrid")
+        self.phrases_fname = os.path.normpath(f"data/phrases/S{session}/s{session}.objects.{trial:02d}.channel{channel}.phrases")
+        self.wav_fname = os.path.normpath(f"data/wavs/S{session}/s{session}.objects.{trial:02d}.channel{channel}.wav")
+        self.pitch_fname = os.path.normpath(f"S{session}/s{session}.objects.{trial:02d}.channel{channel}.txt")
+        
+    def extract_eeg(
         self
         )->np.ndarray:
         """
@@ -141,19 +174,24 @@ class Trial_channel:
             The EEG data as a numpy array with dimensions (samples, channels).
         """
         # Read the .set file. warning of annotations and 'boundry' events -data discontinuities-.
-        eeg = mne.io.read_raw_eeglab(input_fname=self.eeg_fname, preload=True) 
-        # eeg = mne.io.read_raw_eeglab(input_fname=r'data\EEG\S21\s21-1-Trial1-Deci-Filter-Trim-ICA-Pruned.set', preload=True) 
+        eeg = mne.io.read_raw_eeglab(
+            input_fname=self.eeg_fname, 
+            preload=True
+        )
         
         # Apply a lowpass filter
         if self.band:
             if self.causal_filter_eeg:
-                eeg = eeg.filter(l_freq=self.l_freq_eeg, h_freq=self.h_freq_eeg, phase='minimum')
+                eeg = eeg.filter(
+                    l_freq=self.l_freq_eeg, 
+                    h_freq=self.h_freq_eeg, 
+                    phase='minimum'
+                )
                 # iir_params = {
                 # "ftype": "cheby2",       # Filter type: Chebyshev Type II
                 # "order": 4,              # Filter order
                 # "rs": 20,                # Stopband attenuation (dB)
                 # }
-                
                 # eeg = eeg.filter(
                 #                 l_freq=self.l_freq_eeg,
                 #                 h_freq=self.h_freq_eeg,
@@ -161,33 +199,23 @@ class Trial_channel:
                 #                 iir_params=iir_params
                 #                 )
             else:
-                eeg = eeg.filter(l_freq=self.l_freq_eeg, h_freq=self.h_freq_eeg)
-                # eeg = eeg.filter(l_freq=4, h_freq=8, phase='minimum')
-        # # Store dimension mne.raw
-        # eeg.resample(sfreq=self.sr)
+                eeg = eeg.filter(
+                    l_freq=self.l_freq_eeg, 
+                    h_freq=self.h_freq_eeg
+                )
 
-        # # Return mne representation Times x nchannels
-        # self.eeg = eeg.copy()
-        # return self.eeg.get_data().T*1e6
-        
-        # Get mne representation Times x nchannels
-        self.eeg = eeg.copy()
-        eeg = self.eeg.get_data().T*1e6  # paso a array y tiro la primer columna de tiempo
-        # eeg = eeg.get_data().T*1e6  # paso a array y tiro la primer columna de tiempo
-        
+        # Get mne representation 
+        eeg_mne = eeg.copy()
+        eeg = eeg.get_data().T*1e6  
 
         # Downsample
         eeg = processing.subsample(
             x=eeg, 
-            step=int(self.eeg.info.get("sfreq")/ self.sr)
-            )
-        # eeg = processing.subsample(
-        #     x=eeg, 
-        #     step=4
-        #     )
+            step=int(eeg_mne.info.get("sfreq")/ self.sr)
+        )
         return eeg
 
-    def f_info(
+    def extract_info(
         self
         )->mne.Info:
         """
@@ -205,7 +233,7 @@ class Trial_channel:
         channel_names = montage.ch_names
         return mne.create_info(ch_names=channel_names[:], sfreq=self.sr, ch_types='eeg').set_montage(montage)
 
-    def f_mistakes(
+    def extract_mistakes(
         self, 
         envelope:np.ndarray, 
         kind:str='Mistakes-Separated'
@@ -275,7 +303,7 @@ class Trial_channel:
 
         return mistake_signal
     
-    def f_mistakes_control(
+    def extract_mistakes_control(
         self, 
         envelope:np.ndarray, 
         kind:str='Control-Separated'
@@ -342,7 +370,7 @@ class Trial_channel:
             control_signal = np.concatenate((control_signal, np.zeros(shape=(np.abs(difference), 3)))) if separated else np.concatenate((control_signal, np.zeros(shape=(np.abs(difference), 1))))
         return control_signal
 
-    def f_envelope(
+    def extract_envelope(
         self
         )->np.ndarray: 
         """
@@ -355,8 +383,6 @@ class Trial_channel:
         """
         # Read file
         wav = wavfile.read(self.wav_fname)[1]
-        # wav = wavfile.read(r'data\wavs\S21\s21.objects.01.channel1.wav')[1]
-        
         wav = wav.astype("float")
 
         # Calculate envelope
@@ -365,40 +391,36 @@ class Trial_channel:
         # Apply lowpass butterworth filter
         if self.envelope_filter == 'Causal':# TODO can it be replaced for a mne filter?
             envelope = processing.butter_filter(
-                    data=envelope, 
-                    frequencies=25, #frequencies=25 creo que es el cutoff
-                    sampling_freq=self.audio_sr,  
-                    btype='lowpass', 
-                    order=3, 
-                    axis=0, 
-                    ftype='Causal'
-                    ).reshape(-1,1)
+                sampling_freq=self.audio_sr,  
+                btype='lowpass', 
+                frequencies=25, #frequencies=25 creo que es el cutoff
+                data=envelope, 
+                order=3, 
+                axis=0, 
+                ftype='Causal'
+            ).reshape(-1,1)
         elif self.envelope_filter == 'NonCausal':
             envelope = processing.butter_filter(
-                    data=envelope, 
-                    frequencies=25, 
-                    sampling_freq=self.audio_sr,
-                    btype='lowpass', 
-                    order=3, 
-                    axis=0, 
-                    ftype='NonCausal'
-                    ).reshape(-1,1)
+                sampling_freq=self.audio_sr,
+                ftype='NonCausal',
+                btype='lowpass', 
+                frequencies=25, 
+                data=envelope, 
+                order=3, 
+                axis=0 
+            ).reshape(-1,1)
         
         # Resample # TODO padear un cero en el envelope
         window_size, stride = int(self.audio_sr/self.sr), int(self.audio_sr/self.sr)
-        # window_size, stride = 125, 125
-        envelope = np.array([np.mean(envelope[i:i+window_size]) for i in range(0, len(envelope), stride) if i+window_size<=len(envelope)])
-        envelope = envelope.reshape(-1, 1)
-        return envelope
-        # # Creates mne raw array
-        # info_envelope = mne.create_info(ch_names=['Envelope'], sfreq=self.audio_sr, ch_types='misc')
-        # envelope_mne_array = mne.io.RawArray(data=envelope.T, info=info_envelope)
+        envelope = np.array([
+            np.mean(envelope[i:i+window_size]) \
+            for i in range(0, len(envelope), stride)\
+            if i+window_size<=len(envelope)
+            ]
+        )
+        return envelope.reshape(-1, 1)
 
-        # # Resample to match EEG data
-        # envelope_mne_array.resample(sfreq=self.sr)
-        # return envelope_mne_array.get_data().T
-
-    def f_spectrogram(
+    def extract_spectrogram(
         self
         )->np.ndarray:
         """
@@ -432,7 +454,7 @@ class Trial_channel:
         
         return S_DB.T
 
-    def f_wav2vec2(
+    def extract_wav2vec2(
         self,
         envelope:np.ndarray,
         eeg:np.ndarray,
@@ -455,7 +477,7 @@ class Trial_channel:
         np.ndarray
             Reduced hidden states from the Wav2Vec2 model after applying PCA.
         """
-        print('WARNING: TO RUN THIS FEATURE YOU NEED TO HAVE THE TRANSFORMER MODEL DOWNLOADED AND HAVE THE ENVELOPE MODEL ALREADY RUN FOR THE SITUATION OF INTEREST.')
+        log.warn('WARNING: TO RUN THIS FEATURE YOU NEED TO HAVE THE TRANSFORMER MODEL DOWNLOADED AND HAVE THE ENVELOPE MODEL ALREADY RUN FOR THE SITUATION OF INTEREST.')
         
         # Read file
         wav = wavfile.read(self.wav_fname)[1]
@@ -548,7 +570,7 @@ class Trial_channel:
         # Apply PCA to find principal components 
         pca = PCA(n_components=n_components)
         pca.fit_transform(np.concatenate(full_hidden_states, axis=0))
-        print(f'Portion of variance of whole hidden layer explained by {n_components} components: {np.sum(pca.explained_variance_ratio_)*100:.2f}%')
+        log.debug(f'Portion of variance of whole hidden layer explained by {n_components} components: {np.sum(pca.explained_variance_ratio_)*100:.2f}%')
 
         hidden_state_final = []
         # for hidden_states, sample_window, in zip(full_hidden_states, sample_windows):
@@ -567,7 +589,7 @@ class Trial_channel:
         
         hidden_state_final = np.concatenate(hidden_state_final, axis=0)
         
-        print(f'The model took {(time.time()-ini)/60:.2f} minutes')
+        log.debug(f'The model took {(time.time()-ini)/60:.2f} minutes')
         
         # Cutoff to minimum length
         min_length = min(eeg.shape[0], hidden_state_final.shape[0])
@@ -632,7 +654,7 @@ class Trial_channel:
         # print(f'The CCA took {(end-ini)/60:.2f} minutes')
         # return X_canonical #- #np.mean(X_canonical, axis=1, keepdims=True)  
         
-    def f_mfccs(
+    def extract_mfccs(
         self, 
         kind:str='Mfccs'
         )->np.ndarray:
@@ -701,7 +723,7 @@ class Trial_channel:
         #                         sr=sr)
         # plt.colorbar(format="%+2.f")
    
-    def f_jitter_shimmer(
+    def extract_jitter_shimmer(
         self, 
         envelope:np.ndarray
         )->tuple: # NEVER USED
@@ -758,7 +780,7 @@ class Trial_channel:
         shimmer = shimmer[:min(len(shimmer), len(envelope))].reshape(-1,1)
         return jitter, shimmer
     
-    def f_phonemes_phonet( 
+    def extract_phonemes_phonet( 
         self, 
         envelope:np.ndarray, 
         kind:str='Phonemes-Discrete-Phonet'
@@ -871,7 +893,7 @@ class Trial_channel:
             try:
                 freq = general_functions.load_pickle('data/phon_frequency_dict/frequency_dict.pkl')
             except:
-                print("Frequency dictionary isn't Load. \n ---> loading it now...")
+                log.warn("Frequency dictionary isn't Load. \n ---> loading it now...")
                 os.makedirs('data/phon_frequency_dict', exist_ok=True)
                 freq = general_functions.load_phon_frequency_dict(
                     save_path='data/phon_frequency_dict',
@@ -894,7 +916,7 @@ class Trial_channel:
                     phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1
         return phonemes
     
-    def f_phones_phonet( # TODO CAMBAIR EN TODOS LADOS ESTO SON FONOS NO FONEMAS
+    def extract_phones_phonet( # TODO CAMBAIR EN TODOS LADOS ESTO SON FONOS NO FONEMAS
         self, 
         envelope:np.ndarray, 
         kind:str='Phones-Discrete-Phonet'
@@ -1011,7 +1033,7 @@ class Trial_channel:
                     phones[i, phonet_labels.index(tagg)] = 1
         return phones
 
-    def f_phonemes(
+    def extract_phonemes(
         self, 
         envelope:np.ndarray, 
         kind:str='Phonemes-Envelope-Manual'
@@ -1059,7 +1081,7 @@ class Trial_channel:
         trial_tmax = phrases[1].iloc[-1]
 
         # Load transcription
-        grid = textgrids.TextGrid(self.phn_fname)
+        grid = textgrids.TextGrid(self.phonemes_fname)
         # grid = textgrids.TextGrid(r'C:\repos\Speech-encoding\repo_speech_encoding\data\phonemes\S21\s21.objects.01.channel1.aligned_fa.TextGrid')
 
         # Get phonemes
@@ -1085,7 +1107,7 @@ class Trial_channel:
             
             # Check if the phoneme is in the list
             if not(label in exp_info_labels or label==""):
-                print(f'"{label}" is not in not a recognized phoneme. Will be added as silence.')
+                log.warn(f'"{label}" is not in not a recognized phoneme. Will be added as silence.')
                 label = ""
             labels.append(label)
             times.append((ph.xmin, ph.xmax))
@@ -1143,7 +1165,7 @@ class Trial_channel:
                     phonemes[i, updated_taggs.index(tagg)] = 1
         return phonemes
 
-    def f_phonological_features(
+    def extract_phonological_features(
         self, 
         envelope:np.ndarray
         )->np.ndarray:
@@ -1187,7 +1209,7 @@ class Trial_channel:
         # Return data in desired shape
         return np.stack(phonological_features, axis=0).T
 
-    def f_pitch(
+    def extract_pitch(
         self, 
         envelope:np.ndarray, 
         kind:str
@@ -1357,17 +1379,13 @@ class Trial_channel:
             
     def load_trial(
         self, 
-        stims:list
+        stimuli:list
         )->dict: 
         """Extract EEG and calculates specified stimuli.
         Parameters
         ----------
-        stims : list
-            A list containing possible stimuli. Possible input values are: 
-            ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
-            'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet',
-            'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2']
+        stimuli : list
+            A list containing possible stimuli.
 
         Returns
         -------
@@ -1375,85 +1393,86 @@ class Trial_channel:
             Dictionary with EEG, info and specified stimuli as mne objects
         """
         channel = {}
-        channel['EEG'] = self.f_eeg()
-        channel['info'] = self.f_info()
-        channel['Envelope'] = self.f_envelope()
+        channel['Envelope'] = self.extract_envelope()
+        channel['info'] = self.extract_info()
+        channel['EEG'] = self.extract_eeg()
 
-        for stim in stims:
+        for stim in stimuli:
             if stim.startswith('Mfccs') or stim.startswith('Deltas'):
-                channel[stim] = self.f_mfccs(kind=stim)
+                channel[stim] = self.extract_mfccs(
+                    kind=stim
+                )
             if stim.startswith('Pitch'):
-                channel[stim] = self.f_pitch(envelope=channel['Envelope'], kind=stim)
+                channel[stim] = self.extract_pitch(
+                    envelope=channel['Envelope'], 
+                    kind=stim
+                )
             if stim=='Phonological':
-                channel[stim] = self.f_phonological_features(envelope=channel['Envelope'])
+                channel[stim] = self.extract_phonological_features(
+                    envelope=channel['Envelope']
+                )
             if stim.startswith('Mistakes'):
-                channel[stim] = self.f_mistakes(envelope=channel['Envelope'], kind=stim)
+                channel[stim] = self.extract_mistakes(
+                    envelope=channel['Envelope'], 
+                    kind=stim
+                )
             if stim.startswith('Control'):
-                channel[stim] = self.f_mistakes_control(envelope=channel['Envelope'], kind=stim)
+                channel[stim] = self.extract_mistakes_control(
+                    envelope=channel['Envelope'], 
+                    kind=stim
+                )
             if stim=='Wav2vec2':
-                channel[stim] = self.f_wav2vec2(envelope=channel['Envelope'], eeg=channel['EEG'])
+                channel[stim] = self.extract_wav2vec2(
+                    envelope=channel['Envelope'], 
+                    eeg=channel['EEG']
+                )
             if stim=='Spectrogram':
-                channel['Spectrogram'] = self.f_spectrogram()
+                channel['Spectrogram'] = self.extract_spectrogram()
             if stim.startswith('Phonemes'):
                 if stim.endswith('Phonet'):
-                    channel[stim] = self.f_phonemes_phonet(envelope=channel['Envelope'], kind=stim)
+                    channel[stim] = self.extract_phonemes_phonet(
+                        envelope=channel['Envelope'], 
+                        kind=stim
+                    )
                 else:
-                    channel[stim] = self.f_phonemes(envelope=channel['Envelope'], kind=stim)
+                    channel[stim] = self.extract_phonemes(
+                        envelope=channel['Envelope'], 
+                        kind=stim
+                    )
             if stim.startswith('Phones'):
-                channel[stim] = self.f_phones_phonet(envelope=channel['Envelope'], kind=stim)
+                channel[stim] = self.extract_phones_phonet(
+                    envelope=channel['Envelope'], 
+                    kind=stim
+                )
         return channel
 
-class Session_class: 
+class SessionData: 
     def __init__(
         self, 
-        session:int=21, 
-        stim:str='Envelope', 
-        band:str='All', 
-        sr:float=128, 
-        causal_filter_eeg:bool=True, 
-        envelope_filter:bool=False, 
-        situation:str='External', 
-        silence_threshold:float=0.03,
-        delays:np.ndarray=None,
-        preprocessed_data_path:str=os.path.normpath(f'saves/preprocessed_data/tmin{-0.6}_tmax{-.002}/'),
-        praat_executable_path:str=r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe"
+        preprocessed_data_path: str,
+        situation: str='External', 
+        stimuli: str='Envelope', 
+        band: str='Theta', 
+        session: int=21
         )->None:
         """
         This class handles the loading (concatenating trials) and processing of EEG and stimuli data for a given session. 
-        It supports both raw and preprocessed data, and can extract various features such as envelope, MFCCs, pitch, phonemes, and more.
+        It supports both raw and preprocessed data, and can extract various features such as envelope, MFCCs, pitch, 
+        phonemes and more.
         
         Parameters
         ----------
-        session : int
-            Session number, by default 21
-        stim : str
-            Stimuli to use in the analysis, by default 'Envelope'. If more than one stimulus is wanted, the separator should be '_'. Allowed stimuli are:
-            ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
-            'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet',
-            'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Phonet', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
-        band : str
-            Neural frequency band. It could be one of:
-            ['Delta','Theta', 'Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
-        sr : float
-            Sample rate in Hz of the EEG
-        causal_filter_eeg : bool, optional
-            Whether to use or not a causal filter for the EEG, by default True
-        envelope_filter : bool, optional
-            Whether to use or not an envelope filter, by default False
-        situation : str, optional
-            Situation considered when performing the analysis, by default 'External'. Allowed situations are:
-            ['Internal','Internal_BS','External', 'External_BS', 'External_All_Times', 'Internal_All_Times'].
-            Also any of the above options concatenated by '_Silence_x', where x is an integer that represents 
-            the percentage of samples with silence within a row of the design matrix.
-        silence_threshold : float, optional
-            Silence threshold of the dialogue, by default 0.03
-        delays : np.ndarray, optional
-            Delay array to construct shifted matrix, by default None
         preprocessed_data_path : str
             Path directing to processed data
-        praat_executable_path : str
-            Path directing to Praat executable
+        session : int
+            Session number, by default 21
+        stimuli : str
+            Stimuli to use in the analysis, by default 'Envelope'. 
+            If more than one stimulus is wanted, the separator should be '_'.
+        band : str
+            Neural frequency band. 
+        situation : str, optional
+            Situation considered when performing the analysis, by default 'External'. 
         
         Returns
         -------
@@ -1462,110 +1481,53 @@ class Session_class:
         Raises
         ------
         SyntaxError
-            If 'stim' is not an allowed stimulus. Allowed stimuli are:
-            ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 
-            'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-            'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet',
-            'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Phonet', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
-            If 'band' is not an allowed band frequency. Allowed frequencies are:
-            ['Delta','Theta', 'Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
-            If 'situation' is not an allowed situation. Allowed situations are:
-            ['Internal','Internal_BS','External', 'External_BS', 'External_All_Times', 'Internal_All_Times'].
-            Also any of the above options concatenated by '_Silence_x', where x is an integer that represents 
-            the percentage of samples with silence within a row of the design matrix.
+            If 'stim' is not an allowed stimulus.
+            If 'band' is not an allowed band frequency. 
+            If 'situation' is not an allowed situation.
         """
-        # Check if band, stim and situation parameters where passed with the right syntax
-        allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', \
-                        'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', \
-                        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Phonet', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
-        allowed_band_frequencies = ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
-        allowed_situations = ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
-        for st in stim.split('_'):
-            if st in allowed_stims:
-                pass
-            elif st.split('_Silence')[0] in allowed_stims:
-                pass
-            else:
-                raise SyntaxError(f"{st} is not an allowed stimulus. Allowed stimuli are: {allowed_stims}. If more than one stimulus is wanted, the separator should be '_'.")
-        self.stim = stim
-        if band in allowed_band_frequencies:
-            self.band = band
-        else:
-            raise SyntaxError(f"{band} is not an allowed band frecuency. Allowed bands are: {allowed_band_frequencies}")
-        if situation in allowed_situations:
-            self.situation = situation
-        elif st.split('_Silence')[0] in allowed_stims:
-            self.situation = situation
-        else:
-            raise SyntaxError(f"{situation} is not an allowed situation. Allowed situations are: {allowed_situations}")
-        
+        check_syntax(stimuli=stimuli, band=band, situation=situation)           
+        self.situation = situation
+        self.stimuli = stimuli
+        self.band = band
+
         # Define parameters
-        self.session = session
         self.l_freq_eeg, self.h_freq_eeg = processing.band_freq(band)
-        self.sr = sr
-        self.delays = delays
-        self.causal_filter_eeg = causal_filter_eeg
-        self.envelope_filter = envelope_filter
-        self.silence_threshold = silence_threshold
+        self.causal_filter_eeg = config.causal_filter_eeg
+        self.envelope_filter = config.envelope_filter
+        self.session = session
+        self.sr = config.sr
 
         # Relevant paths
-        self.praat_executable_path = praat_executable_path
         self.preprocessed_data_path = preprocessed_data_path
         self.samples_info_path = os.path.join(self.preprocessed_data_path, f'samples_info/')
         self.phn_path = f"data/phonemes/S{self.session}/"
         self.phrases_path = f"data/phrases/S{self.session}/"
 
-        # Define paths to export data
         self.export_paths = {}
-        if self.causal_filter_eeg:
-            self.export_paths['EEG'] = os.path.join(self.preprocessed_data_path, f'EEG/{band}/Causal/')
-        else:
-            self.export_paths['EEG'] = os.path.join(self.preprocessed_data_path, f'EEG/{band}/')
+
+        # Depending on filters the store path changes
         if self.envelope_filter:
             self.export_paths['Envelope'] = os.path.join(self.preprocessed_data_path, f'Envelope/{self.envelope_filter}/')
         else:
             self.export_paths['Envelope'] = os.path.join(self.preprocessed_data_path, 'Envelope/')
-                
-        self.export_paths['Mfccs'] = os.path.join(self.preprocessed_data_path, 'Mfccs/')
-        self.export_paths['Mfccs-Deltas'] = os.path.join(self.preprocessed_data_path, 'Mfccs-Deltas/')
-        self.export_paths['Mfccs-Deltas-Deltas'] = os.path.join(self.preprocessed_data_path, 'Mfccs-Deltas-Deltas/')
-        self.export_paths['Deltas'] = os.path.join(self.preprocessed_data_path, 'Deltas/')
-        self.export_paths['Deltas-Deltas'] = os.path.join(self.preprocessed_data_path, 'Deltas-Deltas/')
-        self.export_paths['Pitch-Log-Quad'] = os.path.join(self.preprocessed_data_path, f'Pitch-Log-Quad_threshold_{self.silence_threshold}/')
-        self.export_paths['Pitch-Raw'] = os.path.join(self.preprocessed_data_path, f'Pitch-Raw_threshold_{self.silence_threshold}/')
-        self.export_paths['Pitch-Log-Raw'] = os.path.join(self.preprocessed_data_path, f'Pitch-Log-Raw_threshold_{self.silence_threshold}/')
-        self.export_paths['Pitch-Manual'] = os.path.join(self.preprocessed_data_path, f'Pitch-Manual_threshold_{self.silence_threshold}/')
-        self.export_paths['Pitch-Log-Manual'] = os.path.join(self.preprocessed_data_path, f'Pitch-Log-Manual_threshold_{self.silence_threshold}/')
-        self.export_paths['Pitch-Phonemes'] = os.path.join(self.preprocessed_data_path, f'Pitch-Phonemes_threshold_{self.silence_threshold}/')
-        self.export_paths['Pitch-Log-Phonemes'] = os.path.join(self.preprocessed_data_path, f'Pitch-Log-Phonemes_threshold_{self.silence_threshold}/')
-        self.export_paths['Spectrogram'] = os.path.join(self.preprocessed_data_path, 'Spectrogram/')
-        self.export_paths['Phonemes-Envelope'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Envelope/')
-        self.export_paths['Phonemes-Envelope-Manual'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Envelope-Manual/')
-        self.export_paths['Phonemes-Discrete'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Discrete/')
-        self.export_paths['Phonemes-Discrete-Manual'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Discrete-Manual/')
-        self.export_paths['Phonemes-Onset'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Onset/')
-        self.export_paths['Phonemes-Onset-Manual'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Onset-Manual/')
-        self.export_paths['Phonemes-Envelope-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Envelope-Phonet/')
-        self.export_paths['Phonemes-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Phonet/')
-        self.export_paths['Phonemes-Discrete-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Discrete-Phonet/')
-        self.export_paths['Phonemes-Onset-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Onset-Phonet/')
-        self.export_paths['Phonemes-Frequency-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phonemes-Frequency-Phonet/')
-        self.export_paths['Phonological'] = os.path.join(self.preprocessed_data_path, 'Phonological/')
-        self.export_paths['Mistakes-Separated'] = os.path.join(self.preprocessed_data_path, 'Mistakes-Separated/')
-        self.export_paths['Mistakes-Together'] = os.path.join(self.preprocessed_data_path, 'Mistakes-Together/')
-        self.export_paths['Control-Separated'] = os.path.join(self.preprocessed_data_path, 'Control-Separated/')
-        self.export_paths['Control-Together'] = os.path.join(self.preprocessed_data_path, 'Control-Together/')
-        self.export_paths['Wav2vec2'] = os.path.join(self.preprocessed_data_path, 'Wav2vec2/')
-        self.export_paths['Phones-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phones-Phonet/')
-        self.export_paths['Phones-Envelope-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phones-Envelope-Phonet/')
-        self.export_paths['Phones-Discrete-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phones-Discrete-Phonet/')
-        self.export_paths['Phones-Onset-Phonet'] = os.path.join(self.preprocessed_data_path, 'Phones-Onset-Phonet/')
+        
+        if self.causal_filter_eeg:
+            self.export_paths['EEG'] = os.path.join(self.preprocessed_data_path, f'EEG/{band}/Causal/')
+        else:
+            self.export_paths['EEG'] = os.path.join(self.preprocessed_data_path, f'EEG/{band}/')
+        
+        # The rest remain the same
+        for stimulus in ALLOWED_STIMULI:
+            if stimulus in self.export_paths:
+                continue
+            else:
+                self.export_paths[f'{stimulus}'] = os.path.join(self.preprocessed_data_path, f'{stimulus}/')
         
     def load_from_raw(
         self
         )->dict:
         """
-        Loads raw data, this includes EEG, info and stimuli.
+        Loads raw data, this includes EEG, Envelope, info and the rest of asked stimuli.
 
         Returns
         -------
@@ -1578,77 +1540,83 @@ class Session_class:
         subject_2 = {}
 
         # Retrive number of files, i.e: trials. This is done this way because there are missing phonemes values
-        trials = [int(fname.split('.')[2]) for fname in os.listdir(self.phrases_path) if fname.endswith('TextGrid')]
-        trials = list(set([tr for tr in trials if trials.count(tr) > 1]))
+        trials = list(set([int(fname.split('.')[2]) for fname in os.listdir(self.phrases_path) if fname.endswith('phrases')]))
 
         # Try to open preprocessed info of samples, if not crates raw. This dictionary contains data of trial lengths and indexes to keep up to given trial
         try:
-            self.samples_info = general_functions.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'))
+            self.samples_info = general_functions.load_pickle(
+                path=os.path.join(
+                    self.samples_info_path, f'samples_info_{self.session}.pkl'
+                )
+            )
             loaded_samples_info = True
-        except:
+        except Exception as e:
+            logger.debug(f"Couldn't load samples info for session {self.session}. \nCreating new samples info dictionary. \nError: {e}")
             loaded_samples_info = False
             self.samples_info = {
-                                'trial_lengths1': [0],
-                                'trial_lengths2': [0],
-                                'keep_indexes1':[],
-                                'keep_indexes2':[]
-                                }
+                'trial_lengths1': [0],
+                'trial_lengths2': [0],
+                'keep_indexes1':[],
+                'keep_indexes2':[]
+            }
 
         # Retrive and concatenate data of all trials
         for p, trial in enumerate(trials):
-
-            # Update on number of trials
-            Session_class.print_trials(p, trial, trials)
+            SessionData.print_trials(
+                trials=trials,
+                trial=trial,
+                p=p
+            )
 
             # Create trial for both channels in order to extract features and EEG signal
             try:
-                channel_1 = Trial_channel(
-                        s=self.session, 
-                        trial=trial, 
-                        channel=1,
-                        band=self.band, 
-                        sr=self.sr,
-                        causal_filter_eeg=self.causal_filter_eeg,
-                        envelope_filter=self.envelope_filter,
-                        silence_threshold=self.silence_threshold,
-                        praat_executable_path=self.praat_executable_path,
+                channel_1 = TrialChannelData(
                         situation=self.situation,
-                        )
-                channel_2 = Trial_channel(
-                        s=self.session,
-                        trial=trial,
-                        channel=2,
+                        session=self.session, 
                         band=self.band,
-                        sr=self.sr,
-                        causal_filter_eeg=self.causal_filter_eeg,
-                        envelope_filter=self.envelope_filter,
-                        silence_threshold=self.silence_threshold,
-                        praat_executable_path=self.praat_executable_path,
+                        trial=trial, 
+                        channel=1
+                )
+                channel_2 = TrialChannelData(
                         situation=self.situation,
-                        )
+                        session=self.session,
+                        band=self.band,
+                        trial=trial,
+                        channel=2
+                )
 
                 # Extract dictionaries with the data
-                trial_channel_1 = channel_1.load_trial(stims=self.stim.split('_'))
-                trial_channel_2 = channel_2.load_trial(stims=self.stim.split('_'))
+                trial_channel_1 = channel_1.load_trial(stimuli=self.stimuli.split('_'))
+                trial_channel_2 = channel_2.load_trial(stimuli=self.stimuli.split('_'))
     
                 # Load data to dictionary taking own stimuli and eeg signal. I.e: each subject predicts its own EEG with its own stimuli
                 if self.situation.startswith('Internal'):
-                    trial_subject_1 = {key: trial_channel_1[key] for key in trial_channel_1.keys()}
-                    trial_subject_2 = {key: trial_channel_2[key] for key in trial_channel_2.keys()}              
+                    trial_subject_1 = trial_channel_1.copy()
+                    trial_subject_2 = trial_channel_2.copy()
                 
                 # Load data to dictionary taking own eeg signal and interlocutors stimuli. I.e: predicts own EEG using stimuli from interlocutor
                 else:
-                    trial_subject_1 = {key: trial_channel_2[key] for key in trial_channel_2.keys() if key!='EEG'} 
-                    trial_subject_2 = {key: trial_channel_1[key] for key in trial_channel_1.keys() if key!='EEG'}
+                    trial_subject_1 = {key: trial_channel_2[key] for key in trial_channel_2 if key!='EEG'} 
+                    trial_subject_2 = {key: trial_channel_1[key] for key in trial_channel_1 if key!='EEG'}
                     trial_subject_1['EEG'], trial_subject_2['EEG'] = trial_channel_1['EEG'], trial_channel_2['EEG']
 
-                # Labeling of current speaker. {3:both_speaking,2:speaks_locutor,1:speaks_interlocutor,0:silence}. La diferencia entre _1 y _2 ese que se permutan los valores 1 y 2 (cambia la perspectiva de quién es locutor e interlocutor)
+                # Labeling of current speaker. {3:both_speaking, 2:speaker_talks, 1:interlocutor_talks, 0:silence}.
+                # The difference between _1 and _2 is that values 1 and 2 are swapped (changes the perspective of who is the speaker and who is the interlocutor)
                 current_speaker_1 = self.labeling(trial=trial, channel=2) # len matching eeg
-                current_speaker_2 = self.labeling(trial=trial, channel=1)
+                filter_1, filter_2 = current_speaker_1 == 1, current_speaker_1 == 2 
+                current_speaker_2 = current_speaker_1.copy()
+                current_speaker_2[filter_1] = 2
+                current_speaker_2[filter_2] = 1
 
                 # Match length of speaker labels and trials with the info of its lengths
-                trial_subject_1, current_speaker_1, minimum1 = self.match_lengths(dic=trial_subject_1, speaker_labels=current_speaker_1)
-                trial_subject_2, current_speaker_2, minimum2 = self.match_lengths(dic=trial_subject_2, speaker_labels=current_speaker_2)
+                trial_subject_1, current_speaker_1, minimum1 = self.match_lengths(
+                    speaker_labels=current_speaker_1,
+                    dic=trial_subject_1 
+                )
+                trial_subject_2, current_speaker_2, minimum2 = self.match_lengths(
+                    speaker_labels=current_speaker_2,
+                    dic=trial_subject_2 
+                )
 
                 # Define/Re-define samples_info trial length
                 if not loaded_samples_info:
@@ -1656,26 +1624,37 @@ class Session_class:
                     self.samples_info['trial_lengths2'].append(minimum2)
 
                     # Preprocessing: calaculates the relevant indexes for the apropiate analysis. Add sum of all previous trials length. This is because at the end, all trials previous to the actual will be concatenated
-                    self.samples_info['keep_indexes1'] += (self.shifted_indexes_to_keep(speaker_labels=current_speaker_1) + np.sum(self.samples_info['trial_lengths1'][:-1])).tolist()
-                    self.samples_info['keep_indexes2'] += (self.shifted_indexes_to_keep(speaker_labels=current_speaker_2) + np.sum(self.samples_info['trial_lengths2'][:-1])).tolist()
+                    shifted_1 = self.shifted_indexes_to_keep(speaker_labels=current_speaker_1)
+                    shifted_2 = self.shifted_indexes_to_keep(speaker_labels=current_speaker_2)
+                    self.samples_info['keep_indexes1'] += ( shifted_1 + np.sum(self.samples_info['trial_lengths1'][:-1])).tolist()
+                    self.samples_info['keep_indexes2'] += ( shifted_2 + np.sum(self.samples_info['trial_lengths2'][:-1])).tolist()
                 
-                # Concatenates data of each subject 
+                # Concatenates data of each subject, taking advantage of subject having the same keys
                 for key in trial_subject_1:
                     if key != 'info':
                         if key not in subject_1:
                             subject_1[key] = trial_subject_1[key]
-                        else:
-                            subject_1[key] = np.concatenate((subject_1[key], trial_subject_1[key]), axis=0)
-                for key in trial_subject_2:
-                    if key != 'info':
-                        if key not in subject_2:
                             subject_2[key] = trial_subject_2[key]
                         else:
-                            subject_2[key] = np.concatenate((subject_2[key], trial_subject_2[key]), axis=0)
+                            subject_1[key] = np.concatenate(
+                                (subject_1[key], trial_subject_1[key]), axis=0
+                            )
+                            subject_2[key] = np.concatenate(
+                                (subject_2[key], trial_subject_2[key]), axis=0
+                            )
+                # for key in trial_subject_2:
+                #     if key != 'info':
+                #         if key not in subject_2:
+                #             subject_2[key] = trial_subject_2[key]
+                #         else:
+                #             subject_2[key] = np.concatenate(
+                #                 (subject_2[key], trial_subject_2[key]), axis=0
+                #             )
 
             # Empty trial
-            except:
-                print(f"Trial {trial} of session {self.session} couldn't be loaded.")
+            except Exception as e:
+                logger.watn(f"Trial {trial} of session {self.session} couldn't be loaded.")
+                logger.warn(f"\nAn unexpected error occurred: {e}") 
                 self.samples_info['trial_lengths1'].append(0)
                 self.samples_info['trial_lengths2'].append(0)
 
@@ -1683,31 +1662,42 @@ class Session_class:
         info = trial_channel_1['info']
 
         # Saves modified relevant indexes 
-        os.makedirs(self.samples_info_path, exist_ok=True)
-        general_functions.dump_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'), obj=self.samples_info, rewrite=True)
+        os.makedirs(
+            self.samples_info_path, 
+            exist_ok=True
+        )
+        general_functions.dump_pickle(
+            path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'), 
+            obj=self.samples_info, 
+            rewrite=True
+        )
 
-        # Save results
+        # Save results, taking advantage of the fact that both subjects have the same keys
         for key in subject_1:
-            # # Drops silences phoneme column
-            # if key.startswith('Phonemes'):
-            #     # Remove silence column, the last one by construction
-            #     subject_1[key] = np.delete(arr=subject_1[key], obj=-1, axis=1)
-            #     subject_2[key] = np.delete(arr=subject_2[key], obj=-1, axis=1)
-
-            # Save preprocesed data
-            os.makedirs(self.export_paths[key], exist_ok=True)
-            general_functions.dump_pickle(path=os.path.join(self.export_paths[key], f'Sesion{self.session}.pkl'), obj=[subject_1[key], subject_2[key]], rewrite=True)
+            os.makedirs(
+                self.export_paths[key], 
+                exist_ok=True
+            )
+            general_functions.dump_pickle(
+                path=os.path.join(self.export_paths[key], f'Sesion{self.session}.pkl'), 
+                obj=[subject_1[key], subject_2[key]], 
+                rewrite=True
+            )
 
         # Saves info of the setup                    
-        general_functions.dump_pickle(path=os.path.join(self.preprocessed_data_path, 'EEG/info.pkl'), obj=info, rewrite=True)
+        general_functions.dump_pickle(
+            path=os.path.join(self.preprocessed_data_path, 'EEG/info.pkl'), 
+            rewrite=True,
+            obj=info 
+        )
 
         # Redefine subjects dictionaries to return only used stimuli
-        subject_1_return = {key: subject_1[key] for key in self.stim.split('_') + ['EEG']}
-        subject_2_return = {key: subject_2[key] for key in self.stim.split('_') + ['EEG']}
-        subject_1_return['info'] = info
-        subject_2_return['info'] = info
+        relevant_subject_1 = {key: subject_1[key] for key in self.stimuli.split('_') + ['EEG']}
+        relevant_subject_2 = {key: subject_2[key] for key in self.stimuli.split('_') + ['EEG']}
+        relevant_subject_1['info'] = info
+        relevant_subject_2['info'] = info
 
-        return {'Subject_1': subject_1_return, 'Subject_2': subject_2_return}, self.samples_info
+        return relevant_subject_1, relevant_subject_2, self.samples_info
     
     def load_procesed(
         self
@@ -1721,16 +1711,24 @@ class Session_class:
             Sessions of both subjects.
         """
         # Load EEGs and procesed data
-        eeg_subject_1, eeg_subject_2 = general_functions.load_pickle(path=os.path.join(self.export_paths['EEG'], f'Sesion{self.session}.pkl'))
-        info = general_functions.load_pickle(path=os.path.join(self.preprocessed_data_path, f'EEG/info.pkl'))
-        samples_info = general_functions.load_pickle(path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'))
+        eeg_subject_1, eeg_subject_2 = general_functions.load_pickle(
+            path=os.path.join(self.export_paths['EEG'], f'Sesion{self.session}.pkl')
+        )
+        info = general_functions.load_pickle(
+            path=os.path.join(self.preprocessed_data_path, f'EEG/info.pkl')
+        )
+        samples_info = general_functions.load_pickle(
+            path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl')
+        )
         subject_1 = {'EEG': eeg_subject_1, 'info': info}
         subject_2 = {'EEG': eeg_subject_2, 'info': info}
         
         # Loads stimuli to each subject
-        for stimulus in self.stim.split('_'):
-            subject_1[stimulus], subject_2[stimulus] = general_functions.load_pickle(path=os.path.join(self.export_paths[stimulus], f'Sesion{self.session}.pkl'))
-        return {'Subject_1': subject_1, 'Subject_2': subject_2}, samples_info
+        for stimulus in self.stimuli.split('_'):
+            subject_1[stimulus], subject_2[stimulus] = general_functions.load_pickle(
+                path=os.path.join(self.export_paths[stimulus], f'Sesion{self.session}.pkl')
+            )
+        return subject_1, subject_2, samples_info
     
     def labeling(
         self, 
@@ -1754,35 +1752,69 @@ class Session_class:
         """
         
         # Read phrases into pandas.DataFrame
-        ubi_speaker = os.path.join(self.phrases_path, f's{self.session}.objects.{trial:02d}.channel{channel}.phrases')
-        
-        h1t = pd.read_table(ubi_speaker, header=None, sep="\t")
+        speaker_path = os.path.join(
+            self.phrases_path, 
+            f's{self.session}.objects.{trial:02d}.channel{channel}.phrases'
+        )
+        speaker_table = pd.read_table(
+            speaker_path, 
+            header=None, 
+            sep="\t"
+        )
 
         # Replace and '#' by ''. And then all text by 1 and silences by 0 
-        h1t.iloc[:, 2] = (h1t.iloc[:, 2].replace("#", "").apply(len) > 0).apply(int)
+        speaker_table.iloc[:, 2] = (
+            speaker_table.iloc[:, 2].replace("#", "").apply(len) > 0
+        ).apply(int)
         
         # Take difference in time and multiply it by sample rate in order to match envelope length (almost, miss by a sample or two)
-        samples = np.round((h1t[1] - h1t[0]) * self.sr).astype("int")
+        samples = np.round(
+            (speaker_table[1] - speaker_table[0]) * self.sr
+        ).astype("int")
         
         # Repeat speaker labels by the number of samples in each phrase
-        speaker = np.repeat(h1t.iloc[:, 2], samples)
+        speaker = np.repeat(
+            speaker_table.iloc[:, 2], 
+            samples
+        )
         
         # Same with listener
         listener_channel = (channel - 3) * -1
-        ubi_listener = os.path.join(self.phrases_path, f's{self.session}.objects.{trial:02d}.channel{listener_channel}.phrases')
-        h2t = pd.read_table(ubi_listener, header=None, sep="\t")
+        listener_path = os.path.join(
+            self.phrases_path, f's{self.session}.objects.{trial:02d}.channel{listener_channel}.phrases'
+        )
+        listener_table = pd.read_table(
+            listener_path, 
+            header=None, 
+            sep="\t"
+        )
 
         # Replace and '#' by ''. And then all text by 1 and silences by 0
-        h2t.iloc[:, 2] = (h2t.iloc[:, 2].replace("#", "").apply(len) > 0).apply(int)
-        samples = np.round((h2t[1] - h2t[0]) * self.sr).astype("int")
-        listener = np.repeat(h2t.iloc[:, 2], samples)
+        listener_table.iloc[:, 2] = (
+            listener_table.iloc[:, 2].replace("#", "").apply(len) > 0
+        ).apply(int)
+        
+        # Take difference in time and multiply it by sample rate in order to match envelope length (almost, miss by a sample or two)
+        samples = np.round(
+            (listener_table[1] - listener_table[0]) * self.sr
+        ).astype("int")
+        
+        # Repeat speaker labels by the number of samples in each phrase
+        listener = np.repeat(
+            listener_table.iloc[:, 2],
+            samples
+        )
 
         # If there are differences in length, corrects them with 0-padding
         diff = len(speaker) - len(listener)
         if diff > 0:
-            listener = np.concatenate([listener, np.repeat(0, diff)])
+            listener = np.concatenate(
+                [listener, np.repeat(0, diff)]
+            )
         elif diff < 0:
-            speaker = np.concatenate([speaker, np.repeat(0, np.abs(diff))])
+            speaker = np.concatenate(
+                [speaker, np.repeat(0, np.abs(diff))]
+            )
 
         # Return an array with envelope length, having values 3 if both participants are speaking; 2, if just locutor; 1, interlocutor and 0, silence
         return speaker + listener * 2
@@ -1812,26 +1844,13 @@ class Session_class:
         speaker_labels = np.where(speaker_labels==0, 4, speaker_labels)        
 
         # Computes shifted matrix
-        shifted_matrix_speaker_labels = processing.shifted_matrix(features=speaker_labels, delays=self.delays, use_gpu=config.use_gpu).astype(float)
+        shifted_matrix_speaker_labels = processing.shifted_matrix(
+            features=speaker_labels, 
+            use_gpu=config.use_gpu,
+            delays=config.delays 
+            ).astype(float)
                
         if 'Silence' in self.situation and any(char.isdigit() for char in self.situation):
-            # import numpy as np, config
-            # from processing import shifted_matrix
-            # features = np.array([1,1,1,1,1,1,1,1,4,4,4,4,4,4,4,4,1,1,1,1,4,4,4,2,2,2,2,2,3,3,3,3,3,3]).reshape(-1,1)
-            # delays = [-3,-2,-1,0,1,2]
-            # shifted_matrix_speaker_labels = shifted_matrix(features=features, delays=delays, use_gpu=True).astype(float)
-            # percentage = 100
-
-            # filter_silence_external = ((shifted_matrix_speaker_labels==0)|(shifted_matrix_speaker_labels==4)|(shifted_matrix_speaker_labels==1)).all(axis=1)
-            # shifted_matrix_speaker_labels[filter_silence_external.nonzero()[0]]
-            
-            
-            # filter_silence_x_percent = (shifted_matrix_speaker_labels==4).sum(axis=1)<=int(percentage*len(delays)/100)
-            
-            # shifted_matrix_speaker_labels[(filter_silence_x_percent).nonzero()[0]]
-            
-            # shifted_matrix_speaker_labels[(filter_silence_external & filter_silence_x_percent).nonzero()[0]]
-            
             percentage = int(self.situation.split('Silence_')[1])
             
             # Filter silence plus condition, plus padding
@@ -1852,28 +1871,23 @@ class Session_class:
         else: # Silence
             situation_label = 4
 
-        # Shifted matrix index where the given situation is ocurring in all row (number of samples dimension) # TODO: discutir si dejar 0 (silencios) o no.
-        # return ((shifted_matrix_speaker_labels==situation_label) | (shifted_matrix_speaker_labels==0)).all(axis=1).nonzero()[0]
-        return ((shifted_matrix_speaker_labels==situation_label)).all(axis=1).nonzero()[0]
+        # Shifted matrix index where the given situation is ocurring in all row (number of samples dimension) # TODO: discutir si dejar 0s de paddeo o no. ---> yo creo que sí
+        # return ((shifted_matrix_speaker_labels==situation_label)).all(axis=1).nonzero()[0]
+        return ((shifted_matrix_speaker_labels==situation_label) | (shifted_matrix_speaker_labels==0)).all(axis=1).nonzero()[0]
     
     @staticmethod
     def print_trials(
-        p:int,
+        trials:list,
         trial:int,
-        trials:list
-        )->None:
+        p:int
+    )->None:
         """
         Make print for trial update
-
-        Para meters
-        ----------
-        p : int
-            index of given trial inside trials
-        trial : int
-            given trial
-        trials : list
-            list of trials
         """
+        # Determinar si es la última iteración
+        is_last = (p == len(trials) - 1)
+        end_char = '\n' if is_last else '\r'
+        
         if (trials[p-1]+1!=trial) and p!=0:
             missing_trials = []
             t = trial
@@ -1882,13 +1896,29 @@ class Session_class:
                 t-=1
             missing_trials.sort()
             if len(missing_trials)>1:
-                print(f'Trial {trial} of {trials[-1]}. Missing trials {", ".join(str(i) for i in missing_trials)}.')
+                print(
+                    f'Trial {trial} of {trials[-1]}. Missing trials {", ".join(str(i) for i in missing_trials)}', 
+                    flush=True,
+                    end=end_char 
+                )
             else:
-                print(f'Trial {trial} of {trials[-1]}. Missing trial {", ".join(str(i) for i in missing_trials)}.')
+                print(
+                    f'Trial {trial} of {trials[-1]}. Missing trial {", ".join(str(i) for i in missing_trials)}', 
+                    flush=True,
+                    end=end_char 
+                )
         elif (p==0) and (trials[0]!=1):
-            print(f'Trial {trial} of {trials[-1]}. Missing trial 1.')
+            print(
+                f'Trial {trial} of {trials[-1]}. Missing trial 1', 
+                flush=True,
+                end=end_char               
+            )
         else:
-            print(f'Trial {trial} of {trials[-1]}.')
+            print(
+                f'Trial {trial} of {trials[-1]}.', 
+                flush=True,
+                end=end_char
+            )
 
     def match_lengths(
         self, 
@@ -1928,16 +1958,10 @@ class Session_class:
     
 def load_data(
     session:int, 
-    stim:str, 
+    stimuli:str, 
     band:str,
-    sr:float,
     preprocessed_data_path:str, 
-    praat_executable_path:str,
-    situation:str='External', 
-    causal_filter_eeg:bool=True, 
-    envelope_filter:bool=False, 
-    silence_threshold:float=0.03, 
-    delays:np.ndarray=None
+    situation:str='External'
     )->tuple:
     """
     Loads and processes EEG and stimuli data for a given session.
@@ -1946,104 +1970,146 @@ def load_data(
     ----------
     session : int
         Session number.
-    stim : str
+    stimuli : str
         Stimuli to use in the analysis. If more than one stimulus is wanted, the separator should be '_'.
-        Allowed stimuli are: ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 
-        'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 
-        'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 
-        'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 
-        'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Phonet', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
+        Allowed stimuli are: 
+    'Envelope', 'Phonological', 'Spectrogram', 'Mfccs', 'Mfccs-Deltas', 
+    'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 
+    'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 
+    'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Phonemes-Envelope', 
+    'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Envelope-Manual', 
+    'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 
+    'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 
+    'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet', 'Phones-Onset-Manual', 
+    'Phones-Phonet', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet',
+    'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
+    'Wav2vec2'
     band : str
-        Neural frequency band. It could be one of: ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta'].
-    sr : float
-        Sample rate in Hz of the EEG.
+        Neural frequency band. It could be one of: 
+    'Delta',
+    'Theta',
+    'Alpha',
+    'Beta1',
+    'Beta2',
+    'All',
+    'Delta_Theta',
+    'Alpha_Delta_Theta'
     preprocessed_data_path : str
         Path directing to processed data.
-    praat_executable_path : str
-        Path directing to Praat executable.
     situation : str, optional
         Situation considered when performing the analysis, by default 'External'. Allowed situations are: 
         ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times'].
         Also any of the above options concatenated by '_Silence_x', where x is an integer that represents 
         the percentage of samples with silence within a row of the design matrix.
-    causal_filter_eeg : bool, optional
-        Whether to use or not a causal filter for the EEG, by default True.
-    envelope_filter : bool, optional
-        Whether to use or not an envelope filter, by default False.
-    silence_threshold : float, optional
-        Silence threshold of the dialogue, by default 0.03.
-    delays : np.ndarray, optional
-        Delay array to construct shifted matrix, by default None.
 
     Returns
     -------
     tuple
         A tuple containing:
-        - dict: Sessions of both subjects.
-        - dict: Information about the samples.
+        - dict: sessions of both subjects.
+        - dict: information about the samples.
 
     Raises
     ------
     SyntaxError
         If 'stim' is not an allowed stimulus. Allowed ones are:
-        ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 
-        'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 
-        'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 
-        'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 
-        'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 
-        'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Phonet', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
+    'Envelope', 'Phonological', 'Spectrogram', 'Mfccs', 'Mfccs-Deltas', 
+    'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 
+    'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 
+    'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Phonemes-Envelope', 
+    'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Envelope-Manual', 
+    'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 
+    'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 
+    'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet', 'Phones-Onset-Manual', 
+    'Phones-Phonet', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet',
+    'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
+    'Wav2vec2'
         If 'band' is not an allowed band frequency. Allowed ones are:
-        ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
+    'Delta',
+    'Theta',
+    'Alpha',
+    'Beta1',
+    'Beta2',
+    'All',
+    'Delta_Theta',
+    'Alpha_Delta_Theta'
         If 'situation' is not an allowed situation. Allowed ones are:
-        ['Internal','Internal_BS','External', 'External_BS', 'External_All_Times', 'Internal_All_Times'].
+    'Internal',
+    'External',
+    'Internal_BS',
+    'External_BS', 
+    'Internal_All_Times',
+    'External_All_Times'
         Also any of the above options concatenated by '_Silence_x', where x is an integer that represents 
         the percentage of samples with silence within a row of the design matrix.
     """
-    # Define allowed stimuli
-    allowed_stims = ['Envelope', 'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes',\
-                    'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Spectrogram', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset',\
-                    'Phonemes-Envelope-Manual', 'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet', 'Phonological', 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 'Wav2vec2','Phones-Onset-Manual', 'Phones-Phonet', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet']
-    allowed_situations = ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times']
-    allowed_bands = ['Delta','Theta','Alpha','Beta1','Beta2','All','Delta_Theta','Alpha_Delta_Theta']
-
-    # And conditions
-    condition_1 = all(stimulus in allowed_stims for stimulus in stim.split('_'))
-    condition_2 = band in allowed_bands
-    condition_3 = situation in allowed_situations
-    condition_3bis = situation.split('_Silence')[0] in allowed_situations
-
-    if condition_1:
-        if condition_2:
-            if condition_3+condition_3bis:
+    check_syntax(stimuli=stimuli, band=band, situation=situation)
                 
-                # Re-order stim and band to create just one file for each case: 'Phonemes_Envelope' --> 'Envelope_Phonemes'
-                ordered_stims = sorted(stim.split('_'))
-                ordered_band = sorted(band.split('_'))
-                session_obj = Session_class(session=session, 
-                                        stim='_'.join(ordered_stims), 
-                                        band='_'.join(ordered_band), 
-                                        sr=sr,
-                                        causal_filter_eeg=causal_filter_eeg,
-                                        envelope_filter=envelope_filter, 
-                                        situation=situation,
-                                        silence_threshold=silence_threshold, 
-                                        preprocessed_data_path=preprocessed_data_path, 
-                                        praat_executable_path=praat_executable_path,
-                                        delays=delays)
+    # Re-order stimuli and band to create just one file for each case: 'Phonemes_Envelope' --> 'Envelope_Phonemes'
+    ordered_stimuli = sorted(stimuli.split('_'))
+    ordered_band = sorted(band.split('_'))
+    session_obj = SessionData(
+        preprocessed_data_path=preprocessed_data_path, 
+        stimuli='_'.join(ordered_stimuli), 
+        band='_'.join(ordered_band), 
+        situation=situation,
+        session=session, 
+    )
 
-                # Try to load procesed data, if it fails it loads raw data
-                try:
-                    print('Loading preprocesed data\n')
-                    Session, samples_info = session_obj.load_procesed()
-                    print('Data loaded succesfully\n')
-                except:
-                    print("Couldn't load data, compute it from raw\n")
-                    Session, samples_info = session_obj.load_from_raw()
-                return Session['Subject_1'], Session['Subject_2'], samples_info
-            else:
-                raise SyntaxError(f"{situation} is not an allowed situation. Allowed ones are: {allowed_situations}")
-        else:
-            raise SyntaxError(f"{band} is not an allowed band frequency. Allowed bands are: {allowed_bands}")
-    else:
-        raise SyntaxError(f"{stim} is not an allowed stimulus. Allowed stimuli are: {allowed_stims}. If more than one stimulus is wanted, the separator should be '_'.")
+    # Try to load procesed data, if it fails it loads raw data
+    logger.info('Loading preprocesed data\n')
+    try:
+        sessions_1, sessions_2, samples_info = session_obj.load_procesed()
+        logger.info('Data loaded succesfully\n')
+    except Exception as e:
+        logger.debug(f"An error occurred while loading preprocessed data: {e}")
+        logger.warn("\nCouldn't load data, compute it from raw\n")
+        sessions_1, sessions_2, samples_info = session_obj.load_from_raw()
+    return sessions_1, sessions_2, samples_info
+
+def check_syntax(
+    stimuli: Union[str, None]=None, 
+    band: Union[str, None]=None, 
+    situation: Union[str, None]=None, 
+    )->None:
+    """
+    Check if the syntax of the parameters is correct.
+
+    Parameters
+    ----------
+    stimuli : Union[str, None], optional
+        Stimuli to use in the analysis. If more than one stimulus is wanted, the separator should be '_'.
+    band : Union[str, None], optional
+        Neural frequency band.
+    situation : Union[str, None], optional
+        Situation considered when performing the analysis.  
+    Raises
+    ------
+    SyntaxError
+        If 'stim' is not an allowed stimulus.
+        If 'band' is not an allowed band frequency.
+        If 'situation' is not an allowed situation.
+    """
+    
+    # Check if band, stimuli and situation parameters where passed with the right syntax
+    if stimuli is not None:
+        for stimulus in stimuli.split('_'):
+            if stimulus not in ALLOWED_STIMULI:
+                raise SyntaxError(f"{stimulus} is not an allowed stimulus. Allowed stimuli are: {ALLOWED_STIMULI}. If more than one stimulus is wanted, the separator should be '_'.")
+    if band is not None:
+        if band not in ALLOWED_BANDS:
+            raise SyntaxError(f"{band} is not an allowed band frecuency. Allowed bands are: {ALLOWED_BANDS}")
+    if situation is not None:
+        if not (situation.split('_Silence')[0] in ALLOWED_SITUATIONS):
+            raise SyntaxError(f"'{situation}' is not an allowed situation. Allowed ones are: {ALLOWED_SITUATIONS}")
+    return None
+
+if __name__ == "__main__":
+    subject_1, subject_2, samples_info = load_data(
+        preprocessed_data_path='saves3/preprocessed_data/External/tmin-0.2_tmax0.6/',
+        situation='External',
+        stimuli='Envelope',
+        band='Theta',
+        session=21
+    )
+    
