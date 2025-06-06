@@ -85,19 +85,16 @@ for situation in config.situations:
             total_number_of_subjects = 0
 
             # Iterate over sessions
-            for sesion in config.sessions:
-                print(f'\n-------> Start of session {sesion}\n')
+            for session in config.sessions:
+                print(f'\n-------> Start of session {session}\n')
 
                 # Load data by subject, EEG and info
                 subject_1, subject_2, samples_info = load_data(
-                    stim=stim,
-                    band=band,
-                    sr=config.sr,
-                    session=sesion,
-                    situation=situation,
-                    delays=config.delays,
                     preprocessed_data_path=preprocessed_data_path,
-                    praat_executable_path=config.praat_executable_path
+                    situation=situation,
+                    session=session,
+                    stimuli=stim,
+                    band=band
                 )
                 eeg_subject_1, eeg_subject_2, info = subject_1['EEG'], subject_2['EEG'], subject_1['info']
 
@@ -140,7 +137,7 @@ for situation in config.situations:
                     if config.set_alpha is None:
                         try:
                             alphas = load_pickle(path=alphas_path)
-                            alpha = alphas[sesion][subject]
+                            alpha = alphas[session][subject]
                         except:
                             alpha = config.default_alpha
                     else:
@@ -170,7 +167,7 @@ for situation in config.situations:
                             path_null=path_null,
                             validation=False,
                             subject=subject,                              
-                            session=sesion
+                            session=session
                         )
                         # Update weights and metrics per fold
                         fold, weights_per_fold[fold], correlation_per_channel[fold], rmse_per_channel[fold] = output[:4]
@@ -256,8 +253,8 @@ for situation in config.situations:
 
                 # Print the progress of the iteration
                 iteration_percentage(
-                    txt=f'\n-------> End of session {sesion}\n', 
-                    i=config.sessions.index(sesion), 
+                    txt=f'\n-------> End of session {session}\n', 
+                    i=config.sessions.index(session), 
                     length_of_iterator=len(config.sessions),
                     # logger=logger
                 )

@@ -51,10 +51,10 @@ stimuli = [
         # 'Wav2vec2' # TODO No esta bueno
         ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
 situations = [
-        'External', 
-        'Internal', 
-        'External_BS',
-        'Internal_BS'
+        # 'External', 
+        # 'Internal', 
+        # 'External_BS',
+        # 'Internal_BS',
         'External_Silence_10', 
         'External_Silence_20',
         'External_Silence_30',
@@ -64,21 +64,21 @@ situations = [
         'External_Silence_70',
         'External_Silence_80',
         'External_Silence_90',
-        'External_Silence_100',
+        'External_Silence_100'
         ] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
 bands = [
-        'Delta', 
+        # 'Delta', 
         'Theta', 
-        'Alpha', 
-        'Beta1', 
-        'Beta2',
-        'All'
+        # 'Alpha', 
+        # 'Beta1', 
+        # 'Beta2',
+        # 'All'
         ] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
 
 # ==========================================
 # LOADING/SAVING DATA, FIGURE CONFIGURATIONS
 praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
-display_interactive_mode, save_results, save_figures, no_figures = False, True, True, False
+display_interactive_mode, save_results, save_figures, no_figures = False, True, True, True
 figure_format = '.png'
 just_load_data = False
 leadership_kind_of_subsampling = 'optimized_trials' #'ordered_trials' #'random_trials'

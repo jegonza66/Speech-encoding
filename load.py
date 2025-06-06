@@ -55,7 +55,6 @@ TRANSFORMER_MODEL = "openai/whisper-base"
 # TRANSFORMER_MODEL = "facebook/wav2vec2-large-xlsr-53-distilled"
 # TRANSFORMER_MODEL = "facebook/wav2vec2-base"
 
-exp_info = config.Exp_info()
 SEX_LIST = ['M', 'M', 'M', 'F', 'F', 'F', 'F', 'M', 'M', 'M', 'F', 'F', 'F', 'F', 'M', 'M', 'M', 'F', 'F', 'M']
 ALLOWED_BANDS = [
     'Delta',
@@ -76,15 +75,11 @@ ALLOWED_SITUATIONS = [
     'External_All_Times'
 ]
 ALLOWED_STIMULI = [
-    'Envelope', 'Phonological', 'Spectrogram', 'Mfccs', 'Mfccs-Deltas', 
-    'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 
-    'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 
-    'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Phonemes-Envelope', 
-    'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Envelope-Manual', 
-    'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 
-    'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 
-    'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet', 'Phones-Onset-Manual', 
-    'Phones-Phonet', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet',
+    'Envelope', 'Phonological', 'Spectrogram', 
+    'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 
+    'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 
+    'Phonemes', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency', 
+    'Phones', 'Phones-Envelope', 'Phones-Discrete',
     'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
     'Wav2vec2'
 ]
@@ -233,143 +228,6 @@ class TrialChannelData:
         channel_names = montage.ch_names
         return mne.create_info(ch_names=channel_names[:], sfreq=self.sr, ch_types='eeg').set_montage(montage)
 
-    def extract_mistakes(
-        self, 
-        envelope:np.ndarray, 
-        kind:str='Mistakes-Separated'
-        )->np.ndarray:
-        """
-        Calculates mistakes (lexical, articulatory, discursive) signal from annotated data
-
-        Parameters
-        ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform
-
-        Returns
-        -------
-        np.ndarray
-            len(envelope)X3 binary array if separated else len(envelope)X1 binary array
-            len(envelope)X3 binary array if separated else len(envelope)X1
-        """
-        # Define kind
-        separated=True if kind.endswith('Separated') else False
-
-        # Read phrases to identify time of error inside phrases time
-        phrases = pd.read_table(self.phrases_fname, header=None, sep="\t")
-        start_time, end_time = phrases[0].iloc[0], phrases[1].iloc[-1]
-        phrases_time = np.arange(start_time, end_time, 1/self.sr)
-
-        # Identify start and end of error within mistake
-        mistake_code = {
-                        'A':0, # articulatorio
-                        'L':1, # léxico
-                        'D':2 # discursivo
-                        } if separated else {'A':0, 'L':0, 'D':0}
-        mistake_signal = np.zeros(shape=(len(phrases_time), 3)) if separated else np.zeros(shape=(len(phrases_time), 1))
-        
-        if os.path.isfile(self.mistakes_path):
-            # Read textgrid        
-            grid = textgrids.TextGrid(self.mistakes_path)[f"canal {int(self.mistakes_path.split('channel')[1][0])}"]
-            
-            # Identify onset, offset and type of mistake
-            mistake_taggs, mistake_count = np.unique([el.text.split('Palabra del error: ')[1] for el in grid], return_counts=True)
-            mistakes = {mistake:{'start':None, 'end':None, 'type':None} for mistake in mistake_taggs}
-            mistake_taggs = np.repeat(mistake_taggs, mistake_count)
-
-            for item, mistake in zip(grid, mistake_taggs):
-                # Identify time_intervals and mistake type
-                mistakes[mistake]['type'] = mistake_code[item.text.split('Etiqueta: ')[1][0]]
-                if int(item.text[0])==1:
-                    mistakes[mistake]['start'] = item.xpos
-                elif int(item.text[0])==2:
-                    mistakes[mistake]['end'] = item.xpos
-                # else:
-                #     nextword_start.append(item.xpos)
-
-            # Fill mistake_signal
-            for mistake in mistakes:
-                onset_filter = mistakes[mistake]['start']<=phrases_time
-                offset_filter = phrases_time<=mistakes[mistake]['end']
-                
-                mistake_signal[onset_filter&offset_filter, mistakes[mistake]['type']] = -np.ones(shape=np.sum(onset_filter&offset_filter))
-                
-        # Match length of mistake signal with envelope
-        difference = len(mistake_signal)-len(envelope)
-        if difference>0:
-            mistake_signal = mistake_signal[:-difference]
-        elif difference<0:
-            mistake_signal = np.concatenate((mistake_signal, np.zeros(shape=(np.abs(difference), 3)))) if separated else np.concatenate((mistake_signal, np.zeros(shape=(np.abs(difference), 1))))
-
-        return mistake_signal
-    
-    def extract_mistakes_control(
-        self, 
-        envelope:np.ndarray, 
-        kind:str='Control-Separated'
-        )->np.ndarray:
-        """
-        Calculates mistakes control (lexical, articulatory, discursive) signal from annotated data
-
-        Parameters
-        ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform
-
-        Returns
-        -------
-        np.ndarray
-            len(envelope)X3 binary array if separated else len(envelope)X1
-        """
-        # Define kind
-        separated=True if kind.endswith('Separated') else False
-
-        # Read phrases to identify time of error inside phrases time
-        phrases = pd.read_table(self.phrases_fname, header=None, sep="\t")
-        start_time, end_time = phrases[0].iloc[0], phrases[1].iloc[-1]
-        phrases_time = np.arange(start_time, end_time, 1/self.sr)
-        
-        # Identify start and end of error within mistake
-        control_code = {
-                        'A':0, # articulatorio
-                        'L':1, # léxico
-                        'D':2 # discursivo
-                        } if separated else {'A':0, 'L':0, 'D':0}
-        control_signal = np.zeros(shape=(len(phrases_time), 3)) if separated else np.zeros(shape=(len(phrases_time), 1))
-        
-        if os.path.isfile(self.mistakes_control_path):
-            # Read textgrid        
-            grid = textgrids.TextGrid(self.mistakes_control_path)[f"canal {int(self.mistakes_control_path.split('channel')[1][0])}"]
-            
-            # Identify onset, offset and type of mistake
-            control_taggs, control_count = np.unique([el.text.split('Palabra del error: ')[1] for el in grid], return_counts=True)
-            controls = {control:{'start':None, 'end':None, 'type':None} for control in control_taggs}
-            control_taggs = np.repeat(control_taggs, control_count)
-
-            for item, control in zip(grid, control_taggs):
-                # Identify time_intervals and control type
-                controls[control]['type'] = control_code[item.text.split('Etiqueta: ')[1][0]]
-                controls[control]['score'] = float(item.text.split('normalizado: ')[1].split(',')[0])
-                
-                if int(item.text[0])==1:
-                    controls[control]['start'] = item.xpos
-                elif int(item.text[0])==2:
-                    controls[control]['end'] = item.xpos
-
-            # Fill control_signal
-            for control in controls:
-                onset_filter = controls[control]['start']<=phrases_time
-                offset_filter = phrases_time<=controls[control]['end']
-                control_signal[onset_filter&offset_filter, controls[control]['type']] = np.ones(shape=np.sum(onset_filter&offset_filter))#*controls[control]['score']
-        
-        # Match length of mistake signal with envelope
-        difference = len(control_signal)-len(envelope)                
-        if difference>0:
-            control_signal = control_signal[:-difference]
-        elif difference<0:
-            control_signal = np.concatenate((control_signal, np.zeros(shape=(np.abs(difference), 3)))) if separated else np.concatenate((control_signal, np.zeros(shape=(np.abs(difference), 1))))
-        return control_signal
-
     def extract_envelope(
         self
         )->np.ndarray: 
@@ -421,7 +279,8 @@ class TrialChannelData:
         return envelope.reshape(-1, 1)
 
     def extract_spectrogram(
-        self
+        self,
+        number_of_mels:int=16
         )->np.ndarray:
         """
         Calculates spectrogram of .wav file between 16 Mel frequencies
@@ -440,19 +299,558 @@ class TrialChannelData:
         wav = wavfile.read(self.wav_fname)[1]
         wav = wav.astype("float")
         
-        # Calculates the mel frequencies spectrogram giving the desire sampling (match the EEG)
+        # Get sample window size to match the sampling rate of the EEG
         sample_window = int(self.audio_sr/self.sr)
+        
+        # Calculates the mel frequencies spectrogram giving the desire sampling (match the EEG)
         S = librosa.feature.melspectrogram(
-            y=wav,
-            sr=self.audio_sr, 
-            n_fft=sample_window, 
             hop_length=sample_window, 
-            n_mels=16
+            n_fft=sample_window, 
+            sr=self.audio_sr, 
+            n_mels=number_of_mels,
+            y=wav
             )
         # Transform to dB using normalization to 1
-        S_DB = librosa.power_to_db(S=S, ref=np.max)
-        
+        S_DB = librosa.power_to_db(
+            ref=np.max,
+            S=S
+        )
         return S_DB.T
+
+    def extract_mfccs(
+        self,
+        number_of_mels:int=16,
+        kind:str='Mfccs'
+        )->np.ndarray:
+        """
+        Calculates mel frequency clepstral coefficients from .wav.
+
+        Parameters
+        ----------
+        kind : str, optional
+           Kind of pitch use, by default 'Log-Raw'. Available kinds are:
+            ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas']
+
+        Returns
+        -------
+        np.ndarray
+            Matrix with shape samples x coefficients
+
+        Raises
+        ------
+        SyntaxError
+            Whether the input value of 'kind' is passed correctly. It must be a string among ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas'].
+        """
+
+        # Check if given kind is a permited input value
+        allowed_kind = ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas']
+        if kind not in allowed_kind:
+            raise SyntaxError(f"{kind} is not an allowed kind of mfccs. Allowed kinds are: {allowed_kind}")
+        
+        # Read file
+        wav = wavfile.read(self.wav_fname)[1]
+        wav = wav.astype("float")
+        
+        # Get sample window size to match the sampling rate of the EEG
+        sample_window = int(self.audio_sr/self.sr)
+        
+        # Calculate matrix of mfccs
+        mfccs = librosa.feature.mfcc(
+            hop_length=sample_window,
+            n_mfcc=number_of_mels, 
+            n_mels=number_of_mels, 
+            n_fft=sample_window, 
+            sr=self.audio_sr, 
+            y=wav
+        )
+        
+        # Append deltas and deltas deltas
+        if kind.startswith('Mfccs'):
+            if kind.endswith('Deltas'):
+                delta_mfccs = librosa.feature.delta(mfccs)
+                mfccs_features = np.concatenate(
+                    (mfccs, delta_mfccs)
+                )
+                if kind.endswith('Deltas-Deltas'):
+                    delta2_mfccs = librosa.feature.delta(mfccs, order=2)
+                    mfccs_features = np.concatenate(
+                        (mfccs, delta_mfccs, delta2_mfccs)
+                    )
+                    return mfccs_features.T
+                else:
+                    return mfccs_features.T
+            else:
+                return mfccs.T
+        else:
+            if kind.endswith('Deltas'):
+                delta_mfccs = librosa.feature.delta(mfccs)
+                if kind.endswith('Deltas-Deltas'):
+                    delta2_mfccs = librosa.feature.delta(mfccs, order=2)
+                    deltas = np.concatenate(
+                        (delta_mfccs, delta2_mfccs)
+                    )
+                    return deltas.T
+                else:
+                    return delta_mfccs.T
+   
+    def extract_pitch(
+        self, 
+        envelope:np.ndarray, 
+        kind:str
+        )->np.ndarray: 
+        """
+        Loads the pitch of the speaker, after calculating it from .wav file, using Praat.
+
+        Parameters
+        ----------
+        envelope : np.ndarray
+            Envelope of the audio signal using Hilbert transform
+        kind : str
+            Kind of pitch use, by default 'Log-Raw'. Available kinds are:
+            'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes'
+        Returns
+        -------
+        np.ndarray
+            One-dimensional array with pitch values
+
+        Raises
+        ------
+        SyntaxError
+            Whether the input value of 'kind' is passed correctly. It must be one of:
+            ['Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes']
+        """
+
+        # Check if given kind is a permited input value
+        allowed_kind = ['Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes']
+        if kind not in allowed_kind:
+            raise SyntaxError(f"{kind} is not an allowed kind of pitch. Allowed phonemes are: {allowed_kind}")
+        
+        # Makes path for storing data
+        output_folder = os.path.normpath(f'data/pitch/{kind}_threshold_{self.silence_threshold}/')
+        os.makedirs(output_folder, exist_ok=True)
+        self.pitch_fname = os.path.join(output_folder, self.pitch_fname)
+        
+        # Distinguish subject
+        if self.sex == 'M':
+            minPitch = 50
+            maxPitch = 300
+        elif self.sex == 'F':
+            minPitch = 75
+            maxPitch = 500
+        
+        # Define sample step and calculate pitch
+        sampleStep = 1/self.sr # .01
+        if 'Quad' in kind:
+            pitch_and_intensity.extractPI(
+                outputFN=os.path.abspath(self.pitch_fname), 
+                inputFN=os.path.abspath(self.wav_fname), 
+                silenceThreshold=self.silence_threshold,
+                praatEXE=self.praat_executable_path, 
+                sampleStep=sampleStep, 
+                pitchQuadInterp=True
+                minPitch=minPitch,
+                maxPitch=maxPitch, 
+            )
+            # Loads data
+            data = np.genfromtxt(
+                os.path.abspath(self.pitch_fname), 
+                missing_values='--undefined--', 
+                filling_values=np.inf,
+                dtype=float, 
+                delimiter=','
+            )
+            time, pitch = data[:, 0], data[:, 1]
+
+            # Get defined indexes
+            defined_indexes = np.where(pitch!=np.inf)[0]
+            
+            # Log transformation
+            logpitch = np.log(pitch)
+            
+            # Set left values to zero
+            logpitch[logpitch==np.inf]=0
+            return logpitch.reshape(-1, 1)
+        else:
+            pitch_and_intensity.extractPI(
+                outputFN=os.path.abspath(self.pitch_fname), 
+                silenceThreshold=self.silence_threshold,
+                inputFN=os.path.abspath(self.wav_fname), 
+                praatEXE=self.praat_executable_path, 
+                sampleStep=sampleStep, 
+                minPitch=minPitch,
+                maxPitch=maxPitch
+            )
+            
+            # forceRegenerate - if running this function for the same file, if False
+            #                 just read in the existing pitch file
+            # undefinedValue - if None remove from the dataset, otherset set to
+            #                 undefinedValue
+            # pitchQuadInterp - if True, quadratically interpolate pitch
+                
+        # Loads data
+        data = np.genfromtxt(
+            os.path.abspath(self.pitch_fname), 
+            missing_values='--undefined--', 
+            filling_values=np.inf,
+            delimiter=',', 
+            dtype=float
+            )
+        time, pitch = data[:, 0], data[:, 1]
+
+        # Get defined indexes
+        defined_indexes = np.where(pitch!=np.inf)[0]
+        
+        # Approximated window size
+        window_size = 100e-3
+        n_steps_in_window = np.ceil(window_size/sampleStep)
+        window_size = n_steps_in_window*sampleStep
+
+        if kind.endswith('Manual'):
+            if 'Log' in kind:
+                # Log transformation
+                logpitch = np.log(pitch)
+
+                # Interpolate relevant moments of silence
+                for i in range(len(defined_indexes)):
+                    if 1<(defined_indexes[i]-defined_indexes[i-1])<=n_steps_in_window:
+                        logpitch[defined_indexes[i-1]+1:defined_indexes[i]] = np.interp(
+                            x=time[defined_indexes[i-1]+1:defined_indexes[i]], 
+                            fp=logpitch[defined_indexes],
+                            xp=time[defined_indexes]
+                        )
+            
+                # Set left values to zero
+                logpitch[logpitch==np.inf] = 0
+                return logpitch.reshape(-1, 1)
+            else: 
+                # Interpolate relevant moments of silence
+                for i in range(len(defined_indexes)):
+                    if 1<(defined_indexes[i]-defined_indexes[i-1])<=n_steps_in_window:
+                        pitch[defined_indexes[i-1]+1:defined_indexes[i]] = np.interp(
+                            xp=time[defined_indexes], fp=pitch[defined_indexes],
+                            x=time[defined_indexes[i-1]+1:defined_indexes[i]]
+                        )
+                
+                # Set left values to zero
+                pitch[pitch==np.inf] = 0
+                return pitch.reshape(-1,1)
+                   
+        elif kind.endswith('Raw'):
+            if 'Log' in kind:
+                # Log transformation
+                logpitch = np.log(pitch)
+        
+                # Set left values to zero
+                logpitch[logpitch==np.inf]=0
+                return logpitch.reshape(-1, 1)
+            else: 
+                # Set left values to zero
+                pitch[pitch==np.inf]=0
+                return pitch.reshape(-1,1)
+
+    def extract_phonemes( 
+        self, 
+        envelope:np.ndarray, 
+        kind:str='Phonemes-Discrete'
+        )->np.ndarray:
+        """
+        It makes a time-match matrix between the phonemes and the envelope using Phonet implementation. The values and shape of given matrix depend on kind.
+
+        Parameters
+        ----------
+        envelope : np.ndarray
+            Envelope of the audio signal using Hilbert transform
+        kind : str, optional
+        Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
+            ['Phonemes', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency', 'Phonemes-Frequency']
+
+        Returns
+        -------
+        np.ndarray
+            if kind.startswith('Phonemes-Envelope'):
+                Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhonemes_labels(in order)
+            elif kind.startswith('Phonemes-Discrete'):
+                Also a matrix but it has 1s and 0s instead of envelope amplitude.
+            elif kind.startswith('Phonemes-Onset'):
+                In this case the value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
+            
+        Raises
+        ------
+        SyntaxError
+            Whether the input value of 'kind' is passed correctly. It must be a one of:
+            ['Phonemes','Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency'].
+        """
+        # Check if given kind is a permited input value
+        allowed_kind = ['Phonemes', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency']
+        if kind not in allowed_kind:
+            raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
+        
+        # Extract phonemes
+        if kind=='Phonemes':
+            labels_phonemes = config.exp_info.phonemes.copy()
+            labels_phones = config.exp_info.ph_labels.copy()
+            
+            phones_obj = Phones(audio_file=self.wav_fname)
+            posterior_prob = phones_obj.compute_phones(PLLR=True) #9167
+            del phones_obj
+            gc.collect()  # ← Limpia huérfanos
+                        
+            # Match features length
+            difference = len(posterior_prob) - len(envelope)
+
+            if difference > 0:
+                posterior_prob = posterior_prob[:-difference]
+            elif difference < 0:
+                # Repeat last sample (probably silence)
+                for i in range(np.abs(difference)):
+                    aux = posterior_prob[-1].copy() 
+                    posterior_prob = np.vstack((posterior_prob, aux.reshape(-1,1).T))
+            
+            # Map phones to phonemes, making the sum
+            posterior_prob_phonemes = np.zeros(shape=(posterior_prob.shape[0], len(labels_phonemes)))
+
+            for h, phone in enumerate(labels_phones):
+                phoneme_index = labels_phonemes.index(config.exp_info.phones_to_phonemes[phone])
+                posterior_prob_phonemes[:, phoneme_index] += posterior_prob[:, h]
+            
+            # Calculate posterior llr
+            pllr = np.zeros(shape=posterior_prob_phonemes.shape)
+            number_of_phonemes = posterior_prob_phonemes.shape[1]
+            for ph in range(number_of_phonemes):
+                pllr[:, ph] = np.log10(posterior_prob_phonemes[:, ph]/(1-posterior_prob_phonemes[:, ph]))
+            
+            # Centralizamos 
+            pllr = pllr - np.mean(pllr, axis=1, keepdims=True)  
+            
+            # Removemos silencios
+            pllr_without_silence = pllr[:, np.arange(number_of_phonemes) != labels_phonemes.index('/sil/')]
+            return pllr_without_silence
+        else:
+            phones_obj = Phones(audio_file=self.wav_fname)
+            time,  sec_phones = phones_obj.compute_phones() #9167
+            del phones_obj
+            gc.collect()  # ← Limpia huérfanos
+        
+        # Remove silences, since it won't be used in prediction (when silence occurs, all phoneme are 0)
+        labels = config.exp_info.phonemes.copy()
+        labels.remove('/sil/')
+            
+        # Match features length
+        difference = len(sec_phones) - len(envelope)
+
+        if difference > 0:
+            sec_phones = sec_phones[:-difference]
+        elif difference < 0:
+            # In this case, silences are append
+            for i in range(np.abs(difference)):
+                sec_phones.append('<p:>')
+        
+        # Make empty array of phonemes
+        phonemes = np.zeros(shape=(len(sec_phones), len(labels)))
+        
+        # Match phoneme with kind
+        if kind.startswith('Phonemes-Envelope'):
+            for i, tagg in enumerate(sec_phones):
+                if (tagg!='<p:>') and (tagg!='sil'):
+                    phonemes[i, labels.index(config.exp_info.phones_to_phonemes[tagg])] = envelope[i]
+        elif kind.startswith('Phonemes-Discrete'):
+            for i, tagg in enumerate(sec_phones):
+                if (tagg!='<p:>') and (tagg!='sil'):
+                    phonemes[i, labels.index(config.exp_info.phones_to_phonemes[tagg])] = 1
+        elif kind.startswith('Phonemes-Frequency'):
+            try:
+                freq = general_functions.load_pickle('data/phon_frequency_dict/frequency_dict.pkl')
+            except:
+                log.warn("Frequency dictionary isn't Load. \n ---> loading it now...")
+                os.makedirs('data/phon_frequency_dict', exist_ok=True)
+                freq = general_functions.load_phon_frequency_dict(
+                    save_path='data/phon_frequency_dict',
+                    plot_freq=True,
+                    )
+            for i, tagg in enumerate(sec_phones):
+                if (tagg!='<p:>') and (tagg!='sil'):
+                    phonemes[i, labels.index(config.exp_info.phones_to_phonemes[tagg])] = 1/freq[config.exp_info.phones_to_phonemes[tagg]]
+        elif kind.startswith('Phonemes-Onset'):
+            # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
+            phonemes_onset = [sec_phones[0]]
+            for i in range(1, len(sec_phones)):
+                if sec_phones[i] == sec_phones[i-1]:
+                    phonemes_onset.append(0)
+                else:
+                    phonemes_onset.append(sec_phones[i])
+            # Match phoneme with envelope
+            for i, tagg in enumerate(phonemes_onset):
+                if (tagg!='<p:>') and (tagg!='sil') and (tagg!=0):
+                    phonemes[i, labels.index(config.exp_info.phones_to_phonemes[tagg])] = 1
+        return phonemes
+    
+    def extract_phones( 
+        self, 
+        envelope:np.ndarray, 
+        kind:str='Phones-Discrete'
+        )->np.ndarray:
+        """
+        It makes a time-match matrix between the phones and the envelope using Phonet implementation. The values and shape of given matrix depend on kind.
+
+        Parameters
+        ----------
+        envelope : np.ndarray
+            Envelope of the audio signal using Hilbert transform
+        kind : str, optional
+           Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
+            ['Phones', 'Phones-Envelope', 'Phones-Discrete', 'Phones-Onset']
+
+        Returns
+        -------
+        np.ndarray
+            if kind.startswith('Phones-Envelope'):
+                Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhones_labels(in order)
+            elif kind.startswith('Phones-Discrete'):
+                Also a matrix but it has 1s and 0s instead of envelope amplitude.
+            elif kind.startswith('Phones-Onset'):
+                In this case the value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
+            
+        Raises
+        ------
+        SyntaxError
+            Whether the input value of 'kind' is passed correctly. It must be a one of:
+            ['Phones', 'Phones-Envelope', 'Phones-Discrete', 'Phones-Onset'].
+        """
+        # Check if given kind is a permited input value
+        allowed_kind = ['Phones', 'Phones-Envelope', 'Phones-Discrete', 'Phones-Onset']
+        if kind not in allowed_kind:
+            raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phones are: {allowed_kind}")
+
+        # Extract phonemes
+        if kind=='Phones':
+            labels_phones = config.exp_info.ph_labels.copy()
+            
+            phones_obj = Phones(audio_file=self.wav_fname)
+            posterior_prob = phones_obj.compute_phones(PLLR=True) #9167
+            del phones_obj
+            gc.collect()  # ← Limpia huérfanos
+            
+            # Match features length
+            difference = len(posterior_prob) - len(envelope)
+
+            if difference > 0:
+                posterior_prob = posterior_prob[:-difference]
+            elif difference < 0:
+                # Repeat last sample (probably silence)
+                for i in range(np.abs(difference)):
+                    aux = posterior_prob[-1].copy() 
+                    posterior_prob = np.vstack((posterior_prob, aux.reshape(-1,1).T))
+            
+            # Calculate posterior llr
+            pllr = np.zeros(shape=posterior_prob.shape)
+            number_of_phones = posterior_prob.shape[1]
+            for ph in range(number_of_phones):
+                pllr[:, ph] = np.log10(posterior_prob[:, ph]/(1-posterior_prob[:, ph]))
+            
+            # Centralizamos 
+            pllr = pllr - np.mean(pllr, axis=1, keepdims=True)  
+            
+            # Removemos silencios
+            pllr_without_silence = pllr[:, (np.arange(number_of_phones) != labels_phones.index('sil'))&(np.arange(number_of_phones) != labels_phones.index('<p:>'))]
+            return pllr_without_silence
+        else:
+            # Extract phones
+            phones_obj = Phones(audio_file=self.wav_fname)
+            _,  sec_phones = phones_obj.compute_phones() 
+            del phones_obj
+            gc.collect()  # ← Limpia huérfanos
+        
+        # Get phonet phoneme labels
+        labels = config.exp_info.ph_labels.copy()
+        labels.remove('<p:>')
+        labels.remove('sil')
+        
+        # Match features length
+        difference = len(sec_phones) - len(envelope)
+
+        if difference > 0:
+            sec_phones = sec_phones[:-difference]
+        elif difference < 0:
+            # In this case, silences are appended
+            for i in range(np.abs(difference)):
+                sec_phones.append('<p:>')
+        
+        # Make empty array of phones
+        phones = np.zeros(shape=(len(sec_phones), len(labels)))
+        
+        # Match phoneme with kind
+        if kind.startswith('Phones-Envelope'):
+            for i, tagg in enumerate(sec_phones):
+                if (tagg!='<p:>') and (tagg!='sil'):
+                    phones[i, labels.index(tagg)] = envelope[i]
+        elif kind.startswith('Phones-Discrete'):
+            for i, tagg in enumerate(sec_phones):
+                if (tagg!='<p:>') and (tagg!='sil'):
+                    phones[i, labels.index(tagg)] = 1
+        elif kind.startswith('Phones-Onset'):
+            # Makes a list giving only first ocurrences of phones (also ordered by sample) 
+            phones_onset = [sec_phones[0]]
+            for i in range(1, len(sec_phones)):
+                if sec_phones[i] == sec_phones[i-1]:
+                    phones_onset.append(0)
+                else:
+                    phones_onset.append(sec_phones[i])
+            # Match phoneme with envelope
+            for i, tagg in enumerate(phones_onset):
+                if (tagg!='<p:>') and (tagg!='sil') and (tagg!=0):
+                    phones[i, labels.index(tagg)] = 1
+        return phones
+
+    def extract_phonological_features(
+        self, 
+        envelope:np.ndarray
+        )->np.ndarray:
+        """
+        Retrive phonological features as a matrix matching envelope length, using Phonet implementation.
+
+        Parameters
+        ----------
+        envelope : np.ndarray
+            Envelope of the audio signal using Hilbert transform
+
+        Returns
+        -------
+        np.ndarray
+            Matrix with phonological features with shape SAMPLES X FEATURES
+        """
+        # Define phonological instance and phonological features
+        phonet = Phonet(["all"])
+        phon_features = phonet.get_PLLR(
+            audio_file=self.wav_fname, 
+            plot_flag=False
+        )
+        del phonet
+        gc.collect()  # ← Limpia huérfanos
+        
+        # Interpole data in desire times
+        desired_time = np.linspace(
+            0, envelope.shape[0]/self.sr + 1/self.sr , envelope.shape[0]
+        )
+
+        # Get feature names
+        phon_features_names = [
+            feat for feat in phon_features.columns if feat not in ['time', 'trill', 'pause']
+        ]
+        
+        phonological_features = []
+        
+        # Interpolate each phonological feature
+        for phon_feat in phon_features_names:
+            phonological_features.append(
+                np.interp(
+                    x=desired_time, 
+                    xp=phon_features['time'].values, 
+                    fp=phon_features[f'{phon_feat}'].values
+                )
+            )
+
+        # Return data in desired shape
+        return np.stack(phonological_features, axis=0).T
 
     def extract_wav2vec2(
         self,
@@ -653,76 +1051,144 @@ class TrialChannelData:
         # end = time.time()
         # print(f'The CCA took {(end-ini)/60:.2f} minutes')
         # return X_canonical #- #np.mean(X_canonical, axis=1, keepdims=True)  
-        
-    def extract_mfccs(
+
+    def extract_mistakes(
         self, 
-        kind:str='Mfccs'
+        envelope:np.ndarray, 
+        kind:str='Mistakes-Separated'
         )->np.ndarray:
         """
-        Calculates mel frequency clepstral coefficients from .wav.
+        Calculates mistakes (lexical, articulatory, discursive) signal from annotated data
 
         Parameters
         ----------
-        kind : str, optional
-           Kind of pitch use, by default 'Log-Raw'. Available kinds are:
-            ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas']
+        envelope : np.ndarray
+            Envelope of the audio signal using Hilbert transform
 
         Returns
         -------
         np.ndarray
-            Matrix with shape samples x coefficients
-
-        Raises
-        ------
-        SyntaxError
-            Whether the input value of 'kind' is passed correctly. It must be a string among ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas'].
+            len(envelope)X3 binary array if separated else len(envelope)X1 binary array
+            len(envelope)X3 binary array if separated else len(envelope)X1
         """
+        # Define kind
+        separated=True if kind.endswith('Separated') else False
 
-        # Check if given kind is a permited input value
-        allowed_kind = ['Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas']
-        if kind not in allowed_kind:
-            raise SyntaxError(f"{kind} is not an allowed kind of mfccs. Allowed kinds are: {allowed_kind}")
-        
-        # Read file
-        wav = wavfile.read(self.wav_fname)[1]
-        wav = wav.astype("float")
+        # Read phrases to identify time of error inside phrases time
+        phrases = pd.read_table(self.phrases_fname, header=None, sep="\t")
+        start_time, end_time = phrases[0].iloc[0], phrases[1].iloc[-1]
+        phrases_time = np.arange(start_time, end_time, 1/self.sr)
 
-        # # DIFIEREN EN UN FACTOR DE ESCALA WAV=32768*SIGNAL; siendo la normalización de punto flotante nbits=16, 2 ** (nbits - 1)=32768
-        # signal, audio_sr = librosa.load(self.wav_fname, sr=None) 
+        # Identify start and end of error within mistake
+        mistake_code = {
+                        'A':0, # articulatorio
+                        'L':1, # léxico
+                        'D':2 # discursivo
+                        } if separated else {'A':0, 'L':0, 'D':0}
+        mistake_signal = np.zeros(shape=(len(phrases_time), 3)) if separated else np.zeros(shape=(len(phrases_time), 1))
         
-        # Calculate matrix of mfccs
-        sample_window = int(self.audio_sr/self.sr)
-        mfccs = librosa.feature.mfcc(y=wav, n_mfcc=16, n_mels=16, sr=self.audio_sr, n_fft=sample_window, hop_length=sample_window)
-        
-        # Append deltas and deltas deltas
-        if kind.startswith('Mfccs'):
-            if kind.endswith('Deltas'):
-                delta_mfccs = librosa.feature.delta(mfccs)
-                mfccs_features = np.concatenate((mfccs, delta_mfccs))
-                if kind.endswith('Deltas-Deltas'):
-                    delta2_mfccs = librosa.feature.delta(mfccs, order=2)
-                    mfccs_features = np.concatenate((mfccs, delta_mfccs, delta2_mfccs))
-                    return mfccs_features.T
-                else:
-                    return mfccs_features.T
-            else:
-                return mfccs.T
-        else:
-            if kind.endswith('Deltas'):
-                delta_mfccs = librosa.feature.delta(mfccs)
-                if kind.endswith('Deltas-Deltas'):
-                    delta2_mfccs = librosa.feature.delta(mfccs, order=2)
-                    deltas = np.concatenate((delta_mfccs, delta2_mfccs))
-                    return deltas.T
-                else:
-                    return delta_mfccs.T
+        if os.path.isfile(self.mistakes_path):
+            # Read textgrid        
+            grid = textgrids.TextGrid(self.mistakes_path)[f"canal {int(self.mistakes_path.split('channel')[1][0])}"]
+            
+            # Identify onset, offset and type of mistake
+            mistake_taggs, mistake_count = np.unique([el.text.split('Palabra del error: ')[1] for el in grid], return_counts=True)
+            mistakes = {mistake:{'start':None, 'end':None, 'type':None} for mistake in mistake_taggs}
+            mistake_taggs = np.repeat(mistake_taggs, mistake_count)
 
-        # import librosa.display
-        # librosa.display.specshow(mfccs, 
-        #                         x_axis="time", 
-        #                         sr=sr)
-        # plt.colorbar(format="%+2.f")
-   
+            for item, mistake in zip(grid, mistake_taggs):
+                # Identify time_intervals and mistake type
+                mistakes[mistake]['type'] = mistake_code[item.text.split('Etiqueta: ')[1][0]]
+                if int(item.text[0])==1:
+                    mistakes[mistake]['start'] = item.xpos
+                elif int(item.text[0])==2:
+                    mistakes[mistake]['end'] = item.xpos
+                # else:
+                #     nextword_start.append(item.xpos)
+
+            # Fill mistake_signal
+            for mistake in mistakes:
+                onset_filter = mistakes[mistake]['start']<=phrases_time
+                offset_filter = phrases_time<=mistakes[mistake]['end']
+                
+                mistake_signal[onset_filter&offset_filter, mistakes[mistake]['type']] = -np.ones(shape=np.sum(onset_filter&offset_filter))
+                
+        # Match length of mistake signal with envelope
+        difference = len(mistake_signal)-len(envelope)
+        if difference>0:
+            mistake_signal = mistake_signal[:-difference]
+        elif difference<0:
+            mistake_signal = np.concatenate((mistake_signal, np.zeros(shape=(np.abs(difference), 3)))) if separated else np.concatenate((mistake_signal, np.zeros(shape=(np.abs(difference), 1))))
+
+        return mistake_signal
+    
+    def extract_mistakes_control(
+        self, 
+        envelope:np.ndarray, 
+        kind:str='Control-Separated'
+        )->np.ndarray:
+        """
+        Calculates mistakes control (lexical, articulatory, discursive) signal from annotated data
+
+        Parameters
+        ----------
+        envelope : np.ndarray
+            Envelope of the audio signal using Hilbert transform
+
+        Returns
+        -------
+        np.ndarray
+            len(envelope)X3 binary array if separated else len(envelope)X1
+        """
+        # Define kind
+        separated=True if kind.endswith('Separated') else False
+
+        # Read phrases to identify time of error inside phrases time
+        phrases = pd.read_table(self.phrases_fname, header=None, sep="\t")
+        start_time, end_time = phrases[0].iloc[0], phrases[1].iloc[-1]
+        phrases_time = np.arange(start_time, end_time, 1/self.sr)
+        
+        # Identify start and end of error within mistake
+        control_code = {
+                        'A':0, # articulatorio
+                        'L':1, # léxico
+                        'D':2 # discursivo
+                        } if separated else {'A':0, 'L':0, 'D':0}
+        control_signal = np.zeros(shape=(len(phrases_time), 3)) if separated else np.zeros(shape=(len(phrases_time), 1))
+        
+        if os.path.isfile(self.mistakes_control_path):
+            # Read textgrid        
+            grid = textgrids.TextGrid(self.mistakes_control_path)[f"canal {int(self.mistakes_control_path.split('channel')[1][0])}"]
+            
+            # Identify onset, offset and type of mistake
+            control_taggs, control_count = np.unique([el.text.split('Palabra del error: ')[1] for el in grid], return_counts=True)
+            controls = {control:{'start':None, 'end':None, 'type':None} for control in control_taggs}
+            control_taggs = np.repeat(control_taggs, control_count)
+
+            for item, control in zip(grid, control_taggs):
+                # Identify time_intervals and control type
+                controls[control]['type'] = control_code[item.text.split('Etiqueta: ')[1][0]]
+                controls[control]['score'] = float(item.text.split('normalizado: ')[1].split(',')[0])
+                
+                if int(item.text[0])==1:
+                    controls[control]['start'] = item.xpos
+                elif int(item.text[0])==2:
+                    controls[control]['end'] = item.xpos
+
+            # Fill control_signal
+            for control in controls:
+                onset_filter = controls[control]['start']<=phrases_time
+                offset_filter = phrases_time<=controls[control]['end']
+                control_signal[onset_filter&offset_filter, controls[control]['type']] = np.ones(shape=np.sum(onset_filter&offset_filter))#*controls[control]['score']
+        
+        # Match length of mistake signal with envelope
+        difference = len(control_signal)-len(envelope)                
+        if difference>0:
+            control_signal = control_signal[:-difference]
+        elif difference<0:
+            control_signal = np.concatenate((control_signal, np.zeros(shape=(np.abs(difference), 3)))) if separated else np.concatenate((control_signal, np.zeros(shape=(np.abs(difference), 1))))
+        return control_signal
+
     def extract_jitter_shimmer(
         self, 
         envelope:np.ndarray
@@ -779,604 +1245,7 @@ class TrialChannelData:
         jitter = jitter[:min(len(jitter), len(envelope))].reshape(-1,1)
         shimmer = shimmer[:min(len(shimmer), len(envelope))].reshape(-1,1)
         return jitter, shimmer
-    
-    def extract_phonemes_phonet( 
-        self, 
-        envelope:np.ndarray, 
-        kind:str='Phonemes-Discrete-Phonet'
-        )->np.ndarray:
-        """
-        It makes a time-match matrix between the phonemes and the envelope using Phonet implementation. The values and shape of given matrix depend on kind.
 
-        Parameters
-        ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform
-        kind : str, optional
-        Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
-            ['Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet', 'Phonemes-Frequency-Phonet']
-
-        Returns
-        -------
-        np.ndarray
-            if kind.startswith('Phonemes-Envelope'):
-                Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhonemes_labels(in order)
-            elif kind.startswith('Phonemes-Discrete'):
-                Also a matrix but it has 1s and 0s instead of envelope amplitude.
-            elif kind.startswith('Phonemes-Onset'):
-                In this case the value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
-            
-        Raises
-        ------
-        SyntaxError
-            Whether the input value of 'kind' is passed correctly. It must be a one of:
-            ['Phonemes-Phonet','Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet'].
-        """
-        # Check if given kind is a permited input value
-        allowed_kind = ['Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet']
-        if kind not in allowed_kind:
-            raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
-        
-        # Extract phonemes
-        if kind=='Phonemes-Phonet':
-            phonet_labels_phonemes = exp_info.phonemes_phonet.copy()
-            phonet_labels_phones = exp_info.ph_labels_phonet.copy()
-            
-            phones_obj = Phones(audio_file=self.wav_fname)
-            posterior_prob = phones_obj.compute_phones(PLLR=True) #9167
-            del phones_obj
-            gc.collect()  # ← Limpia huérfanos
-                        
-            # Match features length
-            difference = len(posterior_prob) - len(envelope)
-
-            if difference > 0:
-                posterior_prob = posterior_prob[:-difference]
-            elif difference < 0:
-                # Repeat last sample (probably silence)
-                for i in range(np.abs(difference)):
-                    aux = posterior_prob[-1].copy() 
-                    posterior_prob = np.vstack((posterior_prob, aux.reshape(-1,1).T))
-            
-            # Map phones to phonemes, making the sum
-            posterior_prob_phonemes = np.zeros(shape=(posterior_prob.shape[0], len(phonet_labels_phonemes)))
-
-            for h, phone in enumerate(phonet_labels_phones):
-                phoneme_index = phonet_labels_phonemes.index(exp_info.phones_to_phonemes[phone])
-                posterior_prob_phonemes[:, phoneme_index] += posterior_prob[:, h]
-            
-            # Calculate posterior llr
-            pllr = np.zeros(shape=posterior_prob_phonemes.shape)
-            number_of_phonemes = posterior_prob_phonemes.shape[1]
-            for ph in range(number_of_phonemes):
-                pllr[:, ph] = np.log10(posterior_prob_phonemes[:, ph]/(1-posterior_prob_phonemes[:, ph]))
-            
-            # Centralizamos 
-            pllr = pllr - np.mean(pllr, axis=1, keepdims=True)  
-            
-            # Removemos silencios
-            pllr_without_silence = pllr[:, np.arange(number_of_phonemes) != phonet_labels_phonemes.index('/sil/')]
-            return pllr_without_silence
-        else:
-            phones_obj = Phones(audio_file=self.wav_fname)
-            time,  sec_phones = phones_obj.compute_phones() #9167
-            del phones_obj
-            gc.collect()  # ← Limpia huérfanos
-        
-        # Remove silences, since it won't be used in prediction (when silence occurs, all phoneme are 0)
-        phonet_labels = exp_info.phonemes_phonet.copy()
-        phonet_labels.remove('/sil/')
-            
-        # Match features length
-        difference = len(sec_phones) - len(envelope)
-
-        if difference > 0:
-            sec_phones = sec_phones[:-difference]
-        elif difference < 0:
-            # In this case, silences are append
-            for i in range(np.abs(difference)):
-                sec_phones.append('<p:>')
-        
-        # Make empty array of phonemes
-        phonemes = np.zeros(shape=(len(sec_phones), len(phonet_labels)))
-        
-        # Match phoneme with kind
-        if kind.startswith('Phonemes-Envelope'):
-            for i, tagg in enumerate(sec_phones):
-                if (tagg!='<p:>') and (tagg!='sil'):
-                    phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = envelope[i]
-        elif kind.startswith('Phonemes-Discrete'):
-            for i, tagg in enumerate(sec_phones):
-                if (tagg!='<p:>') and (tagg!='sil'):
-                    phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1
-        elif kind.startswith('Phonemes-Frequency'):
-            try:
-                freq = general_functions.load_pickle('data/phon_frequency_dict/frequency_dict.pkl')
-            except:
-                log.warn("Frequency dictionary isn't Load. \n ---> loading it now...")
-                os.makedirs('data/phon_frequency_dict', exist_ok=True)
-                freq = general_functions.load_phon_frequency_dict(
-                    save_path='data/phon_frequency_dict',
-                    plot_freq=True,
-                    )
-            for i, tagg in enumerate(sec_phones):
-                if (tagg!='<p:>') and (tagg!='sil'):
-                    phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1/freq[exp_info.phones_to_phonemes[tagg]]
-        elif kind.startswith('Phonemes-Onset'):
-            # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
-            phonemes_onset = [sec_phones[0]]
-            for i in range(1, len(sec_phones)):
-                if sec_phones[i] == sec_phones[i-1]:
-                    phonemes_onset.append(0)
-                else:
-                    phonemes_onset.append(sec_phones[i])
-            # Match phoneme with envelope
-            for i, tagg in enumerate(phonemes_onset):
-                if (tagg!='<p:>') and (tagg!='sil') and (tagg!=0):
-                    phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1
-        return phonemes
-    
-    def extract_phones_phonet( # TODO CAMBAIR EN TODOS LADOS ESTO SON FONOS NO FONEMAS
-        self, 
-        envelope:np.ndarray, 
-        kind:str='Phones-Discrete-Phonet'
-        )->np.ndarray:
-        """
-        It makes a time-match matrix between the phones and the envelope using Phonet implementation. The values and shape of given matrix depend on kind.
-
-        Parameters
-        ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform
-        kind : str, optional
-           Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
-            ['Phones-Phonet', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet', 'Phones-Onset-Phonet']
-
-        Returns
-        -------
-        np.ndarray
-            if kind.startswith('Phones-Envelope'):
-                Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhones_labels(in order)
-            elif kind.startswith('Phones-Discrete'):
-                Also a matrix but it has 1s and 0s instead of envelope amplitude.
-            elif kind.startswith('Phones-Onset'):
-                In this case the value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
-            
-        Raises
-        ------
-        SyntaxError
-            Whether the input value of 'kind' is passed correctly. It must be a one of:
-            ['Phones-Phonet', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet', 'Phones-Onset-Phonet'].
-        """
-        # Check if given kind is a permited input value
-        allowed_kind = ['Phones-Phonet', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet', 'Phones-Onset-Phonet']
-        if kind not in allowed_kind:
-            raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phones are: {allowed_kind}")
-
-        # Extract phonemes
-        if kind=='Phones-Phonet':
-            phonet_labels_phones = exp_info.ph_labels_phonet.copy()
-            
-            phones_obj = Phones(audio_file=self.wav_fname)
-            posterior_prob = phones_obj.compute_phones(PLLR=True) #9167
-            del phones_obj
-            gc.collect()  # ← Limpia huérfanos
-            
-            # Match features length
-            difference = len(posterior_prob) - len(envelope)
-
-            if difference > 0:
-                posterior_prob = posterior_prob[:-difference]
-            elif difference < 0:
-                # Repeat last sample (probably silence)
-                for i in range(np.abs(difference)):
-                    aux = posterior_prob[-1].copy() 
-                    posterior_prob = np.vstack((posterior_prob, aux.reshape(-1,1).T))
-            
-            # Calculate posterior llr
-            pllr = np.zeros(shape=posterior_prob.shape)
-            number_of_phones = posterior_prob.shape[1]
-            for ph in range(number_of_phones):
-                pllr[:, ph] = np.log10(posterior_prob[:, ph]/(1-posterior_prob[:, ph]))
-            
-            # Centralizamos 
-            pllr = pllr - np.mean(pllr, axis=1, keepdims=True)  
-            
-            # Removemos silencios
-            pllr_without_silence = pllr[:, (np.arange(number_of_phones) != phonet_labels_phones.index('sil'))&(np.arange(number_of_phones) != phonet_labels_phones.index('<p:>'))]
-            return pllr_without_silence
-        else:
-            # Extract phones
-            phones_obj = Phones(audio_file=self.wav_fname)
-            _,  sec_phones = phones_obj.compute_phones() 
-            del phones_obj
-            gc.collect()  # ← Limpia huérfanos
-        
-        # Get phonet phoneme labels
-        phonet_labels = exp_info.ph_labels_phonet.copy()
-        phonet_labels.remove('<p:>')
-        phonet_labels.remove('sil')
-        
-        # Match features length
-        difference = len(sec_phones) - len(envelope)
-
-        if difference > 0:
-            sec_phones = sec_phones[:-difference]
-        elif difference < 0:
-            # In this case, silences are appended
-            for i in range(np.abs(difference)):
-                sec_phones.append('<p:>')
-        
-        # Make empty array of phones
-        phones = np.zeros(shape=(len(sec_phones), len(phonet_labels)))
-        
-        # Match phoneme with kind
-        if kind.startswith('Phones-Envelope'):
-            for i, tagg in enumerate(sec_phones):
-                if (tagg!='<p:>') and (tagg!='sil'):
-                    phones[i, phonet_labels.index(tagg)] = envelope[i]
-        elif kind.startswith('Phones-Discrete'):
-            for i, tagg in enumerate(sec_phones):
-                if (tagg!='<p:>') and (tagg!='sil'):
-                    phones[i, phonet_labels.index(tagg)] = 1
-        elif kind.startswith('Phones-Onset'):
-            # Makes a list giving only first ocurrences of phones (also ordered by sample) 
-            phones_onset = [sec_phones[0]]
-            for i in range(1, len(sec_phones)):
-                if sec_phones[i] == sec_phones[i-1]:
-                    phones_onset.append(0)
-                else:
-                    phones_onset.append(sec_phones[i])
-            # Match phoneme with envelope
-            for i, tagg in enumerate(phones_onset):
-                if (tagg!='<p:>') and (tagg!='sil') and (tagg!=0):
-                    phones[i, phonet_labels.index(tagg)] = 1
-        return phones
-
-    def extract_phonemes(
-        self, 
-        envelope:np.ndarray, 
-        kind:str='Phonemes-Envelope-Manual'
-        )->np.ndarray:
-        """
-        It makes a time-match matrix between the phonemes and the envelope. The values and shape of given matrix depend on kind.
-
-        Parameters
-        ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform
-        kind : str, optional
-           Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
-            ['Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete', 'Phonemes-Discrete-Manual', 'Phonemes-Onset', 'Phonemes-Onset-Manual']
-
-        Returns
-        -------
-        np.ndarray
-            if kind.startswith('Phonemes-Envelope'):
-                Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhonemes_labels(in order)
-            elif kind.startswith('Phonemes-Discrete'):
-                Also a matrix but it has 1s and 0s instead of envelope amplitude.
-            elif kind.startswith('Phonemes-Onset'):
-                In this case the value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
-            
-        Raises
-        ------
-        SyntaxError
-            Whether the input value of 'kind' is passed correctly. It must be one of:
-            ['Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete', 'Phonemes-Discrete-Manual', 'Phonemes-Onset', 'Phonemes-Onset-Manual'].
-        """
-        if kind.endswith('anual'):
-            exp_info_labels = exp_info.ph_labels_man
-        else: 
-            exp_info_labels = exp_info.ph_labels            
-
-        # Check if given kind is a permited input value
-        allowed_kind = ['Phonemes-Envelope', 'Phonemes-Envelope-Manual', 'Phonemes-Discrete', 'Phonemes-Discrete-Manual', 'Phonemes-Onset', 'Phonemes-Onset-Manual']
-        if kind not in allowed_kind:
-            raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
-
-        # Get trial total time length
-        phrases = pd.read_table(self.phrases_fname, header=None, sep="\t")
-        # phrases = pd.read_table(r'C:\repos\Speech-encoding\repo_speech_encoding\data\phrases\S21\s21.objects.01.channel1.phrases', header=None, sep="\t")
-        trial_tmax = phrases[1].iloc[-1]
-
-        # Load transcription
-        grid = textgrids.TextGrid(self.phonemes_fname)
-        # grid = textgrids.TextGrid(r'C:\repos\Speech-encoding\repo_speech_encoding\data\phonemes\S21\s21.objects.01.channel1.aligned_fa.TextGrid')
-
-        # Get phonemes
-        phonemes_grid = grid['transcription : phones']
-
-        # Extend first silence time to trial start time
-        phonemes_grid[0].xmin = 0.
-
-        # Parse for labels, times and number of samples within each phoneme
-        labels = []
-        times = []
-        samples = []
-        
-        for ph in phonemes_grid:
-            label = ph.text.transcode()
-            label = label.replace(' ', '')
-            label = label.replace('º', '')
-            label = label.replace('-', '')
-
-            # Rename silences
-            if label in ['sil','sp','sile','silsil','SP','s¡p','sils']:
-                label = ""
-            
-            # Check if the phoneme is in the list
-            if not(label in exp_info_labels or label==""):
-                log.warn(f'"{label}" is not in not a recognized phoneme. Will be added as silence.')
-                label = ""
-            labels.append(label)
-            times.append((ph.xmin, ph.xmax))
-            samples.append(np.round((ph.xmax - ph.xmin) * self.sr).astype("int"))
-
-        # Extend on more phoneme of silence till end of trial 
-        labels.append("")
-        times.append((ph.xmin, trial_tmax))
-        samples.append(np.round((trial_tmax - ph.xmax) * self.sr).astype("int"))
-
-        # If use envelope amplitude to make continuous stimuli: the total number of samples must match the samples use for stimuli
-        diferencia = np.sum(samples) - len(envelope)
-
-        if diferencia > 0:
-            # Making the way back checking when does the number of samples of the ith phoneme exceed diferencia
-            for ith_phoneme in [-i-1 for i in range(len(samples))]:
-                if diferencia > samples[ith_phoneme]:
-                    diferencia -= samples[ith_phoneme]
-                    samples[ith_phoneme] = 0
-                # When samples is greater than the difference, takes the remaining samples to match the envelope
-                else:
-                    samples[ith_phoneme] -= diferencia
-                    break
-        elif diferencia < 0:
-            # In this case, the last silence is prolonged
-            samples[-1] -= diferencia
-        
-        # Make a list with phoneme labels tha already are in the known set
-        updated_taggs = exp_info_labels + [ph for ph in np.unique(labels) if ph not in exp_info_labels]
-
-        # Repeat each label the number of times it was sampled
-        phonemes_tgrid = np.repeat(labels, samples)
-        
-        # Make empty array of phonemes
-        phonemes = np.zeros(shape = (np.sum(samples), len(updated_taggs)))
-        
-        # Match phoneme with kind
-        if kind.startswith('Phonemes-Envelope'):
-            for i, tagg in enumerate(phonemes_tgrid):
-                phonemes[i, updated_taggs.index(tagg)] = envelope[i]
-        elif kind.startswith('Phonemes-Discrete'):
-            for i, tagg in enumerate(phonemes_tgrid):
-                phonemes[i, updated_taggs.index(tagg)] = 1
-        elif kind.startswith('Phonemes-Onset'):
-            # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
-            phonemes_onset = [phonemes_tgrid[0]]
-            for i in range(1, len(phonemes_tgrid)):
-                if phonemes_tgrid[i] == phonemes_tgrid[i-1]:
-                    phonemes_onset.append(0)
-                else:
-                    phonemes_onset.append(phonemes_tgrid[i])
-            # Match phoneme with envelope
-            for i, tagg in enumerate(phonemes_onset):
-                if tagg!=0:
-                    phonemes[i, updated_taggs.index(tagg)] = 1
-        return phonemes
-
-    def extract_phonological_features(
-        self, 
-        envelope:np.ndarray
-        )->np.ndarray:
-        """
-        Retrive phonological features as a matrix matching envelope length, using Phonet implementation.
-
-        Parameters
-        ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform
-
-        Returns
-        -------
-        np.ndarray
-            Matrix with phonological features with shape SAMPLES X FEATURES
-        """
-        # Define phonological instance and phonological features
-        phonet = Phonet(["all"])
-        phon_features = phonet.get_PLLR(audio_file=self.wav_fname, plot_flag=False)
-        
-        del phonet
-        gc.collect()  # ← Limpia huérfanos
-        # phon_features = Phonet(['all']).get_PLLR(audio_file=r'data/wavs/S21/s21.objects.01.channel1.wav', plot_flag=False)
-        
-        # Interpole data in desire times
-        desire_time = np.linspace(0, envelope.shape[0]/self.sr + 1/self.sr , envelope.shape[0])
-        # desire_time = np.linspace(0, envelope.shape[0]/128 + 1/128 , envelope.shape[0])
-
-        # Get feature names
-        phon_features_names = [feat for feat in phon_features.columns if feat not in ['time', 'trill', 'pause']]
-        
-        phonological_features = []
-        for phon_feat in phon_features_names:
-            phonological_features.append(np.interp(
-                                                desire_time, 
-                                                phon_features['time'].values, 
-                                                phon_features[f'{phon_feat}'].values
-                                                )
-                                        )
-        
-        # Return data in desired shape
-        return np.stack(phonological_features, axis=0).T
-
-    def extract_pitch(
-        self, 
-        envelope:np.ndarray, 
-        kind:str
-        )->np.ndarray: 
-        """
-        Loads the pitch of the speaker, after calculating it from .wav file, using Praat.
-
-        Parameters
-        ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform
-        kind : str
-            Kind of pitch use, by default 'Log-Raw'. Available kinds are:
-            'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes'
-        Returns
-        -------
-        np.ndarray
-            One-dimensional array with pitch values
-
-        Raises
-        ------
-        SyntaxError
-            Whether the input value of 'kind' is passed correctly. It must be one of:
-            ['Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes']
-        """
-
-        # Check if given kind is a permited input value
-        allowed_kind = ['Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes']
-        if kind not in allowed_kind:
-            raise SyntaxError(f"{kind} is not an allowed kind of pitch. Allowed phonemes are: {allowed_kind}")
-        
-        # Makes path for storing data
-        output_folder = os.path.normpath(f'data/{kind}_threshold_{self.silence_threshold}/')
-        
-        # Create paths and distinguish subject
-        os.makedirs(output_folder, exist_ok=True)
-        self.pitch_fname = os.path.join(output_folder, self.pitch_fname)
-        if self.sex == 'M':
-            minPitch = 50
-            maxPitch = 300
-        elif self.sex == 'F':
-            minPitch = 75
-            maxPitch = 500
-        
-        # Define sample step and calculate pitch
-        self.sampleStep = 1/self.sr # .01
-        if 'Quad' in kind:
-            pitch_and_intensity.extractPI(
-                                inputFN=os.path.abspath(self.wav_fname), 
-                                outputFN=os.path.abspath(self.pitch_fname), 
-                                praatEXE=self.praat_executable_path, 
-                                minPitch=minPitch,
-                                maxPitch=maxPitch, 
-                                sampleStep=self.sampleStep, 
-                                silenceThreshold=self.silence_threshold,
-                                pitchQuadInterp=True
-                                )
-            # Loads data
-            data = np.genfromtxt(os.path.abspath(self.pitch_fname), dtype=np.float, delimiter=',', missing_values='--undefined--', filling_values=np.inf)
-            time, pitch = data[:, 0], data[:, 1]
-
-            # Get defined indexes
-            defined_indexes = np.where(pitch!=np.inf)[0]
-            
-            # Log transformation
-            logpitch = np.log(pitch)
-            
-            # Set left values to zero
-            logpitch[logpitch==np.inf]=0
-            return logpitch.reshape(-1, 1)
-        else:
-            pitch_and_intensity.extractPI(
-                                inputFN=os.path.abspath(self.wav_fname), 
-                                outputFN=os.path.abspath(self.pitch_fname), 
-                                praatEXE=self.praat_executable_path, 
-                                minPitch=minPitch,
-                                maxPitch=maxPitch, 
-                                sampleStep=self.sampleStep, 
-                                silenceThreshold=self.silence_threshold
-                                )
-            # sampleStep - the frequency to sample pitch at
-            # silenceThreshold - segments with lower intensity won't be analyzed
-            #                 for pitch
-            # forceRegenerate - if running this function for the same file, if False
-            #                 just read in the existing pitch file
-            # undefinedValue - if None remove from the dataset, otherset set to
-            #                 undefinedValue
-            # pitchQuadInterp - if True, quadratically interpolate pitch
-                
-        # Loads data
-        data = np.genfromtxt(os.path.abspath(self.pitch_fname), dtype=np.float, delimiter=',', missing_values='--undefined--', filling_values=np.inf)
-        time, pitch = data[:, 0], data[:, 1]
-
-        # Get defined indexes
-        defined_indexes = np.where(pitch!=np.inf)[0]
-        
-        # Approximated window size
-        window_size = 100e-3
-        n_steps_in_window = np.ceil(window_size/self.sampleStep)
-        window_size = n_steps_in_window*self.sampleStep
-
-        if kind.endswith('Manual'):
-            # Log transformation
-            if 'Log' in kind:
-                logpitch = np.log(pitch)
-
-                # Interpolate relevant moments of silence
-                for i in range(len(defined_indexes)):
-                    if 1<(defined_indexes[i]-defined_indexes[i-1])<=n_steps_in_window:
-                        logpitch[defined_indexes[i-1]+1:defined_indexes[i]] = np.interp(x=time[defined_indexes[i-1]+1:defined_indexes[i]], xp=time[defined_indexes], fp=logpitch[defined_indexes])
-            
-                # Set left values to zero
-                logpitch[logpitch==np.inf] = 0
-                return logpitch.reshape(-1, 1)
-            else: 
-                # Interpolate relevant moments of silence
-                for i in range(len(defined_indexes)):
-                    if 1<(defined_indexes[i]-defined_indexes[i-1])<=n_steps_in_window:
-                        pitch[defined_indexes[i-1]+1:defined_indexes[i]] = np.interp(x=time[defined_indexes[i-1]+1:defined_indexes[i]], xp=time[defined_indexes], fp=pitch[defined_indexes])
-                
-                # Set left values to zero
-                pitch[pitch==np.inf] = 0
-                return pitch.reshape(-1,1)
-
-        elif kind.endswith('Phonemes'):
-            # Load phonemes matrix, excluding '' label
-            phonemes = self.f_phonemes(envelope=envelope, kind='Phonemes-Discrete-Manual')
-            phonemes = np.delete(arr=phonemes, obj=-1, axis=1)
-
-            # Given that spacing between samples is 1/self.sr
-            sound_indexes = np.where(phonemes.any(axis=1))[0]
-
-            # Log transformation
-            if 'Log' in kind:
-                logpitch = np.log(pitch)
-
-                # Within window of window_size of said phoneme if there is a silence it gets interpoled
-                for i in range(len(sound_indexes)):
-                    if 1<(sound_indexes[i]-sound_indexes[i-1])<=n_steps_in_window:
-                        logpitch[sound_indexes[i-1]+1:sound_indexes[i]] = np.interp(x=time[sound_indexes[i-1]+1:sound_indexes[i]], xp=time[defined_indexes], fp=logpitch[defined_indexes])
-        
-                # Set left values to zero
-                logpitch[logpitch==np.inf] = 0
-                return logpitch.reshape(-1, 1)
-            else: 
-                # Within window of window_size of said phoneme if there is a silence it gets interpoled
-                for i in range(len(sound_indexes)):
-                    if 1<(sound_indexes[i]-sound_indexes[i-1])<=n_steps_in_window:
-                        pitch[sound_indexes[i-1]+1:sound_indexes[i]] = np.interp(x=time[sound_indexes[i-1]+1:sound_indexes[i]], xp=time[defined_indexes], fp=pitch[defined_indexes])
-
-                # Set left values to zero
-                pitch[pitch==np.inf] = 0
-                return pitch.reshape(-1,1)
-        
-        elif kind.endswith('Raw'):
-            # Log transformation
-            if 'Log' in kind:
-                logpitch = np.log(pitch)
-        
-                # Set left values to zero
-                logpitch[logpitch==np.inf]=0
-                return logpitch.reshape(-1, 1)
-            else: 
-                # Set left values to zero
-                pitch[pitch==np.inf]=0
-                return pitch.reshape(-1,1)
-            
     def load_trial(
         self, 
         stimuli:list
@@ -1429,18 +1298,12 @@ class TrialChannelData:
             if stim=='Spectrogram':
                 channel['Spectrogram'] = self.extract_spectrogram()
             if stim.startswith('Phonemes'):
-                if stim.endswith('Phonet'):
-                    channel[stim] = self.extract_phonemes_phonet(
-                        envelope=channel['Envelope'], 
-                        kind=stim
-                    )
-                else:
-                    channel[stim] = self.extract_phonemes(
-                        envelope=channel['Envelope'], 
-                        kind=stim
-                    )
+                channel[stim] = self.extract_phonemes(
+                    envelope=channel['Envelope'], 
+                    kind=stim
+                )
             if stim.startswith('Phones'):
-                channel[stim] = self.extract_phones_phonet(
+                channel[stim] = self.extract_phones(
                     envelope=channel['Envelope'], 
                     kind=stim
                 )
@@ -1653,7 +1516,7 @@ class SessionData:
 
             # Empty trial
             except Exception as e:
-                logger.watn(f"Trial {trial} of session {self.session} couldn't be loaded.")
+                logger.warn(f"Trial {trial} of session {self.session} couldn't be loaded.")
                 logger.warn(f"\nAn unexpected error occurred: {e}") 
                 self.samples_info['trial_lengths1'].append(0)
                 self.samples_info['trial_lengths2'].append(0)
@@ -1973,15 +1836,11 @@ def load_data(
     stimuli : str
         Stimuli to use in the analysis. If more than one stimulus is wanted, the separator should be '_'.
         Allowed stimuli are: 
-    'Envelope', 'Phonological', 'Spectrogram', 'Mfccs', 'Mfccs-Deltas', 
-    'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 
-    'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 
-    'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Phonemes-Envelope', 
-    'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Envelope-Manual', 
-    'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 
-    'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 
-    'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet', 'Phones-Onset-Manual', 
-    'Phones-Phonet', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet',
+    'Envelope', 'Phonological', 'Spectrogram', 
+    'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 
+    'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 
+    'Phonemes', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency', 
+    'Phones', 'Phones-Envelope', 'Phones-Discrete',
     'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
     'Wav2vec2'
     band : str
@@ -2013,15 +1872,11 @@ def load_data(
     ------
     SyntaxError
         If 'stim' is not an allowed stimulus. Allowed ones are:
-    'Envelope', 'Phonological', 'Spectrogram', 'Mfccs', 'Mfccs-Deltas', 
-    'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 'Pitch-Log-Quad', 
-    'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 
-    'Pitch-Log-Manual', 'Pitch-Log-Phonemes', 'Phonemes-Envelope', 
-    'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Envelope-Manual', 
-    'Phonemes-Discrete-Manual', 'Phonemes-Onset-Manual', 'Phonemes-Phonet', 
-    'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 
-    'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet', 'Phones-Onset-Manual', 
-    'Phones-Phonet', 'Phones-Envelope-Phonet', 'Phones-Discrete-Phonet',
+    'Envelope', 'Phonological', 'Spectrogram', 
+    'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 
+    'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 
+    'Phonemes', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency', 
+    'Phones', 'Phones-Envelope', 'Phones-Discrete',
     'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
     'Wav2vec2'
         If 'band' is not an allowed band frequency. Allowed ones are:
@@ -2105,11 +1960,19 @@ def check_syntax(
     return None
 
 if __name__ == "__main__":
-    subject_1, subject_2, samples_info = load_data(
-        preprocessed_data_path='saves3/preprocessed_data/External/tmin-0.2_tmax0.6/',
-        situation='External',
-        stimuli='Envelope',
-        band='Theta',
-        session=21
-    )
+    preprocessed_data_path_main = f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
+    
+    for situation in config.situations:
+        for band in config.bands:
+            for stimuli in config.stimuli:
+                for session in config.sessions:
+                    logger.info(f"Loading data for situation: {situation}, band: {band}, stimuli: {stimuli}")
+                    
+                    subject_1, subject_2, samples_info = load_data(
+                        preprocessed_data_path=preprocessed_data_path_main,
+                        situation=situation,
+                        stimuli=stimuli,
+                        session=session,
+                        band=band
+                    )
     

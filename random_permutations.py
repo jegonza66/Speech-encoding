@@ -69,15 +69,13 @@ for situation in config.situations:
                 
                 # Load data by subject, EEG and info
                 subject_1, subject_2, samples_info = load_data(
-                    praat_executable_path=config.praat_executable_path,
                     preprocessed_data_path=preprocessed_data_path,
-                    delays=config.delays,
                     situation=situation,
                     session=session,
-                    sr=config.sr,
-                    stim=stim,
+                    stimuli=stim,
                     band=band
                 )
+                
                 eeg_subject_1, eeg_subject_2, info = subject_1['EEG'], subject_2['EEG'], subject_1['info']
 
                 if config.just_load_data:
@@ -211,4 +209,51 @@ for situation in config.situations:
     
     # Print the completion message
     logger.info(text)
+
+if True and __name__ == "__main__":
+    from pathlib import Path
+    import subprocess
+    import sys
+    import os
     
+    # Get project root (assumes script is in project directory)
+    project_root = Path(__file__).parent.absolute()
+
+    # Find Python executable in current environment
+    python_exe = sys.executable
+    
+    # Cross-platform command execution
+    main_script = str(project_root / "main.py")
+    
+    # Run the main script to get significant channels
+    logger.info(
+            f"Running main script: {main_script+python_exe}"
+        )
+    try:
+        if os.name == 'nt':  # Windows
+            command = [python_exe, main_script]
+            result = subprocess.run(
+                command, 
+                capture_output=True, 
+                text=True, 
+                encoding='utf-8', 
+                errors='replace'
+            )
+            # Only show output if there are errors
+            if result.returncode != 0:
+                logger.error(f"Main script failed with return code: {result.returncode}")
+                if result.stderr:
+                    print("STDERR:")
+                    print(result.stderr)
+                if result.stdout:
+                    print("STDOUT:")
+                print(result.stdout)
+            else:
+                # Success - no output needed
+                logger.info("Main script completed successfully")
+        else:  # Unix-like systems
+            command = [python_exe, main_script]
+            subprocess.run(command)
+            
+    except Exception as e:
+        logger.error(f"Error running main script: {e}")
