@@ -85,7 +85,9 @@ def generate_completion_message(
     situation: str,
     total_number_of_subjects: int,
     stimulus_runtimes: Dict[str, str],
-    total_runtime: str
+    total_runtime: str,
+    save_path: Optional[str] = None,
+    fig_path: Optional[str] = None
 ) -> str:
     """
     Generate a formatted completion message for the analysis.
@@ -138,8 +140,8 @@ def generate_completion_message(
     text += f"""
 • Total: {total_runtime}
 
-\n📂 Resultados: saves/{config.model}/{situation}/
-🎨 Figuras: figures/{config.model}/{situation}/
+\n📂 Resultados: {save_path}
+🎨 Figuras: {fig_path}
 \n📅 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 """
     

@@ -12,3 +12,5 @@ output/
 preprocessed_data/
 saves_old/
 telegram_config.py
+out*/
+saves*/

@@ -3,107 +3,84 @@ import numpy as np, os
 from scipy.io.wavfile import read
 
 # Specific libraries
-# os.environ['QT_QPA_PLATFORM'] = 'offscreen' # Evita errores cuando se debugea con TensorFlow en entornos sin GUI
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Silencia warnings de TensorFlow
-from phonet import Phonet
 from scipy.signal import resample_poly
-
-class Phones(Phonet):
-    def __init__(
-        self, 
-        audio_file:str
-        )->None:
-        """
-        Initialize the Phoenemes class.
-        
-        Parameters
-        ----------
-        audio_file : str
-            The path to the audio file to be analyzed
-            
-        Returns
-        -------
-        None            
-        """
-        super().__init__(phonological_classes='All')
-        self.audio_file = audio_file
-        
-        # Modify parameters used to calculate Mfcc's inline with sample frequency of experiment
-        self.sr = 128
-        self.size_frame = 1/self.sr
-        self.time_shift = 1/self.sr
+   
+def compute_phones(
+    phonet_obj,
+    audio_file:str,
+    PLLR:bool=False
+    )->tuple:
+    """
+    Compute phones from the audio file.
     
-    def compute_phones(
-        self,
-        PLLR:bool=False
-        )->tuple:
-        """
-        Compute phones from the audio file.
-        
-        Parameters
-        ----------
-        PLLR : bool
-            Whether to return the PLLR (Phoneme Loglikelihood ratio). By default, True
-        
-        Returns
-        -------
-        tuple
-            A tuple containing the times and phones extracted from the audio file
-        """
-        # Read the audio (.wav) file
-        fs, signal = read(self.audio_file)
-        # fs, signal = read(r'C:\Users\User\repos\Speech-encoding\data\wavs\S21\s21.objects.01.channel1.wav')
-        if fs!=16000:
-            signal, fs = resample_poly(signal, 16000, fs), 16e3
-        
-        # This method extracts log-Mel-filterbank energies used as inputs of the model
-        feat = self.get_feat(signal, fs)      
-        # phones = Phonet('All')
-        # feat = Phonet('All').get_feat(signal, fs)      
-        
-        nf = int(feat.shape[0]/self.len_seq) # len_seq=40 always
-        # nf = int(feat.shape[0]/phones.len_seq) # len_seq=40 always
+    Parameters
+    ----------
+    PLLR : bool
+        Whether to return the PLLR (Phoneme Loglikelihood ratio). By default, True
+    
+    Returns
+    -------
+    tuple
+        A tuple containing the times and phones extracted from the audio file
+    """
+    sr = 128
+    size_frame = 1/sr
+    time_shift = 1/sr
 
-        # Get features
-        features = []
-        start, end = 0, self.len_seq
-        # start, end = 0, phones.len_seq
-        for j in range(nf):
-            features.append(feat[start:end,:])
-            start += self.len_seq
-            end += self.len_seq
-            # start += phones.len_seq
-            # end += phones.len_seq
-        features = np.stack(features, axis=0)
-        # features = features-phones.MU
-        # features = features/phones.STD
-        features = features-self.MU
-        features = features/self.STD
-        
-        # Get phones and times
-        pred_mat_phon = np.asarray(self.model_phon.predict(features))
-        # pred_mat_phon = np.asarray(phones.model_phon.predict(features))
-        pred_mat_phon_seq = np.concatenate(pred_mat_phon, axis=0)
-        
-        if PLLR:
-            probabilities = pred_mat_phon_seq[:int(len(signal)/(self.time_shift*fs))]
-            # probabilities = pred_mat_phon_seq[:int(len(signal)/(phones.time_shift*fs))]
-            return probabilities
-        else:
-            pred_vec_phon = np.argmax(pred_mat_phon_seq, axis=1)
+    # Read the audio (.wav) file
+    fs, signal = read(audio_file)
+    # fs, signal = read(r'C:\Users\User\repos\Speech-encoding\data\wavs\S21\s21.objects.01.channel1.wav')
+    if fs!=16000:
+        signal, fs = resample_poly(signal, 16000, fs), 16e3
+    
+    # This method extracts log-Mel-filterbank energies used as inputs of the model
+    feat = phonet_obj.get_feat(signal, fs)      
+    # phones = Phonet('All')
+    # feat = Phonet('All').get_feat(signal, fs)      
+    
+    nf = int(feat.shape[0]/phonet_obj.len_seq) # len_seq=40 always
+    # nf = int(feat.shape[0]/phones.len_seq) # len_seq=40 always
 
-            nf=int(len(signal)/(self.time_shift*fs))
-            # nf=int(len(signal)/(phones.time_shift*fs))
-            if nf>len(pred_vec_phon):
-                nf=len(pred_vec_phon)
-            
-            phones_list = [self.phonemes[j] for j in pred_vec_phon[:nf]]
-            # phones_list = [phones.phonemes[j] for j in pred_vec_phon[:nf]]
-            
-            times = np.arange(nf)*self.time_shift
-            # times = np.arange(nf)*phones.time_shift
-            
-            return times, phones_list
+    # Get features
+    features = []
+    start, end = 0, phonet_obj.len_seq
+    # start, end = 0, phones.len_seq
+    for j in range(nf):
+        features.append(feat[start:end,:])
+        start += phonet_obj.len_seq
+        end += phonet_obj.len_seq
+        # start += phones.len_seq
+        # end += phones.len_seq
+    features = np.stack(features, axis=0)
+    # features = features-phones.MU
+    # features = features/phones.STD
+    features = features-phonet_obj.MU
+    features = features/phonet_obj.STD
+    
+    # Get phones and times
+    pred_mat_phon = np.asarray(phonet_obj.model_phon.predict(features))
+    # pred_mat_phon = np.asarray(phones.model_phon.predict(features))
+    pred_mat_phon_seq = np.concatenate(pred_mat_phon, axis=0)
+    
+    if PLLR:
+        probabilities = pred_mat_phon_seq[:int(len(signal)/(phonet_obj.time_shift*fs))]
+        # probabilities = pred_mat_phon_seq[:int(len(signal)/(phones.time_shift*fs))]
+        return probabilities
+    else:
+        pred_vec_phon = np.argmax(pred_mat_phon_seq, axis=1)
+
+        nf=int(len(signal)/(phonet_obj.time_shift*fs))
+        # nf=int(len(signal)/(phones.time_shift*fs))
+        if nf>len(pred_vec_phon):
+            nf=len(pred_vec_phon)
+        
+        phones_list = [phonet_obj.phonemes[j] for j in pred_vec_phon[:nf]]
+        # phones_list = [phones.phonemes[j] for j in pred_vec_phon[:nf]]
+        
+        times = np.arange(nf)*phonet_obj.time_shift
+        # times = np.arange(nf)*phones.time_shift
+        
+        return times, phones_list
         
 if __name__=="__main__":
     import scipy.io.wavfile as wavfile

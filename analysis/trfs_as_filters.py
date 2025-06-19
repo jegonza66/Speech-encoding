@@ -11,10 +11,23 @@ import numpy as np
 # import Path
 import mne
 import config
-
+stimuli = [
+    "Envelope",
+    "Pitch-Log-Raw",
+    "Spectrogram",
+    "Phonological",
+]
+bands = [
+    "Delta",
+    "Theta",
+    "Alpha",
+    "Beta1",
+    "Beta2",
+    "All"
+]
 
 trfs_stim_path = lambda stim: lambda band: rf'output\mtrf_ridge_torch\External\weights\stims_Normalize_EEG_Standarize\tmin-0.2_tmax0.6\{band}\{stim}\total_weights_per_subject.pkl'
-for stim in config.stimuli:
+for stim in stimuli:
     trfs_path = trfs_stim_path(stim)
 
     # Create plots
@@ -26,9 +39,9 @@ for stim in config.stimuli:
         )
     fig.suptitle(f'TRFs and their FFTs for {stim}', fontsize=16)
 
-    for b, band in enumerate(config.bands):
+    for b, band in enumerate(bands):
         trfs = load_pickle(path=trfs_path(band))['average_weights_subjects']
-        trf = trfs.mean(axis=(0,1,2))
+        trf = trfs.mean(axis=0).mean(axis=0).mean(axis=0)
 
         # Compute the FFT of the TRF
         trf_fft = fft(trf)
@@ -84,14 +97,14 @@ for stim in config.stimuli:
     # TRF comparison
     fig, axes = plt.subplots(
         ncols=2,
-        nrows=len(config.bands),
+        nrows=len(bands),
         figsize=(8, 8),
         tight_layout=True
     )
     fig.suptitle(f'TRFs and their FFTs for {stim}', fontsize=16)
-    for b, band in enumerate(config.bands):
+    for b, band in enumerate(bands):
         trfs = load_pickle(path=trfs_path(band))['average_weights_subjects']
-        trf = trfs.mean(axis=(0,1,2))
+        trf = trfs.mean(axis=0).mean(axis=0).mean(axis=0)
 
         # Compute the FFT of the TRF
         trf_fft = fft(trf)

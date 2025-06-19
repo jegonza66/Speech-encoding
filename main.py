@@ -18,8 +18,14 @@ import config
 from utils.notification_telegram import tel_message, generate_completion_message
 from telegram_config import API_TOKEN, CHAT_ID
 
-# Logging
+# Command line and logging
+from utils.from_commands import create_dynamic_parser, apply_args_to_config
 from utils.logs import setup_logger
+
+# Use it
+parser = create_dynamic_parser()
+args = parser.parse_args()
+apply_args_to_config(args)
 
 # Initialize logger
 logger = setup_logger(
@@ -55,16 +61,16 @@ for situation in config.situations:
             )
 
             # Relevant paths
-            path_weights = f'output/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-            path_null = f'output/{config.model}/{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-            path_figures = f'figures/{config.model}/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-            path_TFCE = f'output/{config.model}/{situation}/TFCE/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/'
-            save_results_path = f'output/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/{band}/'
-            preprocessed_data_path = f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
+            path_weights = f'{config.output_dir}/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+            path_null = f'{config.output_dir}/{config.model}/{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+            path_figures = f'{config.figures_dir}/{config.model}/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+            path_TFCE = f'{config.output_dir}/{config.model}/{situation}/TFCE/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/'
+            save_results_path = f'{config.output_dir}/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/{band}/'
+            preprocessed_data_path = f'{config.saves_dir}/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
             if config.external_validation:
-                path_validation = f'output/{config.model}/External/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+                path_validation = f'{config.output_dir}/{config.model}/External/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
             else:
-                path_validation = f'output/{config.model}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+                path_validation = f'{config.output_dir}/{config.model}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
             alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
 
 
@@ -365,7 +371,9 @@ for situation in config.situations:
         situation=situation,
         total_number_of_subjects=total_number_of_subjects,
         stimulus_runtimes=stimulus_runtimes,
-        total_runtime=str(total_runtime)
+        total_runtime=str(total_runtime),
+        save_path=path_weights,
+        fig_path=path_figures
     )
     # Send text to telegram bot
     tel_message(

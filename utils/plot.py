@@ -25,6 +25,7 @@ from matplotlib.transforms import Bbox
 from matplotlib.colors import to_rgb
 from matplotlib.lines import Line2D
 import matplotlib.pylab as pylab
+import matplotlib.cm as cm
 params = {
         'legend.fontsize': 'x-large',
         'legend.title_fontsize': 'x-large',
@@ -79,42 +80,46 @@ def define_ticks(
     None
     """
     
-    # Load specific names of ticks
-    exp_info = config.Exp_info()
-    
     if ylabel.startswith('phonemes-dili'):
         axes.tick_params(axis='both', labelsize='medium')
         tags = [np.str_('aɪ'), np.str_('aʊ'), np.str_('b'), np.str_('d'), np.str_('eɪ'), np.str_('f'), np.str_('g'), np.str_('h'), np.str_('i'), np.str_('j'), np.str_('k'), np.str_('l'), np.str_('m'), np.str_('n'), np.str_('oʊ'), np.str_('p'), np.str_('s'), np.str_('t'), np.str_('tʃ'), np.str_('u'), np.str_('v'), np.str_('w'), np.str_('z'), np.str_('æ'), np.str_('ð'), np.str_('ŋ'), np.str_('ɑː'), np.str_('ɔɪ'), np.str_('ɔː'), np.str_('ɛ'), np.str_('ɜːr'), np.str_('ɪ'), np.str_('ɹ'), np.str_('ʃ'), np.str_('ʊ'), np.str_('ʌ'), np.str_('θ')]
         ticks = np.arange(number_of_ticks)
         
-    if ylabel.startswith('Phonological'):
+    if ylabel=='Phonological':
         axes.tick_params(axis='both', labelsize='medium') 
-        tags = [t for t in list(exp_info.phonological_labels) if t not in ['pause', 'trill']]
+        tags = [t for t in list(config.exp_info.phonological_labels) if t not in ['pause', 'trill']]
+        ticks = np.arange(number_of_ticks)
+    if ylabel=='Phonological1':
+        axes.tick_params(axis='both', labelsize='medium') 
+        tags = [t for t in list(config.exp_info.phonological_labels) if t not in ['pause', 'trill'] + config.exp_info.phonological_labels2]
+        ticks = np.arange(number_of_ticks)
+    if ylabel=='Phonological2':
+        axes.tick_params(axis='both', labelsize='medium') 
+        tags = [t for t in list(config.exp_info.phonological_labels) if t not in ['pause', 'trill'] + config.exp_info.phonological_labels1]
         ticks = np.arange(number_of_ticks)
     elif ylabel.startswith('Mistakes'):
-        tags = list(exp_info.mistakes)
+        tags = list(config.exp_info.mistakes)
         ticks = np.arange(number_of_ticks)
     elif ylabel.startswith('Control'):
-        tags = list(exp_info.control)
+        tags = list(config.exp_info.control)
         ticks = np.arange(number_of_ticks)
     elif ylabel.startswith('Wav2vec2'):
         ticks = np.arange(number_of_ticks)
         tags = [f'C{tick}' for tick in ticks]
     elif ylabel.startswith('Phonemes'):
+        tags = config.exp_info.phonemes_phonet
+        tags.remove('/sil/')
         axes.tick_params(axis='both', labelsize='medium')
-        if ylabel.endswith('Manual'):
-            tags = exp_info.ph_labels_man
-        elif ylabel.endswith('Phonet'):
-            tags = exp_info.phonemes_phonet
-            tags.remove('/sil/')
-        else:
-            tags = exp_info.ph_labels
         ticks = np.arange(number_of_ticks)
     elif ylabel.startswith('Phones'):
         axes.tick_params(axis='both', labelsize='medium')
-        tags = exp_info.ph_labels_phonet
+        tags = config.exp_info.phones
         tags.remove('sil')
         tags.remove('<p:>')
+        ticks = np.arange(number_of_ticks)
+    elif ylabel == 'Envelope2':
+        axes.tick_params(axis='both', labelsize='medium')
+        tags = ['Envelope', 'Instantaneous Freq.']
         ticks = np.arange(number_of_ticks)
         
     # Frecuency correlated features are treated differently
@@ -1936,11 +1941,11 @@ def plot_pvalue_tfce(
 #                             aspect=15)
 #             elif feat.startswith('Phonemes'):
 #                 if feat.endswith('Manual'):
-#                     ax[0].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels_man)
+#                     ax[0].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=config.exp_info.ph_labels_man)
 #                 elif feat.endswith('Phonet'):
-#                     ax[0].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels_phonet[:-1])
+#                     ax[0].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=config.exp_info.ph_labels_phonet[:-1])
 #                 else:
-#                     ax[0].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=exp_info.ph_labels)
+#                     ax[0].set(xlabel='Time (ms)', ylabel='Phonemes', yticks=np.arange(n_feat), yticklabels=config.exp_info.ph_labels)
                 
 #                 ax[0].tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
                 
@@ -1952,7 +1957,7 @@ def plot_pvalue_tfce(
 #                              shrink=1,
 #                              aspect=20)
 #             elif feat.startswith('Phonological'):
-#                 ax[0].set(xlabel='Time (ms)', ylabel='Phonological Features', yticks=np.arange(n_feat), yticklabels=exp_info.phonological_labels)
+#                 ax[0].set(xlabel='Time (ms)', ylabel='Phonological Features', yticks=np.arange(n_feat), yticklabels=config.exp_info.phonological_labels)
 #                 ax[0].tick_params(axis='both', labelsize='medium') # Change labelsize because there are too many phonemes
                 
 #                 # Make color bar
@@ -2120,90 +2125,502 @@ def plot_pvalue_tfce(
 # =====================
 # FIGURES OF VALIDATION
 
-def hyperparameter_selection(alphas_swept:np.ndarray,
-                             correlations:np.ndarray,
-                             correlations_std:np.ndarray,
-                             alpha_subject:float,
-                             correlation_limit_percentage:float,
-                             session:int, 
-                             subject:int,
-                             stim:str,
-                             band:str,
-                             save_path:str, 
-                             no_figures:bool=False,
-                             save:bool=False):
-    """_summary_
-
-    Parameters
-    ----------
-    alphas_swept : np.ndarray
-        _description_
-    correlations : np.ndarray
-        _description_
-    correlations_std : np.ndarray
-        _description_
-    alpha_subject : float
-        _description_
-    correlation_limit_percentage : float
-        _description_
-    session : int
-        _description_
-    subject : int
-        _description_
-    stim : str
-        _description_
-    band : str
-        _description_
-    save_path : str
-        _description_
-    no_figures : bool, optional
-        _description_, by default False
-    save : bool, optional
-        _description_, by default False
+def hyperparameter_selection(
+    alphas_swept: np.ndarray,
+    correlations: np.ndarray,
+    correlations_std: np.ndarray,
+    correlations_train: np.ndarray,
+    rmse: np.ndarray,
+    rmse_std: np.ndarray,
+    rmse_train: np.ndarray,
+    trfs: np.ndarray,
+    alpha_subject: float,
+    correlation_limit_percentage: float,
+    session: int, 
+    subject: int,
+    stim: str,
+    band: str,
+    save_path: str, 
+    no_figures: bool = False,
+    save: bool = False
+):
+    """
+    Combined hyperparameter selection plot with correlation/RMSE metrics and TRFs visualization.
     """
     # Exit function
     plt.close()
     if no_figures:
         return
     
-    # Create figure and plot
-    fig, ax = plt.subplots(figsize=(12,5), tight_layout=True)
-    fig.suptitle(f'{band} - {stim}')
+    # Create figure with custom layout: 3x2 grid at top, 1x1 at bottom spanning both columns
+    fig = plt.figure(figsize=(16, 14))
+    gs = fig.add_gridspec(4, 2, height_ratios=[1, 1, 1, 1.2], hspace=0.3, wspace=0.3)
     
-    # Plot alphas vs correlations as dots with errorbars
-    ax.plot(alphas_swept, correlations, 'o--')
-    ax.errorbar(alphas_swept, correlations, yerr=correlations_std, fmt='none', ecolor='black',elinewidth=0.5, capsize=0.5)
+    # Top row: Correlation (left) and Correlation Ratio (right)
+    ax_corr = fig.add_subplot(gs[0, 0])
+    ax_corr_ratio = fig.add_subplot(gs[0, 1])
     
-    # Make vlines for maximumu correlation and selected alpha
-    ax.vlines(alphas_swept[correlations.argmax()], ax.get_ylim()[0], ax.get_ylim()[1], linestyle='dashed',
-            color='black', linewidth=1.5, label='Maximum correlation')
-    ax.vlines(alpha_subject, ax.get_ylim()[0], ax.get_ylim()[1], linestyle='dashed', color='red',
-            linewidth=1.5, label='Selected value')
-
+    # Second row: RMSE (left) and RMSE Ratio (right)
+    ax_rmse = fig.add_subplot(gs[1, 0])
+    ax_rmse_ratio = fig.add_subplot(gs[1, 1])
+    
+    # Third row: Combined Metric (left) and Combined Metric Normalized (right)
+    ax_combined = fig.add_subplot(gs[2, 0])
+    ax_combined_norm = fig.add_subplot(gs[2, 1])
+    
+    # Bottom row: TRFs spanning both columns
+    ax_trfs = fig.add_subplot(gs[3, :])
+    
+    fig.suptitle(f'{band} - {stim} - Session {session} - Subject {subject}', fontsize=16)
+    
     # Find relevant range within correlation_limit_percentage
     relative_difference = abs((correlations.max() - correlations)/correlations.max())
-    good_indexes_range = np.where(relative_difference < correlation_limit_percentage)[0]    
+    good_indexes_range = np.where(relative_difference < correlation_limit_percentage)[0]
     
-    # Make green box of range within correlation_limit_percentage
+    # ===== CORRELATIONS PLOT =====
+    ax_corr.plot(alphas_swept, correlations, 'o--', color='C0')
+    ax_corr.errorbar(alphas_swept, correlations, yerr=correlations_std, fmt='none', 
+                     ecolor='black', elinewidth=0.5, capsize=0.5)
+    
+    # Vertical lines for maximum correlation and selected alpha
+    ax_corr.vlines(alphas_swept[correlations.argmax()], ax_corr.get_ylim()[0], ax_corr.get_ylim()[1], 
+                   linestyle='dashed', color='black', linewidth=1.5, label='Maximum correlation')
+    ax_corr.vlines(alpha_subject, ax_corr.get_ylim()[0], ax_corr.get_ylim()[1], 
+                   linestyle='dashed', color='red', linewidth=1.5, label='Selected value')
+    
+    # Green box for acceptable range
     if good_indexes_range.size > 1:
-        ax.axvspan(alphas_swept[good_indexes_range[0]], alphas_swept[good_indexes_range[-1]], alpha=0.4, color='green',
-                    label=f'{int(correlation_limit_percentage*100)}% of maximum correlation')
+        ax_corr.axvspan(alphas_swept[good_indexes_range[0]], alphas_swept[good_indexes_range[-1]], 
+                        alpha=0.4, color='green', 
+                        label=f'{int(correlation_limit_percentage*100)}% of maximum correlation')
     
-    # Axes parameters
-    ax.set(xlabel=r'Ridge parameter $\alpha$', ylabel='Mean correlation', xscale='log', xlim=([alphas_swept[0], alphas_swept[-1]]))
-    ax.grid(visible=True)
-    ax.legend()
-
+    ax_corr.set(xlabel=r'Ridge parameter $\alpha$', ylabel='Mean correlation (Test)', 
+                xscale='log', xlim=([alphas_swept[0], alphas_swept[-1]]))
+    ax_corr.grid(visible=True)
+    ax_corr.legend(fontsize=8)
+    
+    # ===== CORRELATION RATIO PLOT =====
+    ax_corr_ratio.plot(alphas_swept, 1e2*(correlations-correlations_train)/correlations_train, 'o--', color='C0')
+    
+    ax_corr_ratio.vlines(alphas_swept[correlations.argmax()], ax_corr_ratio.get_ylim()[0], ax_corr_ratio.get_ylim()[1], 
+                         linestyle='dashed', color='black', linewidth=1.5, label='Maximum correlation')
+    ax_corr_ratio.vlines(alpha_subject, ax_corr_ratio.get_ylim()[0], ax_corr_ratio.get_ylim()[1], 
+                         linestyle='dashed', color='red', linewidth=1.5, label='Selected value')
+    
+    if good_indexes_range.size > 1:
+        ax_corr_ratio.axvspan(alphas_swept[good_indexes_range[0]], alphas_swept[good_indexes_range[-1]], 
+                              alpha=0.4, color='green', 
+                              label=f'{int(correlation_limit_percentage*100)}% of maximum correlation')
+    
+    ax_corr_ratio.set(xlabel=r'Ridge parameter $\alpha$', ylabel=r'Correlation (Test-Train)/Test[\%]', 
+                      xscale='log', xlim=([alphas_swept[0], alphas_swept[-1]]))
+    ax_corr_ratio.grid(visible=True)
+    ax_corr_ratio.legend(fontsize=8)
+    
+    # ===== RMSE PLOT =====
+    ax_rmse.plot(alphas_swept, rmse, 'o--', color='C1')
+    ax_rmse.errorbar(alphas_swept, rmse, yerr=rmse_std, fmt='none', 
+                     ecolor='black', elinewidth=0.5, capsize=0.5)
+    
+    ax_rmse.vlines(alphas_swept[correlations.argmax()], ax_rmse.get_ylim()[0], ax_rmse.get_ylim()[1], 
+                   linestyle='dashed', color='black', linewidth=1.5, label='Maximum correlation')
+    ax_rmse.vlines(alpha_subject, ax_rmse.get_ylim()[0], ax_rmse.get_ylim()[1], 
+                   linestyle='dashed', color='red', linewidth=1.5, label='Selected value')
+    
+    if good_indexes_range.size > 1:
+        ax_rmse.axvspan(alphas_swept[good_indexes_range[0]], alphas_swept[good_indexes_range[-1]], 
+                        alpha=0.4, color='green', 
+                        label=f'{int(correlation_limit_percentage*100)}% of maximum correlation')
+    
+    ax_rmse.set(xlabel=r'Ridge parameter $\alpha$', ylabel='Mean RMSE (Test)', 
+                xscale='log', xlim=([alphas_swept[0], alphas_swept[-1]]))
+    ax_rmse.grid(visible=True)
+    ax_rmse.legend(fontsize=8)
+    
+    # ===== RMSE RATIO PLOT =====
+    ax_rmse_ratio.plot(alphas_swept, 1e2*(rmse_train-rmse)/rmse, 'o--', color='C1')
+    
+    ax_rmse_ratio.vlines(alphas_swept[correlations.argmax()], ax_rmse_ratio.get_ylim()[0], ax_rmse_ratio.get_ylim()[1], 
+                         linestyle='dashed', color='black', linewidth=1.5, label='Maximum correlation')
+    ax_rmse_ratio.vlines(alpha_subject, ax_rmse_ratio.get_ylim()[0], ax_rmse_ratio.get_ylim()[1], 
+                         linestyle='dashed', color='red', linewidth=1.5, label='Selected value')
+    
+    if good_indexes_range.size > 1:
+        ax_rmse_ratio.axvspan(alphas_swept[good_indexes_range[0]], alphas_swept[good_indexes_range[-1]], 
+                              alpha=0.4, color='green', 
+                              label=f'{int(correlation_limit_percentage*100)}% of maximum correlation')
+    
+    ax_rmse_ratio.set(xlabel=r'Ridge parameter $\alpha$', ylabel=r'RMSE (Train-Test)/Test [\%]', 
+                      xscale='log', xlim=([alphas_swept[0], alphas_swept[-1]]))
+    ax_rmse_ratio.grid(visible=True)
+    ax_rmse_ratio.legend(fontsize=8)
+    
+    # ===== COMBINED METRIC PLOT =====
+    # Define lambda values
+    lambda1, lambda2 = 1.5, 1.5
+    
+    # Calculate combined metric: correlation + lambda1*max(0, rmse_train-rmse) + lambda2*max(0, correlation-correlation_train)
+    combined_metric = correlations - lambda1*np.maximum(0, rmse - rmse_train) - lambda2*np.maximum(0, correlations_train-correlations)
+    
+    ax_combined.plot(alphas_swept, combined_metric, 'o--', color='C2')
+    
+    # Find maximum of combined metric
+    combined_max_idx = combined_metric.argmax()
+    
+    ax_combined.vlines(alphas_swept[combined_max_idx], ax_combined.get_ylim()[0], ax_combined.get_ylim()[1], 
+                       linestyle='dashed', color='black', linewidth=1.5, label='Maximum combined metric')
+    ax_combined.vlines(alpha_subject, ax_combined.get_ylim()[0], ax_combined.get_ylim()[1], 
+                       linestyle='dashed', color='red', linewidth=1.5, label='Selected value')
+    
+    if good_indexes_range.size > 1:
+        ax_combined.axvspan(alphas_swept[good_indexes_range[0]], alphas_swept[good_indexes_range[-1]], 
+                            alpha=0.4, color='green', 
+                            label=f'{int(correlation_limit_percentage*100)}% of maximum correlation')
+    
+    ax_combined.set(xlabel=r'Ridge parameter $\alpha$', 
+                    ylabel=rf'Combined Metric ($\lambda_1$={lambda1}, $\lambda_2$={lambda2})', 
+                    xscale='log', xlim=([alphas_swept[0], alphas_swept[-1]]))
+    ax_combined.grid(visible=True)
+    ax_combined.legend(fontsize=8)
+    
+    # ===== COMBINED METRIC NORMALIZED PLOT =====
+    # Normalize each component to [0,1] before combining
+    corr_norm = (correlations - correlations.min()) / (correlations.max() - correlations.min())
+    rmse_diff_norm = np.maximum(0, rmse_train-rmse)
+    rmse_diff_norm = rmse_diff_norm / (rmse_diff_norm.max() + 1e-10)  # Avoid division by zero
+    corr_diff_norm = np.maximum(0, correlations_train-correlations)
+    corr_diff_norm = corr_diff_norm / (corr_diff_norm.max() + 1e-10)  # Avoid division by zero
+    
+    combined_metric_norm = corr_norm - lambda1*rmse_diff_norm - lambda2*corr_diff_norm
+    
+    ax_combined_norm.plot(alphas_swept, combined_metric_norm, 'o--', color='C3')
+    
+    # Find maximum of normalized combined metric
+    combined_norm_max_idx = combined_metric_norm.argmax()
+    
+    ax_combined_norm.vlines(alphas_swept[combined_norm_max_idx], ax_combined_norm.get_ylim()[0], ax_combined_norm.get_ylim()[1], 
+                            linestyle='dashed', color='black', linewidth=1.5, label='Maximum normalized metric')
+    ax_combined_norm.vlines(alpha_subject, ax_combined_norm.get_ylim()[0], ax_combined_norm.get_ylim()[1], 
+                            linestyle='dashed', color='red', linewidth=1.5, label='Selected value')
+    
+    if good_indexes_range.size > 1:
+        ax_combined_norm.axvspan(alphas_swept[good_indexes_range[0]], alphas_swept[good_indexes_range[-1]], 
+                                 alpha=0.4, color='green', 
+                                 label=f'{int(correlation_limit_percentage*100)}% of maximum correlation')
+    
+    ax_combined_norm.set(xlabel=r'Ridge parameter $\alpha$', 
+                         ylabel='Normalized Combined Metric', 
+                         xscale='log', xlim=([alphas_swept[0], alphas_swept[-1]]))
+    ax_combined_norm.grid(visible=True)
+    ax_combined_norm.legend(fontsize=8)
+    
+    # ===== TRFs PLOT =====
+    # Create colormap and normalization for the alphas
+    cmap = cm.get_cmap('viridis')
+    norm = plt.Normalize(vmin=np.log10(alphas_swept.min()), vmax=np.log10(alphas_swept.max()))
+    
+    # Plot TRFs for each alpha
+    for alpha, trf in zip(alphas_swept, trfs):
+        color = cmap(norm(np.log10(alpha)))
+        ax_trfs.plot(
+            config.times*1e3,
+            trf,
+            color=color,
+            linewidth=1.5,
+            alpha=0.8
+        )
+    
+    # Highlight the selected alpha
+    selected_idx = np.argmin(np.abs(alphas_swept - alpha_subject))
+    ax_trfs.plot(
+        config.times*1e3,
+        trfs[selected_idx],
+        color='black',
+        linewidth=2.5,
+        alpha=1.0,
+        label=f'Selected α = {alpha_subject:.0f}' if alpha_subject >= 1 else f'Selected α = {alpha_subject:.3f}'
+    )
+    
+    ax_trfs.set(
+        xlabel='Time (ms)',
+        ylabel='TRF Amplitude (a.u.)',
+        ylim=(-np.abs(trfs[selected_idx]).max()*1.5, np.abs(trfs[selected_idx]).max()*1.5),
+        title='Temporal Response Functions for Different Alpha Values'
+    )
+    ax_trfs.grid(True, alpha=0.3)
+    ax_trfs.legend(loc='upper right', fontsize=10)
+    
+    # Add colorbar for alpha values
+    sm = cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax_trfs, orientation='vertical', pad=0.02, shrink=0.8, aspect=20)
+    cbar.set_label(r'$\log_{10}(\alpha)$', fontsize=12)
+    
+    # Set colorbar ticks to show actual alpha values
+    log_alphas = np.log10(alphas_swept)
+    tick_positions = np.linspace(log_alphas.min(), log_alphas.max(), 5)
+    cbar.set_ticks(tick_positions)
+    
+    # Better formatting for the wide range of alpha values
+    alpha_values = [10**pos for pos in tick_positions]
+    formatted_labels = []
+    
+    for alpha in alpha_values:
+        if alpha < 0.01:
+            formatted_labels.append(f'{alpha:.3f}')
+        elif alpha < 1:
+            formatted_labels.append(f'{alpha:.2f}')
+        elif alpha < 1000:
+            formatted_labels.append(f'{int(alpha)}')
+        else:
+            formatted_labels.append(f'{alpha:.1e}')
+    
+    cbar.set_ticklabels(formatted_labels)
+    
+    # Save figure
     if save:
         os.makedirs(save_path, exist_ok=True)
-
-        # This is done to avoid working with long paths
         temp_path = os.path.normpath(save_path)
         os.chdir(temp_path)
-        fig.savefig(f'session_{session}_subject_{subject}{config.figure_format}')
+        fig.savefig(f'session_{session}_subject_{subject}{config.figure_format}', 
+                    dpi=300, bbox_inches='tight')
         os.chdir(current_working_directory)
         plt.close(fig)
+
+# def hyperparameter_selection(
+#     alphas_swept: np.ndarray,
+#     correlations: np.ndarray,
+#     correlations_std: np.ndarray,
+#     correlations_train: np.ndarray,
+#     rmse: np.ndarray,
+#     rmse_std: np.ndarray,
+#     rmse_train: np.ndarray,
+#     trfs: np.ndarray,
+#     alpha_subject: float,
+#     correlation_limit_percentage: float,
+#     session: int, 
+#     subject: int,
+#     stim: str,
+#     band: str,
+#     save_path: str, 
+#     no_figures: bool = False,
+#     save: bool = False
+# ):
+#     """
+#     Combined hyperparameter selection plot with correlation/RMSE metrics and TRFs visualization.
+
+#     Parameters
+#     ----------
+#     alphas_swept : np.ndarray
+#         Array of alpha values tested
+#     correlations : np.ndarray
+#         Test correlations for each alpha
+#     correlations_std : np.ndarray
+#         Standard deviation of test correlations
+#     correlations_train : np.ndarray
+#         Training correlations for each alpha
+#     rmse : np.ndarray
+#         Test RMSE for each alpha
+#     rmse_std : np.ndarray
+#         Standard deviation of test RMSE
+#     rmse_train : np.ndarray
+#         Training RMSE for each alpha
+#     trfs : np.ndarray
+#         TRFs for each alpha value
+#     alpha_subject : float
+#         Selected alpha value
+#     correlation_limit_percentage : float
+#         Percentage threshold for correlation selection
+#     session : int
+#         Session number
+#     subject : int
+#         Subject number
+#     stim : str
+#         Stimulus type
+#     band : str
+#         Frequency band
+#     save_path : str
+#         Path to save the figure
+#     no_figures : bool, optional
+#         If True, no figures are displayed, by default False
+#     save : bool, optional
+#         If True, figures are saved, by default False
+#     """
+#     # Exit function
+#     plt.close()
+#     if no_figures:
+#         return
     
+#     # Create figure with custom layout: 2x2 grid at top, 1x1 at bottom spanning both columns
+#     fig = plt.figure(figsize=(16, 12))
+#     gs = fig.add_gridspec(3, 2, height_ratios=[1, 1, 1.2], hspace=0.3, wspace=0.3)
+    
+#     # Top row: Correlation (left) and Correlation Ratio (right)
+#     ax_corr = fig.add_subplot(gs[0, 0])
+#     ax_corr_ratio = fig.add_subplot(gs[0, 1])
+    
+#     # Middle row: RMSE (left) and RMSE Ratio (right)
+#     ax_rmse = fig.add_subplot(gs[1, 0])
+#     ax_rmse_ratio = fig.add_subplot(gs[1, 1])
+    
+#     # Bottom row: TRFs spanning both columns
+#     ax_trfs = fig.add_subplot(gs[2, :])
+    
+#     fig.suptitle(f'{band} - {stim} - Session {session} - Subject {subject}', fontsize=16)
+    
+#     # Find relevant range within correlation_limit_percentage
+#     relative_difference = abs((correlations.max() - correlations)/correlations.max())
+#     good_indexes_range = np.where(relative_difference < correlation_limit_percentage)[0]
+    
+#     # ===== CORRELATIONS PLOT =====
+#     ax_corr.plot(alphas_swept, correlations, 'o--', color='C0')
+#     ax_corr.errorbar(alphas_swept, correlations, yerr=correlations_std, fmt='none', 
+#                      ecolor='black', elinewidth=0.5, capsize=0.5)
+    
+#     # Vertical lines for maximum correlation and selected alpha
+#     ax_corr.vlines(alphas_swept[correlations.argmax()], ax_corr.get_ylim()[0], ax_corr.get_ylim()[1], 
+#                    linestyle='dashed', color='black', linewidth=1.5, label='Maximum correlation')
+#     ax_corr.vlines(alpha_subject, ax_corr.get_ylim()[0], ax_corr.get_ylim()[1], 
+#                    linestyle='dashed', color='red', linewidth=1.5, label='Selected value')
+    
+#     # Green box for acceptable range
+#     if good_indexes_range.size > 1:
+#         ax_corr.axvspan(alphas_swept[good_indexes_range[0]], alphas_swept[good_indexes_range[-1]], 
+#                         alpha=0.4, color='green', 
+#                         label=f'{int(correlation_limit_percentage*100)}% of maximum correlation')
+    
+#     ax_corr.set(xlabel=r'Ridge parameter $\alpha$', ylabel='Mean correlation (Test)', 
+#                 xscale='log', xlim=([alphas_swept[0], alphas_swept[-1]]))
+#     ax_corr.grid(visible=True)
+#     ax_corr.legend(fontsize=8)
+    
+#     # ===== CORRELATION RATIO PLOT =====
+#     ax_corr_ratio.plot(alphas_swept, 1e2*(correlations-correlations_train)/correlations_train, 'o--', color='C0')
+    
+#     ax_corr_ratio.vlines(alphas_swept[correlations.argmax()], ax_corr_ratio.get_ylim()[0], ax_corr_ratio.get_ylim()[1], 
+#                          linestyle='dashed', color='black', linewidth=1.5, label='Maximum correlation')
+#     ax_corr_ratio.vlines(alpha_subject, ax_corr_ratio.get_ylim()[0], ax_corr_ratio.get_ylim()[1], 
+#                          linestyle='dashed', color='red', linewidth=1.5, label='Selected value')
+    
+#     if good_indexes_range.size > 1:
+#         ax_corr_ratio.axvspan(alphas_swept[good_indexes_range[0]], alphas_swept[good_indexes_range[-1]], 
+#                               alpha=0.4, color='green', 
+#                               label=f'{int(correlation_limit_percentage*100)}% of maximum correlation')
+    
+#     ax_corr_ratio.set(xlabel=r'Ridge parameter $\alpha$', ylabel=r'Correlation (Test-Train)/Test[\%]', 
+#                       xscale='log', xlim=([alphas_swept[0], alphas_swept[-1]]))
+#     ax_corr_ratio.grid(visible=True)
+#     ax_corr_ratio.legend(fontsize=8)
+    
+#     # ===== RMSE PLOT =====
+#     ax_rmse.plot(alphas_swept, rmse, 'o--', color='C1')
+#     ax_rmse.errorbar(alphas_swept, rmse, yerr=rmse_std, fmt='none', 
+#                      ecolor='black', elinewidth=0.5, capsize=0.5)
+    
+#     ax_rmse.vlines(alphas_swept[correlations.argmax()], ax_rmse.get_ylim()[0], ax_rmse.get_ylim()[1], 
+#                    linestyle='dashed', color='black', linewidth=1.5, label='Maximum correlation')
+#     ax_rmse.vlines(alpha_subject, ax_rmse.get_ylim()[0], ax_rmse.get_ylim()[1], 
+#                    linestyle='dashed', color='red', linewidth=1.5, label='Selected value')
+    
+#     if good_indexes_range.size > 1:
+#         ax_rmse.axvspan(alphas_swept[good_indexes_range[0]], alphas_swept[good_indexes_range[-1]], 
+#                         alpha=0.4, color='green', 
+#                         label=f'{int(correlation_limit_percentage*100)}% of maximum correlation')
+    
+#     ax_rmse.set(xlabel=r'Ridge parameter $\alpha$', ylabel='Mean RMSE (Test)', 
+#                 xscale='log', xlim=([alphas_swept[0], alphas_swept[-1]]))
+#     ax_rmse.grid(visible=True)
+#     ax_rmse.legend(fontsize=8)
+    
+#     # ===== RMSE RATIO PLOT =====
+#     ax_rmse_ratio.plot(alphas_swept, 1e2*(rmse_train-rmse)/rmse, 'o--', color='C1')
+    
+#     ax_rmse_ratio.vlines(alphas_swept[correlations.argmax()], ax_rmse_ratio.get_ylim()[0], ax_rmse_ratio.get_ylim()[1], 
+#                          linestyle='dashed', color='black', linewidth=1.5, label='Maximum correlation')
+#     ax_rmse_ratio.vlines(alpha_subject, ax_rmse_ratio.get_ylim()[0], ax_rmse_ratio.get_ylim()[1], 
+#                          linestyle='dashed', color='red', linewidth=1.5, label='Selected value')
+    
+#     if good_indexes_range.size > 1:
+#         ax_rmse_ratio.axvspan(alphas_swept[good_indexes_range[0]], alphas_swept[good_indexes_range[-1]], 
+#                               alpha=0.4, color='green', 
+#                               label=f'{int(correlation_limit_percentage*100)}% of maximum correlation')
+    
+#     ax_rmse_ratio.set(xlabel=r'Ridge parameter $\alpha$', ylabel=r'RMSE (Train-Test)/Test [\%]', 
+#                       xscale='log', xlim=([alphas_swept[0], alphas_swept[-1]]))
+#     ax_rmse_ratio.grid(visible=True)
+#     ax_rmse_ratio.legend(fontsize=8)
+    
+#     # ===== TRFs PLOT =====
+#     # Create colormap and normalization for the alphas
+#     cmap = cm.get_cmap('viridis')
+#     norm = plt.Normalize(vmin=np.log10(alphas_swept.min()), vmax=np.log10(alphas_swept.max()))
+    
+#     # Plot TRFs for each alpha
+#     for alpha, trf in zip(alphas_swept, trfs):
+#         color = cmap(norm(np.log10(alpha)))
+#         ax_trfs.plot(
+#             config.times*1e3,
+#             trf,
+#             color=color,
+#             linewidth=1.5,
+#             alpha=0.8
+#         )
+    
+#     # Highlight the selected alpha
+#     selected_idx = np.argmin(np.abs(alphas_swept - alpha_subject))
+#     ax_trfs.plot(
+#         config.times*1e3,
+#         trfs[selected_idx],
+#         color='black',
+#         linewidth=2.5,
+#         alpha=1.0,
+#         label=f'Selected α = {alpha_subject:.0f}' if alpha_subject >= 1 else f'Selected α = {alpha_subject:.3f}'
+#     )
+    
+#     ax_trfs.set(
+#         xlabel='Time (ms)',
+#         ylabel='TRF Amplitude (a.u.)',
+#         title='Temporal Response Functions for Different Alpha Values'
+#     )
+#     ax_trfs.grid(True, alpha=0.3)
+#     ax_trfs.legend(loc='upper right', fontsize=10)
+    
+#     # Add colorbar for alpha values
+#     sm = cm.ScalarMappable(cmap=cmap, norm=norm)
+#     sm.set_array([])
+#     cbar = fig.colorbar(sm, ax=ax_trfs, orientation='vertical', pad=0.02, shrink=0.8, aspect=20)
+#     cbar.set_label(r'$\log_{10}(\alpha)$', fontsize=12)
+    
+#     # Set colorbar ticks to show actual alpha values
+#     log_alphas = np.log10(alphas_swept)
+#     tick_positions = np.linspace(log_alphas.min(), log_alphas.max(), 5)
+#     cbar.set_ticks(tick_positions)
+    
+#     # Better formatting for the wide range of alpha values
+#     alpha_values = [10**pos for pos in tick_positions]
+#     formatted_labels = []
+    
+#     for alpha in alpha_values:
+#         if alpha < 0.01:
+#             formatted_labels.append(f'{alpha:.3f}')
+#         elif alpha < 1:
+#             formatted_labels.append(f'{alpha:.2f}')
+#         elif alpha < 1000:
+#             formatted_labels.append(f'{int(alpha)}')
+#         else:
+#             formatted_labels.append(f'{alpha:.1e}')
+    
+#     cbar.set_ticklabels(formatted_labels)
+    
+#     # Save figure
+#     if save:
+#         os.makedirs(save_path, exist_ok=True)
+#         temp_path = os.path.normpath(save_path)
+#         os.chdir(temp_path)
+#         fig.savefig(f'session_{session}_subject_{subject}{config.figure_format}', 
+#                     dpi=300, bbox_inches='tight')
+#         os.chdir(current_working_directory)
+#         plt.close(fig)
 
 def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, ax=None, N=256):
     if ax is None:

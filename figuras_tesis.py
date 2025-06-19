@@ -6622,9 +6622,12 @@ psds_welch_mean, freqs_mean = mne.time_frequency.psd_array_welch(
     fmax=60,
     n_fft=2048,
     n_per_seg=2048*16,
-    n_ovelap=32
+    # n_ovelap=32
     )
-
+import matplotlib.pyplot as plt
+import matplotlib
+import config
+matplotlib.use('Agg')  # Cambia el backend a Qt5Agg
 fig, ax = plt.subplots(figsize=(10,5))
 evoked = mne.EvokedArray(psds_welch_mean, config.info_mne)
 # evoked.times = freqs_mean
@@ -6633,7 +6636,7 @@ evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='s',
             show=False, spatial_colors=True, unit=False, units='w', axes=ax)
 ax.set_xlabel('Frequency [Hz]')
 ax.grid()
-fig.show()
+fig.savefig('figures/psd_example.png', dpi=300, bbox_inches='tight')
 
 
 
@@ -6677,6 +6680,9 @@ axes.set(
     xlabel='Frecuencia (Hz)',
     ylim=(-1,20),
 #     xlim=(0,40)
+)
+fig.savefig(
+    'figures/psd_example_mne2.png',
 )
 fig.show()
 

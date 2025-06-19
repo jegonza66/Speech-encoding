@@ -1,5 +1,9 @@
 import numpy as np, mne
 
+figures_dir = 'figures'
+output_dir = 'output'
+saves_dir = 'saves'
+
 # Logging configuration
 LOG_LEVEL = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 LOG_TO_FILE = True
@@ -8,14 +12,14 @@ LOG_DIR = "saves/detailed_logs"
 # ==========================================
 # SESSIONS, STIMULI, SITUATION AND EEG BANDS
 sessions = [
-            21, 
-            22, 
-            23, 
-            24, 
-            25, 
-            26, 
-            27, 
-            29, 
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            29,
             30
             ]
 stimuli = [
@@ -23,62 +27,71 @@ stimuli = [
 
         # # Redundant features
         # 'Spectrogram_Mfccs',
-        # 'Phones-Phonet_Phonemes-Phonet',
+        # 'Phones_Phonemes',
 
         # # Combined 1st level features
         # 'Envelope_Pitch-Log-Raw',
         # 'Envelope_Spectrogram',
         # 'Pitch-Log-Raw_Spectrogram',
         # 'Envelope_Pitch-Log-Raw_Spectrogram',
-        
+
         # # Combined best performance features
-        # 'Phonological_Spectrogram', 
-        # 'Phonemes-Phonet_Spectrogram',
-        # 'Phonological_Phonemes-Phonet',
-        # 'Phonological_Phonemes-Phonet_Spectrogram',
-        
-        # Simples
+        # 'Phonological_Spectrogram',
+        # 'Phonemes_Spectrogram',
+        # 'Phonological_Phonemes',
+        # 'Phonological_Phonemes_Spectrogram',
+
+        # # Simples
         'Envelope',
         # 'Pitch-Log-Raw',
         # 'Spectrogram',
         # 'Mfccs',
         # 'Phonological',
-        # 'Phonemes-Phonet', 
-        # 'Phonemes-Discrete-Phonet',
-        # 'Phonemes-Frequency-Phonet', 
-        # 'Phones-Phonet', 
-        # 'Phones-Discrete-Phonet',
+        # 'Phonemes',
+        # 'Phonemes-Discrete',
+        # 'Phonemes-Frequency',
+        # 'Phones-Discrete',
+        # 'Phones',
+        # 'Jitter',
+        # 'Shimmer',
         # 'Wav2vec2' # TODO No esta bueno
-        ] # ['Pitch-Log-Raw', 'Envelope', 'Mfccs-Deltas', 'Spectrogram', 'Phonemes-Discrete-Phonet', 'Phonological']
+
+        # # Simples but non-standard
+        # 'Envelope2',
+        # 'Phonological1',
+        # 'Phonological2'
+        ]
 situations = [
-        # 'External', 
-        # 'Internal', 
-        # 'External_BS',
+        'External',
+        # 'Internal',
+        # 'External_BS', #TODO 
         # 'Internal_BS',
-        'External_Silence_10', 
-        'External_Silence_20',
-        'External_Silence_30',
-        'External_Silence_40',
-        'External_Silence_50',
-        'External_Silence_60',
-        'External_Silence_70',
-        'External_Silence_80',
-        'External_Silence_90',
-        'External_Silence_100'
-        ] # ['External' #'External' # 'Internal' # 'External_BS' #'Internal_BS']
-bands = [
-        # 'Delta', 
-        'Theta', 
-        # 'Alpha', 
-        # 'Beta1', 
-        # 'Beta2',
+        # 'External_Silence_10',
+        # 'External_Silence_20',
+        # 'External_Silence_30',
+        # 'External_Silence_40',
+        # 'External_Silence_50',
+        # 'External_Silence_60',
+        # 'External_Silence_70',
+        # 'External_Silence_80',
+        # 'External_Silence_90',
+        # 'External_Silence_100',
         # 'All'
-        ] # ['Delta', 'Theta', 'Alpha', 'Beta1', 'Beta2', 'All']
+        ]
+
+bands = [
+        # 'Delta',
+        'Theta',
+        # 'Alpha',
+        # 'Beta1',
+        # 'Beta2',
+        'All'
+        ]
 
 # ==========================================
 # LOADING/SAVING DATA, FIGURE CONFIGURATIONS
 praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
-display_interactive_mode, save_results, save_figures, no_figures = False, True, True, True
+display_interactive_mode, save_results, save_figures, no_figures = False, True, True, False
 figure_format = '.png'
 just_load_data = False
 leadership_kind_of_subsampling = 'optimized_trials' #'ordered_trials' #'random_trials'
@@ -94,22 +107,22 @@ stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
 model = 'mtrf_ridge_torch' # 'mtrf_ridge'
 
 causal_filter_eeg = True
-envelope_filter = False 
+envelope_filter = None
 # ==============================
-# DEFAULT PENALIZATION PARAMETER 
+# DEFAULT PENALIZATION PARAMETER
 correlation_limit_percentage, default_alpha, set_alpha = 0.01, 400, None
 
 # ====================================================================
 # TFCE, T-TEST PARAMETERS, HIERARCHICAL_CLUSTERING and NUMBER OF FOLDS
 n_permutations, significance, number_of_jobs = 4096, .05, -1
 hierarchical_clustering = True
-n_folds = 5 # with 5 folds (remain 20% as validation set, then interchange to cross validate)
+n_folds = 20 # with 5 folds (remain 20% as validation set, then interchange to cross validate)
 
 # =====================
 # VALIDATION PARAMETERS
-min_order, max_order, steps = -1, 6, 32 
+min_order, max_order, steps, base_log = -4, 8, 48, 10
 val_correlation_limit_percentage = 0.01
-alphas_swept = np.logspace(min_order, max_order, steps)
+alphas_swept = np.logspace(min_order, max_order, steps, base=base_log)
 alpha_step = np.diff(np.log(alphas_swept))[0]
 save_alphas = True
 
@@ -137,76 +150,42 @@ relevant_channels = 12#None#12
 class Exp_info:
     def __init__(self):
         """A class used to represent experimental information for speech encoding.
-        
+
         Attributes
         ----------
-			ph_labels : list
-					A list of phoneme labels.
-			ph_labels_man : list
-					A list of manually labeled phonemes.
-			ph_labels_phonet : list
-					A list of phonemes labeled using phonetic transcription.
-			ph_labels_phonet_ordered : list
-					An ordered list of phonemes labeled using phonetic transcription.
-			mistakes : list
-					A list of types of mistakes.
-			control : list
-					A list of control categories.
-			phonological_labels : dict
-					A dictionary categorizing phonemes into various phonological features.
-                        
-        Methods
-        -------
-			__init__():
-					Initializes the Exp_info class with predefined phoneme labels, mistake types, control categories, and phonological features.
+        ph_labels : list
+                A list of phoneme labels.
+        ph_labels_man : list
+                A list of manually labeled phonemes.
+        ph_labels : list
+                A list of phonemes labeled using phonetic transcription.
+        ph_labels_ordered : list
+                An ordered list of phonemes labeled using phonetic transcription.
+        mistakes : list
+                A list of types of mistakes.
+        control : list
+                A list of control categories.
+        phonological_labels : dict
+                A dictionary categorizing phonemes into various phonological features.
         """
-         # Define ctf data path and files path
-        self.ph_labels = ['CH', 'NY', 'R', 'a', 'b', 'd', 'e', 'f', 'g', 'i', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 's', 't', 'u', 'x', 'y']
-
-        self.ph_labels_man = ['(d)o', 'A', 'AH', 'CH', 'F', 'NY', 'R', 'Y', 'a', 'ap', 'b', 'br', 'c', 'chas', 'd','de', 'e', 'es', 'f', 'g', 'h', 'i', 'k', 'l', 'lg', 'm', 'n', 'ns', 'o', 'p', 'r', 's','si', 't', 'u', 'v', 'x', 'y']
-        # self.ph_labels_phonet = ['B', 'D', 'F', 'G', 'N', 'T', 'a', 'b', 'd', 'e', 'f', 'i', 'j', 'jj', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 'rr', 's', 't', 'tS', 'u', 'w', 'x', 'z', 'Z', 'g', 'S', 'J', 'L', 'sil', '<p:>']
-        self.ph_labels_phonet = ['<p:>', 'B', 'D', 'F', 'G', 'J', 'L', 'N', 'S', 'T', 'Z', 'a', 'b', 'd', 'e', 'f', 'g', 'i', 'j', 'jj', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 'rr', 's', 'sil', 't', 'tS', 'u', 'w', 'x', 'z']
-
+        self.phones = [
+                '<p:>', 'B', 'D', 'F', 'G', 'J', 'L', 'N', 'S', 'T', 'Z', 'a', 'b', 'd', 'e',
+                'f', 'g', 'i', 'j', 'jj', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 'rr', 's', 'sil',
+                't', 'tS', 'u', 'w', 'x', 'z'
+        ]        
+        # self.phonemes = [phoneme for phoneme in np.unique(list(self.phones_to_phonemes.values()))]
+        self.phonemes  = [
+                '/a/', '/b/', '/d/', '/e/', '/f/', '/g/', '/i/', '/k/', '/l/', '/m/', '/n/',
+                '/o/', '/p/', '/r/', '/s/', '/t/', '/tS/', '/u/', '/x/', '/R/', '/L/','/sil/'
+        ]
+        
         self.phones_to_phonemes = {
-            'a' : '/a/',
-            'e' : '/e/',
-            'i' : '/i/',
-            'o' : '/o/',
-            'j' : '/i/',
-            'w' : '/u/',
-            'u' : '/u/',
-            'l' : '/l/',
-            'r' : '/R/',
-            'rr': '/r/',
-            't' : '/t/',
-            'd' : '/d/',
-            'D' : '/d/',
-            'sil' : '/sil/',
-            '<p:>' : '/sil/',
-            'm' : '/m/',
-            'n' : '/n/',
-            'N' : '/n/',
-            'k' : '/k/',
-            'g' : '/g/',
-            'G' : '/g/',
-            'tS': '/tS/',
-            'T' : '/tS/',
-            'f' : '/f/',
-            'F' : '/f/',
-            's' : '/s/',
-            'S' : '/s/',
-            'z' : '/s/',
-            'Z' : '/s/',
-            'p' : '/p/',
-            'b' : '/b/',
-            'B' : '/b/',
-            'L' : '/L/',
-            'x' : '/x/',
-            'jj': '/x/',
-            'J' : '/x/'
-            }
-        # self.phonemes_phonet = [phoneme for phoneme in np.unique(list(self.phones_to_phonemes.values()))]
-        self.phonemes_phonet  = ['/a/', '/b/', '/d/', '/e/', '/f/', '/g/', '/i/', '/k/', '/l/', '/m/', '/n/', '/o/', '/p/', '/r/', '/s/', '/t/', '/tS/', '/u/', '/x/', '/R/', '/L/','/sil/']
+            'a' : '/a/', 'e' : '/e/', 'i' : '/i/', 'o' : '/o/', 'j' : '/i/', 'w' : '/u/', 'u' : '/u/',
+            'l' : '/l/', 'r' : '/R/', 'rr': '/r/', 't' : '/t/', 'd' : '/d/', 'D' : '/d/', 'sil' : '/sil/',
+            '<p:>' : '/sil/', 'm' : '/m/', 'n' : '/n/', 'N' : '/n/', 'k' : '/k/', 'g' : '/g/', 'G' : '/g/',
+            'tS': '/tS/', 'T' : '/tS/', 'f' : '/f/', 'F' : '/f/', 's' : '/s/', 'S' : '/s/', 'z' : '/s/',
+            'Z' : '/s/', 'p' : '/p/', 'b' : '/b/', 'B' : '/b/', 'L' : '/L/', 'x' : '/x/', 'jj': '/x/', 'J' : '/x/'
+        }
         
         self.mistakes = ['Articulatory', 'Lexical', 'Discursive']
         self.control = ['Articulatory', 'Lexical', 'Discursive']
@@ -229,7 +208,9 @@ class Exp_info:
             "dental"      :["t","d", "D"],
             "velar"       :["k","g", "G"],
             "pause"       :  ["sil", "<p:>"]
-            }
+        }
+        self.phonological_labels1 = ['labial', 'lateral', 'open', 'vocalic', 'back', 'voice', 'nasal']
+        self.phonological_labels2 = ['dental', 'consonantal', 'velar', 'flap', 'close', 'strident', 'continuant']
 
 # ==========================================
 # INSTANTIATE EXPERIMENTAL INFO

@@ -4,10 +4,9 @@ from datetime import datetime
 
 # Specific libraries
 from sklearn.model_selection import KFold
-from tqdm import tqdm 
 
 # Modules
-from utils.general_functions import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
+from utils.general_functions import load_pickle, dump_pickle, dict_to_csv, iteration_percentage
 from model_implementations import fold_model
 from utils.plot import hyperparameter_selection
 from load import load_data
@@ -17,8 +16,14 @@ import config
 from utils.notification_telegram import tel_message, generate_completion_message
 from telegram_config import API_TOKEN, CHAT_ID
 
-# Logging
+# Command line and logging
+from utils.from_commands import create_dynamic_parser, apply_args_to_config
 from utils.logs import setup_logger
+
+# Use it
+parser = create_dynamic_parser()
+args = parser.parse_args()
+apply_args_to_config(args)
 
 # Initialize logger
 logger = setup_logger(
@@ -56,10 +61,10 @@ for situation in config.situations:
             )
             
             # Relevant paths
-            preprocessed_data_path = os.path.normpath(f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/')
-            figures_path = os.path.normpath(f'figures/{config.model}_trace/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}')
+            preprocessed_data_path = os.path.normpath(f'{config.saves_dir}/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/')
+            figures_path = os.path.normpath(f'{config.figures_dir}/{config.model}_trace/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}')
             
-            path_validation = f'output/{config.model}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+            path_validation = f'{config.output_dir}/{config.model}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
             alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
             
             # Try to access alphas
@@ -74,15 +79,12 @@ for situation in config.situations:
 
                 # Load data by subject, EEG and info
                 subject_1, subject_2, samples_info = load_data(
-                                                session=session,
-                                                stim=stim,
-                                                band=band,
-                                                sr=config.sr,
-                                                delays=config.delays,
-                                                preprocessed_data_path=preprocessed_data_path,
-                                                praat_executable_path=config.praat_executable_path,
-                                                situation=situation
-                                                )
+                    preprocessed_data_path=preprocessed_data_path,
+                    situation=situation,
+                    session=session,
+                    stimuli=stim,
+                    band=band
+                )
                 eeg_subject_1, eeg_subject_2, info = subject_1['EEG'], subject_2['EEG'], subject_1['info']
                 
                 if config.just_load_data:
@@ -102,13 +104,25 @@ for situation in config.situations:
                 # Run model for each subject
                 for subject, eeg, stims, relevant_indexes in zip((1, 2), (eeg_subject_1, eeg_subject_2), (stims_subject_1, stims_subject_2), (relevant_indexes_1, relevant_indexes_2)):
                     print(f'\n\n\t······  Running model for Subject {subject}\n')
-
-                    # Take some metrics for each alpha
-                    correlations = np.zeros(len(config.alphas_swept))
-                    correlations_std = np.zeros(len(config.alphas_swept))
                     
                     # Make sweep 
-                    correlation_per_channel = np.zeros((config.n_folds, len(config.alphas_swept)))
+                    correlations_per_fold = np.zeros(
+                        (config.n_folds, len(config.alphas_swept))
+                    )
+                    rmse_per_fold = np.zeros(
+                        (config.n_folds, len(config.alphas_swept))
+                    )
+                    trfs_per_fold = np.zeros(
+                        (config.n_folds, len(config.alphas_swept), len(config.times))
+                    )
+                    
+                    # Make sweep 
+                    correlations_per_fold_train = np.zeros(
+                        (config.n_folds, len(config.alphas_swept))
+                    )
+                    rmse_per_fold_train = np.zeros(
+                        (config.n_folds, len(config.alphas_swept))
+                    )
 
                     # Make the Kfold test
                     kf_test = KFold(config.n_folds, shuffle=False)
@@ -119,20 +133,29 @@ for situation in config.situations:
                     # Run folds 
                     for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
                         logger.debug(f'\n\t······  [{fold+1}/{config.n_folds}]\t-->\t Validation fold')
-                        correlation_per_channel[fold] = fold_model(
-                            fold=fold,
-                            alpha=config.alphas_swept,
-                            stims=stims,
-                            eeg=eeg,
+                        trfs_per_fold[fold], correlations_per_fold[fold], rmse_per_fold[fold], correlations_per_fold_train[fold], rmse_per_fold_train[fold] = fold_model(
                             relevant_indexes=relevant_indexes,
                             train_indexes=train_indexes,
+                            alpha=config.alphas_swept,
                             test_indexes=test_indexes,  
-                            validation=True
-                            )     
+                            validation=True,
+                            stims=stims,
+                            fold=fold,
+                            eeg=eeg
+                        )     
 
-                    # Calculate mean correlation and std
-                    correlations = np.nan_to_num(np.nanmean(correlation_per_channel, axis=0))
-                    correlations_std = np.nan_to_num(np.nanstd(correlation_per_channel, axis=0))
+                    # Calculate mean correlation, rmse and std
+                    correlations = np.nan_to_num(np.nanmean(correlations_per_fold, axis=0))
+                    correlations_std = np.nan_to_num(np.nanstd(correlations_per_fold, axis=0))
+                    rmse = np.nan_to_num(np.nanmean(rmse_per_fold, axis=0))
+                    rmse_std = np.nan_to_num(np.nanstd(rmse_per_fold, axis=0))
+                    
+                    # Same for training
+                    correlations_train = np.nan_to_num(np.nanmean(correlations_per_fold_train, axis=0))
+                    rmse_train = np.nan_to_num(np.nanmean(rmse_per_fold_train, axis=0))
+                    
+                    # Calculate mean TRFs
+                    trfs = np.nanmean(trfs_per_fold, axis=0)
                     
                     # Find all indexes where the relative difference between the correlation and its maximum is within corr_limit_percent
                     relative_difference = abs((correlations.max() - correlations)/correlations.max())
@@ -143,19 +166,24 @@ for situation in config.situations:
                     
                     # Make the alpha selection process plot
                     hyperparameter_selection(
-                                            alphas_swept=config.alphas_swept,
-                                            correlations=correlations, 
-                                            correlations_std=correlations_std, 
-                                            alpha_subject=alpha_subject,
-                                            correlation_limit_percentage=config.val_correlation_limit_percentage, 
-                                            session=session, 
-                                            subject=subject, 
-                                            stim=stim, 
-                                            band=band, 
-                                            save_path=figures_path, 
-                                            save=config.save_figures, 
-                                            no_figures=config.no_figures
-                                            )
+                        alphas_swept=config.alphas_swept,
+                        correlations=correlations, 
+                        correlations_std=correlations_std,
+                        correlations_train=correlations_train, 
+                        rmse=rmse,
+                        rmse_std=rmse_std,
+                        rmse_train=rmse_train,
+                        trfs=trfs,
+                        alpha_subject=alpha_subject,
+                        correlation_limit_percentage=config.val_correlation_limit_percentage, 
+                        session=session, 
+                        subject=subject, 
+                        stim=stim, 
+                        band=band, 
+                        save_path=figures_path, 
+                        save=config.save_figures, 
+                        no_figures=config.no_figures
+                    )
 
                     # Update dictionary
                     alphas[session][subject] = alpha_subject
@@ -193,7 +221,9 @@ for situation in config.situations:
         situation=situation,
         total_number_of_subjects=len(config.sessions) * 2,
         stimulus_runtimes=stimulus_runtimes,
-        total_runtime=str(total_runtime)
+        total_runtime=str(total_runtime),
+        save_path=path_validation,
+        fig_path=figures_path
     )
     
     # Send text to telegram bot
@@ -213,9 +243,9 @@ for situation in config.situations:
     }
 
     dict_to_csv(
-                path=metadata_path+'metadata.csv',
-                obj=metadata,
-                rewrite=True
+        path=metadata_path+'metadata.csv',
+        obj=metadata,
+        rewrite=True
     )
 
     # Print the completion message

@@ -390,14 +390,14 @@ def tfce(
         weights_subjects_mean_across_channels = average_weights_subjects.copy().mean(axis=1)
         weights = weights_subjects_mean_across_channels.swapaxes(1, 2) #---> n_sub, n_delays, n_feats for specific feat
         t_tfce, clusters, p_tfce, H0 = mne.stats.permutation_cluster_1samp_test(
-                                                                                X=weights,
-                                                                                adjacency=None,
-                                                                                n_jobs=n_jobs,
-                                                                                threshold=threshold_tfce,
-                                                                                n_permutations=n_permutations,
-                                                                                out_type="mask",
-                                                                                verbose=verbose_tfce
-                                                                                )
+            X=weights,
+            adjacency=None,
+            n_jobs=n_jobs,
+            threshold=threshold_tfce,
+            n_permutations=n_permutations,
+            out_type="mask",
+            verbose=verbose_tfce
+        )
         p_tfce = p_tfce.reshape(t_tfce.shape)
         if verbose_tfce:
             t_f = datetime.now().replace(microsecond=0)-t_0

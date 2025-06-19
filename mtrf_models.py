@@ -165,13 +165,40 @@ class TorchMtrf:
                                                                 y_train=y_train_for_val, 
                                                                 y_test=y_val
                                                                 )
-            correlations = torch.zeros(len(self.alpha), device=self.device, dtype=torch.float32)
+            correlations = torch.zeros(
+                len(self.alpha), 
+                device=self.device, 
+                dtype=torch.float32
+            )
+            root_mean_square_error = torch.zeros(
+                len(self.alpha), 
+                device=self.device, 
+                dtype=torch.float32
+            )
+            correlations_train = torch.zeros(
+                len(self.alpha), 
+                device=self.device, 
+                dtype=torch.float32
+            )
+            root_mean_square_error_train = torch.zeros(
+                len(self.alpha), 
+                device=self.device, 
+                dtype=torch.float32
+            )
+            trfs = torch.zeros(
+                len(self.alpha), 
+                len(config.delays), 
+                device=self.device, 
+                dtype=torch.float32
+            )
+            
             for i_alpha, alph in tqdm(enumerate(self.alpha), total=len(self.alpha), desc='Sweeping progress', bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
-            # for i_alpha, alph in enumerate(self.alpha):
-                
+
                 # Fit the Ridge model
                 XTX_reg = X_train_for_val.T @ X_train_for_val + torch.tensor(alph, dtype=torch.float32) *  torch.eye(X_train_for_val.shape[1], device=self.device) # X^T * X + alpha*I
-                y_predicted = X_pred @ torch.linalg.solve(XTX_reg, X_train_for_val.T @ y_train_for_val)
+                trf = torch.linalg.solve(XTX_reg, X_train_for_val.T @ y_train_for_val)
+                y_predicted = X_pred @ trf
+                y_predicted_train = X_train_for_val @ trf
                 
                 # Compute correlation
                 try:
@@ -188,9 +215,26 @@ class TorchMtrf:
                         correlations[i_alpha] = (covariance / (y_val_std * y_pred_std)).mean()
                 except RuntimeWarning:
                     correlations[i_alpha] = 0
-
+                try:
+                    y_pred_train_centered = y_predicted_train - y_predicted_train.mean(dim=0, keepdim=True)
+                    y_train_for_val_centered = y_train_for_val - y_train_for_val.mean(dim=0, keepdim=True)
+                    covariance_train = (y_train_for_val_centered * y_pred_train_centered).mean(dim=0)
+                    
+                    # Usar std en lugar de norm para las desviaciones estándar
+                    y_train_for_val_std = y_train_for_val_centered.std(dim=0, unbiased=True)  # Bessel's correction
+                    y_train_pred_std = y_pred_train_centered.std(dim=0, unbiased=True)  # Bessel's correction
+                    if torch.all(y_train_for_val_std == 0) or torch.all(y_train_pred_std == 0):
+                        print("\n Error: null standard deviation")
+                    else:
+                        correlations_train[i_alpha] = (covariance_train / (y_train_for_val_std * y_train_pred_std)).mean()
+                except RuntimeWarning:
+                    correlations_train[i_alpha] = 0
+                
+                root_mean_square_error[i_alpha] = torch.sqrt(torch.pow(y_predicted - y_val, 2).mean(dim=0)).mean(dim=0)
+                root_mean_square_error_train[i_alpha] = torch.sqrt(torch.pow(y_predicted_train - y_train_for_val, 2).mean(dim=0)).mean(dim=0)
+                trfs[i_alpha] = trf.view(n_features, len(config.delays), trf.shape[-1]).permute(2, 0, 1).mean(dim=0).mean(dim=0) # shape n_chans, feats, delays
             del X_train_for_val, y_train_for_val, y_predicted, y_val, X_pred
-            return correlations.detach().cpu().numpy()
+            return trfs.detach().cpu().numpy(), correlations.detach().cpu().numpy(), root_mean_square_error.detach().cpu().numpy(), correlations_train.detach().cpu().numpy(), root_mean_square_error_train.detach().cpu().numpy()
         else:
             if self.shuffle:
                 iterations = np.arange(config.random_permutations)

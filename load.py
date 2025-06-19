@@ -5,10 +5,8 @@ import pandas as pd
 import numpy as np
 import warnings
 import resampy
-import torch
 import time
 import os
-import gc
 
 # Specific libraries
 from praatio import pitch_and_intensity #
@@ -22,14 +20,20 @@ import textgrids
 import librosa
 import mne
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow warnings
-from phonet.phonet import Phonet 
+# Set TensorFlow environment variables BEFORE any TensorFlow imports
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0=all, 1=info, 2=warnings, 3=errors only
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimizations warnings
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'  # Prevent TF from allocating all GPU memory
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'  # Use specific GPU if available
 
+
+from phonet.phonet import Phonet 
+    
 # from transformers import Wav2Vec2Model, Wav2Vec2Processor # In case we want to use Wav2Vec2
 from transformers import WhisperProcessor, WhisperModel 
 
 # Modules
-from utils.phoneme_implementation_from_phonet import Phones
+from utils.phoneme_implementation_from_phonet import compute_phones
 import utils.general_functions as general_functions
 import utils.processing as processing
 import config
@@ -45,8 +49,32 @@ logger = setup_logger(
     level=config.LOG_LEVEL
 )
 
+try:
+    import tensorflow as tf
+    
+    # Set TensorFlow logging level to suppress info messages and progress bars
+    tf.get_logger().setLevel('ERROR')
+    
+    # Disable progress bars globally
+    tf.keras.utils.disable_interactive_logging()
+    
+    # Configure TensorFlow for better performance
+    tf.config.threading.set_intra_op_parallelism_threads(4)
+    tf.config.threading.set_inter_op_parallelism_threads(4)
+    
+    # Enable mixed precision if you have a compatible GPU
+    # tf.config.optimizer.set_experimental_options({'auto_mixed_precision': True})
+    
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+    
+    logger.info(f"TensorFlow configured. GPUs available: {len(gpus)}")
+except Exception as e:
+    logger.warning(f"Could not configure TensorFlow optimally: {e}")
+
 # Review this If we want to update packages
-# warnings.filterwarnings("ignore", category=DeprecationWarning)
 mne.set_log_level(verbose='CRITICAL')
 
 # Extra parameters
@@ -72,17 +100,33 @@ ALLOWED_SITUATIONS = [
     'Internal_BS',
     'External_BS', 
     'Internal_All_Times',
-    'External_All_Times'
+    'External_All_Times',
+    'All'
 ]
 ALLOWED_STIMULI = [
-    'Envelope', 'Phonological', 'Spectrogram', 
+    'Envelope', 'Envelope2', 'Phonological', 'Phonological1', 'Phonological2', 'Spectrogram', 
     'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 
     'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 
     'Phonemes', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency', 
     'Phones', 'Phones-Envelope', 'Phones-Discrete',
     'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
-    'Wav2vec2'
+    'Wav2vec2',
+    'Jitter', 'Shimmer'
 ]
+
+_PHONET_CACHE = {}
+def get_phonet_instance():
+    """
+    Get a cached Phonet instance to avoid reloading models
+    """
+    global _PHONET_CACHE
+    
+    if 'phonet' not in _PHONET_CACHE:
+        logger.debug("Loading Phonet model (first time only)...")
+        _PHONET_CACHE['phonet'] = Phonet(["all"])
+        logger.debug("Phonet model loaded and cached")
+    
+    return _PHONET_CACHE['phonet']
 
 class TrialChannelData:
     def __init__(
@@ -148,9 +192,13 @@ class TrialChannelData:
         self.mistakes_path = os.path.normpath(f"data/mistakes_corrected/filtered_session{session}_trial{trial:02d}_channel{channel}.TextGrid")
         self.phonemes_fname = os.path.normpath(f"data/phonemes/S{session}/s{session}.objects.{trial:02d}.channel{channel}.aligned_fa.TextGrid")
         self.eeg_fname = os.path.normpath(f"data/EEG/S{session}/s{session}-{channel}-Trial{trial}-Deci-Filter-Trim-ICA-Pruned.set")
+        # self.eeg_fname = os.path.normpath(f"data/EEG_SHUFFLED_DATA/S{session}/s{session}-{channel}-Trial{trial}-Deci-Filter-Trim-ICA-Pruned_eeg.fif")
         # self.mistakes_path = os.path.normpath(f"data/mistakes/filtered_session{session}_trial{trial:02d}_channel{channel}.TextGrid")
         self.phrases_fname = os.path.normpath(f"data/phrases/S{session}/s{session}.objects.{trial:02d}.channel{channel}.phrases")
         self.wav_fname = os.path.normpath(f"data/wavs/S{session}/s{session}.objects.{trial:02d}.channel{channel}.wav")
+        # self.phrases_fname = os.path.normpath(f"data/phrases_reversed/S{session}/s{session}.objects.{trial:02d}.channel{channel}.phrases")
+        # self.wav_fname = os.path.normpath(f"data/wavs_reversed/S{session}/s{session}.objects.{trial:02d}.channel{channel}.wav")
+        
         self.pitch_fname = os.path.normpath(f"S{session}/s{session}.objects.{trial:02d}.channel{channel}.txt")
         
     def extract_eeg(
@@ -173,14 +221,23 @@ class TrialChannelData:
             input_fname=self.eeg_fname, 
             preload=True
         )
+        # eeg = mne.io.read_raw_fif(
+        #     self.eeg_fname, 
+        #     preload=True
+        # )
         
         # Apply a lowpass filter
         if self.band:
             if self.causal_filter_eeg:
+                # eeg = eeg.filter(
+                #     l_freq=self.l_freq_eeg, 
+                #     h_freq=self.h_freq_eeg, 
+                #     phase='minimum'
+                # )
                 eeg = eeg.filter(
                     l_freq=self.l_freq_eeg, 
                     h_freq=self.h_freq_eeg, 
-                    phase='minimum'
+                    phase='minimum-half'
                 )
                 # iir_params = {
                 # "ftype": "cheby2",       # Filter type: Chebyshev Type II
@@ -201,7 +258,7 @@ class TrialChannelData:
 
         # Get mne representation 
         eeg_mne = eeg.copy()
-        eeg = eeg.get_data().T*1e6  
+        eeg = eeg_mne.get_data().T*1e6  
 
         # Downsample
         eeg = processing.subsample(
@@ -209,7 +266,7 @@ class TrialChannelData:
             step=int(eeg_mne.info.get("sfreq")/ self.sr)
         )
         return eeg
-
+    
     def extract_info(
         self
         )->mne.Info:
@@ -229,11 +286,17 @@ class TrialChannelData:
         return mne.create_info(ch_names=channel_names[:], sfreq=self.sr, ch_types='eeg').set_montage(montage)
 
     def extract_envelope(
-        self
+        self,
+        kind:str='Envelope'
         )->np.ndarray: 
         """
         Takes the low pass filtered -butterworth-, downsample and smoothened envelope of .wav file. Then matches in length to the EEG
 
+        Parameters
+        ----------
+        kind : str, optional
+            Kind of envelope to use, by default 'Envelope'. Available kinds are:
+            ['Envelope', 'Envelope2']. Envelope2 is the same as Envelope but it has an extra dimension with frequency shift
         Returns
         -------
         np.ndarray
@@ -244,7 +307,8 @@ class TrialChannelData:
         wav = wav.astype("float")
 
         # Calculate envelope
-        envelope = np.abs(sgn.hilbert(wav))
+        analytic_signal = sgn.hilbert(wav)
+        envelope = np.abs(analytic_signal)
         
         # Apply lowpass butterworth filter
         if self.envelope_filter == 'Causal':# TODO can it be replaced for a mne filter?
@@ -268,7 +332,7 @@ class TrialChannelData:
                 axis=0 
             ).reshape(-1,1)
         
-        # Resample # TODO padear un cero en el envelope
+        # Resample 
         window_size, stride = int(self.audio_sr/self.sr), int(self.audio_sr/self.sr)
         envelope = np.array([
             np.mean(envelope[i:i+window_size]) \
@@ -276,7 +340,53 @@ class TrialChannelData:
             if i+window_size<=len(envelope)
             ]
         )
-        return envelope.reshape(-1, 1)
+        if kind == 'Envelope2':
+            instantaneous_phase = np.unwrap(
+                np.angle(analytic_signal)
+            )
+            instantaneous_frequency = np.gradient(instantaneous_phase) * self.audio_sr / (2 * np.pi)
+            
+            # Resample
+            instantaneous_frequency = np.array([
+                np.mean(instantaneous_frequency[i:i+window_size]) \
+                for i in range(0, len(instantaneous_frequency), stride)\
+                if i+window_size<=len(instantaneous_frequency)
+                ]
+            )
+            total_envelope = np.hstack(
+                (envelope.reshape(-1,1), instantaneous_frequency.reshape(-1,1))
+                )
+            # from IPython import embed
+            # embed()
+            # import matplotlib.pyplot as plt
+            # from pathlib import Path
+            # # Fix matplotlib backend before any matplotlib imports
+            # import matplotlib
+            # matplotlib.use('Agg')  # Use non-in
+            # instantaneous_wav = np.array([
+            #                 np.mean(wav[i:i+window_size]) \
+            #                 for i in range(0, len(wav), stride)\
+            #                 if i+window_size<=len(wav)
+            #                 ]
+            #             )
+            # plt.figure()
+            # plt.plot(instantaneous_wav, label='Original Signal')
+            # plt.plot(total_envelope[:, 0], label='Amplitude')
+            # plt.plot(total_envelope[:, 1], label='Phase')
+            # plt.title('Envelope with Phase')
+            # plt.xlabel('Samples')
+            # plt.ylabel('Amplitude / Phase')
+            # plt.legend()
+            # output_dir = Path('figures/analysis/pruebas/')
+            # output_dir.mkdir(parents=True, exist_ok=True)
+            # plt.savefig(
+            #     output_dir/f'instantaneous_frequency.png', 
+            #     bbox_inches='tight',
+            #     dpi=300 
+            # )
+            return total_envelope
+        else:
+            return envelope.reshape(-1, 1)
 
     def extract_spectrogram(
         self,
@@ -447,9 +557,9 @@ class TrialChannelData:
                 silenceThreshold=self.silence_threshold,
                 praatEXE=self.praat_executable_path, 
                 sampleStep=sampleStep, 
-                pitchQuadInterp=True
+                pitchQuadInterp=True,
                 minPitch=minPitch,
-                maxPitch=maxPitch, 
+                maxPitch=maxPitch
             )
             # Loads data
             data = np.genfromtxt(
@@ -573,27 +683,18 @@ class TrialChannelData:
                 Also a matrix but it has 1s and 0s instead of envelope amplitude.
             elif kind.startswith('Phonemes-Onset'):
                 In this case the value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
-            
-        Raises
-        ------
-        SyntaxError
-            Whether the input value of 'kind' is passed correctly. It must be a one of:
-            ['Phonemes','Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency'].
         """
-        # Check if given kind is a permited input value
-        allowed_kind = ['Phonemes', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency']
-        if kind not in allowed_kind:
-            raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
-        
-        # Extract phonemes
         if kind=='Phonemes':
+            # Compute phonemes using Phonet protocol
             labels_phonemes = config.exp_info.phonemes.copy()
-            labels_phones = config.exp_info.ph_labels.copy()
+            labels_phones = config.exp_info.phones.copy()
             
-            phones_obj = Phones(audio_file=self.wav_fname)
-            posterior_prob = phones_obj.compute_phones(PLLR=True) #9167
-            del phones_obj
-            gc.collect()  # ← Limpia huérfanos
+            phonet = get_phonet_instance()
+            posterior_prob = compute_phones(
+                phonet_obj=phonet, 
+                audio_file=self.wav_fname,
+                PLLR=True
+            )
                         
             # Match features length
             difference = len(posterior_prob) - len(envelope)
@@ -626,10 +727,11 @@ class TrialChannelData:
             pllr_without_silence = pllr[:, np.arange(number_of_phonemes) != labels_phonemes.index('/sil/')]
             return pllr_without_silence
         else:
-            phones_obj = Phones(audio_file=self.wav_fname)
-            time,  sec_phones = phones_obj.compute_phones() #9167
-            del phones_obj
-            gc.collect()  # ← Limpia huérfanos
+            phonet = get_phonet_instance()
+            time,  sec_phones = compute_phones(
+                phonet_obj=phonet, 
+                audio_file=self.wav_fname
+            )
         
         # Remove silences, since it won't be used in prediction (when silence occurs, all phoneme are 0)
         labels = config.exp_info.phonemes.copy()
@@ -661,7 +763,7 @@ class TrialChannelData:
             try:
                 freq = general_functions.load_pickle('data/phon_frequency_dict/frequency_dict.pkl')
             except:
-                log.warn("Frequency dictionary isn't Load. \n ---> loading it now...")
+                logger.warn("Frequency dictionary isn't Load. \n ---> loading it now...")
                 os.makedirs('data/phon_frequency_dict', exist_ok=True)
                 freq = general_functions.load_phon_frequency_dict(
                     save_path='data/phon_frequency_dict',
@@ -721,14 +823,16 @@ class TrialChannelData:
         if kind not in allowed_kind:
             raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phones are: {allowed_kind}")
 
-        # Extract phonemes
         if kind=='Phones':
-            labels_phones = config.exp_info.ph_labels.copy()
+            # Extract phonemes using Phonet protocol
+            labels_phones = config.exp_info.phones.copy()
             
-            phones_obj = Phones(audio_file=self.wav_fname)
-            posterior_prob = phones_obj.compute_phones(PLLR=True) #9167
-            del phones_obj
-            gc.collect()  # ← Limpia huérfanos
+            phonet = get_phonet_instance()
+            posterior_prob = compute_phones(
+                phonet_obj=phonet, 
+                audio_file=self.wav_fname,
+                PLLR=True
+            )
             
             # Match features length
             difference = len(posterior_prob) - len(envelope)
@@ -755,13 +859,14 @@ class TrialChannelData:
             return pllr_without_silence
         else:
             # Extract phones
-            phones_obj = Phones(audio_file=self.wav_fname)
-            _,  sec_phones = phones_obj.compute_phones() 
-            del phones_obj
-            gc.collect()  # ← Limpia huérfanos
+            phonet = get_phonet_instance()
+            _,  sec_phones = compute_phones(
+                phonet_obj=phonet, 
+                audio_file=self.wav_fname
+            )
         
-        # Get phonet phoneme labels
-        labels = config.exp_info.ph_labels.copy()
+        # Get phonet phones labels
+        labels = config.exp_info.phones.copy()
         labels.remove('<p:>')
         labels.remove('sil')
         
@@ -801,9 +906,10 @@ class TrialChannelData:
                     phones[i, labels.index(tagg)] = 1
         return phones
 
-    def extract_phonological_features(
+    def extract_phonological(
         self, 
-        envelope:np.ndarray
+        envelope:np.ndarray,
+        kind: Union[str, None] = None
         )->np.ndarray:
         """
         Retrive phonological features as a matrix matching envelope length, using Phonet implementation.
@@ -812,20 +918,21 @@ class TrialChannelData:
         ----------
         envelope : np.ndarray
             Envelope of the audio signal using Hilbert transform
+        kind: str, optional
+            Whether to extract phonological features of first or second groups. Available kinds are:
+            ['Phonological1', 'Phonological2']. If None, it will extract all phonological features.
 
         Returns
         -------
         np.ndarray
             Matrix with phonological features with shape SAMPLES X FEATURES
         """
-        # Define phonological instance and phonological features
-        phonet = Phonet(["all"])
+        # Use cached Phonet instance instead of creating new one
+        phonet = get_phonet_instance()
         phon_features = phonet.get_PLLR(
             audio_file=self.wav_fname, 
             plot_flag=False
         )
-        del phonet
-        gc.collect()  # ← Limpia huérfanos
         
         # Interpole data in desire times
         desired_time = np.linspace(
@@ -833,9 +940,19 @@ class TrialChannelData:
         )
 
         # Get feature names
-        phon_features_names = [
-            feat for feat in phon_features.columns if feat not in ['time', 'trill', 'pause']
-        ]
+        if kind is not None:
+            if kind == 'Phonological1':
+                phon_features_names = [
+                    feat for feat in phon_features.columns if feat not in ['time', 'trill', 'pause'] + config.exp_info.phonological_labels2 
+                ]
+            elif kind == 'Phonological2':
+                phon_features_names = [
+                    feat for feat in phon_features.columns if feat not in ['time', 'trill', 'pause'] + config.exp_info.phonological_labels1
+                ]
+        else:
+            phon_features_names = [
+                feat for feat in phon_features.columns if feat not in ['time', 'trill', 'pause']
+            ]
         
         phonological_features = []
         
@@ -875,7 +992,7 @@ class TrialChannelData:
         np.ndarray
             Reduced hidden states from the Wav2Vec2 model after applying PCA.
         """
-        log.warn('WARNING: TO RUN THIS FEATURE YOU NEED TO HAVE THE TRANSFORMER MODEL DOWNLOADED AND HAVE THE ENVELOPE MODEL ALREADY RUN FOR THE SITUATION OF INTEREST.')
+        logger.warn('WARNING: TO RUN THIS FEATURE YOU NEED TO HAVE THE TRANSFORMER MODEL DOWNLOADED AND HAVE THE ENVELOPE MODEL ALREADY RUN FOR THE SITUATION OF INTEREST.')
         
         # Read file
         wav = wavfile.read(self.wav_fname)[1]
@@ -968,7 +1085,7 @@ class TrialChannelData:
         # Apply PCA to find principal components 
         pca = PCA(n_components=n_components)
         pca.fit_transform(np.concatenate(full_hidden_states, axis=0))
-        log.debug(f'Portion of variance of whole hidden layer explained by {n_components} components: {np.sum(pca.explained_variance_ratio_)*100:.2f}%')
+        logger.debug(f'Portion of variance of whole hidden layer explained by {n_components} components: {np.sum(pca.explained_variance_ratio_)*100:.2f}%')
 
         hidden_state_final = []
         # for hidden_states, sample_window, in zip(full_hidden_states, sample_windows):
@@ -987,7 +1104,7 @@ class TrialChannelData:
         
         hidden_state_final = np.concatenate(hidden_state_final, axis=0)
         
-        log.debug(f'The model took {(time.time()-ini)/60:.2f} minutes')
+        logger.debug(f'The model took {(time.time()-ini)/60:.2f} minutes')
         
         # Cutoff to minimum length
         min_length = min(eeg.shape[0], hidden_state_final.shape[0])
@@ -1189,12 +1306,68 @@ class TrialChannelData:
             control_signal = np.concatenate((control_signal, np.zeros(shape=(np.abs(difference), 3)))) if separated else np.concatenate((control_signal, np.zeros(shape=(np.abs(difference), 1))))
         return control_signal
 
-    def extract_jitter_shimmer(
+    # def extract_jitter_shimmer(
+    #     self, 
+    #     envelope:np.ndarray
+    #     )->tuple: # NEVER USED
+    #     """
+    #     Gives the jitter and shimmer matching the size of the envelope
+
+    #     Parameters
+    #     ----------
+    #     envelope : np.ndarray
+    #         Envelope of the audio signal using Hilbert transform
+
+    #     Returns
+    #     -------
+    #     tuple
+    #         jitter and shimmer arrays with length smaller or equal to envelope length.
+    #     """
+    #     # Processing object to extract audio features
+    #     smile = opensmile.Smile(
+    #         feature_set=opensmile.FeatureSet.eGeMAPSv02,
+    #         feature_level=opensmile.FeatureLevel.LowLevelDescriptors)
+
+    #     # Creates a pd.DataFrame to store audio features
+    #     y = smile.process_file(self.wav_fname)
+        
+    #     # Removes file index of multindex, leaving just start and end times as index
+    #     y.index = y.index.droplevel(0)
+
+    #     # Transform to single index with elapsed time in seconds
+    #     y.index = y.index.map(lambda x: x[0].total_seconds())
+
+    #     # Extract series with specific features
+    #     jitter = y['jitterLocal_sma3nz']
+    #     shimmer = y['shimmerLocaldB_sma3nz']
+        
+    #     # Calculate the least common multiple between envelope and jitter lengths (jimmer length is the same as jitter)
+    #     mcm = general_functions.minimo_comun_multiplo(len(jitter), len(envelope))
+        
+    #     # Repeat each value the number of times it takes the length of jitter to achive the mcm. The result is that jitter length matches mcm
+    #     jitter = np.repeat(jitter, mcm / len(jitter))
+    #     shimmer = np.repeat(shimmer, mcm / len(shimmer))
+
+    #     # Subsample by the number of times it takes the length of the envelope to achive the mcm. Now it has exactly the same size as envelope
+    #     jitter = processing.subsample(
+    #         x=jitter, 
+    #         step=mcm/len(envelope)
+    #         )
+    #     shimmer = processing.subsample(
+    #         x=shimmer, 
+    #         step=mcm/len(envelope)
+    #         )
+
+    #     # Reassurance that the count is correct
+    #     jitter = jitter[:min(len(jitter), len(envelope))].reshape(-1,1)
+    #     shimmer = shimmer[:min(len(shimmer), len(envelope))].reshape(-1,1)
+    #     return jitter, shimmer
+    def extract_jitter(
         self, 
-        envelope:np.ndarray
-        )->tuple: # NEVER USED
+        envelope: np.ndarray
+    ) -> np.ndarray:
         """
-        Gives the jitter and shimmer matching the size of the envelope
+        Extracts jitter (pitch period variation) matching the size of the envelope
 
         Parameters
         ----------
@@ -1203,13 +1376,21 @@ class TrialChannelData:
 
         Returns
         -------
-        tuple
-            jitter and shimmer arrays with length smaller or equal to envelope length.
+        np.ndarray
+            Jitter values with same length as envelope, shape (samples, 1)
         """
+        # Read file
+        wav = wavfile.read(self.wav_fname)[1]
+        wav = wav.astype("float")
+        
+        # Get sample window size to match the sampling rate of the EEG
+        sample_window = int(self.audio_sr/self.sr)
+        
         # Processing object to extract audio features
         smile = opensmile.Smile(
             feature_set=opensmile.FeatureSet.eGeMAPSv02,
-            feature_level=opensmile.FeatureLevel.LowLevelDescriptors)
+            feature_level=opensmile.FeatureLevel.LowLevelDescriptors
+        )
 
         # Creates a pd.DataFrame to store audio features
         y = smile.process_file(self.wav_fname)
@@ -1220,31 +1401,68 @@ class TrialChannelData:
         # Transform to single index with elapsed time in seconds
         y.index = y.index.map(lambda x: x[0].total_seconds())
 
-        # Extract series with specific features
-        jitter = y['jitterLocal_sma3nz']
-        shimmer = y['shimmerLocaldB_sma3nz']
+        # Extract jitter feature
+        jitter = y['jitterLocal_sma3nz'].values
         
-        # Calculate the least common multiple between envelope and jitter lengths (jimmer length is the same as jitter)
-        mcm = general_functions.minimo_comun_multiplo(len(jitter), len(envelope))
+        # Create time array for interpolation
+        original_time = np.arange(len(jitter)) * (len(jitter) / len(wav)) * (1/self.audio_sr)
+        target_time = np.arange(len(envelope)) * (1/self.sr)
         
-        # Repeat each value the number of times it takes the length of jitter to achive the mcm. The result is that jitter length matches mcm
-        jitter = np.repeat(jitter, mcm / len(jitter))
-        shimmer = np.repeat(shimmer, mcm / len(shimmer))
+        # Interpolate to match envelope length
+        jitter_resampled = np.interp(target_time, original_time, jitter)
+        
+        return jitter_resampled.reshape(-1, 1)
 
-        # Subsample by the number of times it takes the length of the envelope to achive the mcm. Now it has exactly the same size as envelope
-        jitter = processing.subsample(
-            x=jitter, 
-            step=mcm/len(envelope)
-            )
-        shimmer = processing.subsample(
-            x=shimmer, 
-            step=mcm/len(envelope)
-            )
+    def extract_shimmer(
+        self, 
+        envelope: np.ndarray
+    ) -> np.ndarray:
+        """
+        Extracts shimmer (amplitude variation) matching the size of the envelope
 
-        # Reassurance that the count is correct
-        jitter = jitter[:min(len(jitter), len(envelope))].reshape(-1,1)
-        shimmer = shimmer[:min(len(shimmer), len(envelope))].reshape(-1,1)
-        return jitter, shimmer
+        Parameters
+        ----------
+        envelope : np.ndarray
+            Envelope of the audio signal using Hilbert transform
+
+        Returns
+        -------
+        np.ndarray
+            Shimmer values with same length as envelope, shape (samples, 1)
+        """
+        # Read file
+        wav = wavfile.read(self.wav_fname)[1]
+        wav = wav.astype("float")
+        
+        # Get sample window size to match the sampling rate of the EEG
+        sample_window = int(self.audio_sr/self.sr)
+        
+        # Processing object to extract audio features
+        smile = opensmile.Smile(
+            feature_set=opensmile.FeatureSet.eGeMAPSv02,
+            feature_level=opensmile.FeatureLevel.LowLevelDescriptors
+        )
+
+        # Creates a pd.DataFrame to store audio features
+        y = smile.process_file(self.wav_fname)
+        
+        # Removes file index of multindex, leaving just start and end times as index
+        y.index = y.index.droplevel(0)
+
+        # Transform to single index with elapsed time in seconds
+        y.index = y.index.map(lambda x: x[0].total_seconds())
+
+        # Extract shimmer feature
+        shimmer = y['shimmerLocaldB_sma3nz'].values
+        
+        # Create time array for interpolation
+        original_time = np.arange(len(shimmer)) * (len(shimmer) / len(wav)) * (1/self.audio_sr)
+        target_time = np.arange(len(envelope)) * (1/self.sr)
+        
+        # Interpolate to match envelope length
+        shimmer_resampled = np.interp(target_time, original_time, shimmer)
+        
+        return shimmer_resampled.reshape(-1, 1)
 
     def load_trial(
         self, 
@@ -1266,46 +1484,68 @@ class TrialChannelData:
         channel['info'] = self.extract_info()
         channel['EEG'] = self.extract_eeg()
 
-        for stim in stimuli:
-            if stim.startswith('Mfccs') or stim.startswith('Deltas'):
-                channel[stim] = self.extract_mfccs(
-                    kind=stim
+        for stimulus in stimuli:
+            if stimulus=='Envelope2':
+                channel['Envelope2'] = self.extract_envelope(
+                    kind=stimulus
                 )
-            if stim.startswith('Pitch'):
-                channel[stim] = self.extract_pitch(
+            if stimulus.startswith('Mfccs') or stimulus.startswith('Deltas'):
+                channel[stimulus] = self.extract_mfccs(
+                    kind=stimulus
+                )
+            if stimulus.startswith('Pitch'):
+                channel[stimulus] = self.extract_pitch(
                     envelope=channel['Envelope'], 
-                    kind=stim
+                    kind=stimulus
                 )
-            if stim=='Phonological':
-                channel[stim] = self.extract_phonological_features(
+            if stimulus=='Phonological':
+                channel[stimulus] = self.extract_phonological(
                     envelope=channel['Envelope']
                 )
-            if stim.startswith('Mistakes'):
-                channel[stim] = self.extract_mistakes(
-                    envelope=channel['Envelope'], 
-                    kind=stim
+            if stimulus=='Phonological1':
+                channel[stimulus] = self.extract_phonological(
+                    envelope=channel['Envelope'],
+                    kind=stimulus
                 )
-            if stim.startswith('Control'):
-                channel[stim] = self.extract_mistakes_control(
-                    envelope=channel['Envelope'], 
-                    kind=stim
+            if stimulus=='Phonological2':
+                channel[stimulus] = self.extract_phonological(
+                    envelope=channel['Envelope'],
+                    kind=stimulus
                 )
-            if stim=='Wav2vec2':
-                channel[stim] = self.extract_wav2vec2(
+            if stimulus.startswith('Mistakes'):
+                channel[stimulus] = self.extract_mistakes(
+                    envelope=channel['Envelope'], 
+                    kind=stimulus
+                )
+            if stimulus.startswith('Control'):
+                channel[stimulus] = self.extract_mistakes_control(
+                    envelope=channel['Envelope'], 
+                    kind=stimulus
+                )
+            if stimulus=='Wav2vec2':
+                channel[stimulus] = self.extract_wav2vec2(
                     envelope=channel['Envelope'], 
                     eeg=channel['EEG']
                 )
-            if stim=='Spectrogram':
+            if stimulus=='Spectrogram':
                 channel['Spectrogram'] = self.extract_spectrogram()
-            if stim.startswith('Phonemes'):
-                channel[stim] = self.extract_phonemes(
+            if stimulus.startswith('Phonemes'):
+                channel[stimulus] = self.extract_phonemes(
                     envelope=channel['Envelope'], 
-                    kind=stim
+                    kind=stimulus
                 )
-            if stim.startswith('Phones'):
-                channel[stim] = self.extract_phones(
+            if stimulus.startswith('Phones'):
+                channel[stimulus] = self.extract_phones(
                     envelope=channel['Envelope'], 
-                    kind=stim
+                    kind=stimulus
+                )
+            if stimulus == 'Jitter':
+                channel[stimulus] = self.extract_jitter(
+                    envelope=channel['Envelope']
+                )
+            if stimulus == 'Shimmer':
+                channel[stimulus] = self.extract_shimmer(
+                    envelope=channel['Envelope']
                 )
         return channel
 
@@ -1424,12 +1664,14 @@ class SessionData:
             }
 
         # Retrive and concatenate data of all trials
-        for p, trial in enumerate(trials):
-            SessionData.print_trials(
-                trials=trials,
-                trial=trial,
-                p=p
-            )
+        # for p, trial in enumerate(trials):
+        # for p, trial in enumerate(tqdm(trials, desc=), ):
+        for p, trial in enumerate(tqdm(trials, desc=f'Loading session {self.session}', bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]")):
+            # SessionData.print_trials(
+            #     trials=trials,
+            #     trial=trial,
+            #     p=p
+            # )
 
             # Create trial for both channels in order to extract features and EEG signal
             try:
@@ -1489,8 +1731,8 @@ class SessionData:
                     # Preprocessing: calaculates the relevant indexes for the apropiate analysis. Add sum of all previous trials length. This is because at the end, all trials previous to the actual will be concatenated
                     shifted_1 = self.shifted_indexes_to_keep(speaker_labels=current_speaker_1)
                     shifted_2 = self.shifted_indexes_to_keep(speaker_labels=current_speaker_2)
-                    self.samples_info['keep_indexes1'] += ( shifted_1 + np.sum(self.samples_info['trial_lengths1'][:-1])).tolist()
-                    self.samples_info['keep_indexes2'] += ( shifted_2 + np.sum(self.samples_info['trial_lengths2'][:-1])).tolist()
+                    self.samples_info['keep_indexes1'] += (shifted_1 + np.sum(self.samples_info['trial_lengths1'][:-1])).tolist()
+                    self.samples_info['keep_indexes2'] += (shifted_2 + np.sum(self.samples_info['trial_lengths2'][:-1])).tolist()
                 
                 # Concatenates data of each subject, taking advantage of subject having the same keys
                 for key in trial_subject_1:
@@ -1516,8 +1758,8 @@ class SessionData:
 
             # Empty trial
             except Exception as e:
-                logger.warn(f"Trial {trial} of session {self.session} couldn't be loaded.")
-                logger.warn(f"\nAn unexpected error occurred: {e}") 
+                logger.warning(f"Trial {trial} of session {self.session} couldn't be loaded.")
+                logger.warning(f"\nAn unexpected error occurred: {e}") 
                 self.samples_info['trial_lengths1'].append(0)
                 self.samples_info['trial_lengths2'].append(0)
 
@@ -1596,7 +1838,8 @@ class SessionData:
     def labeling(
         self, 
         trial:int, 
-        channel:int
+        channel:int,
+        sr:int=config.sr
         )->np.ndarray:
         """
         Gives an array with speaking channel: 3 (both speak), 2 (interlocutor), 1 (channel), 0 (silence)
@@ -1632,12 +1875,12 @@ class SessionData:
         
         # Take difference in time and multiply it by sample rate in order to match envelope length (almost, miss by a sample or two)
         samples = np.round(
-            (speaker_table[1] - speaker_table[0]) * self.sr
+            (speaker_table[1] - speaker_table[0]).values * sr
         ).astype("int")
         
         # Repeat speaker labels by the number of samples in each phrase
         speaker = np.repeat(
-            speaker_table.iloc[:, 2], 
+            speaker_table.iloc[:, 2].values, 
             samples
         )
         
@@ -1659,12 +1902,12 @@ class SessionData:
         
         # Take difference in time and multiply it by sample rate in order to match envelope length (almost, miss by a sample or two)
         samples = np.round(
-            (listener_table[1] - listener_table[0]) * self.sr
+            (listener_table[1] - listener_table[0]).values * sr
         ).astype("int")
         
         # Repeat speaker labels by the number of samples in each phrase
         listener = np.repeat(
-            listener_table.iloc[:, 2],
+            listener_table.iloc[:, 2].values,
             samples
         )
 
@@ -1699,12 +1942,9 @@ class SessionData:
         np.ndarray
             Indexes to keep for the analysis
         """
-        if 'All_Times' in self.situation:
-            return np.arange(len(speaker_labels))
-        
         # Change 0 with 4s, because shifted matrix pad zeros that could be mistaken with situation 0    
         speaker_labels = np.array(speaker_labels)
-        speaker_labels = np.where(speaker_labels==0, 4, speaker_labels)        
+        speaker_labels = np.where(speaker_labels==0, 4, speaker_labels)
 
         # Computes shifted matrix
         shifted_matrix_speaker_labels = processing.shifted_matrix(
@@ -1725,7 +1965,9 @@ class SessionData:
             return (filter_silence_external & filter_silence_x_percent).nonzero()[0]
         
         # Make the appropiate label
-        if self.situation.endswith('BS'):
+        if self.situation == 'All':
+            return np.arange(len(shifted_matrix_speaker_labels))
+        elif self.situation.endswith('BS'):
             situation_label = 3
         elif self.situation.startswith('External'):
             situation_label = 1
@@ -1761,26 +2003,26 @@ class SessionData:
             if len(missing_trials)>1:
                 print(
                     f'Trial {trial} of {trials[-1]}. Missing trials {", ".join(str(i) for i in missing_trials)}', 
-                    flush=True,
-                    end=end_char 
+                    # flush=True,
+                    # end=end_char 
                 )
             else:
                 print(
                     f'Trial {trial} of {trials[-1]}. Missing trial {", ".join(str(i) for i in missing_trials)}', 
-                    flush=True,
-                    end=end_char 
+                    # flush=True,
+                    # end=end_char 
                 )
         elif (p==0) and (trials[0]!=1):
             print(
                 f'Trial {trial} of {trials[-1]}. Missing trial 1', 
-                flush=True,
-                end=end_char               
+                # flush=True,
+                # end=end_char               
             )
         else:
             print(
                 f'Trial {trial} of {trials[-1]}.', 
-                flush=True,
-                end=end_char
+                # flush=True,
+                # end=end_char
             )
 
     def match_lengths(
@@ -1836,13 +2078,14 @@ def load_data(
     stimuli : str
         Stimuli to use in the analysis. If more than one stimulus is wanted, the separator should be '_'.
         Allowed stimuli are: 
-    'Envelope', 'Phonological', 'Spectrogram', 
+    'Envelope', 'Envelope2', 'Phonological', 'Phonological1', 'Phonological2', 'Spectrogram', 
     'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 
     'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 
     'Phonemes', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency', 
     'Phones', 'Phones-Envelope', 'Phones-Discrete',
     'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
-    'Wav2vec2'
+    'Wav2vec2',
+    'Jitter', 'Shimmer'
     band : str
         Neural frequency band. It could be one of: 
     'Delta',
@@ -1872,13 +2115,14 @@ def load_data(
     ------
     SyntaxError
         If 'stim' is not an allowed stimulus. Allowed ones are:
-    'Envelope', 'Phonological', 'Spectrogram', 
+    'Envelope', 'Envelope2', 'Phonological', 'Phonological1', 'Phonological2', 'Spectrogram', 
     'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 
     'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 
     'Phonemes', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency', 
     'Phones', 'Phones-Envelope', 'Phones-Discrete',
     'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
-    'Wav2vec2'
+    'Wav2vec2',
+    'Jitter', 'Shimmer'
         If 'band' is not an allowed band frequency. Allowed ones are:
     'Delta',
     'Theta',
@@ -1894,7 +2138,8 @@ def load_data(
     'Internal_BS',
     'External_BS', 
     'Internal_All_Times',
-    'External_All_Times'
+    'External_All_Times',
+    'All'
         Also any of the above options concatenated by '_Silence_x', where x is an integer that represents 
         the percentage of samples with silence within a row of the design matrix.
     """
@@ -1918,7 +2163,7 @@ def load_data(
         logger.info('Data loaded succesfully\n')
     except Exception as e:
         logger.debug(f"An error occurred while loading preprocessed data: {e}")
-        logger.warn("\nCouldn't load data, compute it from raw\n")
+        logger.warning("\nCouldn't load data, compute it from raw\n")
         sessions_1, sessions_2, samples_info = session_obj.load_from_raw()
     return sessions_1, sessions_2, samples_info
 
@@ -1959,20 +2204,118 @@ def check_syntax(
             raise SyntaxError(f"'{situation}' is not an allowed situation. Allowed ones are: {ALLOWED_SITUATIONS}")
     return None
 
+# if __name__ == "__main__":
+#     for situation in config.situations:
+#         preprocessed_data_path_main = f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
+#         for band in config.bands:
+#             for stimuli in config.stimuli:
+#                 sorted_stimuli, sorted_bands = sorted(stimuli.split('_')), sorted(band.split('_'))
+#                 stimuli, band = '_'.join(sorted_stimuli), '_'.join(sorted_bands)
+
+#                 # Update
+#                 logger.info(
+#                     '\n===========================\n'
+#                     '\tPARAMETERS\n\n'
+#                     f'Model: {config.model}\n'
+#                     f'Band: {band}\n'
+#                     f'Stimulus: {stimuli}\n'
+#                     f'Condition: {situation}\n'
+#                     f'Time interval: ({config.tmin},{config.tmax})s\n'
+#                     '\n===========================\n'
+#                 )
+#                 for session in config.sessions:
+#                     print(f'\n-------> Start of session {session}\n')
+                    
+#                     subject_1, subject_2, samples_info = load_data(
+#                         preprocessed_data_path=preprocessed_data_path_main,
+#                         situation=situation,
+#                         stimuli=stimuli,
+#                         session=session,
+#                         band=band
+#                     )
+                    
+#                     # Print the progress of the iteration
+#                     general_functions.iteration_percentage(
+#                         txt=f'\n-------> End of session {session}\n', 
+#                         i=config.sessions.index(session), 
+#                         length_of_iterator=len(config.sessions),
+#                         # logger=logger
+#                     )
+
 if __name__ == "__main__":
-    preprocessed_data_path_main = f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
-    
+    import multiprocessing as mp
+    import concurrent.futures
+    config.LOG_LEVEL = 'WARNING'
+    # Crear todas las combinaciones de parámetros
+    param_combinations = []
     for situation in config.situations:
+        preprocessed_data_path_main = f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
         for band in config.bands:
             for stimuli in config.stimuli:
+                sorted_stimuli, sorted_bands = sorted(stimuli.split('_')), sorted(band.split('_'))
+                stimuli, band = '_'.join(sorted_stimuli), '_'.join(sorted_bands)
+                
                 for session in config.sessions:
-                    logger.info(f"Loading data for situation: {situation}, band: {band}, stimuli: {stimuli}")
-                    
-                    subject_1, subject_2, samples_info = load_data(
-                        preprocessed_data_path=preprocessed_data_path_main,
-                        situation=situation,
-                        stimuli=stimuli,
-                        session=session,
-                        band=band
-                    )
+                    param_combinations.append({
+                        'situation': situation,
+                        'preprocessed_data_path': preprocessed_data_path_main,
+                        'band': band,
+                        'stimuli': stimuli,
+                        'session': session
+                    })
     
+    def process_single_session(params):
+        """Procesa una sesión individual"""
+        try:
+            logger.info(
+                f"Processing: {params['stimuli']} | {params['band']} | "
+                f"{params['situation']} | Session {params['session']}"
+            )
+            
+            subject_1, subject_2, samples_info = load_data(
+                preprocessed_data_path=params['preprocessed_data_path'],
+                situation=params['situation'],
+                stimuli=params['stimuli'],
+                session=params['session'],
+                band=params['band']
+            )
+            
+            return {
+                'session': params['session'],
+                'status': 'success',
+                'params': params
+            }
+            
+        except Exception as e:
+            logger.error(f"Error processing session {params['session']}: {e}")
+            return {
+                'session': params['session'],
+                'status': 'error',
+                'error': str(e),
+                'params': params
+            }
+    
+    # Paralelizar el procesamiento
+    max_workers = min(mp.cpu_count() - 1, 4)  # Usar máximo 4 workers para evitar sobrecarga
+    logger.info(f"Starting parallel processing with {max_workers} workers")
+    logger.info(f"Total combinations to process: {len(param_combinations)}")
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Enviar todos los trabajos
+        futures = [executor.submit(process_single_session, params) for params in param_combinations]
+        
+        # Procesar resultados conforme se completan
+        for i, future in enumerate(concurrent.futures.as_completed(futures)):
+            result = future.result()
+            
+            if result['status'] == 'success':
+                logger.info(f"✓ Completed session {result['session']} ({i+1}/{len(futures)})")
+            else:
+                logger.error(f"✗ Failed session {result['session']}: {result['error']}")
+            
+            # Mostrar progreso
+            general_functions.iteration_percentage(
+                txt=f"Overall progress: {i+1}/{len(futures)} completed",
+                i=i,
+                length_of_iterator=len(futures)
+            )
