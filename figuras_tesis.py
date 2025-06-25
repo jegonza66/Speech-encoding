@@ -6597,7 +6597,7 @@ fig.show()
 # =======================================================
 # Ejemplo EEG y PSD (power spectral density) de un sujeto# TODO SIGUE SIN DAR CHARLAR CON JOACO
 session, sujeto = 21, 2
-RawEegPath = f'data/EEG/S{session}/s{session}-{sujeto}-Trial1-Deci-Filter-Trim-ICA-Pruned.set'
+RawEegPath = f'data/EEG/S{session}/s{session}-{sujeto}-Trial1-Deci-Filter-Trim-ICA-Pruned.fdt'
 # EegPath = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/EEG/All/Causal/Sesion21.pkl'
 
 raw = mne.io.read_raw_eeglab(
@@ -6605,6 +6605,7 @@ raw = mne.io.read_raw_eeglab(
         preload=True,
         verbose='CRITICAL',
         )
+raw.set_eeg_reference(ref_channels='average', projection=False)
 # raw = raw.filter(l_freq=.1, h_freq=40)
 # raw.resample(sfreq=128)
 # raw.plot(
@@ -6627,7 +6628,7 @@ psds_welch_mean, freqs_mean = mne.time_frequency.psd_array_welch(
 import matplotlib.pyplot as plt
 import matplotlib
 import config
-matplotlib.use('Agg')  # Cambia el backend a Qt5Agg
+matplotlib.use('TkAgg')  # Cambia el backend a Qt5Agg
 fig, ax = plt.subplots(figsize=(10,5))
 evoked = mne.EvokedArray(psds_welch_mean, config.info_mne)
 # evoked.times = freqs_mean
@@ -6636,24 +6637,29 @@ evoked.plot(scalings=dict(eeg=1, grad=1, mag=1), zorder='std', time_unit='s',
             show=False, spatial_colors=True, unit=False, units='w', axes=ax)
 ax.set_xlabel('Frequency [Hz]')
 ax.grid()
+fig.show()
 fig.savefig('figures/psd_example.png', dpi=300, bbox_inches='tight')
 
 
-
+RawEegPath = f'data/EEG/S{21}/s{21}-{1}-Trial1-Deci-Filter-Trim-ICA-Pruned.set'
 raw = mne.io.read_raw_eeglab(
         RawEegPath,
         preload=True,
-        verbose='CRITICAL',
+        # verbose='CRITICAL',
         )
+raw.info.set_montage(raw.info['dig'])
 
-fmin, fmax = 1, 15
+montage = raw.info.get_montage()
+mne.viz.plot_montage(montage)
+raw.set_eeg_reference(ref_channels='average')
+fmin, fmax = .1, 60
 
 montage = mne.channels.make_standard_montage('biosemi128')
 info = mne.create_info(ch_names=montage.ch_names[:], sfreq=1024, ch_types='eeg').set_montage(montage)
 raw = mne.io.RawArray(raw._data, info)
 
 spectrum = raw.compute_psd(
-    method='welch',
+    # method='welch',
     fmin=fmin,
     fmax=fmax,
     # n_fft=2048,#048,
@@ -6672,18 +6678,20 @@ spectrum.plot(
     dB=False,
     spatial_colors=True,
     sphere=.14,
-    axes=axes
+    axes=axes,
+    show=False
     )
 axes.set(
     title='PSD (Power Spectral Density)',
     ylabel='U.A',
     xlabel='Frecuencia (Hz)',
-    ylim=(-1,20),
+    # ylim=(-1,50),
+    yscale='log'
 #     xlim=(0,40)
 )
-fig.savefig(
-    'figures/psd_example_mne2.png',
-)
+# fig.savefig(
+#     'figures/psd_example_mne2.png',
+# )
 fig.show()
 
 

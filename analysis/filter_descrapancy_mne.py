@@ -55,7 +55,7 @@ for eeg_name in eeg_dic:
 
 # ========================= Filter kernels/impulse responses
 fig_kernels, axes_kernels = plt.subplots(
-    nrows=4, 
+    nrows=3, 
     ncols=1, 
     figsize=(10, 8), 
     dpi=600, 
@@ -88,8 +88,8 @@ filter_configs = [
 for i, (filter_name, filter_params) in enumerate(filter_configs):
     # Apply filter to impulse
     filtered_impulse = impulse_raw.copy().filter(
-        l_freq=4,
-        h_freq=8,
+        l_freq=l_freq,
+        h_freq=h_freq,
         **filter_params
     )
     
@@ -98,23 +98,25 @@ for i, (filter_name, filter_params) in enumerate(filter_configs):
     kernel_transform = np.log(np.abs(np.fft.rfft(kernel))/len(kernel)*2)
     freq = np.fft.fftfreq(len(kernel), d=1/raw.info['sfreq'])[:len(kernel)//2 + 1]
     
-    axes_kernels[3].plot(freq[:-2], kernel_transform[:-2], label=filter_name, color=f'C{i}', lw=1.5)
-    axes_kernels[3].legend(loc='upper right', fontsize=10, frameon=False)
-    axes_kernels[3].set_xlim(0,12)
+    # axes_kernels[3].plot(freq[:-2], kernel_transform[:-2], label=filter_name, color=f'C{i}', lw=1.5)
+    # axes_kernels[3].legend(loc='upper right', fontsize=10, frameon=False)
+    # axes_kernels[3].set_xlim(0,12)
     # Create time axis
     time_axis = np.arange(len(kernel)) / raw.info['sfreq']
     time_axis_centered = time_axis - impulse_duration/2  # Center around 0
     
     # Plot kernel
     ax = axes_kernels[i]
-    ax.plot(time_axis_centered * 1000, kernel, 'b-', linewidth=1.5, label=f'{filter_name} kernel')
+    # ax.plot(time_axis_centered * 1000, kernel, 'b-', linewidth=1.5, label=f'{filter_name} kernel')
+    ax.plot(kernel, 'b-', linewidth=1.5, label=f'{filter_name} kernel')
+    
     ax.set_title(f'Filter Kernel: {filter_name}')
     ax.set_ylabel('Amplitude')
     ax.axhline(0, color='k', lw=0.5, ls='--', alpha=0.7)
     ax.axvline(0, color='r', lw=0.5, ls='--', alpha=0.7, label='Impulse position')
     ax.grid(True, alpha=0.3)
     ax.legend(fontsize=10, frameon=False)
-    ax.set_xticks(np.arange(-200, 700, 100))
+    # ax.set_xticks(np.arange(-200, 700, 100))
     
     # Set x-label only for bottom subplot
     if i == 2:
@@ -122,14 +124,14 @@ for i, (filter_name, filter_params) in enumerate(filter_configs):
     
     # Zoom in to see the kernel better (adjust window as needed)
     window_ms = 600  # Show ±200ms around the impulse
-    ax.set_xlim(-window_ms, window_ms)
+    # ax.set_xlim(-window_ms, window_ms)
 
 # Add overall title
 fig_kernels.suptitle(f'Filter Impulse Responses ({band} band: {l_freq}-{h_freq} Hz)', fontsize=14, y=0.98)
 
 # Save kernels figure
 fig_kernels.savefig(
-    rf'figures\analysis\filter_descrapancy_mne\filter_kernels.png', 
+    rf'figures\analysis\filter_descrapancy_mne\filter_kernels_{band}.png', 
     dpi=600, 
     bbox_inches='tight'
 )

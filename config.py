@@ -1,8 +1,12 @@
 import numpy as np, mne
-
-figures_dir = 'figures'
-output_dir = 'output'
-saves_dir = 'saves'
+experiment = 'dilib'
+#dilib
+# mne16
+# mne19
+# base
+figures_dir = f'figures_simulated/{experiment}'
+output_dir = f'output_simulated/{experiment}'
+saves_dir = f'saves_simulated/{experiment}'
 
 # Logging configuration
 LOG_LEVEL = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
@@ -62,7 +66,7 @@ stimuli = [
         # 'Phonological2'
         ]
 situations = [
-        'External',
+        # 'External',
         # 'Internal',
         # 'External_BS', #TODO 
         # 'Internal_BS',
@@ -76,7 +80,7 @@ situations = [
         # 'External_Silence_80',
         # 'External_Silence_90',
         # 'External_Silence_100',
-        # 'All'
+        'All'
         ]
 
 bands = [
@@ -116,7 +120,7 @@ correlation_limit_percentage, default_alpha, set_alpha = 0.01, 400, None
 # TFCE, T-TEST PARAMETERS, HIERARCHICAL_CLUSTERING and NUMBER OF FOLDS
 n_permutations, significance, number_of_jobs = 4096, .05, -1
 hierarchical_clustering = True
-n_folds = 20 # with 5 folds (remain 20% as validation set, then interchange to cross validate)
+n_folds = 10 # with 5 folds (remain 20% as validation set, then interchange to cross validate)
 
 # =====================
 # VALIDATION PARAMETERS

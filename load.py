@@ -192,14 +192,14 @@ class TrialChannelData:
         self.mistakes_path = os.path.normpath(f"data/mistakes_corrected/filtered_session{session}_trial{trial:02d}_channel{channel}.TextGrid")
         self.phonemes_fname = os.path.normpath(f"data/phonemes/S{session}/s{session}.objects.{trial:02d}.channel{channel}.aligned_fa.TextGrid")
         self.eeg_fname = os.path.normpath(f"data/EEG/S{session}/s{session}-{channel}-Trial{trial}-Deci-Filter-Trim-ICA-Pruned.set")
-        # self.eeg_fname = os.path.normpath(f"data/EEG_SHUFFLED_DATA/S{session}/s{session}-{channel}-Trial{trial}-Deci-Filter-Trim-ICA-Pruned_eeg.fif")
-        # self.mistakes_path = os.path.normpath(f"data/mistakes/filtered_session{session}_trial{trial:02d}_channel{channel}.TextGrid")
         self.phrases_fname = os.path.normpath(f"data/phrases/S{session}/s{session}.objects.{trial:02d}.channel{channel}.phrases")
         self.wav_fname = os.path.normpath(f"data/wavs/S{session}/s{session}.objects.{trial:02d}.channel{channel}.wav")
-        # self.phrases_fname = os.path.normpath(f"data/phrases_reversed/S{session}/s{session}.objects.{trial:02d}.channel{channel}.phrases")
+        self.pitch_fname = os.path.normpath(f"S{session}/s{session}.objects.{trial:02d}.channel{channel}.txt")
+        # self.eeg_fname = os.path.normpath(f"data/EEG_SHUFFLED_DATA/S{session}/s{session}-{channel}-Trial{trial}-Deci-Filter-Trim-ICA-Pruned_eeg.fif")
+        # self.mistakes_path = os.path.normpath(f"data/mistakes/filtered_session{session}_trial{trial:02d}_channel{channel}.TextGrid")
+        # # self.phrases_fname = os.path.normpath(f"data/phrases_reversed/S{session}/s{session}.objects.{trial:02d}.channel{channel}.phrases")
         # self.wav_fname = os.path.normpath(f"data/wavs_reversed/S{session}/s{session}.objects.{trial:02d}.channel{channel}.wav")
         
-        self.pitch_fname = os.path.normpath(f"S{session}/s{session}.objects.{trial:02d}.channel{channel}.txt")
         
     def extract_eeg(
         self
@@ -221,35 +221,35 @@ class TrialChannelData:
             input_fname=self.eeg_fname, 
             preload=True
         )
-        # eeg = mne.io.read_raw_fif(
-        #     self.eeg_fname, 
-        #     preload=True
-        # )
-        
+
         # Apply a lowpass filter
         if self.band:
             if self.causal_filter_eeg:
+                eeg = eeg.filter(
+                    l_freq=1, 
+                    h_freq=40
+                )
                 # eeg = eeg.filter(
                 #     l_freq=self.l_freq_eeg, 
                 #     h_freq=self.h_freq_eeg, 
                 #     phase='minimum'
                 # )
-                eeg = eeg.filter(
-                    l_freq=self.l_freq_eeg, 
-                    h_freq=self.h_freq_eeg, 
-                    phase='minimum-half'
-                )
-                # iir_params = {
-                # "ftype": "cheby2",       # Filter type: Chebyshev Type II
-                # "order": 4,              # Filter order
-                # "rs": 20,                # Stopband attenuation (dB)
-                # }
                 # eeg = eeg.filter(
-                #                 l_freq=self.l_freq_eeg,
-                #                 h_freq=self.h_freq_eeg,
-                #                 method="iir",
-                #                 iir_params=iir_params
-                #                 )
+                #     l_freq=self.l_freq_eeg, 
+                #     h_freq=self.h_freq_eeg, 
+                #     phase='minimum-half'
+                # )
+                iir_params = {
+                "ftype": "cheby2",       # Filter type: Chebyshev Type II
+                "order": 4,              # Filter order
+                "rs": 20,                # Stopband attenuation (dB)
+                }
+                eeg = eeg.filter(
+                    l_freq=self.l_freq_eeg,
+                    h_freq=self.h_freq_eeg,
+                    method="iir",
+                    iir_params=iir_params
+                )
             else:
                 eeg = eeg.filter(
                     l_freq=self.l_freq_eeg, 
@@ -257,15 +257,20 @@ class TrialChannelData:
                 )
 
         # Get mne representation 
-        eeg_mne = eeg.copy()
-        eeg = eeg_mne.get_data().T*1e6  
-
-        # Downsample
-        eeg = processing.subsample(
-            x=eeg, 
-            step=int(eeg_mne.info.get("sfreq")/ self.sr)
+        eeg = eeg.resample(
+            sfreq=self.sr, 
+            npad=0, 
+            window='hamming', 
+            method='fft'
         )
+        eeg = eeg.get_data().T*1e6 
         return eeg
+
+        # # Downsample
+        # eeg = processing.subsample(
+        #     x=eeg, 
+        #     step=int(eeg.info.get("sfreq")/ self.sr)
+        # )
     
     def extract_info(
         self
@@ -333,14 +338,34 @@ class TrialChannelData:
             ).reshape(-1,1)
         
         # Resample 
-        window_size, stride = int(self.audio_sr/self.sr), int(self.audio_sr/self.sr)
-        envelope = np.array([
-            np.mean(envelope[i:i+window_size]) \
-            for i in range(0, len(envelope), stride)\
-            if i+window_size<=len(envelope)
-            ]
+        # window_size, stride = int(self.audio_sr/self.sr), int(self.audio_sr/self.sr)
+        # envelope = np.array([#TODO REVISAR USAR SCIPY DECIMATE (TRANSFORMADA HAMMINH)
+        #     np.mean(envelope[i:i+window_size]) \
+        #     for i in range(0, len(envelope), stride)\
+        #     if i+window_size<=len(envelope)
+        #     ]
+        # )
+        downsampling_factor = int(self.audio_sr/self.sr)
+        filter_coeffs = sgn.firwin(
+            numtaps=3000, 
+            cutoff=(128 / 2.0)  *.99,  # Nyquist frequency of target sampling rate
+            fs=self.audio_sr, 
+            pass_zero='lowpass'
         )
+
+        # Filter 
+        envelope = sgn.filtfilt(
+            b=filter_coeffs, 
+            a=np.array([1.0]), 
+            x=envelope,
+            axis=0
+        )
+
+        # Downsample 
+        envelope = envelope[::downsampling_factor]
+        
         if kind == 'Envelope2':
+            window_size, stride = int(self.audio_sr/self.sr), int(self.audio_sr/self.sr)
             instantaneous_phase = np.unwrap(
                 np.angle(analytic_signal)
             )
@@ -1480,9 +1505,9 @@ class TrialChannelData:
             Dictionary with EEG, info and specified stimuli as mne objects
         """
         channel = {}
+        channel['EEG'] = self.extract_eeg()
         channel['Envelope'] = self.extract_envelope()
         channel['info'] = self.extract_info()
-        channel['EEG'] = self.extract_eeg()
 
         for stimulus in stimuli:
             if stimulus=='Envelope2':
@@ -2206,7 +2231,7 @@ def check_syntax(
 
 # if __name__ == "__main__":
 #     for situation in config.situations:
-#         preprocessed_data_path_main = f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
+#         preprocessed_data_path_main = f'{config.saves_dir}/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
 #         for band in config.bands:
 #             for stimuli in config.stimuli:
 #                 sorted_stimuli, sorted_bands = sorted(stimuli.split('_')), sorted(band.split('_'))
@@ -2249,7 +2274,7 @@ if __name__ == "__main__":
     # Crear todas las combinaciones de parámetros
     param_combinations = []
     for situation in config.situations:
-        preprocessed_data_path_main = f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
+        preprocessed_data_path_main = f'{config.saves_dir}/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
         for band in config.bands:
             for stimuli in config.stimuli:
                 sorted_stimuli, sorted_bands = sorted(stimuli.split('_')), sorted(band.split('_'))

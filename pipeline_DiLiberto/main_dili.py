@@ -7,9 +7,8 @@ from sklearn.model_selection import KFold
 
 # Modules
 from utils.general_functions import load_pickle, dump_pickle, dict_to_csv, iteration_percentage, Suppress_print
+from utils.general_functions import iteration_percentage
 from model_implementations import fold_model
-from utils.processing import tfce 
-from load import load_data
 import config, utils.plot as plot
 
 # Notification bot
@@ -21,20 +20,22 @@ from telegram_config import API_TOKEN, CHAT_ID
 # RUN ANALYSIS
 # ============
 start_time = datetime.now()
-band, stim = 'theta', 'phonemes'
+band, stim = 'All', 'Envelope'
 subjects = [1, 2, 3, 5, 6, 7, 8, 10, 11, 12, 13, 14, 16, 17, 18, 19]
 
 # Relevant paths
-preprocessed_data_path = os.path.normpath(f'saves/preprocessed_data/dili/')
-path_eeg = os.path.join(preprocessed_data_path, 'eeg', band)
-path_stimulus = os.path.join(preprocessed_data_path, 'stimuli', 'phonemes.pkl')
+preprocessed_data_path = os.path.normpath(f'saves/preprocessed_data/DiLib/')
+results_path = os.path.normpath(f'output/DiLib/')
+
+path_eeg = os.path.join(preprocessed_data_path, 'EEG', band)
+path_stimulus = os.path.join(preprocessed_data_path, 'Envelope', 'envelope.pkl')
 stimulus = load_pickle(path=path_stimulus)
 
-path_results = os.path.normpath(os.path.join(preprocessed_data_path, f'correlations/{band}/{stim}'))
-path_weights = os.path.normpath(os.path.join(preprocessed_data_path, f'weights/{band}/{stim}')) 
-path_figures = os.path.normpath(os.path.join(f'figures/dili/', band, stim)) 
+path_results = os.path.normpath(os.path.join(results_path, f'correlations/{band}/{stim}'))
+path_weights = os.path.normpath(os.path.join(results_path, f'weights/{band}/{stim}')) 
+path_figures = os.path.normpath(os.path.join(f'figures/diliberto/', band, stim)) 
 
-path_validation = os.path.join(preprocessed_data_path, 'validation', stim, band)
+path_validation = os.path.join(results_path, 'validation', stim, band)
 alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
 
 # Make lists to store relevant data across sobjects
@@ -50,8 +51,10 @@ for subject in subjects:
     print(f'\n------->\tStart of session {subject}\n')
 
     # Load data by subject, EEG and info
-    eeg = np.array(load_pickle(path=os.path.join(path_eeg, f'sub-{str(subject).zfill(3)}_lista.pkl'))).T
-
+    eeg = np.array(load_pickle(path=os.path.join(path_eeg, f'sub-{str(subject).zfill(3)}.pkl')))
+    
+    stimulus = stimulus[:eeg.shape[0]]
+    
     n_feats = [stimulus.shape[1]]
     delayed_length_per_stimuli = [n_feat*len(config.delays) for n_feat in n_feats]
 
@@ -78,7 +81,7 @@ for subject in subjects:
 
     # Keep relevant indexes for eeg
     relevant_eeg = eeg[relevant_indexes]
-    
+
     # Run folds
     k_models_output = []
     for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
@@ -171,7 +174,7 @@ for subject in subjects:
         average_weights=average_weights, 
         times=config.times,
         n_feats=n_feats, 
-        stim='phonemes-dili', 
+        stim=stim, 
         session=subject, 
         subject=subject, 
         hierarchical_clustering=config.hierarchical_clustering,
@@ -200,13 +203,13 @@ if config.save_results and total_number_of_subjects==16:
     os.makedirs(path_results, exist_ok=True)
     os.makedirs(path_weights, exist_ok=True)
     dump_pickle(
-            path=path_results+f'{stim}.pkl',
+            path=os.path.join(path_results,f'{stim}.pkl'),
             obj={'average_correlation_subjects':average_correlation_subjects},
             rewrite=True,
             verbose=True
             )
     dump_pickle(
-            path=path_weights+'total_weights_per_subject.pkl',
+            path=os.path.join(path_weights, 'total_weights_per_subject.pkl'),
             obj={'average_weights_subjects':average_weights_subjects},
             rewrite=True
             )
@@ -216,12 +219,12 @@ if config.save_results and total_number_of_subjects==16:
 #     plot.phonemes_occurrences(occurrences=phonemes_occurrences, save_path=path_figures, save=save_figures, no_figures=config.no_figures)
 
 # Plot average results only if all subjects are analyzed
-config.no_figures=True if (total_number_of_subjects!=16) else config.no_figures
+# config.no_figures=True if (total_number_of_subjects!=16) else config.no_figures
 
 # Plot average topomap metrics across each subject
 plot.average_topomap(
     average_coefficient_subjects=average_rmse_subjects, 
-    stim='phonemes-dili', 
+    stim=stim, 
     info=config.info_mne, 
     display_interactive_mode=config.display_interactive_mode,
     save=config.save_figures, 
@@ -231,7 +234,7 @@ plot.average_topomap(
     )
 plot.average_topomap(
     average_coefficient_subjects=average_correlation_subjects, 
-    stim='phonemes-dili', 
+    stim=stim, 
     display_interactive_mode=config.display_interactive_mode,
     info=config.info_mne, 
     save=config.save_figures, 
@@ -247,7 +250,7 @@ plot.topo_map_relevant_times(
     info=config.info_mne, 
     n_feats=n_feats,
     band=band,
-    stim='phonemes-dili', 
+    stim=stim, 
     times=config.times,
     sample_rate=config.sr, 
     save_path=path_figures, 
@@ -260,7 +263,7 @@ plot.topo_map_relevant_times(
 plot.channel_wise_correlation_topomap(
     average_weights_subjects=average_weights_subjects,
     info=config.info_mne,
-    stim='phonemes-dili', 
+    stim=stim, 
     save=config.save_figures,
     save_path=path_figures, 
     display_interactive_mode=config.display_interactive_mode, 
@@ -276,7 +279,7 @@ plot.average_regression_weights(
     hierarchical_clustering=config.hierarchical_clustering,
     times=config.times, 
     n_feats=n_feats, 
-    stim='phonemes-dili', 
+    stim=stim, 
     display_interactive_mode=config.display_interactive_mode,
     no_figures=config.no_figures
     )
@@ -284,7 +287,7 @@ plot.average_regression_weights(
 # Plot correlation matrix between subjects
 plot.correlation_matrix_subjects(
     average_weights_subjects=average_weights_subjects,
-    stim='phonemes-dili', 
+    stim=stim, 
     n_feats=n_feats, 
     save=config.save_figures,
     save_path=path_figures, 
@@ -313,7 +316,4 @@ dict_to_csv(
             rewrite=True
             )
 
-# Send text to telegram bot
-with Suppress_print():
-    mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=text)
 print(text)
