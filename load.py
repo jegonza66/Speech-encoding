@@ -15,7 +15,7 @@ from sklearn.decomposition import PCA
 from scipy.interpolate import interp1d
 import scipy.io.wavfile as wavfile
 from scipy import signal as sgn
-import opensmile
+# import opensmile
 import textgrids
 import librosa
 import mne
@@ -92,7 +92,9 @@ ALLOWED_BANDS = [
     'Beta2',
     'All',
     'Delta_Theta',
-    'Alpha_Delta_Theta'
+    'Alpha_Delta_Theta',
+    'Broad',
+    'Unfiltered'
 ]
 ALLOWED_SITUATIONS = [
     'Internal',
@@ -111,7 +113,8 @@ ALLOWED_STIMULI = [
     'Phones', 'Phones-Envelope', 'Phones-Discrete',
     'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
     'Wav2vec2',
-    'Jitter', 'Shimmer'
+    'Offset'
+    # 'Jitter', 'Shimmer'
 ]
 
 _PHONET_CACHE = {}
@@ -136,7 +139,7 @@ class TrialChannelData:
         session:int=21, 
         channel:int=1, 
         trial:int=1, 
-        )->None: 
+    )->None: 
         """
         Initializes the TrialChannelData class with the given parameters.
 
@@ -173,7 +176,10 @@ class TrialChannelData:
         self.sex = SEX_LIST[(session - 21) * 2 + channel - 1] 
 
         # Minimum and maximum frequency allowed within specified band
-        self.l_freq_eeg, self.h_freq_eeg = processing.band_freq(self.band)
+        if self.band != 'Unfiltered':
+            self.l_freq_eeg, self.h_freq_eeg = processing.band_freq(self.band)
+        else:
+            self.l_freq_eeg, self.h_freq_eeg = None, None
         
         # Silence threshold for pitch processing
         self.silence_threshold = 0.03
@@ -181,10 +187,6 @@ class TrialChannelData:
         
         # EEG sampling rate
         self.sr = config.sr
-
-        # Define filters
-        self.causal_filter_eeg = config.causal_filter_eeg
-        self.envelope_filter = config.envelope_filter
         
         # Relevant paths
         self.praat_executable_path = config.praat_executable_path
@@ -195,15 +197,10 @@ class TrialChannelData:
         self.phrases_fname = os.path.normpath(f"data/phrases/S{session}/s{session}.objects.{trial:02d}.channel{channel}.phrases")
         self.wav_fname = os.path.normpath(f"data/wavs/S{session}/s{session}.objects.{trial:02d}.channel{channel}.wav")
         self.pitch_fname = os.path.normpath(f"S{session}/s{session}.objects.{trial:02d}.channel{channel}.txt")
-        # self.eeg_fname = os.path.normpath(f"data/EEG_SHUFFLED_DATA/S{session}/s{session}-{channel}-Trial{trial}-Deci-Filter-Trim-ICA-Pruned_eeg.fif")
-        # self.mistakes_path = os.path.normpath(f"data/mistakes/filtered_session{session}_trial{trial:02d}_channel{channel}.TextGrid")
-        # # self.phrases_fname = os.path.normpath(f"data/phrases_reversed/S{session}/s{session}.objects.{trial:02d}.channel{channel}.phrases")
-        # self.wav_fname = os.path.normpath(f"data/wavs_reversed/S{session}/s{session}.objects.{trial:02d}.channel{channel}.wav")
-        
         
     def extract_eeg(
         self
-        )->np.ndarray:
+    )->np.ndarray:
         """
         Reads the EEG data from a .set file, applies a filter based on the specified band, and downsamples the data.
 
@@ -223,38 +220,18 @@ class TrialChannelData:
         )
 
         # Apply a lowpass filter
-        if self.band:
-            if self.causal_filter_eeg:
-                eeg = eeg.filter(
-                    l_freq=1, 
-                    h_freq=40
-                )
-                # eeg = eeg.filter(
-                #     l_freq=self.l_freq_eeg, 
-                #     h_freq=self.h_freq_eeg, 
-                #     phase='minimum'
-                # )
-                # eeg = eeg.filter(
-                #     l_freq=self.l_freq_eeg, 
-                #     h_freq=self.h_freq_eeg, 
-                #     phase='minimum-half'
-                # )
-                iir_params = {
-                "ftype": "cheby2",       # Filter type: Chebyshev Type II
-                "order": 4,              # Filter order
-                "rs": 20,                # Stopband attenuation (dB)
-                }
-                eeg = eeg.filter(
-                    l_freq=self.l_freq_eeg,
-                    h_freq=self.h_freq_eeg,
-                    method="iir",
-                    iir_params=iir_params
-                )
-            else:
-                eeg = eeg.filter(
-                    l_freq=self.l_freq_eeg, 
-                    h_freq=self.h_freq_eeg
-                )
+        if self.band != 'Unfiltered':
+            iir_params = {
+            "ftype": "cheby2",       # Filter type: Chebyshev Type II
+            "order": 4,              # Filter order
+            "rs": 20,                # Stopband attenuation (dB)
+            }
+            eeg = eeg.filter(
+                l_freq=self.l_freq_eeg,
+                h_freq=self.h_freq_eeg,
+                method="iir",
+                iir_params=iir_params
+            )
 
         # Get mne representation 
         eeg = eeg.resample(
@@ -265,12 +242,6 @@ class TrialChannelData:
         )
         eeg = eeg.get_data().T*1e6 
         return eeg
-
-        # # Downsample
-        # eeg = processing.subsample(
-        #     x=eeg, 
-        #     step=int(eeg.info.get("sfreq")/ self.sr)
-        # )
     
     def extract_info(
         self
@@ -315,28 +286,6 @@ class TrialChannelData:
         analytic_signal = sgn.hilbert(wav)
         envelope = np.abs(analytic_signal)
         
-        # Apply lowpass butterworth filter
-        if self.envelope_filter == 'Causal':# TODO can it be replaced for a mne filter?
-            envelope = processing.butter_filter(
-                sampling_freq=self.audio_sr,  
-                btype='lowpass', 
-                frequencies=25, #frequencies=25 creo que es el cutoff
-                data=envelope, 
-                order=3, 
-                axis=0, 
-                ftype='Causal'
-            ).reshape(-1,1)
-        elif self.envelope_filter == 'NonCausal':
-            envelope = processing.butter_filter(
-                sampling_freq=self.audio_sr,
-                ftype='NonCausal',
-                btype='lowpass', 
-                frequencies=25, 
-                data=envelope, 
-                order=3, 
-                axis=0 
-            ).reshape(-1,1)
-        
         # Resample 
         # window_size, stride = int(self.audio_sr/self.sr), int(self.audio_sr/self.sr)
         # envelope = np.array([#TODO REVISAR USAR SCIPY DECIMATE (TRANSFORMADA HAMMINH)
@@ -348,7 +297,7 @@ class TrialChannelData:
         downsampling_factor = int(self.audio_sr/self.sr)
         filter_coeffs = sgn.firwin(
             numtaps=3000, 
-            cutoff=(128 / 2.0)  *.99,  # Nyquist frequency of target sampling rate
+            cutoff=(self.sr / 2.0)  *.99,  # Nyquist frequency of target sampling rate
             fs=self.audio_sr, 
             pass_zero='lowpass'
         )
@@ -381,34 +330,7 @@ class TrialChannelData:
             total_envelope = np.hstack(
                 (envelope.reshape(-1,1), instantaneous_frequency.reshape(-1,1))
                 )
-            # from IPython import embed
-            # embed()
-            # import matplotlib.pyplot as plt
-            # from pathlib import Path
-            # # Fix matplotlib backend before any matplotlib imports
-            # import matplotlib
-            # matplotlib.use('Agg')  # Use non-in
-            # instantaneous_wav = np.array([
-            #                 np.mean(wav[i:i+window_size]) \
-            #                 for i in range(0, len(wav), stride)\
-            #                 if i+window_size<=len(wav)
-            #                 ]
-            #             )
-            # plt.figure()
-            # plt.plot(instantaneous_wav, label='Original Signal')
-            # plt.plot(total_envelope[:, 0], label='Amplitude')
-            # plt.plot(total_envelope[:, 1], label='Phase')
-            # plt.title('Envelope with Phase')
-            # plt.xlabel('Samples')
-            # plt.ylabel('Amplitude / Phase')
-            # plt.legend()
-            # output_dir = Path('figures/analysis/pruebas/')
-            # output_dir.mkdir(parents=True, exist_ok=True)
-            # plt.savefig(
-            #     output_dir/f'instantaneous_frequency.png', 
-            #     bbox_inches='tight',
-            #     dpi=300 
-            # )
+            
             return total_envelope
         else:
             return envelope.reshape(-1, 1)
@@ -1331,164 +1253,26 @@ class TrialChannelData:
             control_signal = np.concatenate((control_signal, np.zeros(shape=(np.abs(difference), 3)))) if separated else np.concatenate((control_signal, np.zeros(shape=(np.abs(difference), 1))))
         return control_signal
 
-    # def extract_jitter_shimmer(
-    #     self, 
-    #     envelope:np.ndarray
-    #     )->tuple: # NEVER USED
-    #     """
-    #     Gives the jitter and shimmer matching the size of the envelope
-
-    #     Parameters
-    #     ----------
-    #     envelope : np.ndarray
-    #         Envelope of the audio signal using Hilbert transform
-
-    #     Returns
-    #     -------
-    #     tuple
-    #         jitter and shimmer arrays with length smaller or equal to envelope length.
-    #     """
-    #     # Processing object to extract audio features
-    #     smile = opensmile.Smile(
-    #         feature_set=opensmile.FeatureSet.eGeMAPSv02,
-    #         feature_level=opensmile.FeatureLevel.LowLevelDescriptors)
-
-    #     # Creates a pd.DataFrame to store audio features
-    #     y = smile.process_file(self.wav_fname)
-        
-    #     # Removes file index of multindex, leaving just start and end times as index
-    #     y.index = y.index.droplevel(0)
-
-    #     # Transform to single index with elapsed time in seconds
-    #     y.index = y.index.map(lambda x: x[0].total_seconds())
-
-    #     # Extract series with specific features
-    #     jitter = y['jitterLocal_sma3nz']
-    #     shimmer = y['shimmerLocaldB_sma3nz']
-        
-    #     # Calculate the least common multiple between envelope and jitter lengths (jimmer length is the same as jitter)
-    #     mcm = general_functions.minimo_comun_multiplo(len(jitter), len(envelope))
-        
-    #     # Repeat each value the number of times it takes the length of jitter to achive the mcm. The result is that jitter length matches mcm
-    #     jitter = np.repeat(jitter, mcm / len(jitter))
-    #     shimmer = np.repeat(shimmer, mcm / len(shimmer))
-
-    #     # Subsample by the number of times it takes the length of the envelope to achive the mcm. Now it has exactly the same size as envelope
-    #     jitter = processing.subsample(
-    #         x=jitter, 
-    #         step=mcm/len(envelope)
-    #         )
-    #     shimmer = processing.subsample(
-    #         x=shimmer, 
-    #         step=mcm/len(envelope)
-    #         )
-
-    #     # Reassurance that the count is correct
-    #     jitter = jitter[:min(len(jitter), len(envelope))].reshape(-1,1)
-    #     shimmer = shimmer[:min(len(shimmer), len(envelope))].reshape(-1,1)
-    #     return jitter, shimmer
-    def extract_jitter(
-        self, 
-        envelope: np.ndarray
-    ) -> np.ndarray:
+    def extract_offset(
+        self,
+        envelope:np.ndarray,
+    )-> np.ndarray:
         """
-        Extracts jitter (pitch period variation) matching the size of the envelope
+        Gives an array of ones to create offset
 
         Parameters
         ----------
         envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform
+            Envelope of the audio signal using Hilbert transform.
 
         Returns
         -------
         np.ndarray
-            Jitter values with same length as envelope, shape (samples, 1)
+            
         """
-        # Read file
-        wav = wavfile.read(self.wav_fname)[1]
-        wav = wav.astype("float")
-        
-        # Get sample window size to match the sampling rate of the EEG
-        sample_window = int(self.audio_sr/self.sr)
-        
-        # Processing object to extract audio features
-        smile = opensmile.Smile(
-            feature_set=opensmile.FeatureSet.eGeMAPSv02,
-            feature_level=opensmile.FeatureLevel.LowLevelDescriptors
-        )
-
-        # Creates a pd.DataFrame to store audio features
-        y = smile.process_file(self.wav_fname)
-        
-        # Removes file index of multindex, leaving just start and end times as index
-        y.index = y.index.droplevel(0)
-
-        # Transform to single index with elapsed time in seconds
-        y.index = y.index.map(lambda x: x[0].total_seconds())
-
-        # Extract jitter feature
-        jitter = y['jitterLocal_sma3nz'].values
-        
-        # Create time array for interpolation
-        original_time = np.arange(len(jitter)) * (len(jitter) / len(wav)) * (1/self.audio_sr)
-        target_time = np.arange(len(envelope)) * (1/self.sr)
-        
-        # Interpolate to match envelope length
-        jitter_resampled = np.interp(target_time, original_time, jitter)
-        
-        return jitter_resampled.reshape(-1, 1)
-
-    def extract_shimmer(
-        self, 
-        envelope: np.ndarray
-    ) -> np.ndarray:
-        """
-        Extracts shimmer (amplitude variation) matching the size of the envelope
-
-        Parameters
-        ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform
-
-        Returns
-        -------
-        np.ndarray
-            Shimmer values with same length as envelope, shape (samples, 1)
-        """
-        # Read file
-        wav = wavfile.read(self.wav_fname)[1]
-        wav = wav.astype("float")
-        
-        # Get sample window size to match the sampling rate of the EEG
-        sample_window = int(self.audio_sr/self.sr)
-        
-        # Processing object to extract audio features
-        smile = opensmile.Smile(
-            feature_set=opensmile.FeatureSet.eGeMAPSv02,
-            feature_level=opensmile.FeatureLevel.LowLevelDescriptors
-        )
-
-        # Creates a pd.DataFrame to store audio features
-        y = smile.process_file(self.wav_fname)
-        
-        # Removes file index of multindex, leaving just start and end times as index
-        y.index = y.index.droplevel(0)
-
-        # Transform to single index with elapsed time in seconds
-        y.index = y.index.map(lambda x: x[0].total_seconds())
-
-        # Extract shimmer feature
-        shimmer = y['shimmerLocaldB_sma3nz'].values
-        
-        # Create time array for interpolation
-        original_time = np.arange(len(shimmer)) * (len(shimmer) / len(wav)) * (1/self.audio_sr)
-        target_time = np.arange(len(envelope)) * (1/self.sr)
-        
-        # Interpolate to match envelope length
-        shimmer_resampled = np.interp(target_time, original_time, shimmer)
-        
-        return shimmer_resampled.reshape(-1, 1)
-
+        # Create an array with the same length as the envelope filled with the offset value
+        return np.full_like(envelope, fill_value=1, dtype=np.float32)    
+    
     def load_trial(
         self, 
         stimuli:list
@@ -1564,12 +1348,8 @@ class TrialChannelData:
                     envelope=channel['Envelope'], 
                     kind=stimulus
                 )
-            if stimulus == 'Jitter':
-                channel[stimulus] = self.extract_jitter(
-                    envelope=channel['Envelope']
-                )
-            if stimulus == 'Shimmer':
-                channel[stimulus] = self.extract_shimmer(
+            if stimulus == 'Offset':
+                channel[stimulus] = self.extract_offset(
                     envelope=channel['Envelope']
                 )
         return channel
@@ -1582,7 +1362,7 @@ class SessionData:
         stimuli: str='Envelope', 
         band: str='Theta', 
         session: int=21
-        )->None:
+    )->None:
         """
         This class handles the loading (concatenating trials) and processing of EEG and stimuli data for a given session. 
         It supports both raw and preprocessed data, and can extract various features such as envelope, MFCCs, pitch, 
@@ -1619,9 +1399,6 @@ class SessionData:
         self.band = band
 
         # Define parameters
-        self.l_freq_eeg, self.h_freq_eeg = processing.band_freq(band)
-        self.causal_filter_eeg = config.causal_filter_eeg
-        self.envelope_filter = config.envelope_filter
         self.session = session
         self.sr = config.sr
 
@@ -1634,15 +1411,8 @@ class SessionData:
         self.export_paths = {}
 
         # Depending on filters the store path changes
-        if self.envelope_filter:
-            self.export_paths['Envelope'] = os.path.join(self.preprocessed_data_path, f'Envelope/{self.envelope_filter}/')
-        else:
-            self.export_paths['Envelope'] = os.path.join(self.preprocessed_data_path, 'Envelope/')
-        
-        if self.causal_filter_eeg:
-            self.export_paths['EEG'] = os.path.join(self.preprocessed_data_path, f'EEG/{band}/Causal/')
-        else:
-            self.export_paths['EEG'] = os.path.join(self.preprocessed_data_path, f'EEG/{band}/')
+        self.export_paths['Envelope'] = os.path.join(self.preprocessed_data_path, 'Envelope/')
+        self.export_paths['EEG'] = os.path.join(self.preprocessed_data_path, f'EEG/{band}/')
         
         # The rest remain the same
         for stimulus in ALLOWED_STIMULI:
@@ -2092,7 +1862,7 @@ def load_data(
     band:str,
     preprocessed_data_path:str, 
     situation:str='External'
-    )->tuple:
+)->tuple:
     """
     Loads and processes EEG and stimuli data for a given session.
 
@@ -2110,7 +1880,8 @@ def load_data(
     'Phones', 'Phones-Envelope', 'Phones-Discrete',
     'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
     'Wav2vec2',
-    'Jitter', 'Shimmer'
+    'Offset'
+    # 'Jitter', 'Shimmer'
     band : str
         Neural frequency band. It could be one of: 
     'Delta',
@@ -2120,7 +1891,9 @@ def load_data(
     'Beta2',
     'All',
     'Delta_Theta',
-    'Alpha_Delta_Theta'
+    'Alpha_Delta_Theta',
+    'Broad',
+    'Unfiltered'
     preprocessed_data_path : str
         Path directing to processed data.
     situation : str, optional
@@ -2147,7 +1920,8 @@ def load_data(
     'Phones', 'Phones-Envelope', 'Phones-Discrete',
     'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
     'Wav2vec2',
-    'Jitter', 'Shimmer'
+    'Offset'
+    # 'Jitter', 'Shimmer'
         If 'band' is not an allowed band frequency. Allowed ones are:
     'Delta',
     'Theta',
@@ -2156,7 +1930,9 @@ def load_data(
     'Beta2',
     'All',
     'Delta_Theta',
-    'Alpha_Delta_Theta'
+    'Alpha_Delta_Theta',
+    'Broad',
+    'Unfiltered'
         If 'situation' is not an allowed situation. Allowed ones are:
     'Internal',
     'External',
@@ -2321,7 +2097,7 @@ if __name__ == "__main__":
             }
     
     # Paralelizar el procesamiento
-    max_workers = min(mp.cpu_count() - 1, 4)  # Usar máximo 4 workers para evitar sobrecarga
+    max_workers = min(mp.cpu_count() - 1, 5)  # Usar máximo 8 workers para evitar sobrecarga
     logger.info(f"Starting parallel processing with {max_workers} workers")
     logger.info(f"Total combinations to process: {len(param_combinations)}")
     
@@ -2344,3 +2120,142 @@ if __name__ == "__main__":
                 i=i,
                 length_of_iterator=len(futures)
             )
+
+
+
+
+    # def extract_jitter(
+    #     self, 
+    #     envelope: np.ndarray
+    # ) -> np.ndarray:
+    #     """
+    #     Extracts jitter (pitch period variation) matching the size of the envelope
+
+    #     Parameters
+    #     ----------
+    #     envelope : np.ndarray
+    #         Envelope of the audio signal using Hilbert transform
+
+    #     Returns
+    #     -------
+    #     np.ndarray
+    #         Jitter values with same length as envelope, shape (samples, 1)
+    #     """
+    #     # Read file
+    #     sr, wav = wavfile.read(self.wav_fname)
+    #     wav = wav.astype("float")
+        
+    #     # Processing object to extract audio features
+    #     smile = opensmile.Smile(
+    #         feature_set=opensmile.FeatureSet.eGeMAPSv02,
+    #         feature_level=opensmile.FeatureLevel.LowLevelDescriptors,
+    #         sampling_rate=self.audio_sr,
+    #         options={
+    #             "frameMode": "fixed",
+    #             "frameSize": 0.025,      # 25 ms window (default)
+    #             "frameStep": 1/128  # 128 Hz output
+    #         },
+    #         verbose=5
+    #     )
+
+    #     # Creates a pd.DataFrame to store audio features
+    #     y = smile.process_file(self.wav_fname)
+
+    #     # Removes file index of multindex, leaving just start and end times as index
+    #     y.index = y.index.droplevel(0)
+
+    #     # Transform to single index with elapsed time in seconds
+    #     y.index = y.index.map(lambda x: x[0].total_seconds())
+
+    #     # Extract jitter feature
+    #     jitter = y['jitterLocal_sma3nz'].values.reshape(-1, 1)
+    #     from IPython import embed
+    #     embed(header='Jitter extracted, now interpolating to match envelope length')
+
+    #     downsampling_factor = int(self.audio_sr/self.sr)
+    #     max_numtaps = int(len(jitter) / 3)
+    #     numtaps = min(3001, max_numtaps)
+    #     filter_coeffs = sgn.firwin(
+    #         numtaps=numtaps,
+    #         cutoff=(self.sr / 2.0)  *.99,  # Nyquist frequency of target sampling rate
+    #         fs=self.audio_sr, 
+    #         pass_zero='lowpass'
+    #     )
+
+    #     # Filter 
+    #     jitter_f = sgn.filtfilt(
+    #         b=filter_coeffs, 
+    #         a=np.array([1.0]), 
+    #         x=jitter.copy(),
+    #         axis=0
+    #     )
+
+    #     # Downsample 
+    #     jitter_f = jitter_f[::downsampling_factor]
+
+    #     import matplotlib.pyplot as plt
+    #     import matplotlib
+    #     matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
+    #     plt.figure()
+    #     plt.plot(jitter)
+    #     plt.plot(jitter_f)
+    #     plt.show(block=False)
+    #     # Create time array for interpolation
+    #     original_time = np.arange(len(jitter)) * (len(jitter) / len(wav)) * (1/self.audio_sr)
+    #     target_time = np.arange(len(envelope)) * (1/self.sr)
+        
+    #     # Interpolate to match envelope length
+    #     jitter_resampled = np.interp(target_time, original_time, jitter)
+        
+    #     return jitter_resampled.reshape(-1, 1)
+
+    # def extract_shimmer(
+    #     self, 
+    #     envelope: np.ndarray
+    # ) -> np.ndarray:
+    #     """
+    #     Extracts shimmer (amplitude variation) matching the size of the envelope
+
+    #     Parameters
+    #     ----------
+    #     envelope : np.ndarray
+    #         Envelope of the audio signal using Hilbert transform
+
+    #     Returns
+    #     -------
+    #     np.ndarray
+    #         Shimmer values with same length as envelope, shape (samples, 1)
+    #     """
+    #     # Read file
+    #     wav = wavfile.read(self.wav_fname)[1]
+    #     wav = wav.astype("float")
+        
+    #     # Get sample window size to match the sampling rate of the EEG
+    #     sample_window = int(self.audio_sr/self.sr)
+        
+    #     # Processing object to extract audio features
+    #     smile = opensmile.Smile(
+    #         feature_set=opensmile.FeatureSet.eGeMAPSv02,
+    #         feature_level=opensmile.FeatureLevel.LowLevelDescriptors
+    #     )
+
+    #     # Creates a pd.DataFrame to store audio features
+    #     y = smile.process_file(self.wav_fname)
+        
+    #     # Removes file index of multindex, leaving just start and end times as index
+    #     y.index = y.index.droplevel(0)
+
+    #     # Transform to single index with elapsed time in seconds
+    #     y.index = y.index.map(lambda x: x[0].total_seconds())
+
+    #     # Extract shimmer feature
+    #     shimmer = y['shimmerLocaldB_sma3nz'].values
+        
+    #     # Create time array for interpolation
+    #     original_time = np.arange(len(shimmer)) * (len(shimmer) / len(wav)) * (1/self.audio_sr)
+    #     target_time = np.arange(len(envelope)) * (1/self.sr)
+        
+    #     # Interpolate to match envelope length
+    #     shimmer_resampled = np.interp(target_time, original_time, shimmer)
+        
+    #     return shimmer_resampled.reshape(-1, 1)
