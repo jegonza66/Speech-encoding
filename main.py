@@ -16,7 +16,7 @@ import config
 
 # Notification bot
 from utils.notification_telegram import tel_message, generate_completion_message
-from telegram_config import API_TOKEN, CHAT_ID
+from utils.telegram_config import API_TOKEN, CHAT_ID
 
 # Command line and logging
 from utils.from_commands import create_dynamic_parser, apply_args_to_config
@@ -52,7 +52,7 @@ for situation in config.situations:
             logger.info(
                 '\n===========================\n'
                 '\tPARAMETERS\n\n'
-                f'Model: {config.model}\n'
+                f'Model: {config.model}-{config.solver}\n'
                 f'Band: {band}\n'
                 f'Stimulus: {stim}\n'
                 f'Condition: {situation}\n'
@@ -61,16 +61,38 @@ for situation in config.situations:
             )
 
             # Relevant paths
-            path_weights = f'{config.output_dir}/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-            path_null = f'{config.output_dir}/{config.model}/{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-            path_figures = f'{config.figures_dir}/{config.model}/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-            path_TFCE = f'{config.output_dir}/{config.model}/{situation}/TFCE/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/'
-            save_results_path = f'{config.output_dir}/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/{band}/'
+            if config.same_validation_subjects:
+                if config.external_validation:
+                    path_weights = f'{config.output_dir}/{config.model}-{config.solver}/External-{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/same_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+                    path_null = f'{config.output_dir}/{config.model}-{config.solver}/External-{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/same_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+                    path_figures = f'{config.figures_dir}/{config.model}-{config.solver}/External-{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/same_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+                    path_TFCE = f'{config.output_dir}/{config.model}-{config.solver}/External-{situation}/TFCE/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/same_alpha/tmin{config.tmin}_tmax{config.tmax}/'
+                    save_results_path = f'{config.output_dir}/{config.model}-{config.solver}/External-{situation}/correlations/same_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/'
+                else:
+                    path_weights = f'{config.output_dir}/{config.model}-{config.solver}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/same_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+                    path_null = f'{config.output_dir}/{config.model}-{config.solver}/{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/same_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+                    path_figures = f'{config.figures_dir}/{config.model}-{config.solver}/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/same_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+                    path_TFCE = f'{config.output_dir}/{config.model}-{config.solver}/{situation}/TFCE/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/same_alpha/tmin{config.tmin}_tmax{config.tmax}/'
+                    save_results_path = f'{config.output_dir}/{config.model}-{config.solver}/{situation}/correlations/same_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/'
+            else:
+                if config.external_validation:
+                    path_weights = f'{config.output_dir}/{config.model}-{config.solver}/External-{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/distinct_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+                    path_null = f'{config.output_dir}/{config.model}-{config.solver}/External-{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/distinct_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+                    path_figures = f'{config.figures_dir}/{config.model}-{config.solver}/External-{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/distinct_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+                    path_TFCE = f'{config.output_dir}/{config.model}-{config.solver}/External-{situation}/TFCE/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/distinct_alpha/tmin{config.tmin}_tmax{config.tmax}/'
+                    save_results_path = f'{config.output_dir}/{config.model}-{config.solver}/External-{situation}/correlations/distinct_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/'
+                else:
+                    path_weights = f'{config.output_dir}/{config.model}-{config.solver}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/distinct_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+                    path_null = f'{config.output_dir}/{config.model}-{config.solver}/{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/distinct_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+                    path_figures = f'{config.figures_dir}/{config.model}-{config.solver}/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/distinct_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+                    path_TFCE = f'{config.output_dir}/{config.model}-{config.solver}/{situation}/TFCE/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/distinct_alpha/tmin{config.tmin}_tmax{config.tmax}/'
+                    save_results_path = f'{config.output_dir}/{config.model}-{config.solver}/{situation}/correlations/distinct_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/'
+
             preprocessed_data_path = f'{config.saves_dir}/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
             if config.external_validation:
-                path_validation = f'{config.output_dir}/{config.model}/External/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+                path_validation = f'{config.output_dir}/{config.model}-{config.solver}/External/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
             else:
-                path_validation = f'{config.output_dir}/{config.model}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+                path_validation = f'{config.output_dir}/{config.model}-{config.solver}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
             alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
 
 
@@ -90,6 +112,19 @@ for situation in config.situations:
             # Store total number of subjects (18) to save figures and results just in this case
             total_number_of_subjects = 0
 
+            # from IPython import embed; embed()
+            # if config.same_validation_subjects:
+            #     alphas_total = []
+            #     alphas = load_pickle(path=alphas_path)
+            #     for session in config.sessions:
+            #         for subject in [1, 2]:
+            #             alphas_total.append(alphas[session][subject])
+            #     alphas_total = np.array(alphas_total)
+            #     config.set_alpha = 10**(np.median(np.log10(alphas_total)))
+            #     logger.info(f'Setting alpha to {config.set_alpha} for all subjects')
+            # else:
+            #     ...
+            
             # Iterate over sessions
             for session in config.sessions:
                 print(f'\n-------> Start of session {session}\n')
@@ -361,7 +396,8 @@ for situation in config.situations:
                     pvalue_tfce=pvalue_tfce if config.perform_tfce else None,
                     n_feats=n_feats,
                     band=band,
-                    stim=stim
+                    stim=stim,
+                    same_validation_subjects=config.same_validation_subjects
                 )
     # Get total run time
     total_runtime = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)

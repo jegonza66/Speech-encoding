@@ -13,7 +13,7 @@ import config
 
 # Notification bot
 from utils.notification_telegram import tel_message, generate_permutation_completion_message
-from telegram_config import API_TOKEN, CHAT_ID
+from utils.telegram_config import API_TOKEN, CHAT_ID
 
 # Logging
 from utils.logs import setup_logger
@@ -44,7 +44,7 @@ for situation in config.situations:
             logger.info(
                 '\n===========================\n'
                 '\tPARAMETERS\n\n'
-                f'Model: {config.model}\n'
+                f'Model: {config.model}-{config.solver}\n'
                 f'Band: {band}\n'
                 f'Stimulus: {stim}\n'
                 f'Condition: {situation}\n'
@@ -55,12 +55,21 @@ for situation in config.situations:
             
             # Relevant paths
             preprocessed_data_path = os.path.normpath(f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/')
-            path_null = f'output/{config.model}/{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
-            
-            if config.external_validation:
-                path_validation = f'output/{config.model}/External/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+            if config.same_validation_subjects:
+                if config.external_validation:
+                    path_null = f'output/{config.model}-{config.solver}/External-{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/same_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+                else:
+                    path_null = f'output/{config.model}-{config.solver}/External-{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/same_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
             else:
-                path_validation = f'output/{config.model}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+                if config.external_validation:
+                    path_null = f'output/{config.model}-{config.solver}/External-{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/distinct_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+                else:
+                    path_null = f'output/{config.model}-{config.solver}/External-{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/distinct_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+                
+            if config.external_validation:
+                path_validation = f'output/{config.model}-{config.solver}/External/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+            else:
+                path_validation = f'output/{config.model}-{config.solver}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
             alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
                             
             # Iterate over sessions

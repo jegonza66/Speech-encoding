@@ -9,6 +9,7 @@ import time
 import os
 
 # Specific libraries
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from praatio import pitch_and_intensity #
 from sklearn.cross_decomposition import CCA
 from sklearn.decomposition import PCA
@@ -88,6 +89,7 @@ ALLOWED_BANDS = [
     'Delta',
     'Theta',
     'Alpha',
+    'Beta',
     'Beta1',
     'Beta2',
     'All',
@@ -611,7 +613,8 @@ class TrialChannelData:
         kind:str='Phonemes-Discrete'
         )->np.ndarray:
         """
-        It makes a time-match matrix between the phonemes and the envelope using Phonet implementation. The values and shape of given matrix depend on kind.
+        It makes a time-match matrix between the phonemes and the envelope using Phonet implementation. 
+        The values and shape of given matrix depend on kind.
 
         Parameters
         ----------
@@ -631,52 +634,57 @@ class TrialChannelData:
             elif kind.startswith('Phonemes-Onset'):
                 In this case the value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
         """
+        wav = wavfile.read(self.wav_fname)[1]
+        wav = wav.astype("float")
         if kind=='Phonemes':
-            # Compute phonemes using Phonet protocol
             labels_phonemes = config.exp_info.phonemes.copy()
             labels_phones = config.exp_info.phones.copy()
-            
-            phonet = get_phonet_instance()
             posterior_prob = compute_phones(
-                phonet_obj=phonet, 
+                phonet_obj=get_phonet_instance(), 
                 audio_file=self.wav_fname,
                 PLLR=True
             )
-                        
-            # Match features length
-            difference = len(posterior_prob) - len(envelope)
+            posterior_prob = np.clip(
+                posterior_prob, 1e-6, 1-1e-6
+            )
 
+            # Repeat last sample (probably silence)
+            difference = len(posterior_prob) - len(envelope)
             if difference > 0:
                 posterior_prob = posterior_prob[:-difference]
             elif difference < 0:
-                # Repeat last sample (probably silence)
                 for i in range(np.abs(difference)):
                     aux = posterior_prob[-1].copy() 
                     posterior_prob = np.vstack((posterior_prob, aux.reshape(-1,1).T))
             
             # Map phones to phonemes, making the sum
-            posterior_prob_phonemes = np.zeros(shape=(posterior_prob.shape[0], len(labels_phonemes)))
-
+            posterior_prob_phonemes = np.zeros(
+                shape=(posterior_prob.shape[0], len(labels_phonemes))
+            )
             for h, phone in enumerate(labels_phones):
-                phoneme_index = labels_phonemes.index(config.exp_info.phones_to_phonemes[phone])
+                phoneme_index = labels_phonemes.index(
+                    config.exp_info.phones_to_phonemes[phone]
+                )
                 posterior_prob_phonemes[:, phoneme_index] += posterior_prob[:, h]
-            
+                        
             # Calculate posterior llr
             pllr = np.zeros(shape=posterior_prob_phonemes.shape)
             number_of_phonemes = posterior_prob_phonemes.shape[1]
             for ph in range(number_of_phonemes):
-                pllr[:, ph] = np.log10(posterior_prob_phonemes[:, ph]/(1-posterior_prob_phonemes[:, ph]))
-            
+                pllr[:, ph] = np.log10(
+                    posterior_prob_phonemes[:, ph]/(1-posterior_prob_phonemes[:, ph]+ 1e-8)
+                )
+
             # Centralizamos 
+            pllr = np.nan_to_num(pllr, nan=0.0, posinf=0.0, neginf=0.0)
             pllr = pllr - np.mean(pllr, axis=1, keepdims=True)  
             
             # Removemos silencios
             pllr_without_silence = pllr[:, np.arange(number_of_phonemes) != labels_phonemes.index('/sil/')]
             return pllr_without_silence
         else:
-            phonet = get_phonet_instance()
-            time,  sec_phones = compute_phones(
-                phonet_obj=phonet, 
+            sec_phones = compute_phones(
+                phonet_obj=get_phonet_instance(), 
                 audio_file=self.wav_fname
             )
         
@@ -686,7 +694,6 @@ class TrialChannelData:
             
         # Match features length
         difference = len(sec_phones) - len(envelope)
-
         if difference > 0:
             sec_phones = sec_phones[:-difference]
         elif difference < 0:
@@ -774,11 +781,20 @@ class TrialChannelData:
             # Extract phonemes using Phonet protocol
             labels_phones = config.exp_info.phones.copy()
             
-            phonet = get_phonet_instance()
+            wav = wavfile.read(self.wav_fname)[1]
+            wav = wav.astype("float")
             posterior_prob = compute_phones(
-                phonet_obj=phonet, 
+                phonet_obj=get_phonet_instance(), 
                 audio_file=self.wav_fname,
                 PLLR=True
+            )
+            
+            # posterior_prob: (num_frames, num_phones), original_fs ≈ 100 Hz
+            num_target_frames = int((wav.shape[0] / self.audio_sr) * self.sr)
+            posterior_prob = sgn.resample(
+                posterior_prob, 
+                num_target_frames, 
+                axis=0
             )
             
             # Match features length
@@ -807,7 +823,7 @@ class TrialChannelData:
         else:
             # Extract phones
             phonet = get_phonet_instance()
-            _,  sec_phones = compute_phones(
+            sec_phones = compute_phones(
                 phonet_obj=phonet, 
                 audio_file=self.wav_fname
             )
@@ -817,9 +833,23 @@ class TrialChannelData:
         labels.remove('<p:>')
         labels.remove('sil')
         
+        # Resample sec_phones to match envelope length
+        num_target_frames = envelope.shape[0]
+        if len(sec_phones) != num_target_frames:
+            # Convert to array of strings for resample
+            sec_phones = np.array(sec_phones)
+            
+            # Map phones to integers for resampling
+            phone_to_int = {phone: i for i, phone in enumerate(labels + ['<p:>', 'sil'])}
+            int_to_phone = {i: phone for phone, i in phone_to_int.items()}
+            sec_phones_int = np.array([phone_to_int.get(p, phone_to_int['<p:>']) for p in sec_phones])
+            sec_phones_resampled = np.round(
+                sgn.resample(sec_phones_int.astype(float), num_target_frames)
+            ).astype(int)
+            sec_phones = [int_to_phone[i] for i in sec_phones_resampled]
+
         # Match features length
         difference = len(sec_phones) - len(envelope)
-
         if difference > 0:
             sec_phones = sec_phones[:-difference]
         elif difference < 0:
@@ -1337,7 +1367,8 @@ class TrialChannelData:
                     eeg=channel['EEG']
                 )
             if stimulus=='Spectrogram':
-                channel['Spectrogram'] = self.extract_spectrogram()
+                channel['Spectrogram'] = self.extract_spectrogram(
+                )
             if stimulus.startswith('Phonemes'):
                 channel[stimulus] = self.extract_phonemes(
                     envelope=channel['Envelope'], 
@@ -1420,9 +1451,207 @@ class SessionData:
                 continue
             else:
                 self.export_paths[f'{stimulus}'] = os.path.join(self.preprocessed_data_path, f'{stimulus}/')
-        
+
+    # def load_from_raw(
+    #     self
+    #     )->dict:
+    #     """
+    #     Loads raw data, this includes EEG, Envelope, info and the rest of asked stimuli.
+
+    #     Returns
+    #     -------
+    #     dict
+    #         Sessions of both subjects
+    #     """
+
+    #     subject_1 = {}
+    #     subject_2 = {}
+
+    #     # Retrieve number of files, i.e: trials.
+    #     trials = list(set([int(fname.split('.')[2]) for fname in os.listdir(self.phrases_path) if fname.endswith('phrases')]))
+    #     trials = sorted(trials)  # Ensure order for progress
+
+    #     # Try to open preprocessed info of samples, if not creates raw.
+    #     try:
+    #         self.samples_info = general_functions.load_pickle(
+    #             path=os.path.join(
+    #                 self.samples_info_path, f'samples_info_{self.session}.pkl'
+    #             )
+    #         )
+    #         loaded_samples_info = True
+    #     except Exception as e:
+    #         logger.debug(f"Couldn't load samples info for session {self.session}. \nCreating new samples info dictionary. \nError: {e}")
+    #         loaded_samples_info = False
+    #         self.samples_info = {
+    #             'trial_lengths1': [0],
+    #             'trial_lengths2': [0],
+    #             'keep_indexes1':[],
+    #             'keep_indexes2':[]
+    #         }
+
+    #     # --- Parallelize trial processing ---
+    #     def process_trial(trial):
+    #         try:
+    #             channel_1 = TrialChannelData(
+    #                     situation=self.situation,
+    #                     session=self.session, 
+    #                     band=self.band,
+    #                     trial=trial, 
+    #                     channel=1
+    #             )
+    #             channel_2 = TrialChannelData(
+    #                     situation=self.situation,
+    #                     session=self.session,
+    #                     band=self.band,
+    #                     trial=trial,
+    #                     channel=2
+    #             )
+
+    #             trial_channel_1 = channel_1.load_trial(stimuli=self.stimuli.split('_'))
+    #             trial_channel_2 = channel_2.load_trial(stimuli=self.stimuli.split('_'))
+
+    #             if self.situation.startswith('Internal'):
+    #                 trial_subject_1 = trial_channel_1.copy()
+    #                 trial_subject_2 = trial_channel_2.copy()
+    #             else:
+    #                 trial_subject_1 = {key: trial_channel_2[key] for key in trial_channel_2 if key!='EEG'} 
+    #                 trial_subject_2 = {key: trial_channel_1[key] for key in trial_channel_1 if key!='EEG'}
+    #                 trial_subject_1['EEG'], trial_subject_2['EEG'] = trial_channel_1['EEG'], trial_channel_2['EEG']
+
+    #             current_speaker_1 = self.labeling(trial=trial, channel=2)
+    #             filter_1, filter_2 = current_speaker_1 == 1, current_speaker_1 == 2 
+    #             current_speaker_2 = current_speaker_1.copy()
+    #             current_speaker_2[filter_1] = 2
+    #             current_speaker_2[filter_2] = 1
+
+    #             trial_subject_1, current_speaker_1, minimum1 = self.match_lengths(
+    #                 speaker_labels=current_speaker_1,
+    #                 dic=trial_subject_1 
+    #             )
+    #             trial_subject_2, current_speaker_2, minimum2 = self.match_lengths(
+    #                 speaker_labels=current_speaker_2,
+    #                 dic=trial_subject_2 
+    #             )
+
+    #             # Return everything needed for later aggregation
+    #             return {
+    #                 "trial": trial,
+    #                 "trial_subject_1": trial_subject_1,
+    #                 "trial_subject_2": trial_subject_2,
+    #                 "current_speaker_1": current_speaker_1,
+    #                 "current_speaker_2": current_speaker_2,
+    #                 "minimum1": minimum1,
+    #                 "minimum2": minimum2,
+    #                 "success": True,
+    #                 "info": trial_channel_1['info']
+    #             }
+    #         except Exception as e:
+    #             logger.warning(f"Trial {trial} of session {self.session} couldn't be loaded.")
+    #             logger.warning(f"\nAn unexpected error occurred: {e}") 
+    #             return {
+    #                 "trial": trial,
+    #                 "success": False
+    #             }
+
+    #     results = []
+    #     total = len(trials)
+    #     print(f"Processing {total} trials with 5 workers...")
+
+    #     with ThreadPoolExecutor(max_workers=5) as executor:
+    #         future_to_trial = {executor.submit(process_trial, trial): trial for trial in trials}
+    #         for i, future in enumerate(as_completed(future_to_trial), 1):
+    #             result = future.result()
+    #             results.append(result)
+    #             trial_num = future_to_trial[future]
+    #             print(f"Completed trial {trial_num} ({i}/{total})", flush=True)
+
+    #     # Sort results by trial number to keep order
+    #     results = sorted(results, key=lambda x: x["trial"])
+
+    #     # Aggregate results
+    #     for res in results:
+    #         if not res["success"]:
+    #             self.samples_info['trial_lengths1'].append(0)
+    #             self.samples_info['trial_lengths2'].append(0)
+    #             continue
+
+    #         trial_subject_1 = res["trial_subject_1"]
+    #         trial_subject_2 = res["trial_subject_2"]
+    #         current_speaker_1 = res["current_speaker_1"]
+    #         current_speaker_2 = res["current_speaker_2"]
+    #         minimum1 = res["minimum1"]
+    #         minimum2 = res["minimum2"]
+
+    #         if not loaded_samples_info:
+    #             self.samples_info['trial_lengths1'].append(minimum1)
+    #             self.samples_info['trial_lengths2'].append(minimum2)
+    #             shifted_1 = self.shifted_indexes_to_keep(speaker_labels=current_speaker_1)
+    #             shifted_2 = self.shifted_indexes_to_keep(speaker_labels=current_speaker_2)
+    #             self.samples_info['keep_indexes1'] += (shifted_1 + np.sum(self.samples_info['trial_lengths1'][:-1])).tolist()
+    #             self.samples_info['keep_indexes2'] += (shifted_2 + np.sum(self.samples_info['trial_lengths2'][:-1])).tolist()
+
+    #         for key in trial_subject_1:
+    #             if key != 'info':
+    #                 if key not in subject_1:
+    #                     subject_1[key] = trial_subject_1[key]
+    #                     subject_2[key] = trial_subject_2[key]
+    #                 else:
+    #                     subject_1[key] = np.concatenate(
+    #                         (subject_1[key], trial_subject_1[key]), axis=0
+    #                     )
+    #                     subject_2[key] = np.concatenate(
+    #                         (subject_2[key], trial_subject_2[key]), axis=0
+    #                     )
+    #         # Save info from the first successful trial
+    #         if 'info' in trial_subject_1 and 'info' not in locals():
+    #             info = trial_subject_1['info']
+    #         elif 'info' not in locals():
+    #             info = res["info"]
+
+    #     # If no successful trial, set info to None
+    #     if 'info' not in locals():
+    #         info = None
+
+    #     # Save modified relevant indexes 
+    #     os.makedirs(
+    #         self.samples_info_path, 
+    #         exist_ok=True
+    #     )
+    #     general_functions.dump_pickle(
+    #         path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'), 
+    #         obj=self.samples_info, 
+    #         rewrite=True
+    #     )
+
+    #     # Save results, taking advantage of the fact that both subjects have the same keys
+    #     for key in subject_1:
+    #         os.makedirs(
+    #             self.export_paths[key], 
+    #             exist_ok=True
+    #         )
+    #         general_functions.dump_pickle(
+    #             path=os.path.join(self.export_paths[key], f'Sesion{self.session}.pkl'), 
+    #             obj=[subject_1[key], subject_2[key]], 
+    #             rewrite=True
+    #         )
+
+    #     # Save info of the setup                    
+    #     general_functions.dump_pickle(
+    #         path=os.path.join(self.preprocessed_data_path, 'EEG/info.pkl'), 
+    #         rewrite=True,
+    #         obj=info 
+    #     )
+
+    #     # Redefine subjects dictionaries to return only used stimuli
+    #     relevant_subject_1 = {key: subject_1[key] for key in self.stimuli.split('_') + ['EEG']}
+    #     relevant_subject_2 = {key: subject_2[key] for key in self.stimuli.split('_') + ['EEG']}
+    #     relevant_subject_1['info'] = info
+    #     relevant_subject_2['info'] = info
+
+    #     return relevant_subject_1, relevant_subject_2, self.samples_info
     def load_from_raw(
-        self
+        self, 
+        save_results:bool=True
         )->dict:
         """
         Loads raw data, this includes EEG, Envelope, info and the rest of asked stimuli.
@@ -1459,15 +1688,7 @@ class SessionData:
             }
 
         # Retrive and concatenate data of all trials
-        # for p, trial in enumerate(trials):
-        # for p, trial in enumerate(tqdm(trials, desc=), ):
         for p, trial in enumerate(tqdm(trials, desc=f'Loading session {self.session}', bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]")):
-            # SessionData.print_trials(
-            #     trials=trials,
-            #     trial=trial,
-            #     p=p
-            # )
-
             # Create trial for both channels in order to extract features and EEG signal
             try:
                 channel_1 = TrialChannelData(
@@ -1561,35 +1782,36 @@ class SessionData:
         # Get info of the setup that was exluded in the previous iteration
         info = trial_channel_1['info']
 
-        # Saves modified relevant indexes 
-        os.makedirs(
-            self.samples_info_path, 
-            exist_ok=True
-        )
-        general_functions.dump_pickle(
-            path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'), 
-            obj=self.samples_info, 
-            rewrite=True
-        )
-
-        # Save results, taking advantage of the fact that both subjects have the same keys
-        for key in subject_1:
+        # Saves modified relevant indexes
+        if save_results: 
             os.makedirs(
-                self.export_paths[key], 
+                self.samples_info_path, 
                 exist_ok=True
             )
             general_functions.dump_pickle(
-                path=os.path.join(self.export_paths[key], f'Sesion{self.session}.pkl'), 
-                obj=[subject_1[key], subject_2[key]], 
+                path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'), 
+                obj=self.samples_info, 
                 rewrite=True
             )
 
-        # Saves info of the setup                    
-        general_functions.dump_pickle(
-            path=os.path.join(self.preprocessed_data_path, 'EEG/info.pkl'), 
-            rewrite=True,
-            obj=info 
-        )
+            # Save results, taking advantage of the fact that both subjects have the same keys
+            for key in subject_1:
+                os.makedirs(
+                    self.export_paths[key], 
+                    exist_ok=True
+                )
+                general_functions.dump_pickle(
+                    path=os.path.join(self.export_paths[key], f'Sesion{self.session}.pkl'), 
+                    obj=[subject_1[key], subject_2[key]], 
+                    rewrite=True
+                )
+
+            # Saves info of the setup                    
+            general_functions.dump_pickle(
+                path=os.path.join(self.preprocessed_data_path, 'EEG/info.pkl'), 
+                rewrite=True,
+                obj=info 
+            )
 
         # Redefine subjects dictionaries to return only used stimuli
         relevant_subject_1 = {key: subject_1[key] for key in self.stimuli.split('_') + ['EEG']}
@@ -1861,7 +2083,8 @@ def load_data(
     stimuli:str, 
     band:str,
     preprocessed_data_path:str, 
-    situation:str='External'
+    situation:str='External',
+    save_results:bool=True
 )->tuple:
     """
     Loads and processes EEG and stimuli data for a given session.
@@ -1887,6 +2110,7 @@ def load_data(
     'Delta',
     'Theta',
     'Alpha',
+    'Beta',
     'Beta1',
     'Beta2',
     'All',
@@ -1901,6 +2125,8 @@ def load_data(
         ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times'].
         Also any of the above options concatenated by '_Silence_x', where x is an integer that represents 
         the percentage of samples with silence within a row of the design matrix.
+    save_results : bool, optional
+        If True, saves the results in the preprocessed_data_path. Default is False.
 
     Returns
     -------
@@ -1926,6 +2152,7 @@ def load_data(
     'Delta',
     'Theta',
     'Alpha',
+    'Beta',
     'Beta1',
     'Beta2',
     'All',
@@ -1965,7 +2192,9 @@ def load_data(
     except Exception as e:
         logger.debug(f"An error occurred while loading preprocessed data: {e}")
         logger.warning("\nCouldn't load data, compute it from raw\n")
-        sessions_1, sessions_2, samples_info = session_obj.load_from_raw()
+        sessions_1, sessions_2, samples_info = session_obj.load_from_raw(
+            save_results=save_results
+        )
     return sessions_1, sessions_2, samples_info
 
 def check_syntax(
@@ -1998,8 +2227,9 @@ def check_syntax(
             if stimulus not in ALLOWED_STIMULI:
                 raise SyntaxError(f"{stimulus} is not an allowed stimulus. Allowed stimuli are: {ALLOWED_STIMULI}. If more than one stimulus is wanted, the separator should be '_'.")
     if band is not None:
-        if band not in ALLOWED_BANDS:
-            raise SyntaxError(f"{band} is not an allowed band frecuency. Allowed bands are: {ALLOWED_BANDS}")
+        if not band.startswith('Custom-'):
+            if band not in ALLOWED_BANDS:
+                raise SyntaxError(f"{band} is not an allowed band frecuency. Allowed bands are: {ALLOWED_BANDS}")
     if situation is not None:
         if not (situation.split('_Silence')[0] in ALLOWED_SITUATIONS):
             raise SyntaxError(f"'{situation}' is not an allowed situation. Allowed ones are: {ALLOWED_SITUATIONS}")
@@ -2097,7 +2327,7 @@ if __name__ == "__main__":
             }
     
     # Paralelizar el procesamiento
-    max_workers = min(mp.cpu_count() - 1, 5)  # Usar máximo 8 workers para evitar sobrecarga
+    max_workers = min(mp.cpu_count() - 1, config.number_of_workers)  # Usar máximo 8 workers para evitar sobrecarga
     logger.info(f"Starting parallel processing with {max_workers} workers")
     logger.info(f"Total combinations to process: {len(param_combinations)}")
     
@@ -2120,8 +2350,6 @@ if __name__ == "__main__":
                 i=i,
                 length_of_iterator=len(futures)
             )
-
-
 
 
     # def extract_jitter(
@@ -2259,3 +2487,152 @@ if __name__ == "__main__":
     #     shimmer_resampled = np.interp(target_time, original_time, shimmer)
         
     #     return shimmer_resampled.reshape(-1, 1)
+    
+    
+    
+    # def f_phonemes_phonet( 
+    #     self, 
+    #     envelope:np.ndarray, 
+    #     kind:str='Phonemes-Discrete-Phonet'
+    #     )->np.ndarray:
+    #     """
+    #     It makes a time-match matrix between the phonemes and the envelope using Phonet implementation. The values and shape of given matrix depend on kind.
+
+    #     Parameters
+    #     ----------
+    #     envelope : np.ndarray
+    #         Envelope of the audio signal using Hilbert transform
+    #     kind : str, optional
+    #     Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
+    #         ['Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet', 'Phonemes-Frequency-Phonet']
+
+    #     Returns
+    #     -------
+    #     np.ndarray
+    #         if kind.startswith('Phonemes-Envelope'):
+    #             Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhonemes_labels(in order)
+    #         elif kind.startswith('Phonemes-Discrete'):
+    #             Also a matrix but it has 1s and 0s instead of envelope amplitude.
+    #         elif kind.startswith('Phonemes-Onset'):
+    #             In this case the value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
+            
+    #     Raises
+    #     ------
+    #     SyntaxError
+    #         Whether the input value of 'kind' is passed correctly. It must be a one of:
+    #         ['Phonemes-Phonet','Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet'].
+    #     """
+    #     # Check if given kind is a permited input value
+    #     allowed_kind = ['Phonemes-Phonet','Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet']
+    #     if kind not in allowed_kind:
+    #         raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
+        
+    #     # Extract phonemes
+    #     if kind=='Phonemes-Phonet':
+    #         phonet_labels_phonemes = exp_info.phonemes_phonet.copy()
+    #         phonet_labels_phones = exp_info.ph_labels_phonet.copy()
+            
+    #         phones_obj = Phones(audio_file=self.wav_fname)
+    #         posterior_prob = phones_obj.compute_phones(PLLR=True) #9167
+            
+            
+    #         # Match features length
+    #         difference = len(posterior_prob) - len(envelope)
+
+    #         if difference > 0:
+    #             posterior_prob = posterior_prob[:-difference]
+    #         elif difference < 0:
+    #             # Repeat last sample (probably silence)
+    #             for i in range(np.abs(difference)):
+    #                 aux = posterior_prob[-1].copy() 
+    #                 posterior_prob = np.vstack((posterior_prob, aux.reshape(-1,1).T))
+            
+    #         # Map phones to phonemes, making the sum
+    #         posterior_prob_phonemes = np.zeros(shape=(posterior_prob.shape[0], len(phonet_labels_phonemes)))
+
+    #         for h, phone in enumerate(phonet_labels_phones):
+    #             phoneme_index = phonet_labels_phonemes.index(exp_info.phones_to_phonemes[phone])
+    #             posterior_prob_phonemes[:, phoneme_index] += posterior_prob[:, h]
+            
+    #         # Calculate posterior llr
+    #         pllr = np.zeros(shape=posterior_prob_phonemes.shape)
+    #         number_of_phonemes = posterior_prob_phonemes.shape[1]
+    #         for ph in range(number_of_phonemes):
+    #             pllr[:, ph] = np.log10(posterior_prob_phonemes[:, ph]/(1-posterior_prob_phonemes[:, ph]))
+            
+    #         # Centralizamos 
+    #         pllr = pllr - np.mean(pllr, axis=1, keepdims=True)  
+            
+    #         # Removemos silencios
+    #         pllr_without_silence = pllr[:, np.arange(number_of_phonemes) != phonet_labels_phonemes.index('/sil/')]
+    #         return pllr_without_silence
+    #     else:
+    #         phones_obj = Phones(audio_file=self.wav_fname)
+    #         time,  sec_phones = phones_obj.compute_phones() #9167
+        
+    #     # Remove silences, since it won't be used in prediction (when silence occurs, all phoneme are 0)
+    #     phonet_labels = exp_info.phonemes_phonet.copy()
+    #     phonet_labels.remove('/sil/')
+            
+    #     # Match features length
+    #     difference = len(sec_phones) - len(envelope)
+
+    #     if difference > 0:
+    #         sec_phones = sec_phones[:-difference]
+    #     elif difference < 0:
+    #         # In this case, silences are append
+    #         for i in range(np.abs(difference)):
+    #             sec_phones.append('<p:>')
+        
+    #     # Make empty array of phonemes
+    #     phonemes = np.zeros(shape=(len(sec_phones), len(phonet_labels)))
+        
+    #     # Match phoneme with kind
+    #     if kind.startswith('Phonemes-Envelope'):
+    #         for i, tagg in enumerate(sec_phones):
+    #             if (tagg!='<p:>') and (tagg!='sil'):
+    #                 phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = envelope[i]
+    #     elif kind.startswith('Phonemes-Discrete'):
+    #         for i, tagg in enumerate(sec_phones):
+    #             if (tagg!='<p:>') and (tagg!='sil'):
+    #                 phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1
+    #     elif kind.startswith('Phonemes-Frequency'):
+    #         try:
+    #             freq = funciones.load_pickle('Datos/phon_frequency_dict/frequency_dict.pkl')
+    #         except:
+    #             print("Frequency dictionary isn't Load. \n ---> loading it now...")
+    #             os.makedirs('Datos/phon_frequency_dict', exist_ok=True)
+    #             freq = funciones.load_phon_frequency_dict(
+    #                 save_path='Datos/phon_frequency_dict',
+    #                 plot_freq=True,
+    #                 )
+    #         for i, tagg in enumerate(sec_phones):
+    #             if (tagg!='<p:>') and (tagg!='sil'):
+    #                 phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1/freq[exp_info.phones_to_phonemes[tagg]]
+    #     elif kind.startswith('Phonemes-Frequency'):
+    #         try:
+    #             freq = funciones.load_pickle('Datos/phon_frequency_dict/frequency_dict.pkl')
+    #         except:
+    #             print("Frequency dictionary isn't Load. \n ---> loading it now...")
+    #             os.makedirs('Datos/phon_frequency_dict', exist_ok=True)
+    #             freq = funciones.load_phon_frequency_dict(
+    #                 save_path='Datos/phon_frequency_dict',
+    #                 plot_freq=True,
+    #                 )
+    #         for i, tagg in enumerate(sec_phones):
+    #             if (tagg!='<p:>') and (tagg!='sil'):
+    #                 phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1/freq['/'+tagg+'/']
+    #     elif kind.startswith('Phonemes-Onset'):
+    #         # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
+    #         phonemes_onset = [sec_phones[0]]
+    #         for i in range(1, len(sec_phones)):
+    #             if sec_phones[i] == sec_phones[i-1]:
+    #                 phonemes_onset.append(0)
+    #             else:
+    #                 phonemes_onset.append(sec_phones[i])
+    #         # Match phoneme with envelope
+    #         for i, tagg in enumerate(phonemes_onset):
+    #             if (tagg!='<p:>') and (tagg!='sil') and (tagg!=0):
+    #                 phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1
+    #     return phonemes
+    

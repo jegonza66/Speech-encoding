@@ -87,33 +87,33 @@ def define_ticks(
         
     if ylabel=='Phonological':
         axes.tick_params(axis='both', labelsize='medium') 
-        tags = [t for t in list(config.exp_info.phonological_labels) if t not in ['pause', 'trill']]
+        tags = [t for t in list(config.exp_info.phonological_labels.copy()) if t not in ['pause', 'trill']]
         ticks = np.arange(number_of_ticks)
     if ylabel=='Phonological1':
         axes.tick_params(axis='both', labelsize='medium') 
-        tags = [t for t in list(config.exp_info.phonological_labels) if t not in ['pause', 'trill'] + config.exp_info.phonological_labels2]
+        tags = [t for t in list(config.exp_info.phonological_labels.copy()) if t not in ['pause', 'trill'] + config.exp_info.phonological_labels2.copy()]
         ticks = np.arange(number_of_ticks)
     if ylabel=='Phonological2':
         axes.tick_params(axis='both', labelsize='medium') 
-        tags = [t for t in list(config.exp_info.phonological_labels) if t not in ['pause', 'trill'] + config.exp_info.phonological_labels1]
+        tags = [t for t in list(config.exp_info.phonological_labels.copy()) if t not in ['pause', 'trill'] + config.exp_info.phonological_labels1.copy()]
         ticks = np.arange(number_of_ticks)
     elif ylabel.startswith('Mistakes'):
-        tags = list(config.exp_info.mistakes)
+        tags = list(config.exp_info.mistakes.copy())
         ticks = np.arange(number_of_ticks)
     elif ylabel.startswith('Control'):
-        tags = list(config.exp_info.control)
+        tags = list(config.exp_info.control.copy())
         ticks = np.arange(number_of_ticks)
     elif ylabel.startswith('Wav2vec2'):
         ticks = np.arange(number_of_ticks)
         tags = [f'C{tick}' for tick in ticks]
     elif ylabel.startswith('Phonemes'):
-        tags = config.exp_info.phonemes_phonet
+        tags = config.exp_info.phonemes.copy()
         tags.remove('/sil/')
         axes.tick_params(axis='both', labelsize='medium')
         ticks = np.arange(number_of_ticks)
     elif ylabel.startswith('Phones'):
         axes.tick_params(axis='both', labelsize='medium')
-        tags = config.exp_info.phones
+        tags = config.exp_info.phones.copy()
         tags.remove('sil')
         tags.remove('<p:>')
         ticks = np.arange(number_of_ticks)
@@ -598,7 +598,7 @@ def average_topomap(
     display_interactive_mode:bool=False,
     test_result:bool=False,
     no_figures:bool=False
-    )->None:
+)->None:
     """
     Make average topomap for a given coefficient
 
@@ -658,15 +658,22 @@ def average_topomap(
         axes=ax
         )
     
+    vmin = mean_average_coefficient.min()
+    vmax = mean_average_coefficient.max()
+
+    # Avoid identical vmin/vmax or NaN
+    if not np.isfinite(vmin) or not np.isfinite(vmax) or vmin == vmax:
+        vmin = vmax = 0  # or set to some default range, e.g. vmin = -1, vmax = 1
+
     plt.colorbar(
         im[0],
         ax=ax, 
         shrink=0.85,
         label=coefficient_name,
         orientation='horizontal',
-        boundaries=np.linspace(mean_average_coefficient.min().round(decimals=3), mean_average_coefficient.max().round(decimals=3), 100),
-        ticks=np.linspace(mean_average_coefficient.min(), mean_average_coefficient.max(), 9).round(decimals=3)
-        )
+        boundaries=np.linspace(vmin, vmax, 100) if vmin != vmax else None,
+        ticks=np.linspace(vmin, vmax, 9) if vmin != vmax else [vmin]
+    )
     if save:
         save_figure(
             cwd=current_working_directory,

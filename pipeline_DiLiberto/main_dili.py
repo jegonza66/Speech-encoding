@@ -13,14 +13,14 @@ import config, utils.plot as plot
 
 # Notification bot
 from utils.notification_telegram import tel_message, generate_completion_message
-from telegram_config import API_TOKEN, CHAT_ID
+from utils.telegram_config import API_TOKEN, CHAT_ID
 
 
 # ============
 # RUN ANALYSIS
 # ============
 start_time = datetime.now()
-band, stim = 'All', 'Envelope'
+band, stim = 'unfilt', 'Phonemes'
 subjects = [1, 2, 3, 5, 6, 7, 8, 10, 11, 12, 13, 14, 16, 17, 18, 19]
 
 # Relevant paths
@@ -28,7 +28,7 @@ preprocessed_data_path = os.path.normpath(f'saves/preprocessed_data/DiLib/')
 results_path = os.path.normpath(f'output/DiLib/')
 
 path_eeg = os.path.join(preprocessed_data_path, 'EEG', band)
-path_stimulus = os.path.join(preprocessed_data_path, 'Envelope', 'envelope.pkl')
+path_stimulus = os.path.join(preprocessed_data_path, 'Phonemes', 'phonemes.pkl')
 stimulus = load_pickle(path=path_stimulus)
 
 path_results = os.path.normpath(os.path.join(results_path, f'correlations/{band}/{stim}'))
@@ -47,7 +47,9 @@ average_rmse_subjects = []
 total_number_of_subjects = 0
 
 # Iterate over sessions
-for subject in subjects:
+# for subject in subjects:
+for subject in [10]:
+
     print(f'\n------->\tStart of session {subject}\n')
 
     # Load data by subject, EEG and info
@@ -101,6 +103,7 @@ for subject in subjects:
                             subject=subject, 
                             )
                         )
+        
     # Store model output
     for output_k in k_models_output:
         fold, weights, correlation_matrix, root_mean_square_error = output_k[:4]
@@ -119,7 +122,7 @@ for subject in subjects:
                 f'\n\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>\n'
                 f'\t\tFold {k+1}/{config.n_folds} weights are empty\n'
                 f'\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>'
-                )
+            )
             
     average_weights = np.nanmean(weights_per_fold, axis=0) # 128, np.sum(n_feats), len(delays)
     average_weights = np.nan_to_num(average_weights)
@@ -138,6 +141,10 @@ for subject in subjects:
     repeated_good_rmse_channels = np.zeros(128)
     
     # Plot head topomap across al channel for correlation and rmse
+    if stim=='Phonemes':
+        stimi="phonemes-dili"
+    else:
+        stimi="Envelope"
     plot.topomap(
         good_channels_indexes=corr_good_channel_indexes, 
         average_coefficient=average_correlation, 
@@ -174,7 +181,7 @@ for subject in subjects:
         average_weights=average_weights, 
         times=config.times,
         n_feats=n_feats, 
-        stim=stim, 
+        stim=stimi, 
         session=subject, 
         subject=subject, 
         hierarchical_clustering=config.hierarchical_clustering,
@@ -224,7 +231,7 @@ if config.save_results and total_number_of_subjects==16:
 # Plot average topomap metrics across each subject
 plot.average_topomap(
     average_coefficient_subjects=average_rmse_subjects, 
-    stim=stim, 
+    stim=stimi, 
     info=config.info_mne, 
     display_interactive_mode=config.display_interactive_mode,
     save=config.save_figures, 
@@ -234,7 +241,7 @@ plot.average_topomap(
     )
 plot.average_topomap(
     average_coefficient_subjects=average_correlation_subjects, 
-    stim=stim, 
+    stim=stimi, 
     display_interactive_mode=config.display_interactive_mode,
     info=config.info_mne, 
     save=config.save_figures, 
@@ -250,7 +257,7 @@ plot.topo_map_relevant_times(
     info=config.info_mne, 
     n_feats=n_feats,
     band=band,
-    stim=stim, 
+    stim=stimi, 
     times=config.times,
     sample_rate=config.sr, 
     save_path=path_figures, 
@@ -263,7 +270,7 @@ plot.topo_map_relevant_times(
 plot.channel_wise_correlation_topomap(
     average_weights_subjects=average_weights_subjects,
     info=config.info_mne,
-    stim=stim, 
+    stim=stimi, 
     save=config.save_figures,
     save_path=path_figures, 
     display_interactive_mode=config.display_interactive_mode, 
@@ -279,7 +286,7 @@ plot.average_regression_weights(
     hierarchical_clustering=config.hierarchical_clustering,
     times=config.times, 
     n_feats=n_feats, 
-    stim=stim, 
+    stim=stimi, 
     display_interactive_mode=config.display_interactive_mode,
     no_figures=config.no_figures
     )
@@ -287,7 +294,7 @@ plot.average_regression_weights(
 # Plot correlation matrix between subjects
 plot.correlation_matrix_subjects(
     average_weights_subjects=average_weights_subjects,
-    stim=stim, 
+    stim=stimi, 
     n_feats=n_feats, 
     save=config.save_figures,
     save_path=path_figures, 

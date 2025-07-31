@@ -14,7 +14,7 @@ import config
 
 # Notification bot
 from utils.notification_telegram import tel_message, generate_completion_message
-from telegram_config import API_TOKEN, CHAT_ID
+from utils.telegram_config import API_TOKEN, CHAT_ID
 
 # Command line and logging
 from utils.from_commands import create_dynamic_parser, apply_args_to_config
@@ -52,7 +52,7 @@ for situation in config.situations:
             logger.info(
                 '\n===========================\n'
                 '\tPARAMETERS\n\n'
-                f'Model: {config.model}\n'
+                f'Model: {config.model}-{config.solver}\n'
                 f'Band: {band}\n'
                 f'Stimulus: {stim}\n'
                 f'Condition: {situation}\n'
@@ -62,9 +62,9 @@ for situation in config.situations:
             
             # Relevant paths
             preprocessed_data_path = os.path.normpath(f'{config.saves_dir}/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/')
-            figures_path = os.path.normpath(f'{config.figures_dir}/{config.model}_trace/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}')
+            figures_path = os.path.normpath(f'{config.figures_dir}/{config.model}-{config.solver}_trace/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}')
             
-            path_validation = f'{config.output_dir}/{config.model}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
+            path_validation = f'{config.output_dir}/{config.model}-{config.solver}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
             alphas_path = os.path.join(path_validation, f'corr_limit_{config.val_correlation_limit_percentage}.pkl')
             
             # Try to access alphas
@@ -238,8 +238,8 @@ for situation in config.situations:
     metadata_path = f'saves/log/validation/{datetime.now().strftime("%Y-%m-%d--%H-%M-%S")}/'
     os.makedirs(metadata_path, exist_ok=True)
     metadata = {
-            name: getattr(config, name) for name in dir(config) 
-            if (not name.startswith("__")) and (not callable(getattr(config, name)) and (name not in ['phonemes_to_ipa','ordered_phonemes']))
+        name: getattr(config, name) for name in dir(config) 
+        if (not name.startswith("__")) and (not callable(getattr(config, name)) and (name not in ['phonemes_to_ipa','ordered_phonemes']))
     }
 
     dict_to_csv(

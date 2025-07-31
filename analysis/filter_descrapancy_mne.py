@@ -14,7 +14,7 @@ import config
 
 # ========================= Filter comparison
 eeg_path = Path(r'data\EEG\S21\s21-1-Trial1-Deci-Filter-Trim-ICA-Pruned.set')
-band = 'Theta'
+band = 'All'
 
 l_freq, h_freq = band_freq(band)
 
@@ -107,7 +107,7 @@ for i, (filter_name, filter_params) in enumerate(filter_configs):
     
     # Plot kernel
     ax = axes_kernels[i]
-    # ax.plot(time_axis_centered * 1000, kernel, 'b-', linewidth=1.5, label=f'{filter_name} kernel')
+    ax.plot(time_axis_centered * 1000, kernel, 'b-', linewidth=1.5, label=f'{filter_name} kernel')
     ax.plot(kernel, 'b-', linewidth=1.5, label=f'{filter_name} kernel')
     
     ax.set_title(f'Filter Kernel: {filter_name}')
@@ -116,7 +116,7 @@ for i, (filter_name, filter_params) in enumerate(filter_configs):
     ax.axvline(0, color='r', lw=0.5, ls='--', alpha=0.7, label='Impulse position')
     ax.grid(True, alpha=0.3)
     ax.legend(fontsize=10, frameon=False)
-    # ax.set_xticks(np.arange(-200, 700, 100))
+    ax.set_xticks(np.arange(-200, 700, 100))
     
     # Set x-label only for bottom subplot
     if i == 2:
@@ -124,7 +124,7 @@ for i, (filter_name, filter_params) in enumerate(filter_configs):
     
     # Zoom in to see the kernel better (adjust window as needed)
     window_ms = 600  # Show ±200ms around the impulse
-    # ax.set_xlim(-window_ms, window_ms)
+    ax.set_xlim(-window_ms, window_ms)
 
 # Add overall title
 fig_kernels.suptitle(f'Filter Impulse Responses ({band} band: {l_freq}-{h_freq} Hz)', fontsize=14, y=0.98)

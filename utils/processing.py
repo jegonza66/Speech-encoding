@@ -1,14 +1,16 @@
 # Standard libraries
 import numpy as np, copy, mne
 from datetime import datetime
-from typing import Tuple
+from typing import Tuple, Union
 
 # Specific libraries
 from scipy.cluster.hierarchy import linkage, leaves_list
 from scipy.spatial.distance import squareform
+from scipy.signal import cheby2, sosfiltfilt
 from typing import Optional, Sequence
 from scipy import signal
 import torch
+from scipy.signal import cheby2, sosfiltfilt, dimpulse
 
 def _compute_shifted(
     feats_t: torch.Tensor,
@@ -215,7 +217,7 @@ def butter_filter(
     order:int=3, 
     axis:int=0, 
     ftype:str='Causal'
-    )->np.ndarray:
+)->np.ndarray:
     """
     Apply a Butterworth filter to the input data.
     
@@ -259,10 +261,111 @@ def butter_filter(
         y = signal.filtfilt(b, a, data, axis=axis, padlen=None)
     return y
 
+def cheby2_bandpass_filter_torch(
+    y : torch.Tensor, 
+    fs : float, 
+    lowcut : int=1, 
+    highcut : Union[float, int]=15, 
+    order : int=4, 
+    rs : float =20, 
+    device: Union[str, torch.device] = 'cuda',
+    axis : int = 0,
+    channel_idx=None
+)-> torch.Tensor:
+    """
+    Apply a Chebyshev Type II bandpass filter to the input tensor.
+
+    Parameters
+    ----------
+    y : torch.Tensor
+        Input tensor to be filtered, typically of shape (n_samples, n_channels).
+    fs : float
+        Sampling frequency of the input data.
+    lowcut : int, optional
+        Lower cutoff frequency for the bandpass filter, by default 1 Hz.
+    highcut : float or int, optional
+        Upper cutoff frequency for the bandpass filter, by default 15 Hz.
+    order : int, optional
+        Order of the Chebyshev Type II filter, by default 4.
+    rs : float, optional
+        Ripple in the stop band, by default 20 dB.
+    channel_idx : Optional[Union[int, Sequence[int]]], optional
+        Index or indices of channels to filter. If None, all channels are filtered.
+        If an int, filters only that channel. If a list, filters the specified channels.
+
+    Returns
+    -------
+    torch.Tensor
+        Filtered tensor with the same shape as the input tensor.
+    """
+    y_np = y.cpu().numpy()
+    sos = cheby2(order, rs, [lowcut, highcut], btype='bandpass', fs=fs, output='sos')
+    y_filt = np.copy(y_np)
+    if channel_idx is None:
+        # Filter all channels at once (axis=0 is time)
+        y_filt = sosfiltfilt(sos, y_np, axis=axis)
+    else:
+        # Filter only selected channel(s)
+        if isinstance(channel_idx, int):
+            channel_idx = [channel_idx]
+        for ch in channel_idx:
+            y_filt[:, ch] = sosfiltfilt(sos, y_np[:, ch])
+    return torch.from_numpy(y_filt.copy()).to(y.device, dtype=y.dtype)
+
+def cheby2_bandpass_filter_np(
+    y: np.ndarray,
+    fs: float,
+    lowcut: int = 1,
+    highcut: float = 15,
+    order: int = 4,
+    rs: float = 20,
+    axis: int = 0,
+    channel_idx=None
+) -> np.ndarray:
+    """
+    Apply a Chebyshev Type II bandpass filter to the input NumPy array.
+
+    Parameters
+    ----------
+    y : np.ndarray
+        Input array to be filtered, typically of shape (n_samples, n_channels).
+    fs : float
+        Sampling frequency of the input data.
+    lowcut : int, optional
+        Lower cutoff frequency for the bandpass filter, by default 1 Hz.
+    highcut : float, optional
+        Upper cutoff frequency for the bandpass filter, by default 15 Hz.
+    order : int, optional
+        Order of the Chebyshev Type II filter, by default 4.
+    rs : float, optional
+        Ripple in the stop band, by default 20 dB.
+    axis : int, optional
+        Axis along which to filter, by default 0 (time).
+    channel_idx : Optional[Union[int, Sequence[int]]], optional
+        Index or indices of channels to filter. If None, all channels are filtered.
+
+    Returns
+    -------
+    np.ndarray
+        Filtered array with the same shape as the input.
+    """
+    sos = cheby2(order, rs, [lowcut, highcut], btype='bandpass', fs=fs, output='sos')
+    y_filt = np.copy(y)
+    if channel_idx is None:
+        # Filter all channels at once (axis=0 is time)
+        y_filt = sosfiltfilt(sos, y, axis=axis)
+    else:
+        # Filter only selected channel(s)
+        if isinstance(channel_idx, int):
+            channel_idx = [channel_idx]
+        for ch in channel_idx:
+            y_filt[:, ch] = sosfiltfilt(sos, y[:, ch])
+    return y_filt
+
 def subsample(
     x:np.ndarray, 
     step:int
-    )->np.ndarray:
+)->np.ndarray:
     """
     Subsamples the input array by selecting every `step`-th element.
     
@@ -285,7 +388,7 @@ def subsample(
 
 def band_freq(
     band:str
-    )->tuple:
+)->tuple:
     """
     Returns the frequency range for a given frequency EEG band.
     
@@ -314,12 +417,18 @@ def band_freq(
         elif band == 'Alpha':
             l_freq = 8
             h_freq = 13
+        elif band == 'Beta':
+            l_freq = 13
+            h_freq = 25
         elif band == 'Beta1':
             l_freq = 13
             h_freq = 19
         elif band == 'Beta2':
             l_freq = 19
             h_freq = 25
+        elif band == 'Broad':
+            l_freq = 1
+            h_freq = 15
         elif band == 'All':
             l_freq = 1
             h_freq = 40
@@ -329,7 +438,10 @@ def band_freq(
         elif band == 'Alpha_Delta_Theta':
             l_freq = 1
             h_freq = 13
-
+        elif band.startswith('Custom'):
+            limits = band.split('Custom-')[1].split('#')
+            l_freq = float(limits[0])
+            h_freq = float(limits[1])
     elif type(band) == tuple:
         l_freq = band[0]
         h_freq = band[1]
@@ -514,352 +626,12 @@ def clustering_by_correlation(
         null_indexes = None
     return ordered_indices, null_indexes
 
-def subsampling_indexes_to_minimum(
-    samples_info : dict,
-    tollerance : float=0.1,
-    kind : str='random_trials',
-    seed : int = 42
-    )-> Tuple[list, list, list, list]:
-    """
-    Subsampling indexes to minimum length of either design_matrix passed as input
-
-    Parameters
-    ----------
-    samples_info : dict
-        Dictionary containing the shifted indexes and trial lengths of leader and follower.
-    tollerance : float
-        Tollerance to downsample the indexes. Default is 0.1.
-        If the relative difference to the minimum between the two indexes is less than this value, it will not be downsampled.
-    kind : str
-        Type of downsampling to be performed. Default is 'random_trials'.
-        If 'random', random rows are removed. 
-        Elif 'random_trials', random trials are removed, until difference is less than tollerance%
-        Elif 'ordered_trials', bigger trials are removed first (enabling tradeoff to calculate rel. diff.), until difference is less than tollerance
-        Else 'cutoff', select a contiguous segment of cutoff rows
-    seed : int
-        Seed to use in random algorithms
-
-    Returns
-    -------
-    tuple
-        Tuple containing the shifted indexes of the 1 and 2, respectively (same order as input)
-    """
-    kinds_of_sub = ['random', 'random_trials', 'ordered_trials', 'optimized_trials', 'cutoff']
-    assert kind in kinds_of_sub, f'`{kind}` is not a valid kind of subsampling. Choose among {kinds_of_sub}'
-    np.random.seed(seed=seed)
-     
-    results = {
-        'shifted_indexes_leader1': None,
-        'shifted_indexes_leader2': None,
-        'shifted_indexes_follower1': None,
-        'shifted_indexes_follower2': None
-    }
-    
-    for subject in [1,2]:
-        # Load trials
-        shifted_indexes_follower = samples_info[f'keep_indexes_follower{subject}'].copy()
-        shifted_indexes_leader = samples_info[f'keep_indexes_leader{subject}'].copy()
-        
-        trial_lengths_follower = samples_info[f'trial_lengths_follower{subject}'].copy()
-        trial_lengths_leader = samples_info[f'trial_lengths_leader{subject}'].copy()
-        
-        # Compute trial difference
-        minimum_length = min(len(shifted_indexes_leader), len(shifted_indexes_follower))
-        relative_diff = (len(shifted_indexes_follower)-len(shifted_indexes_leader))/minimum_length
-        
-        if np.abs(relative_diff) >= tollerance:
-            # Decide which gets cut
-            if relative_diff > 0:
-                exceded = 'follower'
-                shift_exceded = shifted_indexes_follower
-                shift_target = shifted_indexes_leader
-                trial_lengths_exceded = trial_lengths_follower
-            else:
-                exceded = 'leader'
-                shift_exceded = shifted_indexes_leader
-                shift_target = shifted_indexes_follower
-                trial_lengths_exceded = trial_lengths_leader
-                tollerance *=-1
-                                
-            # Usefull variables
-            number_of_indexes = len(shift_exceded)
-            cutoff = len(shift_target)
-            number_subsampled_indexes = number_of_indexes - cutoff
-            trial_lengths_exceded_to_rem = trial_lengths_exceded.copy()
-
-            # Remove indexes til tollerance is achieved
-            while relative_diff > tollerance and len(trial_lengths_exceded_to_rem)!=1:
-                
-                # Remove a random trial
-                if kind=='random_trials':
-                    trial_to_remove = trial_lengths_exceded_to_rem.index(
-                        np.random.choice(trial_lengths_exceded_to_rem[1:]) # 1: to avoid "trial 0"
-                        )
-                    _ = trial_lengths_exceded_to_rem.pop(trial_to_remove)
-                    
-                    lower_bound = sum(trial_lengths_exceded[:trial_to_remove])<np.array(shift_exceded)
-                    upper_bound = np.array(shift_exceded)<sum(trial_lengths_exceded[:trial_to_remove]) + trial_lengths_exceded[trial_to_remove]
-                    
-                    shift_exceded = np.array(shift_exceded)[~(lower_bound&upper_bound)].tolist()
-                    
-                # Remove a ordered trial
-                elif kind=='ordered_trials':
-                    trial_lengths_exceded_to_rem = sorted(trial_lengths_exceded_to_rem)
-                    trial_to_remove = trial_lengths_exceded.index(trial_lengths_exceded_to_rem[-1])
-                    
-                    _ = trial_lengths_exceded_to_rem.pop(len(trial_lengths_exceded_to_rem)-1)
-                    
-                    lower_bound = sum(trial_lengths_exceded[:trial_to_remove])<np.array(shift_exceded)
-                    upper_bound = np.array(shift_exceded)<sum(trial_lengths_exceded[:trial_to_remove]) + trial_lengths_exceded[trial_to_remove]
-                    
-                    shift_exceded = np.array(shift_exceded)[~(lower_bound&upper_bound)].tolist()
-                
-                elif kind=='optimized_trials':
-                    relative_differences = []
-                    
-                    # Calculate the relative diff for all trials
-                    for trial in trial_lengths_exceded_to_rem:
-                        trial_to_remove_ = trial_lengths_exceded.index(trial)
-                        lower_bound_ = sum(trial_lengths_exceded[:trial_to_remove_])<np.array(shift_exceded)
-                        upper_bound_ = np.array(shift_exceded)<sum(trial_lengths_exceded[:trial_to_remove_]) + trial_lengths_exceded[trial_to_remove_]
-                        shift_exceded_ = np.array(shift_exceded)[~(lower_bound_&upper_bound_)].tolist()
-                        relative_differences.append((len(shift_exceded_)-cutoff)/minimum_length)
-                    
-                    # Select the one that leave the rel. diff. closest to tollerance
-                    trial_to_remove_rem = (np.abs(np.array(relative_differences))-np.abs(tollerance)).argmin()
-                    trial_to_remove = trial_lengths_exceded.index(trial_lengths_exceded_to_rem[trial_to_remove_rem])
-                    _ = trial_lengths_exceded_to_rem.pop(trial_to_remove_rem)
-                    
-                    lower_bound = sum(trial_lengths_exceded[:trial_to_remove])<np.array(shift_exceded)
-                    upper_bound = np.array(shift_exceded)<sum(trial_lengths_exceded[:trial_to_remove]) + trial_lengths_exceded[trial_to_remove]
-                    
-                    shift_exceded = np.array(shift_exceded)[~(lower_bound&upper_bound)].tolist()
-                
-                # Remove samples at random
-                elif kind=='random':
-                    indices_to_remove = np.random.choice(
-                                number_of_indexes,
-                                size=number_subsampled_indexes,
-                                replace=False
-                                )
-                    shift_exceded = list(np.delete(shift_exceded, indices_to_remove, axis=0))
-                
-                # Select a chunk of desire length
-                else:
-                    start = np.random.randint(0, number_subsampled_indexes)
-                    shift_exceded = shift_exceded[start:start + cutoff]
-                relative_diff = (len(shift_exceded)-cutoff)/minimum_length
-        else:
-            exceded = None
-            
-        if exceded=="follower":
-            results[f'shifted_indexes_follower{subject}'] = shift_exceded
-            results[f'shifted_indexes_leader{subject}'] = shift_target
-        elif exceded=="leader":
-            results[f'shifted_indexes_follower{subject}'] = shift_target
-            results[f'shifted_indexes_leader{subject}'] = shift_exceded
-        else:
-            results[f'shifted_indexes_follower{subject}'] = shifted_indexes_follower
-            results[f'shifted_indexes_leader{subject}'] = shifted_indexes_leader
-        
-    return results['shifted_indexes_leader1'], results['shifted_indexes_follower1'], results['shifted_indexes_leader2'], results['shifted_indexes_follower2']
-
-
-# ###############
-
-# # def butter_bandpass_filter(data, frecuencia, sampling_freq, order, axis):
-# #     frecuencia /= (sampling_freq / 2)
-# #     b, a = signal.butter(order, frecuencia, btype='lowpass')
-# #     y = signal.filtfilt(b, a, data, axis=axis, padlen=None)
-# #     return y
-
-
-# class Standarize():
-#     def __init__(self, axis:int=0):
-#         """Standarize train and test data to be used in a linear regressor model. 
-
-#         Parameters
-#         ----------
-#         axis : int, optional
-#             Axis to perform standrize, by default 0
-#         """
-#         self.axis = axis
-
-#     def fit_standarize_train(self, train_data:np.ndarray):
-#         """Standarize train data, also define mean and std to standarize future data.
-
-#         Parameters
-#         ----------
-#         train_data : np.ndarray
-#             Train data to be standarize
-#         """
-#         # Fix mean and standard deviation with train data
-#         self.mean = np.mean(train_data, axis=self.axis)
-#         self.std = np.std(train_data, axis=self.axis)
-
-#         # Standarize data
-#         train_data -= self.mean
-#         train_data /= self.std
-#         return train_data
-
-#     def fit_standarize_test(self, test_data:np.ndarray):
-#         """Standarize test data with mean and std of train data.
-
-#         Parameters
-#         ----------
-#         test_data : np.ndarray
-#             Test data to be standarize with mean and standard deviation of train data
-#         """
-#         # Standarize with mean and standard deviation of train
-#         test_data -= self.mean
-#         test_data /= self.std
-#         return test_data
-
-#     def standarize_data(self, data:np.ndarray):
-#         """Standarize data with own mean and standard deviation.
-
-#         Parameters
-#         ----------
-#         data : np.ndarray
-#             Data to be standarized
-#         """
-#         # Standarize data with own mean and standard deviation
-#         data -= np.mean(data, axis=self.axis)
-#         data /= np.std(data, axis=self.axis)
-#         return data
-
-# class Normalize():
-#     def __init__(self, axis:int=0, porcent:float=5):
-#         """Normalize train and test data to be used in a linear regressor model.
-
-#         Parameters
-#         ----------
-#         axis : int, optional
-#             Axis to perform normalize, by default 0
-#         porcent : float, optional
-#             _description_, by default 5
-#         """
-#         self.axis = axis
-#         self.porcent = porcent
-
-#     def fit_normalize_train(self, train_data:np.ndarray):
-#         """Normalize train data, also define min and max to normalize future data.
-
-#         Parameters
-#         ----------
-#         train_data : np.ndarray
-#             Train data to be normalize by maximum and minimum (offset)
-#         """
-        
-#         # Remove offset by minimum
-#         self.min = np.min(train_data, axis=self.axis)
-#         train_data -= self.min
-
-#         # Normalize by maximum
-#         self.max = np.max(train_data, axis=self.axis)
-#         return np.divide(train_data, self.max, out=np.zeros_like(train_data), where=self.max != 0)
-
-#     def fit_normalize_test(self, test_data:np.ndarray):
-#         """Normalize test data with min and max of train data.
-
-#         Parameters
-#         ----------
-#         test_data : np.ndarray
-#             Test data to be normalize with train data parameters
-#         """
-#         test_data -= self.min
-#         return np.divide(test_data, self.max, out=np.zeros_like(test_data), where=self.max != 0)
-
-#     def normalize_data(self, data:np.ndarray, kind:str="1"):
-#         """_summary_# TODO no queda claro para qué es la kind 2, creo que es para que esté centrada en 0
-
-#         Parameters
-#         ----------
-#         data : np.ndarray
-#             _description_
-#         kind : str, optional
-#             _description_, by default "1"
-#         """
-#         # Los estimulos los normalizo todos entre 0 y 1 estricto, la envolvente no tiene picos
-#         data -= np.min(data, axis=self.axis)
-#         data /= np.max(data, axis=self.axis)
-#         if kind=='2':
-#             data *= 2
-#             data -= 1
-#         return data
-
-#     def fit_normalize_percent(self, data:np.ndarray):
-#         """_summary_# TODO no queda claro qué es lo que sucede, creo que corta el 5 porciento de los datos hacia adelante y hacia atras y trabaja con los maximos alli descritos
-
-#         Parameters
-#         ----------
-#         data : np.ndarray
-#             Data to be normalize
-#         """
-#         # Find n 
-#         # n = int((self.porcent/100)*len(data)) 
-#         n = int((self.porcent * len(data) - 1) / 100) # TODO para mí va lo de arriba
-        
-        
-#         # Find the n-th minimum and offset that value
-#         sorted_data = copy.deepcopy(data)
-#         sorted_data.sort(self.axis)
-#         min_data_n = sorted_data[n]
-#         data -= min_data_n
-
-#         # Find the n-th maximum
-#         sorted_data = copy.deepcopy(data)
-#         sorted_data.sort(self.axis)
-#         max_data_n = sorted_data[-n]
-        
-#         # Normalize data
-#         data = np.divide(data, self.max, out=np.zeros_like(data), where=max_data_n!=0)
-#         data /= max_data_n
-#         return data
-
-# def standarize_normalize(eeg_train_val, eeg_test, dstims_train_val, dstims_test, Stims_preprocess, EEG_preprocess, axis=0, porcent=5):
-#     norm = Normalize(axis, porcent)
-#     estandar = Standarize(axis)
-
-#     if isinstance(dstims_train_val, list):
-#         if Stims_preprocess == 'Standarize':
-#             for i in range(len(dstims_train_val)):
-#                 estandar.fit_standarize_train(train_data=dstims_train_val[i])
-#                 estandar.fit_standarize_test(test_data=dstims_test[i])
-#             dstims_train_val = np.hstack([dstims_train_val[i] for i in range(len(dstims_train_val))])
-#             dstims_test = np.hstack([dstims_test[i] for i in range(len(dstims_test))])
-
-#         if Stims_preprocess == 'Normalize':
-#             for i in range(len(dstims_train_val)):
-#                 norm.fit_normalize_train(train_data=dstims_train_val[i])
-#                 norm.fit_normlize_test(test_data=dstims_test[i])
-#             dstims_train_val = np.hstack([dstims_train_val[i] for i in range(len(dstims_train_val))])
-#             dstims_test = np.hstack([dstims_test[i] for i in range(len(dstims_test))])
-#     else:
-#         if Stims_preprocess == 'Standarize':
-#             for i in range(dstims_train_val.shape[1]):
-#                 estandar.fit_standarize_train(train_data=dstims_train_val[:,i])
-#                 estandar.fit_standarize_test(test_data=dstims_test[:,i])
-#         if Stims_preprocess == 'Normalize':
-#             for i in range(dstims_train_val.shape[1]):
-#                 norm.fit_normalize_train_data(dstims_train_val[:,i])
-#                 norm.normlize_test_data(dstims_test[:,i])
-
-#     if EEG_preprocess == 'Standarize':
-#         estandar.fit_standarize_train(train_data=eeg_train_val)
-#         estandar.fit_standarize_test(test_data=eeg_test)
-#     if EEG_preprocess == 'Normalize':
-#         norm.fit_normalize_percent(data=eeg_train_val)
-#         norm.fit_normlize_test(test_data=eeg_test) # TODO OJO SE ESTA NORMALIZANDO CON EL LOS DATOS DE LOS FEATURES, EEG SOLO EN ESTE CASO
-
-#     return eeg_train_val, eeg_test, dstims_train_val, dstims_test
-
 class Standarize():
     def __init__(
         self, 
         axis:int=0, 
         by_gpu:bool=False
-        )->None:
+    )->None:
         """
         Standarize train and test data to be used in a linear regressor model. 
 
@@ -927,8 +699,8 @@ class Standarize():
         
         # Fix mean and standard deviation with train data
         if isinstance(train_data, torch.Tensor):
-            self.mean = train_data.mean(dim=self.axis)
-            self.std = train_data.std(dim=self.axis, unbiased=False)  # Use biased std for consistency with numpy
+            self.mean = train_data.mean(dim=self.axis,  keepdim=True)
+            self.std = train_data.std(dim=self.axis, unbiased=False,  keepdim=True)  # Use biased std for consistency with numpy
         else:
             self.mean = train_data.mean(axis=self.axis)
             self.std = train_data.std(axis=self.axis)   
@@ -983,8 +755,8 @@ class Standarize():
         data = self._to_device(data)
         
         if isinstance(data, torch.Tensor):
-            data -= data.mean(dim=self.axis)
-            data /= data.std(dim=self.axis, unbiased=False)  # Use biased std for consistency with numpy
+            data -= data.mean(dim=self.axis, keepdim=True)
+            data /= data.std(dim=self.axis,  keepdim=True, unbiased=False)  # Use biased std for consistency with numpy
         else:
             data -= data.mean(axis=self.axis)
             data /= data.std(axis=self.axis)
@@ -1179,3 +951,154 @@ class Normalize():
         data = data / (max_data_n + 1e-12)  # Adding epsilon to avoid division by zero
         
         return data
+
+
+def subsampling_indexes_to_minimum(
+    samples_info : dict,
+    tollerance : float=0.1,
+    kind : str='random_trials',
+    seed : int = 42
+    )-> Tuple[list, list, list, list]:
+    """
+    Subsampling indexes to minimum length of either design_matrix passed as input
+
+    Parameters
+    ----------
+    samples_info : dict
+        Dictionary containing the shifted indexes and trial lengths of leader and follower.
+    tollerance : float
+        Tollerance to downsample the indexes. Default is 0.1.
+        If the relative difference to the minimum between the two indexes is less than this value, it will not be downsampled.
+    kind : str
+        Type of downsampling to be performed. Default is 'random_trials'.
+        If 'random', random rows are removed. 
+        Elif 'random_trials', random trials are removed, until difference is less than tollerance%
+        Elif 'ordered_trials', bigger trials are removed first (enabling tradeoff to calculate rel. diff.), until difference is less than tollerance
+        Else 'cutoff', select a contiguous segment of cutoff rows
+    seed : int
+        Seed to use in random algorithms
+
+    Returns
+    -------
+    tuple
+        Tuple containing the shifted indexes of the 1 and 2, respectively (same order as input)
+    """
+    kinds_of_sub = ['random', 'random_trials', 'ordered_trials', 'optimized_trials', 'cutoff']
+    assert kind in kinds_of_sub, f'`{kind}` is not a valid kind of subsampling. Choose among {kinds_of_sub}'
+    np.random.seed(seed=seed)
+     
+    results = {
+        'shifted_indexes_leader1': None,
+        'shifted_indexes_leader2': None,
+        'shifted_indexes_follower1': None,
+        'shifted_indexes_follower2': None
+    }
+    
+    for subject in [1,2]:
+        # Load trials
+        shifted_indexes_follower = samples_info[f'keep_indexes_follower{subject}'].copy()
+        shifted_indexes_leader = samples_info[f'keep_indexes_leader{subject}'].copy()
+        
+        trial_lengths_follower = samples_info[f'trial_lengths_follower{subject}'].copy()
+        trial_lengths_leader = samples_info[f'trial_lengths_leader{subject}'].copy()
+        
+        # Compute trial difference
+        minimum_length = min(len(shifted_indexes_leader), len(shifted_indexes_follower))
+        relative_diff = (len(shifted_indexes_follower)-len(shifted_indexes_leader))/minimum_length
+        
+        if np.abs(relative_diff) >= tollerance:
+            # Decide which gets cut
+            if relative_diff > 0:
+                exceded = 'follower'
+                shift_exceded = shifted_indexes_follower
+                shift_target = shifted_indexes_leader
+                trial_lengths_exceded = trial_lengths_follower
+            else:
+                exceded = 'leader'
+                shift_exceded = shifted_indexes_leader
+                shift_target = shifted_indexes_follower
+                trial_lengths_exceded = trial_lengths_leader
+                tollerance *=-1
+                                
+            # Usefull variables
+            number_of_indexes = len(shift_exceded)
+            cutoff = len(shift_target)
+            number_subsampled_indexes = number_of_indexes - cutoff
+            trial_lengths_exceded_to_rem = trial_lengths_exceded.copy()
+
+            # Remove indexes til tollerance is achieved
+            while relative_diff > tollerance and len(trial_lengths_exceded_to_rem)!=1:
+                
+                # Remove a random trial
+                if kind=='random_trials':
+                    trial_to_remove = trial_lengths_exceded_to_rem.index(
+                        np.random.choice(trial_lengths_exceded_to_rem[1:]) # 1: to avoid "trial 0"
+                        )
+                    _ = trial_lengths_exceded_to_rem.pop(trial_to_remove)
+                    
+                    lower_bound = sum(trial_lengths_exceded[:trial_to_remove])<np.array(shift_exceded)
+                    upper_bound = np.array(shift_exceded)<sum(trial_lengths_exceded[:trial_to_remove]) + trial_lengths_exceded[trial_to_remove]
+                    
+                    shift_exceded = np.array(shift_exceded)[~(lower_bound&upper_bound)].tolist()
+                    
+                # Remove a ordered trial
+                elif kind=='ordered_trials':
+                    trial_lengths_exceded_to_rem = sorted(trial_lengths_exceded_to_rem)
+                    trial_to_remove = trial_lengths_exceded.index(trial_lengths_exceded_to_rem[-1])
+                    
+                    _ = trial_lengths_exceded_to_rem.pop(len(trial_lengths_exceded_to_rem)-1)
+                    
+                    lower_bound = sum(trial_lengths_exceded[:trial_to_remove])<np.array(shift_exceded)
+                    upper_bound = np.array(shift_exceded)<sum(trial_lengths_exceded[:trial_to_remove]) + trial_lengths_exceded[trial_to_remove]
+                    
+                    shift_exceded = np.array(shift_exceded)[~(lower_bound&upper_bound)].tolist()
+                
+                elif kind=='optimized_trials':
+                    relative_differences = []
+                    
+                    # Calculate the relative diff for all trials
+                    for trial in trial_lengths_exceded_to_rem:
+                        trial_to_remove_ = trial_lengths_exceded.index(trial)
+                        lower_bound_ = sum(trial_lengths_exceded[:trial_to_remove_])<np.array(shift_exceded)
+                        upper_bound_ = np.array(shift_exceded)<sum(trial_lengths_exceded[:trial_to_remove_]) + trial_lengths_exceded[trial_to_remove_]
+                        shift_exceded_ = np.array(shift_exceded)[~(lower_bound_&upper_bound_)].tolist()
+                        relative_differences.append((len(shift_exceded_)-cutoff)/minimum_length)
+                    
+                    # Select the one that leave the rel. diff. closest to tollerance
+                    trial_to_remove_rem = (np.abs(np.array(relative_differences))-np.abs(tollerance)).argmin()
+                    trial_to_remove = trial_lengths_exceded.index(trial_lengths_exceded_to_rem[trial_to_remove_rem])
+                    _ = trial_lengths_exceded_to_rem.pop(trial_to_remove_rem)
+                    
+                    lower_bound = sum(trial_lengths_exceded[:trial_to_remove])<np.array(shift_exceded)
+                    upper_bound = np.array(shift_exceded)<sum(trial_lengths_exceded[:trial_to_remove]) + trial_lengths_exceded[trial_to_remove]
+                    
+                    shift_exceded = np.array(shift_exceded)[~(lower_bound&upper_bound)].tolist()
+                
+                # Remove samples at random
+                elif kind=='random':
+                    indices_to_remove = np.random.choice(
+                                number_of_indexes,
+                                size=number_subsampled_indexes,
+                                replace=False
+                                )
+                    shift_exceded = list(np.delete(shift_exceded, indices_to_remove, axis=0))
+                
+                # Select a chunk of desire length
+                else:
+                    start = np.random.randint(0, number_subsampled_indexes)
+                    shift_exceded = shift_exceded[start:start + cutoff]
+                relative_diff = (len(shift_exceded)-cutoff)/minimum_length
+        else:
+            exceded = None
+            
+        if exceded=="follower":
+            results[f'shifted_indexes_follower{subject}'] = shift_exceded
+            results[f'shifted_indexes_leader{subject}'] = shift_target
+        elif exceded=="leader":
+            results[f'shifted_indexes_follower{subject}'] = shift_target
+            results[f'shifted_indexes_leader{subject}'] = shift_exceded
+        else:
+            results[f'shifted_indexes_follower{subject}'] = shifted_indexes_follower
+            results[f'shifted_indexes_leader{subject}'] = shifted_indexes_leader
+        
+    return results['shifted_indexes_leader1'], results['shifted_indexes_follower1'], results['shifted_indexes_leader2'], results['shifted_indexes_follower2']

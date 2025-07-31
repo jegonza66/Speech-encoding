@@ -87,7 +87,7 @@ def generate_completion_message(
     stimulus_runtimes: Dict[str, str],
     total_runtime: str,
     save_path: Optional[str] = None,
-    fig_path: Optional[str] = None
+    fig_path: Optional[str] = None,
 ) -> str:
     """
     Generate a formatted completion message for the analysis.
@@ -109,6 +109,7 @@ def generate_completion_message(
 • Bandas: {config.bands}
 • Estímulos: {config.stimuli}
 • Condición: {situation}
+• Misma regularización entre sujetos: {config.same_validation_subjects}
 • Tiempo: ({config.tmin}, {config.tmax})s
 • Sujetos: {total_number_of_subjects}/18
 • Sesiones: {config.sessions}

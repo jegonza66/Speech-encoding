@@ -9,9 +9,11 @@ from sklearn.linear_model import Ridge
 from typing import Union
 from tqdm import tqdm
 import torch
+# from torchaudio.functional import fftconvolve
 
 # Modules
 from utils.processing import Normalize, Standarize, shifted_matrix
+# from utils.processing import band_freq, cheby2_bandpass_filter_torch
 import config
 
 class TorchMtrf:
@@ -27,7 +29,8 @@ class TorchMtrf:
         shuffle:bool=False, 
         validation:bool=False,
         use_gpu:bool=True,
-        )->None:
+        solver:str='ridge'
+    )->None:
         """
         Initialize the TorchMtrf model, a PyTorch implementation of the TimeDelayingRidge of stimulus to predict EEG.
 
@@ -42,9 +45,9 @@ class TorchMtrf:
         test_indexes : np.ndarray
             Array of testing indexes.
         stims_preprocess : str
-            Preprocessing method for stimuli.
+            Preprocessing solver for stimuli.
         eeg_preprocess : str
-            Preprocessing method for EEG data.
+            Preprocessing solver for EEG data.
         fit_intercept : bool, optional
             Whether to fit the intercept, by default False.
         shuffle : bool, optional
@@ -53,6 +56,8 @@ class TorchMtrf:
             Whether to perform validation, by default False.
         use_gpu : bool, optional
             Whether to use the GPU (CUDA) for computation, by default True.
+        solver : bool, optional
+            Whether to apply Tikhonov regularization, by default False.
 
         Returns
         -------
@@ -62,6 +67,8 @@ class TorchMtrf:
         ------
         None
         """
+        assert solver in ['ridge', 'ridge-laplacian', 'fourier-ridge'], f"solver {solver} is not supported. Use 'ridge', 'ridge-laplacian' or 'fourier-ridge'."
+        self.solver = solver
         self.relevant_indexes = relevant_indexes
         self.train_indexes = train_indexes
         self.test_indexes = test_indexes
@@ -72,17 +79,17 @@ class TorchMtrf:
         self.shuffle = shuffle
         self.validation = validation
         self.use_gpu = use_gpu
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda" if use_gpu and torch.cuda.is_available() else "cpu")
     
     def fit(
         self, 
         stims:np.ndarray, 
         eeg:np.ndarray
-        )->None:
+    )->None:
         """
         Fit the TorchMtrf model to the given stimuli and EEG data.
 
-        This method constructs the design matrix from the stimuli, applies the relevant indexes,
+        This function constructs the design matrix from the stimuli, applies the relevant indexes,
         and separates the data into training and testing sets. It then standardizes and normalizes
         the data, and fits a Ridge regression model to the training data. If validation is enabled,
         it further splits the training data into training and validation sets and fits the model
@@ -106,18 +113,21 @@ class TorchMtrf:
         """
         # Construct design matrix and transform for GPU computation
         X_train, X_pred = shifted_matrix(
-            features=stims, 
-            delays=config.delays, 
-            use_gpu=self.use_gpu,
             indices_to_keep=self.relevant_indexes,
-            output_torch=True,
             train_indexes=self.train_indexes,
             pred_indexes=self.test_indexes,
-            optimized_shifted=True
+            optimized_shifted=True,
+            delays=config.delays, 
+            use_gpu=self.use_gpu,
+            output_torch=True,
+            features=stims
         )
         del stims
-        n_samples, n_featuresbyn_delays = len(self.relevant_indexes), X_train.shape[1]
+        n_featuresbyn_delays = X_train.shape[1]
         n_features = n_featuresbyn_delays // len(config.delays)
+        
+        if self.relevant_indexes is None:
+            self.relevant_indexes = np.arange(X_train.shape[0]+X_pred.shape[0])
 
         # Get relevant indexes and transform to device, if available. If not, transform to CPU
         try:
@@ -133,6 +143,7 @@ class TorchMtrf:
             del eeg            
             y_train = y_temp[self.train_indexes]
             y_test = y_temp[self.test_indexes]
+        del y_temp
         
         if self.validation:
             del X_pred, y_test
@@ -159,12 +170,12 @@ class TorchMtrf:
                 del y_train
                         
             # Standarize and normalize 
-            X_train_for_val, y_train_for_val, X_pred, y_val = self.standarize_normalize(
-                                                                X_train=X_train_for_val, 
-                                                                X_pred=X_val, 
-                                                                y_train=y_train_for_val, 
-                                                                y_test=y_val
-                                                                )
+            X_train_for_val, y_train_for_val, X_pred, y_val = self._standarize_normalize(
+                X_train=X_train_for_val, 
+                y_train=y_train_for_val, 
+                X_pred=X_val, 
+                y_test=y_val
+            )
             correlations = torch.zeros(
                 len(self.alpha), 
                 device=self.device, 
@@ -194,45 +205,35 @@ class TorchMtrf:
             
             for i_alpha, alph in tqdm(enumerate(self.alpha), total=len(self.alpha), desc='Sweeping progress', bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
 
-                # Fit the Ridge model
-                XTX_reg = X_train_for_val.T @ X_train_for_val + torch.tensor(alph, dtype=torch.float32) *  torch.eye(X_train_for_val.shape[1], device=self.device) # X^T * X + alpha*I
-                trf = torch.linalg.solve(XTX_reg, X_train_for_val.T @ y_train_for_val)
-                y_predicted = X_pred @ trf
-                y_predicted_train = X_train_for_val @ trf
+                # Fit the model
+                mtrfs = self._solver(
+                    solver=self.solver,
+                    alpha=alph, 
+                    X_train=X_train_for_val, 
+                    y_train=y_train_for_val
+                )
+                y_predicted = X_pred @ mtrfs
+                y_predicted_train = X_train_for_val @ mtrfs
                 
                 # Compute correlation
                 try:
-                    y_pred_centered = y_predicted - y_predicted.mean(dim=0, keepdim=True)
-                    y_val_centered = y_val - y_val.mean(dim=0, keepdim=True)
-                    covariance = (y_val_centered * y_pred_centered).mean(dim=0)
-
-                    # Usar std en lugar de norm para las desviaciones estándar
-                    y_val_std = y_val_centered.std(dim=0, unbiased=True)  # Bessel's correction
-                    y_pred_std = y_pred_centered.std(dim=0, unbiased=True)  # Bessel's correction
-                    if torch.all(y_val_std == 0) or torch.all(y_pred_std == 0):
-                        print("\n Error: null standard deviation")
-                    else:
-                        correlations[i_alpha] = (covariance / (y_val_std * y_pred_std)).mean()
+                    correlations[i_alpha] = self._compute_correlation(
+                        y_1=y_predicted,
+                        y_2=y_val
+                    ).mean()
                 except RuntimeWarning:
                     correlations[i_alpha] = 0
                 try:
-                    y_pred_train_centered = y_predicted_train - y_predicted_train.mean(dim=0, keepdim=True)
-                    y_train_for_val_centered = y_train_for_val - y_train_for_val.mean(dim=0, keepdim=True)
-                    covariance_train = (y_train_for_val_centered * y_pred_train_centered).mean(dim=0)
-                    
-                    # Usar std en lugar de norm para las desviaciones estándar
-                    y_train_for_val_std = y_train_for_val_centered.std(dim=0, unbiased=True)  # Bessel's correction
-                    y_train_pred_std = y_pred_train_centered.std(dim=0, unbiased=True)  # Bessel's correction
-                    if torch.all(y_train_for_val_std == 0) or torch.all(y_train_pred_std == 0):
-                        print("\n Error: null standard deviation")
-                    else:
-                        correlations_train[i_alpha] = (covariance_train / (y_train_for_val_std * y_train_pred_std)).mean()
+                    correlations_train[i_alpha] = self._compute_correlation(
+                        y_1=y_predicted_train,
+                        y_2=y_train_for_val
+                    ).mean()
                 except RuntimeWarning:
                     correlations_train[i_alpha] = 0
                 
                 root_mean_square_error[i_alpha] = torch.sqrt(torch.pow(y_predicted - y_val, 2).mean(dim=0)).mean(dim=0)
                 root_mean_square_error_train[i_alpha] = torch.sqrt(torch.pow(y_predicted_train - y_train_for_val, 2).mean(dim=0)).mean(dim=0)
-                trfs[i_alpha] = trf.view(n_features, len(config.delays), trf.shape[-1]).permute(2, 0, 1).mean(dim=0).mean(dim=0) # shape n_chans, feats, delays
+                trfs[i_alpha] = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1).mean(dim=0).mean(dim=0) # shape n_chans, feats, delays --> delays
             del X_train_for_val, y_train_for_val, y_predicted, y_val, X_pred
             return trfs.detach().cpu().numpy(), correlations.detach().cpu().numpy(), root_mean_square_error.detach().cpu().numpy(), correlations_train.detach().cpu().numpy(), root_mean_square_error_train.detach().cpu().numpy()
         else:
@@ -257,33 +258,32 @@ class TorchMtrf:
                     )
                 
                 X_train, y_train, X_pred, y_test = self.standarize_normalize(
-                            X_train=X_train, 
-                            X_pred=X_pred, 
-                            y_train=y_train, 
-                            y_test=y_test
-                            )
+                    X_train=X_train, 
+                    X_pred=X_pred, 
+                    y_train=y_train, 
+                    y_test=y_test
+                )
                 # Shuffle the data, by requierment of random permutations
                 for s in tqdm(iterations, desc='Performing permutations', bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
                     X_train_p = X_train[torch.randperm(number_of_indices)] # TODO Shufflear y en vez de X
                    
-                    # Fit the Ridge model (X^T X + alpha * I) * mtrfs = X^T * y_train_p 
-                    XTX_reg = X_train_p.T @ X_train_p + torch.tensor(self.alpha, dtype=torch.float32) *  torch.eye(X_train_p.shape[1], device=self.device) # X^T * X + alpha*I
-                    mtrfs = torch.linalg.solve(XTX_reg, X_train_p.T @ y_train)
+                    # Fit the model
+                    mtrfs = self._solver(
+                        solver=self.solver,
+                        alpha=self.alpha, 
+                        X_train=X_train_p, 
+                        y_train=y_train
+                    )
+                    del X_train_p
                     y_predicted = X_pred @ mtrfs
                     coefs[s] = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1)
-                    del X_train_p, mtrfs
+                    del mtrfs
                     
                     try:
-                        y_pred_centered = y_predicted - y_predicted.mean(dim=0, keepdim=True)
-                        y_test_centered = y_test - y_test.mean(dim=0, keepdim=True)
-                        covariance = (y_test_centered * y_pred_centered).mean(dim=0)
-
-                        y_test_std = y_test_centered.std(dim=0, unbiased=True)  # Bessel's correction
-                        y_pred_std = y_pred_centered.std(dim=0, unbiased=True)  # Bessel's correction
-                        if torch.any(y_test_std == 0) or torch.any(y_pred_std == 0):
-                            raise ZeroDivisionError("Error: null standard deviation")
-                        else:
-                            correlations[s] = (covariance / (y_test_std * y_pred_std))
+                        correlations[s] = self._compute_correlation(
+                            y_1=y_predicted,
+                            y_2=y_test
+                        )
                     except RuntimeWarning:
                         correlations[s] = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
                     
@@ -293,15 +293,20 @@ class TorchMtrf:
                 return coefs.cpu().numpy(), correlations.cpu().numpy(), root_mean_square_error.cpu().numpy()
             else:
                 # Standarize and normalize
-                X_train, y_train, X_pred, y_test = self.standarize_normalize(
-                                                    X_train=X_train, 
-                                                    X_pred=X_pred, 
-                                                    y_train=y_train, 
-                                                    y_test=y_test
-                                                    )
-                # Fit the Ridge model
-                XTX_reg = X_train.T @ X_train + torch.tensor(self.alpha, dtype=torch.float32) *  torch.eye(X_train.shape[1], device=self.device) # X^T * X + alpha*I
-                mtrfs = torch.linalg.solve(XTX_reg, X_train.T @ y_train)
+                X_train, y_train, X_pred, y_test = self._standarize_normalize(
+                    X_train=X_train, 
+                    X_pred=X_pred, 
+                    y_train=y_train, 
+                    y_test=y_test
+                )
+
+                # Fit the model 
+                mtrfs = self._solver(
+                    solver=self.solver,
+                    alpha=self.alpha, 
+                    X_train=X_train, 
+                    y_train=y_train
+                )
                 del X_train, y_train
                 
                 # Perform predictions
@@ -315,20 +320,10 @@ class TorchMtrf:
 
                 # Calculates and saves correlation of each channel # TODO HACER SOLO DE 0  EN ADELANTE
                 try:
-                    y_pred_centered = y_predicted - y_predicted.mean(dim=0, keepdim=True)
-                    y_test_centered = y_test - y_test.mean(dim=0, keepdim=True)
-                    
-                    # Usar mean en lugar de sum para la covarianza
-                    covariance = (y_test_centered * y_pred_centered).mean(dim=0)
-                    
-                    # Usar std en lugar de norm para las desviaciones estándar
-                    y_test_std = y_test_centered.std(dim=0, unbiased=True)  # Bessel's correction
-                    y_pred_std = y_pred_centered.std(dim=0, unbiased=True)  # Bessel's correction
-                    
-                    if torch.any(y_test_std == 0) or torch.any(y_pred_std == 0):
-                        raise ZeroDivisionError("Error: null standard deviation")
-                    else:
-                        correlation_matrix = (covariance / (y_test_std * y_pred_std))
+                    correlation_matrix = self._compute_correlation(
+                        y_1=y_predicted,
+                        y_2=y_test
+                    )
                 except RuntimeWarning:
                     correlation_matrix = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
 
@@ -336,7 +331,79 @@ class TorchMtrf:
                 root_mean_square_error = torch.sqrt(torch.pow(y_predicted - y_test, 2).mean(dim=0))
                 return mtrfs.cpu().numpy(), correlation_matrix.cpu().numpy(), root_mean_square_error.cpu().numpy()
     
-    def standarize_normalize(
+    def _solver(
+        self, 
+        X_train:torch.Tensor, 
+        y_train:torch.Tensor,
+        alpha:Union[float, int]=1.0, 
+        solver:str='ridge'
+        )->torch.Tensor:
+        """
+        Solve the regression problem using the specified solver.
+
+        Parameters
+        ----------
+        X_train : torch.Tensor
+            Training data, shape (n_samples, n_features).
+        y_train : torch.Tensor
+            Target values, shape (n_samples, n_channels).
+        alpha : float or np.ndarray, optional
+            Regularization strength, by default 1.0.
+        solver : str, optional
+            The solver to use for solving the regression problem, by default 'ridge'.
+
+        Returns
+        -------
+        torch.Tensor
+            The coefficients of the regression model.
+        """
+        if solver == 'ridge':
+            XTX_reg = X_train.T @ X_train + torch.tensor(alpha, dtype=torch.float32) *  torch.eye(X_train.shape[1], device=self.device) # X^T * X + alpha*laplacian_matrix
+            return torch.linalg.solve(XTX_reg, X_train.T @ y_train)
+
+        elif solver == 'ridge-laplacian': # (X^T X + alpha * M) * mtrfs = X^T * y_train_p 
+            n_features = X_train.shape[1]
+            laplacian_matrix = torch.diag(torch.full((n_features,), 2.0, device=self.device, dtype=torch.float32))
+            laplacian_matrix += torch.diag(torch.full((n_features-1,), -1.0, device=self.device, dtype=torch.float32), diagonal=1)
+            laplacian_matrix += torch.diag(torch.full((n_features-1,), -1.0, device=self.device, dtype=torch.float32), diagonal=-1)
+            laplacian_matrix[n_features-1, n_features-1] = 1.0
+            laplacian_matrix[0, 0] = 1.0
+            XTX_reg = X_train.T @ X_train + torch.tensor(alpha, dtype=torch.float32) *  laplacian_matrix # X^T * X + alpha*laplacian_matrix
+            return torch.linalg.solve(XTX_reg, X_train.T @ y_train)
+        
+    def _compute_correlation(
+        self,
+        y_1:torch.Tensor, 
+        y_2:torch.Tensor
+        ):
+        """
+        Compute mean correlation between predicted and true values using centered Pearson correlation.
+
+        Parameters
+        ----------
+        y_1 : torch.Tensor
+            Predicted values, shape (n_samples, n_channels)
+        y_2 : torch.Tensor
+            True values, shape (n_samples, n_channels)
+
+        Returns
+        -------
+        float
+            Mean correlation across channels, or 0 if std is zero.
+        """
+        y_1_centered = y_1 - y_1.mean(dim=0, keepdim=True)
+        y_2_centered = y_2 - y_2.mean(dim=0, keepdim=True)
+        y_1_std = y_1_centered.std(dim=0, unbiased=True)
+        y_2_std = y_2_centered.std(dim=0, unbiased=True)
+        covariance = (y_1_centered*y_2_centered).mean(dim=0)
+
+        if torch.all(y_2_std == 0) or torch.all(y_2_std == 0):
+            print("\n Error: null standard deviation")
+            return 0
+        else:
+            return (covariance / (y_1_std * y_2_std))
+        
+    def _standarize_normalize(
         self, 
         X_train:np.ndarray, 
         X_pred:np.ndarray, 
@@ -358,1215 +425,37 @@ class TorchMtrf:
             A tuple containing the standardized/normalized training and test data: (X_train, y_train, X_pred, y_test).
         """
         # Instances of normalize and standarize
-        norm = Normalize(
+        normalization = Normalize(
             axis=0, 
             porcent=5, 
             by_gpu=self.use_gpu
-            )
-        estandar = Standarize(
-                axis=0,
-                by_gpu=self.use_gpu
-                )
-    
+        )
+        standarization = Standarize(
+            axis=0,
+            by_gpu=self.use_gpu
+        )
+
         # Iterates to normalize|standarize over features
         if self.stims_preprocess=='Standarize':
-            for feat in range(X_train.shape[1]):
-                X_train[:, feat] = estandar.fit_standarize_train(train_data=X_train[:, feat]) 
-                X_pred[:, feat] = estandar.fit_standarize_test(test_data=X_pred[:, feat])
+            X_train = standarization.fit_standarize_train(train_data=X_train) 
+            X_pred = standarization.fit_standarize_test(test_data=X_pred)
+            # for feat in range(X_train.shape[1]):
+            #     X_train[:, feat] = standarization.fit_standarize_train(train_data=X_train[:, feat]) 
+            #     X_pred[:, feat] = standarization.fit_standarize_test(test_data=X_pred[:, feat])
         if self.stims_preprocess=='Normalize':
-            for feat in range(X_train.shape[1]):
-                X_train[:, feat] = norm.fit_normalize_train(train_data=X_train[:, feat]) 
-                X_pred[:, feat] = norm.fit_normalize_test(test_data=X_pred[:, feat])
+            X_train = normalization.fit_normalize_train(train_data=X_train) 
+            X_pred = normalization.fit_normalize_test(test_data=X_pred)
         if y_train is None or y_test is None:                
             return X_train, X_pred
         else:
             if self.eeg_preprocess=='Standarize':
-                y_train=estandar.fit_standarize_train(train_data=y_train)
-                y_test=estandar.fit_standarize_test(test_data=y_test)
+                y_train=standarization.fit_standarize_train(train_data=y_train)
+                y_test=standarization.fit_standarize_test(test_data=y_test)
             if self.eeg_preprocess=='Normalize':
-                y_train=norm.fit_normalize_percent(data=y_train)
-                y_test=norm.fit_normalize_test(test_data=y_test)
+                y_train=normalization.fit_normalize_percent(data=y_train)
+                y_test=normalization.fit_normalize_test(test_data=y_test)
             return X_train, y_train, X_pred, y_test
 
-    def fit2(
-        self, 
-        stims: np.ndarray, 
-        eeg: np.ndarray
-    ) -> Union[np.ndarray, tuple]:
-        """
-        Fit the TorchMtrf model using frequency-domain approach (FFT-based).
-        
-        This method implements the same functionality as fit() but uses FFT for potentially
-        faster computation on large datasets.
-
-        Parameters
-        ----------
-        stims : np.ndarray
-            The input stimuli data, shape (n_samples, n_features).
-        eeg : np.ndarray
-            The EEG response data, shape (n_samples, n_channels).
-
-        Returns
-        -------
-        Union[np.ndarray, tuple]
-            Same output format as fit() method depending on validation/shuffle settings.
-        """
-        # Construct design matrix same as fit()
-        X_train, X_pred = shifted_matrix(
-            features=stims, 
-            delays=config.delays, 
-            use_gpu=self.use_gpu,
-            indices_to_keep=self.relevant_indexes,
-            output_torch=True,
-            train_indexes=self.train_indexes,
-            pred_indexes=self.test_indexes,
-            optimized_shifted=True
-        )
-        del stims
-        n_features = X_train.shape[1] // len(config.delays)
-
-        # Get relevant indexes and transform to device
-        try:
-            y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to(self.device)
-            del eeg
-            y_train = y_temp[self.train_indexes]
-            y_test = y_temp[self.test_indexes]
-        except:
-            X_train = X_train.cpu()
-            X_pred = X_pred.cpu()
-            y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to('cpu')
-            del eeg            
-            y_train = y_temp[self.train_indexes]
-            y_test = y_temp[self.test_indexes]
-
-        if self.validation:
-            # Handle validation case same as fit()
-            del X_pred, y_test
-            train_percent = .8
-            self.train_cutoff = int(train_percent * len(self.train_indexes))
-            
-            try:
-                X_train_for_val = X_train[:self.train_cutoff]
-                X_val = X_train[self.train_cutoff:]
-                del X_train
-                y_train_for_val = y_train[:self.train_cutoff]
-                y_val = y_train[self.train_cutoff:]
-                del y_train
-            except:
-                X_train = X_train.cpu()
-                y_train = y_train.cpu()
-                X_train_for_val = X_train[:self.train_cutoff]
-                X_val = X_train[self.train_cutoff:]
-                del X_train
-                y_train_for_val = y_train[:self.train_cutoff]
-                y_val = y_train[self.train_cutoff:]
-                del y_train
-
-            # Standardize and normalize 
-            X_train_for_val, y_train_for_val, X_pred, y_val = self.standarize_normalize(
-                X_train=X_train_for_val, 
-                X_pred=X_val, 
-                y_train=y_train_for_val, 
-                y_test=y_val
-            )
-            
-            correlations = torch.zeros(len(self.alpha), device=self.device, dtype=torch.float32)
-            for i_alpha, alph in tqdm(enumerate(self.alpha), total=len(self.alpha), 
-                                    desc='Sweeping progress', 
-                                    bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
-                
-                # Use frequency domain solve
-                y_predicted = self._fft_solve(X_train_for_val, y_train_for_val, X_pred, alph)
-                
-                # Compute correlation same as fit()
-                try:
-                    y_pred_centered = y_predicted - y_predicted.mean(dim=0, keepdim=True)
-                    y_val_centered = y_val - y_val.mean(dim=0, keepdim=True)
-                    covariance = (y_val_centered * y_pred_centered).mean(dim=0)
-
-                    y_val_std = y_val_centered.std(dim=0, unbiased=True)
-                    y_pred_std = y_pred_centered.std(dim=0, unbiased=True)
-                    if torch.all(y_val_std == 0) or torch.all(y_pred_std == 0):
-                        correlations[i_alpha] = 0
-                    else:
-                        correlations[i_alpha] = (covariance / (y_val_std * y_pred_std)).mean()
-                except RuntimeWarning:
-                    correlations[i_alpha] = 0
-
-            del X_train_for_val, y_train_for_val, y_predicted, y_val, X_pred
-            return correlations.detach().cpu().numpy()
-        
-        elif self.shuffle:
-            # Handle shuffle case same as fit()
-            iterations = np.arange(config.random_permutations)
-            number_of_indices = X_train.shape[0]
-            
-            coefs = torch.zeros(
-                size=(config.random_permutations, config.info_mne['nchan'], n_features, len(config.delays)), 
-                device=self.device, 
-                dtype=torch.float32
-            )
-            correlations = torch.zeros(
-                size=(config.random_permutations, config.info_mne['nchan']), 
-                device=self.device, 
-                dtype=torch.float32
-            )
-            
-            X_train, y_train, X_pred, y_test = self.standarize_normalize(
-                X_train=X_train, 
-                X_pred=X_pred, 
-                y_train=y_train, 
-                y_test=y_test
-            )
-            
-            for s in tqdm(iterations, desc='Performing permutations', 
-                        bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
-                X_train_p = X_train[torch.randperm(number_of_indices)]
-                
-                # Use frequency domain solve
-                y_predicted, mtrfs = self._fft_solve(X_train_p, y_train, X_pred, self.alpha, return_coefs=True)
-                coefs[s] = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1)
-                del X_train_p, mtrfs
-                
-                # Calculate correlation same as fit()
-                try:
-                    y_pred_centered = y_predicted - y_predicted.mean(dim=0, keepdim=True)
-                    y_test_centered = y_test - y_test.mean(dim=0, keepdim=True)
-                    covariance = (y_test_centered * y_pred_centered).mean(dim=0)
-
-                    y_test_std = y_test_centered.std(dim=0, unbiased=True)
-                    y_pred_std = y_pred_centered.std(dim=0, unbiased=True)
-                    if torch.any(y_test_std == 0) or torch.any(y_pred_std == 0):
-                        correlations[s] = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
-                    else:
-                        correlations[s] = (covariance / (y_test_std * y_pred_std))
-                except RuntimeWarning:
-                    correlations[s] = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
-                    
-            del X_train, y_train, X_pred, y_test, y_predicted
-            return coefs.cpu().numpy(), correlations.cpu().numpy()
-        
-        else:
-            # Handle normal case same as fit()
-            X_train, y_train, X_pred, y_test = self.standarize_normalize(
-                X_train=X_train, 
-                X_pred=X_pred, 
-                y_train=y_train, 
-                y_test=y_test
-            )
-            
-            # Use frequency domain solve
-            y_predicted, mtrfs = self._fft_solve(X_train, y_train, X_pred, self.alpha, return_coefs=True)
-            del X_train, y_train, X_pred
-            
-            if torch.all(y_predicted == 0):
-                print(f'\n\t\tFold prediction is null, this may be due to the sparsity of weights.')
-            
-            # Store mtrfs same as fit()
-            mtrfs = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1)
-
-            # Calculate correlation same as fit()
-            try:
-                y_pred_centered = y_predicted - y_predicted.mean(dim=0, keepdim=True)
-                y_test_centered = y_test - y_test.mean(dim=0, keepdim=True)
-                
-                covariance = (y_test_centered * y_pred_centered).mean(dim=0)
-                
-                y_test_std = y_test_centered.std(dim=0, unbiased=True)
-                y_pred_std = y_pred_centered.std(dim=0, unbiased=True)
-                
-                if torch.any(y_test_std == 0) or torch.any(y_pred_std == 0):
-                    correlation_matrix = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
-                else:
-                    correlation_matrix = (covariance / (y_test_std * y_pred_std))
-            except RuntimeWarning:
-                correlation_matrix = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
-
-            # Calculate RMSE same as fit()
-            root_mean_square_error = torch.sqrt(torch.pow(y_predicted - y_test, 2).mean(dim=0))
-            return mtrfs.cpu().numpy(), correlation_matrix.cpu().numpy(), root_mean_square_error.cpu().numpy()
-
-    def _fft_solve(self, X_train, y_train, X_pred, alpha, return_coefs=False):
-        """
-        Helper method for frequency-domain solving.
-        
-        Parameters
-        ----------
-        X_train : torch.Tensor
-            Training features
-        y_train : torch.Tensor  
-            Training targets
-        X_pred : torch.Tensor
-            Prediction features
-        alpha : float
-            Regularization parameter
-        return_coefs : bool
-            Whether to return coefficients
-            
-        Returns
-        -------
-        torch.Tensor or tuple
-            Predictions, and optionally coefficients
-        """
-        number_of_samples = X_train.shape[0]
-        
-        # Use real FFT for efficiency
-        X_f = torch.fft.rfft(X_train, n=number_of_samples, dim=0)
-        y_f = torch.fft.rfft(y_train, n=number_of_samples, dim=0)
-        
-        # Solve in frequency domain: (X^H * X + alpha*I) * H = X^H * Y
-        numerator = X_f.conj().T @ y_f
-        denominator = (X_f.conj().T @ X_f) + torch.tensor(alpha, dtype=torch.float32, device=self.device) * torch.eye(X_f.shape[1], device=self.device)
-        del X_f, y_f
-        
-        H_f = torch.linalg.solve(denominator, numerator)
-        del numerator, denominator
-        
-        # Convert back to time domain if needed for predictions
-        X_pred_f = torch.fft.rfft(X_pred, n=number_of_samples, dim=0)
-        y_predicted_f = X_pred_f @ H_f
-        y_predicted = torch.fft.irfft(y_predicted_f, n=number_of_samples, dim=0)[:X_pred.shape[0]]
-        
-        if return_coefs:
-            # Convert coefficients back to time domain
-            mtrfs_f = H_f
-            return y_predicted.real, mtrfs_f.real
-        else:
-            return y_predicted.real
-
-    def fit3(
-        self, 
-        stims: np.ndarray, 
-        eeg: np.ndarray
-    ) -> Union[np.ndarray, tuple]:
-        """
-        Fit using Singular Value Decomposition (SVD) for robust and efficient computation.
-        
-        This method uses SVD decomposition which is more numerically stable than normal equations
-        and can handle ill-conditioned matrices better. It also provides natural regularization
-        through truncated SVD.
-
-        Parameters
-        ----------
-        stims : np.ndarray
-            The input stimuli data, shape (n_samples, n_features).
-        eeg : np.ndarray
-            The EEG response data, shape (n_samples, n_channels).
-
-        Returns
-        -------
-        Union[np.ndarray, tuple]
-            Same output format as fit() method depending on validation/shuffle settings.
-        """
-        # Construct design matrix same as other methods
-        X_train, X_pred = shifted_matrix(
-            features=stims, 
-            delays=config.delays, 
-            use_gpu=self.use_gpu,
-            indices_to_keep=self.relevant_indexes,
-            output_torch=True,
-            train_indexes=self.train_indexes,
-            pred_indexes=self.test_indexes,
-            optimized_shifted=True
-        )
-        del stims
-        n_features = X_train.shape[1] // len(config.delays)
-
-        # Get relevant indexes and transform to device
-        try:
-            y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to(self.device)
-            del eeg
-            y_train = y_temp[self.train_indexes]
-            y_test = y_temp[self.test_indexes]
-        except:
-            X_train = X_train.cpu()
-            X_pred = X_pred.cpu()
-            y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to('cpu')
-            del eeg            
-            y_train = y_temp[self.train_indexes]
-            y_test = y_temp[self.test_indexes]
-
-        if self.validation:
-            # Handle validation case
-            del X_pred, y_test
-            train_percent = .8
-            self.train_cutoff = int(train_percent * len(self.train_indexes))
-            
-            try:
-                X_train_for_val = X_train[:self.train_cutoff]
-                X_val = X_train[self.train_cutoff:]
-                del X_train
-                y_train_for_val = y_train[:self.train_cutoff]
-                y_val = y_train[self.train_cutoff:]
-                del y_train
-            except:
-                X_train = X_train.cpu()
-                y_train = y_train.cpu()
-                X_train_for_val = X_train[:self.train_cutoff]
-                X_val = X_train[self.train_cutoff:]
-                del X_train
-                y_train_for_val = y_train[:self.train_cutoff]
-                y_val = y_train[self.train_cutoff:]
-                del y_train
-
-            # Standardize and normalize 
-            X_train_for_val, y_train_for_val, X_pred, y_val = self.standarize_normalize(
-                X_train=X_train_for_val, 
-                X_pred=X_val, 
-                y_train=y_train_for_val, 
-                y_test=y_val
-            )
-            
-            correlations = torch.zeros(len(self.alpha), device=self.device, dtype=torch.float32)
-            for i_alpha, alph in tqdm(enumerate(self.alpha), total=len(self.alpha), 
-                                    desc='SVD Sweeping progress', 
-                                    bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
-                
-                # Use SVD solve
-                y_predicted = self._svd_solve(X_train_for_val, y_train_for_val, X_pred, alph)
-                
-                # Compute correlation same as other methods
-                try:
-                    y_pred_centered = y_predicted - y_predicted.mean(dim=0, keepdim=True)
-                    y_val_centered = y_val - y_val.mean(dim=0, keepdim=True)
-                    covariance = (y_val_centered * y_pred_centered).mean(dim=0)
-
-                    y_val_std = y_val_centered.std(dim=0, unbiased=True)
-                    y_pred_std = y_pred_centered.std(dim=0, unbiased=True)
-                    if torch.all(y_val_std == 0) or torch.all(y_pred_std == 0):
-                        correlations[i_alpha] = 0
-                    else:
-                        correlations[i_alpha] = (covariance / (y_val_std * y_pred_std)).mean()
-                except RuntimeWarning:
-                    correlations[i_alpha] = 0
-
-            del X_train_for_val, y_train_for_val, y_predicted, y_val, X_pred
-            return correlations.detach().cpu().numpy()
-        
-        elif self.shuffle:
-            # Handle shuffle case
-            iterations = np.arange(config.random_permutations)
-            number_of_indices = X_train.shape[0]
-            
-            coefs = torch.zeros(
-                size=(config.random_permutations, config.info_mne['nchan'], n_features, len(config.delays)), 
-                device=self.device, 
-                dtype=torch.float32
-            )
-            correlations = torch.zeros(
-                size=(config.random_permutations, config.info_mne['nchan']), 
-                device=self.device, 
-                dtype=torch.float32
-            )
-            
-            X_train, y_train, X_pred, y_test = self.standarize_normalize(
-                X_train=X_train, 
-                X_pred=X_pred, 
-                y_train=y_train, 
-                y_test=y_test
-            )
-            
-            for s in tqdm(iterations, desc='SVD Permutations', 
-                        bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
-                X_train_p = X_train[torch.randperm(number_of_indices)]
-                
-                # Use SVD solve
-                y_predicted, mtrfs = self._svd_solve(X_train_p, y_train, X_pred, self.alpha, return_coefs=True)
-                coefs[s] = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1)
-                del X_train_p, mtrfs
-                
-                # Calculate correlation same as other methods
-                try:
-                    y_pred_centered = y_predicted - y_predicted.mean(dim=0, keepdim=True)
-                    y_test_centered = y_test - y_test.mean(dim=0, keepdim=True)
-                    covariance = (y_test_centered * y_pred_centered).mean(dim=0)
-
-                    y_test_std = y_test_centered.std(dim=0, unbiased=True)
-                    y_pred_std = y_pred_centered.std(dim=0, unbiased=True)
-                    if torch.any(y_test_std == 0) or torch.any(y_pred_std == 0):
-                        correlations[s] = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
-                    else:
-                        correlations[s] = (covariance / (y_test_std * y_pred_std))
-                except RuntimeWarning:
-                    correlations[s] = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
-                    
-            del X_train, y_train, X_pred, y_test, y_predicted
-            return coefs.cpu().numpy(), correlations.cpu().numpy()
-        
-        else:
-            # Handle normal case
-            X_train, y_train, X_pred, y_test = self.standarize_normalize(
-                X_train=X_train, 
-                X_pred=X_pred, 
-                y_train=y_train, 
-                y_test=y_test
-            )
-            
-            # Use SVD solve
-            y_predicted, mtrfs = self._svd_solve(X_train, y_train, X_pred, self.alpha, return_coefs=True)
-            del X_train, y_train, X_pred
-            
-            if torch.all(y_predicted == 0):
-                print(f'\n\t\tFold prediction is null, this may be due to the sparsity of weights.')
-            
-            # Store mtrfs same as other methods
-            mtrfs = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1)
-
-            # Calculate correlation same as other methods
-            try:
-                y_pred_centered = y_predicted - y_predicted.mean(dim=0, keepdim=True)
-                y_test_centered = y_test - y_test.mean(dim=0, keepdim=True)
-                
-                covariance = (y_test_centered * y_pred_centered).mean(dim=0)
-                
-                y_test_std = y_test_centered.std(dim=0, unbiased=True)
-                y_pred_std = y_pred_centered.std(dim=0, unbiased=True)
-                
-                if torch.any(y_test_std == 0) or torch.any(y_pred_std == 0):
-                    correlation_matrix = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
-                else:
-                    correlation_matrix = (covariance / (y_test_std * y_pred_std))
-            except RuntimeWarning:
-                correlation_matrix = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
-
-            # Calculate RMSE same as other methods
-            root_mean_square_error = torch.sqrt(torch.pow(y_predicted - y_test, 2).mean(dim=0))
-            return mtrfs.cpu().numpy(), correlation_matrix.cpu().numpy(), root_mean_square_error.cpu().numpy()
-
-    def _svd_solve(self, X_train, y_train, X_pred, alpha, return_coefs=False):
-        """
-        Solve using Singular Value Decomposition (SVD).
-        
-        SVD is more numerically stable than normal equations and provides natural
-        regularization through singular value thresholding.
-        
-        Parameters
-        ----------
-        X_train : torch.Tensor
-            Training features
-        y_train : torch.Tensor  
-            Training targets
-        X_pred : torch.Tensor
-            Prediction features
-        alpha : float
-            Regularization parameter
-        return_coefs : bool
-            Whether to return coefficients
-            
-        Returns
-        -------
-        torch.Tensor or tuple
-            Predictions, and optionally coefficients
-        """
-        # Perform SVD: X = U @ S @ V.T
-        U, S, Vt = torch.linalg.svd(X_train, full_matrices=False)
-        
-        # Regularized pseudo-inverse using SVD
-        # Instead of (X.T @ X + alpha*I)^-1 @ X.T @ y
-        # We use V @ diag(s/(s^2 + alpha)) @ U.T @ y
-        S_reg = S / (S**2 + alpha)
-        
-        # Compute coefficients: mtrfs = V.T @ diag(S_reg) @ U.T @ y_train
-        mtrfs = Vt.T @ torch.diag(S_reg) @ U.T @ y_train
-        
-        # Predictions
-        y_predicted = X_pred @ mtrfs
-        
-        # Clean up
-        del U, S, Vt, S_reg
-        
-        if return_coefs:
-            return y_predicted, mtrfs
-        else:
-            return y_predicted
-    
-    def fit4(
-        self, 
-        stims: np.ndarray, 
-        eeg: np.ndarray
-    ) -> Union[np.ndarray, tuple]:
-        """
-        Fit using Conjugate Gradient (CG) with preconditioning for maximum efficiency.
-        
-        This method uses iterative solvers instead of direct matrix inversion, which is:
-        - More memory efficient (O(n) vs O(n²))
-        - Faster for large matrices
-        - Naturally parallelizable
-        - Uses smart preconditioning for faster convergence
-
-        Parameters
-        ----------
-        stims : np.ndarray
-            The input stimuli data, shape (n_samples, n_features).
-        eeg : np.ndarray
-            The EEG response data, shape (n_samples, n_channels).
-
-        Returns
-        -------
-        Union[np.ndarray, tuple]
-            Same output format as other fit methods.
-        """
-        # Construct design matrix same as other methods
-        X_train, X_pred = shifted_matrix(
-            features=stims, 
-            delays=config.delays, 
-            use_gpu=self.use_gpu,
-            indices_to_keep=self.relevant_indexes,
-            output_torch=True,
-            train_indexes=self.train_indexes,
-            pred_indexes=self.test_indexes,
-            optimized_shifted=True
-        )
-        del stims
-        n_features = X_train.shape[1] // len(config.delays)
-
-        # Get relevant indexes and transform to device
-        try:
-            y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to(self.device)
-            del eeg
-            y_train = y_temp[self.train_indexes]
-            y_test = y_temp[self.test_indexes]
-        except:
-            X_train = X_train.cpu()
-            X_pred = X_pred.cpu()
-            y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to('cpu')
-            del eeg            
-            y_train = y_temp[self.train_indexes]
-            y_test = y_temp[self.test_indexes]
-
-        if self.validation:
-            # Handle validation case
-            del X_pred, y_test
-            train_percent = .8
-            self.train_cutoff = int(train_percent * len(self.train_indexes))
-            
-            try:
-                X_train_for_val = X_train[:self.train_cutoff]
-                X_val = X_train[self.train_cutoff:]
-                del X_train
-                y_train_for_val = y_train[:self.train_cutoff]
-                y_val = y_train[self.train_cutoff:]
-                del y_train
-            except:
-                X_train = X_train.cpu()
-                y_train = y_train.cpu()
-                X_train_for_val = X_train[:self.train_cutoff]
-                X_val = X_train[self.train_cutoff:]
-                del X_train
-                y_train_for_val = y_train[:self.train_cutoff]
-                y_val = y_train[self.train_cutoff:]
-                del y_train
-
-            # Standardize and normalize 
-            X_train_for_val, y_train_for_val, X_pred, y_val = self.standarize_normalize(
-                X_train=X_train_for_val, 
-                X_pred=X_val, 
-                y_train=y_train_for_val, 
-                y_test=y_val
-            )
-            
-            correlations = torch.zeros(len(self.alpha), device=self.device, dtype=torch.float32)
-            for i_alpha, alph in tqdm(enumerate(self.alpha), total=len(self.alpha), 
-                                    desc='CG Sweeping progress', 
-                                    bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
-                
-                # Use Conjugate Gradient solve
-                y_predicted = self._cg_solve(X_train_for_val, y_train_for_val, X_pred, alph)
-                
-                # Compute correlation same as other methods
-                try:
-                    y_pred_centered = y_predicted - y_predicted.mean(dim=0, keepdim=True)
-                    y_val_centered = y_val - y_val.mean(dim=0, keepdim=True)
-                    covariance = (y_val_centered * y_pred_centered).mean(dim=0)
-
-                    y_val_std = y_val_centered.std(dim=0, unbiased=True)
-                    y_pred_std = y_pred_centered.std(dim=0, unbiased=True)
-                    if torch.all(y_val_std == 0) or torch.all(y_pred_std == 0):
-                        correlations[i_alpha] = 0
-                    else:
-                        correlations[i_alpha] = (covariance / (y_val_std * y_pred_std)).mean()
-                except RuntimeWarning:
-                    correlations[i_alpha] = 0
-
-            del X_train_for_val, y_train_for_val, y_predicted, y_val, X_pred
-            return correlations.detach().cpu().numpy()
-        
-        elif self.shuffle:
-            # Handle shuffle case
-            iterations = np.arange(config.random_permutations)
-            number_of_indices = X_train.shape[0]
-            
-            coefs = torch.zeros(
-                size=(config.random_permutations, config.info_mne['nchan'], n_features, len(config.delays)), 
-                device=self.device, 
-                dtype=torch.float32
-            )
-            correlations = torch.zeros(
-                size=(config.random_permutations, config.info_mne['nchan']), 
-                device=self.device, 
-                dtype=torch.float32
-            )
-            
-            X_train, y_train, X_pred, y_test = self.standarize_normalize(
-                X_train=X_train, 
-                X_pred=X_pred, 
-                y_train=y_train, 
-                y_test=y_test
-            )
-            
-            for s in tqdm(iterations, desc='CG Permutations', 
-                        bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
-                X_train_p = X_train[torch.randperm(number_of_indices)]
-                
-                # Use Conjugate Gradient solve
-                y_predicted, mtrfs = self._cg_solve(X_train_p, y_train, X_pred, self.alpha, return_coefs=True)
-                coefs[s] = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1)
-                del X_train_p, mtrfs
-                
-                # Calculate correlation same as other methods
-                try:
-                    y_pred_centered = y_predicted - y_predicted.mean(dim=0, keepdim=True)
-                    y_test_centered = y_test - y_test.mean(dim=0, keepdim=True)
-                    covariance = (y_test_centered * y_pred_centered).mean(dim=0)
-
-                    y_test_std = y_test_centered.std(dim=0, unbiased=True)
-                    y_pred_std = y_pred_centered.std(dim=0, unbiased=True)
-                    if torch.any(y_test_std == 0) or torch.any(y_pred_std == 0):
-                        correlations[s] = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
-                    else:
-                        correlations[s] = (covariance / (y_test_std * y_pred_std))
-                except RuntimeWarning:
-                    correlations[s] = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
-                    
-            del X_train, y_train, X_pred, y_test, y_predicted
-            return coefs.cpu().numpy(), correlations.cpu().numpy()
-        
-        else:
-            # Handle normal case
-            X_train, y_train, X_pred, y_test = self.standarize_normalize(
-                X_train=X_train, 
-                X_pred=X_pred, 
-                y_train=y_train, 
-                y_test=y_test
-            )
-            
-            # Use Conjugate Gradient solve
-            y_predicted, mtrfs = self._cg_solve(X_train, y_train, X_pred, self.alpha, return_coefs=True)
-            del X_train, y_train, X_pred
-            
-            if torch.all(y_predicted == 0):
-                print(f'\n\t\tFold prediction is null, this may be due to the sparsity of weights.')
-            
-            # Store mtrfs same as other methods
-            mtrfs = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1)
-
-            # Calculate correlation same as other methods
-            try:
-                y_pred_centered = y_predicted - y_predicted.mean(dim=0, keepdim=True)
-                y_test_centered = y_test - y_test.mean(dim=0, keepdim=True)
-                
-                covariance = (y_test_centered * y_pred_centered).mean(dim=0)
-                
-                y_test_std = y_test_centered.std(dim=0, unbiased=True)
-                y_pred_std = y_pred_centered.std(dim=0, unbiased=True)
-                
-                if torch.any(y_test_std == 0) or torch.any(y_pred_std == 0):
-                    correlation_matrix = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
-                else:
-                    correlation_matrix = (covariance / (y_test_std * y_pred_std))
-            except RuntimeWarning:
-                correlation_matrix = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
-
-            # Calculate RMSE same as other methods
-            root_mean_square_error = torch.sqrt(torch.pow(y_predicted - y_test, 2).mean(dim=0))
-            return mtrfs.cpu().numpy(), correlation_matrix.cpu().numpy(), root_mean_square_error.cpu().numpy()
-
-    def _cg_solve(self, X_train, y_train, X_pred, alpha, return_coefs=False, max_iter=None, tol=1e-6):
-        """
-        Solve using Conjugate Gradient with intelligent preconditioning.
-        
-        This is much more efficient than direct methods for large systems:
-        - O(n) memory instead of O(n²)
-        - Exploits sparsity and structure
-        - Early termination when converged
-        - Smart initialization using previous solutions
-        
-        Parameters
-        ----------
-        X_train : torch.Tensor
-            Training features
-        y_train : torch.Tensor  
-            Training targets
-        X_pred : torch.Tensor
-            Prediction features
-        alpha : float
-            Regularization parameter
-        return_coefs : bool
-            Whether to return coefficients
-        max_iter : int, optional
-            Maximum iterations (default: min(n_features, 100))
-        tol : float, optional
-            Convergence tolerance
-            
-        Returns
-        -------
-        torch.Tensor or tuple
-            Predictions, and optionally coefficients
-        """
-        n_features = X_train.shape[1]
-        n_channels = y_train.shape[1]
-        
-        # Set adaptive max iterations
-        if max_iter is None:
-            max_iter = min(n_features, 100)
-        
-        # Pre-compute X^T @ X and X^T @ y for efficiency
-        XTX = X_train.T @ X_train
-        XTy = X_train.T @ y_train
-        
-        # Create regularized system matrix: A = X^T @ X + alpha * I
-        A = XTX + alpha * torch.eye(n_features, device=self.device, dtype=torch.float32)
-        
-        # Smart preconditioning: Jacobi preconditioner (diagonal of A)
-        # This dramatically improves convergence
-        diag_A = torch.diag(A)
-        M_inv = 1.0 / (diag_A + 1e-12)  # Add small epsilon for numerical stability
-        
-        # Initialize solution - use smart initialization
-        if hasattr(self, '_last_solution') and self._last_solution.shape == (n_features, n_channels):
-            mtrfs = self._last_solution.clone()  # Warm start from previous solution
-        else:
-            mtrfs = torch.zeros(n_features, n_channels, device=self.device, dtype=torch.float32)
-        
-        # Solve for each channel using vectorized CG
-        for channel in range(n_channels):
-            b = XTy[:, channel]
-            x = mtrfs[:, channel]
-            
-            # Initial residual
-            r = b - A @ x
-            
-            # Preconditioned residual
-            z = M_inv * r
-            p = z.clone()
-            
-            rsold = torch.dot(r, z)
-            
-            for i in range(max_iter):
-                Ap = A @ p
-                pAp = torch.dot(p, Ap)
-                
-                # Avoid division by zero
-                if pAp < 1e-16:
-                    break
-                    
-                alpha_cg = rsold / pAp
-                x = x + alpha_cg * p
-                r = r - alpha_cg * Ap
-                
-                # Check convergence
-                if torch.norm(r) < tol:
-                    break
-                    
-                z = M_inv * r
-                rsnew = torch.dot(r, z)
-                
-                # Avoid division by zero
-                if rsold < 1e-16:
-                    break
-                    
-                beta = rsnew / rsold
-                p = z + beta * p
-                rsold = rsnew
-            
-            mtrfs[:, channel] = x
-        
-        # Store solution for next warm start
-        self._last_solution = mtrfs.detach().clone()
-        
-        # Predictions
-        y_predicted = X_pred @ mtrfs
-        
-        # Clean up
-        del XTX, XTy, A, M_inv
-        
-        if return_coefs:
-            return y_predicted, mtrfs
-        else:
-            return y_predicted
-        
-    def fit5(
-        self, 
-        stims: np.ndarray, 
-        eeg: np.ndarray
-    ) -> Union[np.ndarray, tuple]:
-        """
-        Fit using Block Coordinate Descent with Low-Rank Approximation and Multi-Channel Batching.
-        
-        This is the most advanced implementation combining:
-        - Block coordinate descent for memory efficiency
-        - Low-rank approximation for computational speedup
-        - Multi-channel batching for GPU optimization
-        - Adaptive learning rates
-        - Early stopping with smart checkpointing
-        - Asynchronous computation when possible
-
-        Parameters
-        ----------
-        stims : np.ndarray
-            The input stimuli data, shape (n_samples, n_features).
-        eeg : np.ndarray
-            The EEG response data, shape (n_samples, n_channels).
-
-        Returns
-        -------
-        Union[np.ndarray, tuple]
-            Same output format as other fit methods.
-        """
-        # Construct design matrix same as other methods
-        X_train, X_pred = shifted_matrix(
-            features=stims, 
-            delays=config.delays, 
-            use_gpu=self.use_gpu,
-            indices_to_keep=self.relevant_indexes,
-            output_torch=True,
-            train_indexes=self.train_indexes,
-            pred_indexes=self.test_indexes,
-            optimized_shifted=True
-        )
-        del stims
-        n_features = X_train.shape[1] // len(config.delays)
-
-        # Get relevant indexes and transform to device
-        try:
-            y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to(self.device)
-            del eeg
-            y_train = y_temp[self.train_indexes]
-            y_test = y_temp[self.test_indexes]
-        except:
-            X_train = X_train.cpu()
-            X_pred = X_pred.cpu()
-            y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to('cpu')
-            del eeg            
-            y_train = y_temp[self.train_indexes]
-            y_test = y_temp[self.test_indexes]
-
-        if self.validation:
-            # Handle validation case
-            del X_pred, y_test
-            train_percent = .8
-            self.train_cutoff = int(train_percent * len(self.train_indexes))
-            
-            try:
-                X_train_for_val = X_train[:self.train_cutoff]
-                X_val = X_train[self.train_cutoff:]
-                del X_train
-                y_train_for_val = y_train[:self.train_cutoff]
-                y_val = y_train[self.train_cutoff:]
-                del y_train
-            except:
-                X_train = X_train.cpu()
-                y_train = y_train.cpu()
-                X_train_for_val = X_train[:self.train_cutoff]
-                X_val = X_train[self.train_cutoff:]
-                del X_train
-                y_train_for_val = y_train[:self.train_cutoff]
-                y_val = y_train[self.train_cutoff:]
-                del y_train
-
-            # Standardize and normalize 
-            X_train_for_val, y_train_for_val, X_pred, y_val = self.standarize_normalize(
-                X_train=X_train_for_val, 
-                X_pred=X_val, 
-                y_train=y_train_for_val, 
-                y_test=y_val
-            )
-            
-            correlations = torch.zeros(len(self.alpha), device=self.device, dtype=torch.float32)
-            for i_alpha, alph in tqdm(enumerate(self.alpha), total=len(self.alpha), 
-                                    desc='Block-CD Sweeping', 
-                                    bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
-                
-                # Use Block Coordinate Descent solve
-                y_predicted = self._block_cd_solve(X_train_for_val, y_train_for_val, X_pred, alph)
-                
-                # Compute correlation same as other methods
-                try:
-                    y_pred_centered = y_predicted - y_predicted.mean(dim=0, keepdim=True)
-                    y_val_centered = y_val - y_val.mean(dim=0, keepdim=True)
-                    covariance = (y_val_centered * y_pred_centered).mean(dim=0)
-
-                    y_val_std = y_val_centered.std(dim=0, unbiased=True)
-                    y_pred_std = y_pred_centered.std(dim=0, unbiased=True)
-                    if torch.all(y_val_std == 0) or torch.all(y_pred_std == 0):
-                        correlations[i_alpha] = 0
-                    else:
-                        correlations[i_alpha] = (covariance / (y_val_std * y_pred_std)).mean()
-                except RuntimeWarning:
-                    correlations[i_alpha] = 0
-
-            del X_train_for_val, y_train_for_val, y_predicted, y_val, X_pred
-            return correlations.detach().cpu().numpy()
-        
-        elif self.shuffle:
-            # Handle shuffle case
-            iterations = np.arange(config.random_permutations)
-            number_of_indices = X_train.shape[0]
-            
-            coefs = torch.zeros(
-                size=(config.random_permutations, config.info_mne['nchan'], n_features, len(config.delays)), 
-                device=self.device, 
-                dtype=torch.float32
-            )
-            correlations = torch.zeros(
-                size=(config.random_permutations, config.info_mne['nchan']), 
-                device=self.device, 
-                dtype=torch.float32
-            )
-            
-            X_train, y_train, X_pred, y_test = self.standarize_normalize(
-                X_train=X_train, 
-                X_pred=X_pred, 
-                y_train=y_train, 
-                y_test=y_test
-            )
-            
-            for s in tqdm(iterations, desc='Block-CD Permutations', 
-                        bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
-                X_train_p = X_train[torch.randperm(number_of_indices)]
-                
-                # Use Block Coordinate Descent solve
-                y_predicted, mtrfs = self._block_cd_solve(X_train_p, y_train, X_pred, self.alpha, return_coefs=True)
-                coefs[s] = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1)
-                del X_train_p, mtrfs
-                
-                # Calculate correlation same as other methods
-                try:
-                    y_pred_centered = y_predicted - y_predicted.mean(dim=0, keepdim=True)
-                    y_test_centered = y_test - y_test.mean(dim=0, keepdim=True)
-                    covariance = (y_test_centered * y_pred_centered).mean(dim=0)
-
-                    y_test_std = y_test_centered.std(dim=0, unbiased=True)
-                    y_pred_std = y_pred_centered.std(dim=0, unbiased=True)
-                    if torch.any(y_test_std == 0) or torch.any(y_pred_std == 0):
-                        correlations[s] = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
-                    else:
-                        correlations[s] = (covariance / (y_test_std * y_pred_std))
-                except RuntimeWarning:
-                    correlations[s] = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
-                    
-            del X_train, y_train, X_pred, y_test, y_predicted
-            return coefs.cpu().numpy(), correlations.cpu().numpy()
-        
-        else:
-            # Handle normal case
-            X_train, y_train, X_pred, y_test = self.standarize_normalize(
-                X_train=X_train, 
-                X_pred=X_pred, 
-                y_train=y_train, 
-                y_test=y_test
-            )
-            
-            # Use Block Coordinate Descent solve
-            y_predicted, mtrfs = self._block_cd_solve(X_train, y_train, X_pred, self.alpha, return_coefs=True)
-            del X_train, y_train, X_pred
-            
-            if torch.all(y_predicted == 0):
-                print(f'\n\t\tFold prediction is null, this may be due to the sparsity of weights.')
-            
-            # Store mtrfs same as other methods
-            mtrfs = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1)
-
-            # Calculate correlation same as other methods
-            try:
-                y_pred_centered = y_predicted - y_predicted.mean(dim=0, keepdim=True)
-                y_test_centered = y_test - y_test.mean(dim=0, keepdim=True)
-                
-                covariance = (y_test_centered * y_pred_centered).mean(dim=0)
-                
-                y_test_std = y_test_centered.std(dim=0, unbiased=True)
-                y_pred_std = y_pred_centered.std(dim=0, unbiased=True)
-                
-                if torch.any(y_test_std == 0) or torch.any(y_pred_std == 0):
-                    correlation_matrix = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
-                else:
-                    correlation_matrix = (covariance / (y_test_std * y_pred_std))
-            except RuntimeWarning:
-                correlation_matrix = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
-
-            # Calculate RMSE same as other methods
-            root_mean_square_error = torch.sqrt(torch.pow(y_predicted - y_test, 2).mean(dim=0))
-            return mtrfs.cpu().numpy(), correlation_matrix.cpu().numpy(), root_mean_square_error.cpu().numpy()
-
-    def _block_cd_solve(self, X_train, y_train, X_pred, alpha, return_coefs=False, 
-                    block_size=None, max_iter=100, tol=1e-6, adaptive_lr=True):
-        """
-        Block Coordinate Descent with Low-Rank Approximation and Advanced Optimizations.
-        
-        This combines multiple cutting-edge techniques:
-        - Block coordinate descent for memory efficiency
-        - Low-rank approximation when beneficial
-        - Adaptive learning rates
-        - Multi-channel batching
-        - Smart initialization and early stopping
-        
-        Parameters
-        ----------
-        X_train : torch.Tensor
-            Training features
-        y_train : torch.Tensor  
-            Training targets
-        X_pred : torch.Tensor
-            Prediction features
-        alpha : float
-            Regularization parameter
-        return_coefs : bool
-            Whether to return coefficients
-        block_size : int, optional
-            Size of coordinate blocks (auto-determined if None)
-        max_iter : int, optional
-            Maximum iterations
-        tol : float, optional
-            Convergence tolerance
-        adaptive_lr : bool, optional
-            Use adaptive learning rates
-            
-        Returns
-        -------
-        torch.Tensor or tuple
-            Predictions, and optionally coefficients
-        """
-        n_samples, n_features = X_train.shape
-        n_channels = y_train.shape[1]
-        
-        # Auto-determine optimal block size based on memory and problem size
-        if block_size is None:
-            # Heuristic: balance memory usage and convergence speed
-            memory_gb = torch.cuda.get_device_properties(self.device).total_memory / (1024**3) if self.device.type == 'cuda' else 16
-            max_block_size = min(n_features // 4, int(memory_gb * 1000))  # Adaptive to available memory
-            block_size = max(32, min(max_block_size, n_features // 8))
-        
-        # Check if low-rank approximation would be beneficial
-        use_low_rank = (n_samples > n_features) and (n_features > 1000)
-        
-        if use_low_rank:
-            # Low-rank approximation using randomized SVD for large matrices
-            rank = min(n_features // 2, 200)  # Adaptive rank
-            U, S, Vt = torch.svd_lowrank(X_train, q=rank)
-            X_compressed = U @ torch.diag(S)
-            V = Vt.T
-            del U, S, Vt
-        else:
-            X_compressed = X_train
-            V = None
-        
-        # Pre-compute frequently used quantities
-        XTX = X_compressed.T @ X_compressed
-        XTy = X_compressed.T @ y_train
-        
-        # Initialize solution with smart warm start
-        if hasattr(self, '_last_block_solution') and self._last_block_solution.shape[0] == n_features:
-            mtrfs = self._last_block_solution.clone()
-            if use_low_rank:
-                mtrfs = V.T @ mtrfs  # Transform to compressed space
-        else:
-            # Initialize with ridge solution using diagonal approximation (very fast)
-            diag_XTX = torch.diag(XTX)
-            mtrfs = XTy / (diag_XTX.unsqueeze(1) + alpha)
-        
-        # Create blocks for coordinate descent
-        n_blocks = (n_features + block_size - 1) // block_size
-        blocks = [slice(i * block_size, min((i + 1) * block_size, n_features)) for i in range(n_blocks)]
-        
-        # Adaptive learning rate parameters
-        if adaptive_lr:
-            lr = torch.ones(n_channels, device=self.device)
-            momentum = torch.zeros_like(mtrfs)
-            beta = 0.9  # Momentum coefficient
-        
-        # Track convergence
-        prev_loss = float('inf')
-        patience = 5
-        patience_counter = 0
-        
-        # Main Block Coordinate Descent loop
-        for iteration in range(max_iter):
-            total_change = 0.0
-            
-            # Shuffle blocks for better convergence
-            block_order = torch.randperm(len(blocks))
-            
-            for block_idx in block_order:
-                block = blocks[block_idx]
-                
-                # Current block variables
-                X_block = XTX[block, :]
-                y_block = XTy[block, :]
-                mtrfs_block = mtrfs[block, :]
-                
-                # Compute residual for this block
-                residual = y_block - X_block @ mtrfs
-                
-                # Add back the contribution of current block
-                residual += X_block[:, block] @ mtrfs_block
-                
-                # Solve for this block using regularized least squares
-                A_block = X_block[:, block] + alpha * torch.eye(block.stop - block.start, device=self.device)
-                
-                # Use Cholesky decomposition for positive definite systems (faster than general solve)
-                try:
-                    L = torch.linalg.cholesky(A_block)
-                    new_mtrfs_block = torch.cholesky_solve(residual, L)
-                except:
-                    # Fallback to general solver if Cholesky fails
-                    new_mtrfs_block = torch.linalg.solve(A_block, residual)
-                
-                # Apply adaptive learning rate and momentum
-                if adaptive_lr:
-                    change = new_mtrfs_block - mtrfs_block
-                    momentum[block, :] = beta * momentum[block, :] + (1 - beta) * change
-                    mtrfs[block, :] = mtrfs_block + lr.unsqueeze(0) * momentum[block, :]
-                    
-                    # Adapt learning rate based on improvement
-                    improvement = torch.norm(change, dim=0)
-                    lr = torch.where(improvement > 0.1, lr * 1.05, lr * 0.95)  # Adaptive adjustment
-                    lr = torch.clamp(lr, 0.1, 2.0)  # Keep reasonable bounds
-                else:
-                    mtrfs[block, :] = new_mtrfs_block
-                
-                total_change += torch.norm(new_mtrfs_block - mtrfs_block).item()
-            
-            # Check convergence
-            if iteration % 5 == 0:  # Check every 5 iterations to save computation
-                current_loss = total_change / n_blocks
-                
-                if abs(prev_loss - current_loss) < tol:
-                    patience_counter += 1
-                    if patience_counter >= patience:
-                        break
-                else:
-                    patience_counter = 0
-                
-                prev_loss = current_loss
-        
-        # Transform back to original space if using low-rank approximation
-        if use_low_rank:
-            mtrfs = V @ mtrfs
-            del V, X_compressed
-        
-        # Store solution for next warm start
-        self._last_block_solution = mtrfs.detach().clone()
-        
-        # Predictions
-        y_predicted = X_pred @ mtrfs
-        
-        # Clean up
-        del XTX, XTy
-        
-        if return_coefs:
-            return y_predicted, mtrfs
-        else:
-            return y_predicted    
 class ReceptiveFieldAdaptation:
     def __init__(
         self, 
@@ -2287,3 +1176,594 @@ class TimeDelayingRidgeRegression(TimeDelayingRidge):
     #     plt.figure()
     #     plt.plot(mtrfs.detach().cpu().numpy().mean(axis=(1,2)))
     #     plt.show()
+        # def fit(
+    #     self, 
+    #     stims:np.ndarray, 
+    #     eeg:np.ndarray
+    #     )->None:
+    #     """
+    #     Fit the TorchMtrf model to the given stimuli and EEG data.
+
+    #     This method constructs the design matrix from the stimuli, applies the relevant indexes,
+    #     and separates the data into training and testing sets. It then standardizes and normalizes
+    #     the data, and fits a Ridge regression model to the training data. If validation is enabled,
+    #     it further splits the training data into training and validation sets and fits the model
+    #     accordingly.
+
+    #     Parameters
+    #     ----------
+    #     stims : np.ndarray
+    #         The input stimuli data, shape (n_samples, n_features).
+    #     eeg : np.ndarray
+    #         The EEG response data, shape (n_samples, n_channels).
+
+    #     Returns
+    #     -------
+    #     None
+
+    #     Raises
+    #     ------
+    #     ValueError
+    #         If the input data shapes are not compatible with the model.
+    #     """
+    #     stims = torch.tensor(stims[self.relevant_indexes]).to(torch.float32).to(self.device)
+    #     X_train = stims[self.train_indexes]
+    #     X_pred = stims[self.test_indexes]
+    #     del stims
+    #     n_features = X_train.shape[1]
+
+    #     # Get relevant indexes and transform to device, if available. If not, transform to CPU
+    #     try:
+    #         y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to(self.device)
+    #         del eeg
+    #         y_train = y_temp[self.train_indexes]
+    #         y_test = y_temp[self.test_indexes]
+    #     except:
+    #         X_train = X_train.cpu()
+    #         X_pred =  X_pred.cpu()
+            
+    #         y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to('cpu')
+    #         del eeg            
+    #         y_train = y_temp[self.train_indexes]
+    #         y_test = y_temp[self.test_indexes]
+    #     del y_temp
+        
+    #     if self.validation:
+    #         del X_pred, y_test
+            
+    #         # Make split for validation: validation sets, fixing the train percent of data
+    #         train_percent = .8
+    #         self.train_cutoff = int(train_percent * len(self.train_indexes))
+    #         try:
+    #             X_train_for_val = X_train[:self.train_cutoff]
+    #             X_val = X_train[self.train_cutoff:]
+    #             del X_train
+    #             y_train_for_val = y_train[:self.train_cutoff]
+    #             y_val = y_train[self.train_cutoff:]
+    #             del y_train
+    #         except:
+    #             X_train = X_train.cpu()
+    #             y_train = y_train.cpu()
+                
+    #             X_train_for_val = X_train[:self.train_cutoff]
+    #             X_val = X_train[self.train_cutoff:]
+    #             del X_train
+    #             y_train_for_val = y_train[:self.train_cutoff]
+    #             y_val = y_train[self.train_cutoff:]
+    #             del y_train
+                        
+    #         # Standarize and normalize 
+    #         X_train_for_val, y_train_for_val, X_pred, y_val = self._standarize_normalize(
+    #             X_train=X_train_for_val, 
+    #             y_train=y_train_for_val, 
+    #             X_pred=X_val, 
+    #             y_test=y_val
+    #         )
+    #         correlations = torch.zeros(
+    #             len(self.alpha), 
+    #             device=self.device, 
+    #             dtype=torch.float32
+    #         )
+    #         root_mean_square_error = torch.zeros(
+    #             len(self.alpha), 
+    #             device=self.device, 
+    #             dtype=torch.float32
+    #         )
+    #         correlations_train = torch.zeros(
+    #             len(self.alpha), 
+    #             device=self.device, 
+    #             dtype=torch.float32
+    #         )
+    #         root_mean_square_error_train = torch.zeros(
+    #             len(self.alpha), 
+    #             device=self.device, 
+    #             dtype=torch.float32
+    #         )
+    #         trfs = torch.zeros(
+    #             len(self.alpha), 
+    #             len(config.delays), 
+    #             device=self.device, 
+    #             dtype=torch.float32
+    #         )
+            
+    #         for i_alpha, alph in tqdm(enumerate(self.alpha), total=len(self.alpha), desc='Sweeping progress', bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
+
+    #             # Fit the model
+    #             mtrfs = self._solver(
+    #                 method=self.method,
+    #                 alpha=alph, 
+    #                 X_train=X_train_for_val, 
+    #                 y_train=y_train_for_val
+    #             )
+    #             y_predicted = X_pred @ mtrfs
+    #             y_predicted_train = X_train_for_val @ mtrfs
+                
+    #             # Compute correlation
+    #             try:
+    #                 correlations[i_alpha] = self._compute_correlation(
+    #                     y_1=y_predicted,
+    #                     y_2=y_val
+    #                 )
+    #             except RuntimeWarning:
+    #                 correlations[i_alpha] = 0
+    #             try:
+    #                 correlations_train[i_alpha] = self._compute_correlation(
+    #                     y_1=y_predicted_train,
+    #                     y_2=y_train_for_val
+    #                 )
+    #             except RuntimeWarning:
+    #                 correlations_train[i_alpha] = 0
+                
+    #             root_mean_square_error[i_alpha] = torch.sqrt(torch.pow(y_predicted - y_val, 2).mean(dim=0)).mean(dim=0)
+    #             root_mean_square_error_train[i_alpha] = torch.sqrt(torch.pow(y_predicted_train - y_train_for_val, 2).mean(dim=0)).mean(dim=0)
+    #             trfs[i_alpha] = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1).mean(dim=0).mean(dim=0) # shape n_chans, feats, delays
+    #         del X_train_for_val, y_train_for_val, y_predicted, y_val, X_pred
+    #         return trfs.detach().cpu().numpy(), correlations.detach().cpu().numpy(), root_mean_square_error.detach().cpu().numpy(), correlations_train.detach().cpu().numpy(), root_mean_square_error_train.detach().cpu().numpy()
+    #     else:
+    #         if self.shuffle:
+    #             iterations = np.arange(config.random_permutations)
+    #             number_of_indices = X_train.shape[0]
+                
+    #             coefs = torch.zeros(
+    #                 size=(config.random_permutations, config.info_mne['nchan'], n_features, len(config.delays)), 
+    #                 device=self.device, 
+    #                 dtype=torch.float32
+    #                 )
+    #             correlations = torch.zeros(
+    #                 size=(config.random_permutations, config.info_mne['nchan']), 
+    #                 device=self.device, 
+    #                 dtype=torch.float32
+    #                 )
+    #             root_mean_square_error = torch.zeros(
+    #                 size=(config.random_permutations, config.info_mne['nchan']),
+    #                 device=self.device,
+    #                 dtype=torch.float32
+    #                 )
+                
+    #             X_train, y_train, X_pred, y_test = self.standarize_normalize(
+    #                 X_train=X_train, 
+    #                 X_pred=X_pred, 
+    #                 y_train=y_train, 
+    #                 y_test=y_test
+    #             )
+    #             # Shuffle the data, by requierment of random permutations
+    #             for s in tqdm(iterations, desc='Performing permutations', bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
+    #                 X_train_p = X_train[torch.randperm(number_of_indices)] # TODO Shufflear y en vez de X
+                   
+    #                 # Fit the model
+    #                 mtrfs = self._solver(
+    #                     method=self.method,
+    #                     alpha=self.alpha, 
+    #                     X_train=X_train_p, 
+    #                     y_train=y_train
+    #                 )
+    #                 del X_train_p
+    #                 y_predicted = X_pred @ mtrfs
+    #                 coefs[s] = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1)
+    #                 del mtrfs
+                    
+    #                 try:
+    #                     correlations[s] = self._compute_correlation(
+    #                         y_1=y_predicted,
+    #                         y_2=y_test
+    #                     )
+    #                 except RuntimeWarning:
+    #                     correlations[s] = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
+                    
+    #                 root_mean_square_error[s] = torch.sqrt(torch.pow(y_predicted - y_test, 2).mean(dim=0))
+                    
+    #             del X_train, y_train, X_pred, y_test, y_predicted
+    #             return coefs.cpu().numpy(), correlations.cpu().numpy(), root_mean_square_error.cpu().numpy()
+    #         else:
+    #             # Standarize and normalize
+    #             X_train, y_train, X_pred, y_test = self._standarize_normalize(
+    #                 X_train=X_train, 
+    #                 X_pred=X_pred, 
+    #                 y_train=y_train, 
+    #                 y_test=y_test
+    #             )
+        
+    #             # Fit the model 
+    #             mtrfs = self._solver( # delays, F, C
+    #                 method=self.method,
+    #                 alpha=self.alpha, 
+    #                 X_train=X_train, 
+    #                 y_train=y_train
+    #             )
+    #             del X_train, y_train
+                
+    #             L = X_pred.shape[0]
+                
+    #             mtrfs_padded = torch.zeros(
+    #                 size=(L, mtrfs.shape[1], mtrfs.shape[2]), 
+    #                 device=self.device, 
+    #                 dtype=torch.float32
+    #             )
+               
+    #             mtrfs_padded[
+    #                 L//2+config.delays[0]-1:L//2+config.delays[-1]
+    #             ] = mtrfs
+                
+    #             y_predicted = fftconvolve(
+    #                 X_pred.T.unsqueeze(1), 
+    #                 mtrfs_padded.permute(1, 2, 0), 
+    #                 mode='same' 
+    #             ).sum(dim=0).T
+    #             y_test_filtered = cheby2_bandpass_filter_torch(
+    #                 y_test, 
+    #                 lowcut=1,
+    #                 highcut=15, 
+    #                 fs=config.sr,
+    #                 order=4,
+    #                 rs=20,
+    #                 device=self.device
+    #             )
+    #             # from IPython import embed; embed()
+    #             # import matplotlib.pyplot as plt
+    #             # import matplotlib
+    #             # matplotlib.use('TkAgg')
+    #             # plt.figure(figsize=(10, 5))
+    #             # plt.plot(y_predicted[:1000].cpu().numpy().mean(1), label='Predicted')
+    #             # plt.plot(y_test_filtered[:1000].cpu().numpy().mean(1), label='True')
+    #             # plt.legend()
+    #             # plt.title('Predicted vs True')
+    #             # plt.xlabel('Time')
+    #             # plt.ylabel('Amplitude')
+    #             # plt.show()
+    #             del X_pred, y_test
+    #             if torch.all(y_predicted==0):
+    #                 print(f'\n\t\tFold prediction is null, this may be due to the sparsity of weights. If there are\n\t\ttoo many zeros when making product with selected stimuli, the product may be null.')
+                
+    #             # Store mtrfs
+    #             mtrfs = mtrfs.permute(2, 1, 0) # shape n_chans, feats, delays
+
+    #             # Calculates and saves correlation of each channel # TODO HACER SOLO DE 0  EN ADELANTE
+    #             try:
+    #                 correlation_matrix = self._compute_correlation(
+    #                     y_1=y_predicted,
+    #                     y_2=y_test_filtered
+    #                 )
+    #             except RuntimeWarning:
+    #                 correlation_matrix = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
+
+    #             # Calculates and saves root mean square error of each channel
+    #             root_mean_square_error = torch.sqrt(torch.pow(y_predicted - y_test_filtered, 2).mean(dim=0))
+    #             return mtrfs.cpu().numpy(), correlation_matrix.cpu().numpy(), root_mean_square_error.cpu().numpy()
+
+            # dtype = torch.complex64
+            # N, F = X_train.shape
+            # C = y_train.shape[1]
+
+            # # FFT 
+            # X_f = torch.fft.rfft(X_train, dim=0).to(dtype)     # (N, F)
+            # Y_f = torch.fft.rfft(y_train, dim=0).to(dtype)     # (N, C)
+
+            # # Frecuencias asociadas
+            # freqs = torch.fft.rfftfreq(N, d=1/config.sr).to(self.device)   # (N,)
+            # # fmin, fmax = band_freq(band='Theta')
+            # fmin, fmax = 1, 15
+
+            # # Frecuencias deseadas
+            # mask = (freqs >= fmin) & (freqs <= fmax)
+            # K = mask.sum().item()
+            # freqs_band = freqs[mask]  # (K,)
+
+            # TRF_f_band = torch.zeros((N//2+1, F, C), dtype=dtype, device=self.device)  # (K, F, C)
+            # # for f_i in mask.nonzero(as_tuple=True)[0]:
+            # #     X_f_i = X_f[f_i].unsqueeze(0)      # (1, F)
+            # #     Y_f_i = Y_f[f_i].unsqueeze(0)      # (1, C)
+
+            # #     # 
+            # #     A = torch.matmul(
+            # #         X_f_i.conj().transpose(0, 1), # (F, 1)
+            # #         X_f_i # (1, F)
+            # #     )  # (F, F)
+            # #     A += alpha * torch.eye(F, dtype=dtype, device=self.device)  # (F, F)
+
+            # #     B = torch.matmul(
+            # #         X_f_i.conj().transpose(0,1), # (F, 1)
+            # #         Y_f_i # (1, C)
+            # #     )   # (F, C)
+
+            # #     # Resolver para cada frecuencia
+            # #     TRF_f_band[f_i] = torch.linalg.solve(A, B)   # (F, C)
+            # # dtype = torch.complex64
+            # # N, F = X_train.shape
+            # # C = y_train.shape[1]
+
+            # # # FFT 
+            # # X_f = torch.fft.rfft(X_train, dim=0).to(dtype)     # (N, F)
+            # # Y_f = torch.fft.rfft(y_train, dim=0).to(dtype)     # (N, C)
+
+            # # # Frecuencias asociadas
+            # # freqs = torch.fft.rfftfreq(N, d=1/config.sr).to(self.device)   # (N,)
+            # # fmin, fmax = 1, 15
+
+            # # # Frecuencias deseadas
+            # # mask = (freqs >= fmin) & (freqs <= fmax)
+            # # K = mask.sum().item()
+            # # freqs_band = freqs[mask]  # (K,)
+
+            # # TRF_f_band = torch.zeros((N//2+1, F, C), dtype=dtype, device=self.device)  # (K, F, C)
+            # # for f_i in tqdm(mask.nonzero(as_tuple=True)[0], total=K):
+            # #     X_f_i = X_f[f_i].unsqueeze(0)      # (1, F)
+            # #     A = torch.matmul(
+            # #         X_f_i.conj().transpose(0, 1), # (F, 1)
+            # #         X_f_i # (1, F)
+            # #     )  # (F, F)
+            # #     A += alpha * torch.eye(F, dtype=dtype, device=self.device)  # (F, F)
+
+            # #     for c in range(C):
+            # #         Y_f_ic = Y_f[f_i, c].unsqueeze(0).unsqueeze(1)  # (1, 1)
+            # #         B = torch.matmul(
+            # #             X_f_i.conj().transpose(0,1), # (F, 1)
+            # #             Y_f_ic # (1, 1)
+            # #         ).squeeze(-1)   # (F,)
+            # #         # Resolver para cada canal y frecuencia
+            # #         TRF_f_band[f_i, :, c] = torch.linalg.solve(A, B)   # (F,)
+            # # if F!=1:
+            # #     X_f_band = X_f[mask].transpose(0,1).unsqueeze(0)      # (1, F, K)
+            # #     Y_f_band = Y_f[mask].transpose(0,1).unsqueeze(0)      # (1, C, K)
+            # #     A = torch.matmul(
+            # #         X_f_band.conj().transpose(0, 1).permute(2,0,1), # (F, 1, K) -> (K, F, 1)
+            # #         X_f_band.permute(2,0,1) # (1, F, K) -> (K, 1, F)
+            # #     )  # (K, F, F) 
+            # #     A += alpha * torch.eye(F, dtype=dtype, device=self.device).unsqueeze(-1)  # (F, F, K)+(F, F, 1)=(F, F, K)
+
+            # #     B = torch.matmul(
+            # #         X_f_band.conj().transpose(0,1).permute(2,0,1), # (F, 1, K) -> (K, F, 1)
+            # #         Y_f_band.permute(2,0,1) # (1, C, K) -> (K, 1, C)
+            # #     )   # (K, F, C) 
+
+            # #     # Resolver para cada frecuencia
+            # #     TRF_f_band[mask] = torch.linalg.solve(A, B)   # (K, F, C)
+            # # else:
+            # #     X_f_band = X_f[mask] # (k, 1)
+            # #     Y_f_band = Y_f[mask] # (k, 1)
+            # #     # A: (K, 1, 1), B: (K, 1, C)
+            # #     A = (X_f_band.conj() * X_f_band).sum(dim=1, keepdim=True).unsqueeze(-1)  # (K, 1, 1)
+            # #     A += alpha * torch.eye(1, dtype=dtype, device=self.device).unsqueeze(0)  # (K, 1, 1)
+
+            # #     # B: (K, 1, C)
+            # #     B = torch.matmul(
+            # #         X_f_band.conj().unsqueeze(2),  # (K, 1, 1)
+            # #         Y_f_band.unsqueeze(1)          # (K, 1, C)
+            # #     )  # (K, 1, C)
+
+            # #     TRF_f_band[mask] = torch.linalg.solve(A, B)  # (K, 1, C)
+            # X_f_band = X_f[mask]  # (K, F)
+            # Y_f_band = Y_f[mask]  # (K, C)
+
+            # # A: (K, F, F)
+            # A = torch.matmul(
+            #     X_f_band.unsqueeze(2).conj(),  # (K, F, 1)
+            #     X_f_band.unsqueeze(1)          # (K, 1, F)
+            # )  # (K, F, F)
+            # A += alpha * torch.eye(F, dtype=dtype, device=self.device).unsqueeze(0)  # (K, F, F)
+
+            # # B: (K, F, C)
+            # B = torch.matmul(
+            #     X_f_band.unsqueeze(2).conj(),  # (K, F, 1)
+            #     Y_f_band.unsqueeze(1)          # (K, 1, C)
+            # )  # (K, F, C)
+
+            # # Solve for each frequency (batched)
+            # TRF_f_band[mask] = torch.linalg.solve(A, B)  # (K, F, C)
+
+            # # Ventana de Hann
+            # # win = torch.hann_window(K, periodic=True, device=self.device)  # (K,)
+            # # TRF_f_band[mask] *= win[:, None, None]
+
+            #             # Transform back to time domain
+            # TRF_t_band = torch.fft.irfft(TRF_f_band, axis=0).real   # (N, F, C)
+            # # from IPython import embed; embed()
+
+            # return TRF_t_band[config.delays%(N-1)] # delays, F, C
+                        
+            # import mne
+            # import matplotlib.pyplot as plt
+            # import matplotlib
+            # matplotlib.use('TkAgg')
+            # # # TRF_f_band[mask] *= win[:, None, None]
+            # # # Ventana de Hann
+            # # # win = torch.hann_window(K, periodic=True, device=self.device)  # (K,)
+            # # # TRF_f_band[mask] *= win[:, None, None]
+            # # TRF_t_band = torch.fft.irfft(TRF_f_band, axis=0).real    # (K, F, C)
+            # delays = np.arange(int(np.round(-.2 * config.sr)), int(np.round(.6 * config.sr) + 1))
+            # mtrfs = TRF_t_band.cpu().numpy().mean(axis=1) # shape n_chans, feats, delays
+            # # mtrfs = TRF_t_band.cpu().numpy().mean(axis=2) # shape n_chans, feats, delays
+            # evoked = mne.EvokedArray(
+            #     data=mtrfs[delays%(N-1)].T, 
+            #     info=config.info_mne
+            # )     
+            # evoked.shift_time(
+            #     delays[0]/config.sr
+            # )
+
+
+
+
+            # fig, ax = plt.subplots(1, 1, figsize=(5, 5))
+            # evoked_plot = evoked.plot(
+            #     scalings={'eeg':1},
+            #     zorder='std',
+            #     time_unit='ms',
+            #     show=False,
+            #     spatial_colors=True,
+            #     # unit=False,
+            #     gfp=True,
+            #     units='mTRFs (U.A)',
+            #     axes=ax
+            # )
+            # ax.grid()
+            # fig.show()
+            # fig, ax = plt.subplots(1, 1, figsize=(5, 5))
+            # mtrfs = TRF_t_band.cpu().numpy().mean(axis=2) # shape n_chans, feats, delays
+            # weights = mtrfs[delays%(N-1), :] # n_feats, n_delays
+
+            # # Perform clustering
+            # order = None
+            # null_indexes = None
+
+            # # Make color mesh
+            # number_of_ticks = weights.shape[0]
+            # # im = ax.pcolormesh(
+            # #     delays/config.sr * 1000, 
+            # #     np.arange(number_of_ticks), 
+            # #     weights, 
+            # #     cmap='RdBu_r', 
+            # #     shading='auto',
+            # #     vmin=-np.abs(weights).max(),
+            # #     vmax=np.abs(weights).max()
+            # #     )
+            # im = ax.pcolormesh(
+            #     delays/config.sr * 1000, 
+            #     np.arange(weights.shape[1]),  # O el eje correcto para tu segundo eje
+            #     weights.T,                    # Transponer si quieres (n_delays, n_feats)
+            #     cmap='RdBu_r', 
+            #     shading='auto',
+            #     vmin=-np.abs(weights).max(),
+            #     vmax=np.abs(weights).max()
+            # )
+            # fig.colorbar(
+            #     im,
+            #     ax=ax, 
+            #     orientation='horizontal', 
+            #     shrink=1, 
+            #     label='Amplitude (a.u.)', 
+            #     aspect=15
+            #     )
+            # fig.show()
+
+#             Ventana de Hann
+#             win = torch.hann_window(K, periodic=True, device=self.device)  # (K,)
+#             TRF_f_band[mask] *= win[:, None, None]
+#             return torch.fft.irfft(TRF_f_band, axis=0).real    # (T, F, C)
+            
+
+
+                            
+#             from IPython import embed; embed()
+#             import mne
+#             import matplotlib.pyplot as plt
+#             import matplotlib
+#             matplotlib.use('TkAgg')
+#             # TRF_f_band[mask] *= win[:, None, None]
+
+#             TRF_t_band = torch.fft.irfft(TRF_f_band, axis=0).real    # (T, F, C)
+#             delays = np.arange(int(np.round(-.4 * config.sr)), int(np.round(.8 * config.sr) + 1))
+#             mtrfs = TRF_t_band.cpu().numpy().mean(axis=1) # shape n_chans, feats, delays
+#             evoked = mne.EvokedArray(
+#                     data=mtrfs[delays%(N-1)].T, 
+#                     info=config.info_mne
+#                 )     
+#             evoked.shift_time(
+#                 delays[0]/config.sr
+#             )
+#             fig, ax = plt.subplots(1, 1, figsize=(5, 5))
+#             evoked_plot = evoked.plot(
+#                 scalings={'eeg':1},
+#                 zorder='std',
+#                 time_unit='ms',
+#                 show=False,
+#                 spatial_colors=True,
+#                 # unit=False,
+#                 gfp=True,
+#                 units='mTRFs (U.A)',
+#                 axes=ax
+#             )
+#             ax.grid()
+#             fig.show()
+#             mtrfs_f = h_full.cpu().numpy().real.mean(axis=1).mean(axis=1) # shape n_chans, feats, delays
+#             mtrfs_f = mtrfs.cpu().numpy().real.mean(axis=1).mean(axis=1) # shape n_chans, feats, delays
+#             center = mtrfs_f.shape[0] // 2
+#             left = center - 20000
+#             right = center + 20000
+
+#             import matplotlib.pyplot as plt
+#             import matplotlib
+#             matplotlib.use('TkAgg')
+#             plt.figure()
+#             m=1000
+#             plt.plot(
+#                 delays*1e3/config.sr,
+#                 # mtrfs[config.delays%(N-1)],  # mtrfs_f[config.delays%N],
+#                 mtrfs[delays%(N-1)], 
+#                 # mtrfs,
+                
+#                 label='Real part'
+#             )
+#             plt.title('MTRFs in time domain')
+#             plt.xlabel('Time ms')    
+#             plt.ylabel('Amplitude')
+#             plt.legend()
+#             plt.show()
+#             IFFT → Temporal
+#             TRF_t = torch.fft.ifft(TRF_f_full, dim=0).real    # (T, F, C)
+#             return TRF_t
+#         # Estimación de H_f (shape: number_of_samples x D x C) freqsxdimensionsxchanns
+#             numerator = X_f[:, :, None].conj() * Y_f[:, None, :]        # (number_of_samples, D, C)
+#             denominator = (X_f.real ** 2 + X_f.imag ** 2).sum(dim=1, keepdim=True) + self.alpha*N  # (number_of_samples, 1) # TODO chequear la regularización
+#             H_f = numerator / denominator[:, None, :]                   # (number_of_samples, D, C)
+#             # numerator = X_f.unsqueeze(-1).conj() * Y_f.unsqueeze(1)
+#             del X_f, Y_f
+#             # H_f = torch.linalg.solve(denominator,numerator)
+            
+#             del numerator, denominator
+
+#             # IFFT para recuperar TRF en el tiempo
+#             # h_full = np.fft.ifft(H_f, axis=0).real  # (number_of_samples, D, C)
+#             h_full = torch.fft.irfft(H_f, n=N, dim=0).real
+
+#             # Alineación temporal: centramos la TRF en number_of_samples=0
+#             # h_full = np.roll(h_full, -number_of_samples // 2, axis=0)  # shift temporal
+#             # mtrfs = h_full[-number_of_samples // 2+config.delays[0]: -number_of_samples // 2+ config.delays[-1], :, :]  # (L, D, C)
+#             indices = (config.delays % N)  
+#             mtrfs = h_full[indices, :]
+            
+#             X_f_band = X_f[mask]      # (K, F)
+#             Y_f_band = Y_f[mask]      # (K, C)
+
+#             # Producto externo para cada frecuencia
+#             A = torch.matmul(
+#                 X_f_band.unsqueeze(2).conj(), # (K, F, 1)
+#                 X_f_band.unsqueeze(1) # (K, 1, F)
+#             )  # (K, F, F)
+#             A += alpha * torch.eye(F, dtype=dtype, device=self.device).unsqueeze(0)  # (K, F, F)
+
+#             B = torch.matmul(
+#                 X_f_band.unsqueeze(2).conj(), # (K, F, 1)
+#                 Y_f_band.unsqueeze(1) # (K, 1, C)
+#             )   # (K, F, C)
+
+#             # Resolver para cada frecuencia
+#             TRF_f_band = torch.linalg.solve(A, B)            # (K, F, C)
+
+#             # Ventana de Hann
+#             win = torch.hann_window(K, periodic=True, device=self.device)  # (K,)
+#             TRF_f_band *= win[:, None, None]
+
+#             # Reconstruir espectro completo
+#             TRF_f_full = torch.zeros((N, F, C), dtype=dtype, device=self.device)
+#             TRF_f_full[mask] = TRF_f_band
+            

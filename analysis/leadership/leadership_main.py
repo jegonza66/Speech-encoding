@@ -14,7 +14,7 @@ import config, utils.plot as plot
 
 # Notification bot
 from utils.notification_telegram import tel_message, generate_completion_message
-from telegram_config import API_TOKEN, CHAT_ID
+from utils.telegram_config import API_TOKEN, CHAT_ID
 
 
 # ============

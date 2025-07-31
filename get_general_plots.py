@@ -31,9 +31,13 @@ def main(
     correlation_per_channel_subjects: np.ndarray, # n_subj, n_chans
     null_correlation_per_channel_subjects: np.ndarray, # n_chans
     pvalue_tfce: Union[None, np.ndarray] = None, # n_chans
+    same_validation_subjects: bool = False
     )->None:
     """
     Main function to generate general plots for the project.
+    
+    same_validation_subjects: bool
+        If False, doesn't plot weight plots since it's not fair to use averages
     
     Returns:
         str: Path to the generated plot.
@@ -117,31 +121,31 @@ def main(
                 error_msg = f"Sesión {session}, Sujeto {subject+1}: Error en topomapas - {str(e)}"
                 all_errors.append(error_msg)
                 logger.error(error_msg)
-
-            try:
-                # Plot weights
-                plot.channel_weights(
-                    info=config.info_mne, 
-                    save=config.save_figures, 
-                    save_path=path_figures, 
-                    average_correlation=average_correlation_subjects[subject],
-                    average_rmse=average_rmse_subjects[subject], 
-                    best_alpha=alphas_subjects[subject], 
-                    average_weights=average_weights_subjects[subject], 
-                    times=config.times,
-                    n_feats=n_feats, 
-                    stim=stim, 
-                    session=session, 
-                    subject=subject, 
-                    hierarchical_clustering=config.hierarchical_clustering,
-                    display_interactive_mode=config.display_interactive_mode, 
-                    no_figures=config.no_figures
-                    )
-                logger.debug(f"✓ Pesos completados para sesión {session}, sujeto {subject_in_session+1}")
-            except Exception as e:
-                error_msg = f"Sesión {session}, Sujeto {subject+1}: Error en pesos - {str(e)}"
-                all_errors.append(error_msg)
-                logger.error(error_msg)
+            if same_validation_subjects:
+                try:
+                    # Plot weights
+                    plot.channel_weights(
+                        info=config.info_mne, 
+                        save=config.save_figures, 
+                        save_path=path_figures, 
+                        average_correlation=average_correlation_subjects[subject],
+                        average_rmse=average_rmse_subjects[subject], 
+                        best_alpha=alphas_subjects[subject], 
+                        average_weights=average_weights_subjects[subject], 
+                        times=config.times,
+                        n_feats=n_feats, 
+                        stim=stim, 
+                        session=session, 
+                        subject=subject, 
+                        hierarchical_clustering=config.hierarchical_clustering,
+                        display_interactive_mode=config.display_interactive_mode, 
+                        no_figures=config.no_figures
+                        )
+                    logger.debug(f"✓ Pesos completados para sesión {session}, sujeto {subject_in_session+1}")
+                except Exception as e:
+                    error_msg = f"Sesión {session}, Sujeto {subject+1}: Error en pesos - {str(e)}"
+                    all_errors.append(error_msg)
+                    logger.error(error_msg)
     
     logger.info("📈 Generando gráficos promedio de todos los sujetos...")
     
@@ -149,6 +153,7 @@ def main(
     config.no_figures=True if (total_number_of_subjects!=18) else config.no_figures
 
     logger.debug("✓ Generando topomapas promedio de métricas...")
+    
     # Plot average topomap metrics across each subject
     plot.average_topomap(
         average_coefficient_subjects=average_rmse_subjects, 
@@ -172,22 +177,6 @@ def main(
         no_figures=config.no_figures
         ) 
 
-    logger.debug("✓ Generando topomapa de tiempos relevantes...")
-    # Plot topomap with relevant times
-    plot.topo_map_relevant_times(
-        average_weights_subjects=average_weights_subjects, 
-        info=config.info_mne, 
-        n_feats=n_feats,
-        band=band,
-        stim=stim, 
-        times=config.times,
-        sample_rate=config.sr, 
-        save_path=path_figures, 
-        save=config.save_figures, 
-        display_interactive_mode=config.display_interactive_mode, 
-        no_figures=config.no_figures
-        )
-
     logger.debug("✓ Generando topomapa de correlación por canal...")
     # Plot channel-wise correlation topomap
     plot.channel_wise_correlation_topomap(
@@ -199,22 +188,36 @@ def main(
         display_interactive_mode=config.display_interactive_mode, 
         no_figures=config.no_figures
         )
-
-    logger.debug("✓ Generando gráfico de pesos promedio de regresión...")
-    # Plot weights
-    plot.average_regression_weights(
-        average_weights_subjects=average_weights_subjects, 
-        info=config.info_mne, 
-        save=config.save_figures, 
-        save_path=path_figures, 
-        hierarchical_clustering=config.hierarchical_clustering,
-        times=config.times, 
-        n_feats=n_feats, 
-        stim=stim, 
-        display_interactive_mode=config.display_interactive_mode,
-        no_figures=config.no_figures
-        )
-
+    if same_validation_subjects:
+        logger.debug("✓ Generando gráfico de pesos promedio de regresión...")
+        # Plot weights
+        plot.average_regression_weights(
+            average_weights_subjects=average_weights_subjects, 
+            info=config.info_mne, 
+            save=config.save_figures, 
+            save_path=path_figures, 
+            hierarchical_clustering=config.hierarchical_clustering,
+            times=config.times, 
+            n_feats=n_feats, 
+            stim=stim, 
+            display_interactive_mode=config.display_interactive_mode,
+            no_figures=config.no_figures
+            )
+        logger.debug("✓ Generando topomapa de tiempos relevantes...")
+        # Plot topomap with relevant times
+        plot.topo_map_relevant_times(
+            average_weights_subjects=average_weights_subjects, 
+            info=config.info_mne, 
+            n_feats=n_feats,
+            band=band,
+            stim=stim, 
+            times=config.times,
+            sample_rate=config.sr, 
+            save_path=path_figures, 
+            save=config.save_figures, 
+            display_interactive_mode=config.display_interactive_mode, 
+            no_figures=config.no_figures
+            )
     logger.debug("✓ Generando matriz de correlación entre sujetos...")
     # Plot correlation matrix between subjects
     plot.correlation_matrix_subjects(
@@ -271,7 +274,7 @@ def main(
             coefficient_name='RMSE',
             no_figures=config.no_figures
             )
-    if config.perform_tfce:
+    if config.perform_tfce and same_validation_subjects:
         logger.info("✓ Generando gráfico de p-valores TFCE...")
         # Plot t and p values
         plot.plot_pvalue_tfce(

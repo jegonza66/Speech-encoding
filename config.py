@@ -1,12 +1,8 @@
 import numpy as np, mne
-experiment = 'dilib'
-#dilib
-# mne16
-# mne19
-# base
-figures_dir = f'figures_simulated/{experiment}'
-output_dir = f'output_simulated/{experiment}'
-saves_dir = f'saves_simulated/{experiment}'
+number_of_workers = 8
+saves_dir = 'saves'
+output_dir = 'output'
+figures_dir = 'figures'
 
 # Logging configuration
 LOG_LEVEL = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
@@ -16,16 +12,16 @@ LOG_DIR = "saves/detailed_logs"
 # ==========================================
 # SESSIONS, STIMULI, SITUATION AND EEG BANDS
 sessions = [
-            21,
-            22,
-            23,
-            24,
-            25,
-            26,
-            27,
-            29,
-            30
-            ]
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        29,
+        30
+]
 stimuli = [
         # # 'Mistakes-Separated_Control-Separated',
 
@@ -45,31 +41,33 @@ stimuli = [
         # 'Phonological_Phonemes',
         # 'Phonological_Phonemes_Spectrogram',
 
-        # # Simples
-        'Envelope',
+        # Simples
+        # 'Envelope',
         # 'Pitch-Log-Raw',
         # 'Spectrogram',
         # 'Mfccs',
         # 'Phonological',
         # 'Phonemes',
-        # 'Phonemes-Discrete',
-        # 'Phonemes-Frequency',
+        'Phonemes-Discrete',
+        'Phonemes-Frequency',
         # 'Phones-Discrete',
         # 'Phones',
-        # 'Jitter',
-        # 'Shimmer',
+        # # # 'Jitter', #TODO jitter y shimmer no los pudiste calcular bien
+        # # # 'Shimmer',
         # 'Wav2vec2' # TODO No esta bueno
 
         # # Simples but non-standard
         # 'Envelope2',
         # 'Phonological1',
         # 'Phonological2'
-        ]
+]
 situations = [
-        # 'External',
-        # 'Internal',
-        # 'External_BS', #TODO 
-        # 'Internal_BS',
+        # 'All',
+        'External',
+        'Internal',
+        'External_BS', #TODO 
+        'Internal_BS',
+        # 'External_Silence_100',
         # 'External_Silence_10',
         # 'External_Silence_20',
         # 'External_Silence_30',
@@ -79,54 +77,60 @@ situations = [
         # 'External_Silence_70',
         # 'External_Silence_80',
         # 'External_Silence_90',
-        # 'External_Silence_100',
-        'All'
-        ]
+]
 
 bands = [
-        # 'Delta',
-        'Theta',
-        # 'Alpha',
-        # 'Beta1',
-        # 'Beta2',
-        'All'
-        ]
+        'Delta', # 1-4 Hz
+        'Theta', # 4-8 Hz
+        'Alpha', # 8-13 Hz
+        'Beta', # 13-25 Hz # elegir qe se mantenha el ancho del filtro
+        'Broad', # 1-15 Hz
+        # 'All', # 1-40 Hz
+        # 'Beta1', # 13-19 Hz
+        # 'Beta2', # 19-25 Hz
+        # 'Unfiltered' # None
+]
 
 # ==========================================
 # LOADING/SAVING DATA, FIGURE CONFIGURATIONS
 praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
-display_interactive_mode, save_results, save_figures, no_figures = False, True, True, False
-figure_format = '.png'
+save_results, save_figures = True, True
+hierarchical_clustering = True
 just_load_data = False
-leadership_kind_of_subsampling = 'optimized_trials' #'ordered_trials' #'random_trials'
-tollerance = 0.1
+figure_format = '.png'
+display_interactive_mode, no_figures = False, False
 
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
-external_validation = True # whether to use External hyperparameter or the one that maximize specific condition
-use_gpu = True
+external_validation = False # whether to use External hyperparameter or the one that maximize specific condition
+same_validation_subjects = True # same hyperparameter for all subjects 
 statistical_test, perform_tfce = False, False
+use_gpu = True
 
-stims_preprocess, eeg_preprocess = 'Normalize', 'Standarize'
-model = 'mtrf_ridge_torch' # 'mtrf_ridge'
+stims_preprocess, eeg_preprocess = 'Standarize', 'Standarize'
+model = 'mtrf' # 'mtrf_ridge'
+solver = 'ridge' # "ridge-laplacian"
 
-causal_filter_eeg = True
-envelope_filter = None
 # ==============================
 # DEFAULT PENALIZATION PARAMETER
-correlation_limit_percentage, default_alpha, set_alpha = 0.01, 400, None
+correlation_limit_percentage = 0.05
+default_alpha, set_alpha = 400, 1000
 
 # ====================================================================
 # TFCE, T-TEST PARAMETERS, HIERARCHICAL_CLUSTERING and NUMBER OF FOLDS
 n_permutations, significance, number_of_jobs = 4096, .05, -1
-hierarchical_clustering = True
 n_folds = 10 # with 5 folds (remain 20% as validation set, then interchange to cross validate)
 
 # =====================
 # VALIDATION PARAMETERS
 min_order, max_order, steps, base_log = -4, 8, 48, 10
 val_correlation_limit_percentage = 0.01
-alphas_swept = np.logspace(min_order, max_order, steps, base=base_log)
+alphas_swept = np.logspace(
+        min_order, 
+        max_order, 
+        steps, 
+        base=base_log
+)
 alpha_step = np.diff(np.log(alphas_swept))[0]
 save_alphas = True
 
@@ -147,7 +151,7 @@ times = (delays/sr)
 # MODEL COMPARISON
 montage = mne.channels.make_standard_montage('biosemi128')
 info_mne = mne.create_info(ch_names=montage.ch_names[:], sfreq=sr, ch_types='eeg').set_montage(montage)
-relevant_channels = 12#None#12
+relevant_channels = 12 # None
 
 # ============
 # PLOTS LABELS
@@ -216,6 +220,12 @@ class Exp_info:
         self.phonological_labels1 = ['labial', 'lateral', 'open', 'vocalic', 'back', 'voice', 'nasal']
         self.phonological_labels2 = ['dental', 'consonantal', 'velar', 'flap', 'close', 'strident', 'continuant']
 
-# ==========================================
+# =============================
 # INSTANTIATE EXPERIMENTAL INFO
 exp_info = Exp_info()
+
+# ===========
+# OLD CONFIGS
+
+leadership_kind_of_subsampling = 'optimized_trials' #'ordered_trials' #'random_trials'
+tollerance = 0.1

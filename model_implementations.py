@@ -75,7 +75,9 @@ def fold_model(
             validation=False,
             fit_intercept=False,
             shuffle=True, 
-            alpha=alpha
+            alpha=alpha,
+            solver=config.solver
+
         )
             
         # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
@@ -96,6 +98,7 @@ def fold_model(
                 validation=True,
                 shuffle=False, 
                 alpha=alpha, 
+                solver=config.solver
                 )
         # Returns directly correlations per alpha
         return mtrf.fit(stims, eeg)
@@ -111,12 +114,12 @@ def fold_model(
                 validation=False,
                 shuffle=False,
                 alpha=alpha, 
-                n_jobs=1
+                n_jobs=1,
             )
             
         else:
             mtrf = TorchMtrf(
-                relevant_indexes=np.array(relevant_indexes),
+                relevant_indexes=np.array(relevant_indexes) if relevant_indexes is not None else None,
                 stims_preprocess=config.stims_preprocess, 
                 eeg_preprocess=config.eeg_preprocess,
                 train_indexes=train_indexes, 
@@ -126,11 +129,12 @@ def fold_model(
                 validation=False,
                 shuffle=False, 
                 alpha=alpha, 
+                solver=config.solver
             )
             
             # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
             weights, correlation_matrix, root_mean_square_error = mtrf.fit(stims, eeg) 
-        
+            
         # Perform statistical test
         if statistical_test:
             # Null Hypothesis (H0): There is no significant relationship between the predicted and actual EEG data. The test statistic (e.g., correlation or RMSE) follows the null distribution.

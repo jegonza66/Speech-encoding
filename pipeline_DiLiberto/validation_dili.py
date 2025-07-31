@@ -15,13 +15,13 @@ import config
 
 # Notofication bot
 from utils.notification_telegram import tel_message, generate_completion_message
-from telegram_config import API_TOKEN, CHAT_ID
+from utils.telegram_config import API_TOKEN, CHAT_ID
 
 # ============
 # RUN ANALYSIS
 # ============
 start_time = datetime.now()
-stim, band = 'Envelope', "All"
+stim, band = 'Envelope', "Theta"
 subjects = [1, 2, 3, 5, 6, 7, 8, 10, 11, 12, 13, 14, 16, 17, 18, 19]
 
 # Relevant paths
