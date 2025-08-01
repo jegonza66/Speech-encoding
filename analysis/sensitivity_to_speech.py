@@ -1,28 +1,23 @@
 # Standard libraries
-import os, numpy as np, pandas as pd, seaborn as sn
+import os
+os.environ["OMP_NUM_THREADS"] = "1"
+import numpy as np, pandas as pd
+from pathlib import Path
 from tqdm import tqdm
 
 # Specific libraries
-from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score, confusion_matrix, precision_score, recall_score, f1_score
+from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score, confusion_matrix, f1_score
 from sklearn.metrics import confusion_matrix
-from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from sklearn.manifold import MDS
 
-from scipy.spatial.distance import pdist, squareform
 from scipy.optimize import linear_sum_assignment
-from scipy.stats import gaussian_kde, mode
-
-import librosa
-import mne
+from scipy.stats import mode
 
 # Graphics
-from matplotlib.patches import PathPatch, Patch
-from matplotlib.transforms import Bbox
-from matplotlib.colors import to_rgb
+from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
 import matplotlib.pylab as pylab
-from matplotlib.path import Path
 import matplotlib.pyplot as plt
 from matplotlib import rc
 import scienceplots
@@ -47,11 +42,21 @@ pylab.rcParams.update(
     )
 
 # Relevant paths
-situation, band = 'External', 'Theta'
-figures_path = os.path.normpath(f'figures/{config.model}/{situation}/sensitivity_speech_latency/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
-correlation_path = os.path.normpath(f'output/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonemes-Discrete-Phonet.pkl')
-mtrfs_path = os.path.normpath(f'output/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonemes-Discrete-Phonet/total_weights_per_subject.pkl')
-
+situation, band = 'External-External', 'Broad'
+figures_path = Path(
+    f'figures/analysis/sensitivity_to_speech/{config.model}-{config.solver}/{situation}/{band}'
+)
+figures_path.mkdir(parents=True, exist_ok=True)
+correlation_path = Path(
+    f'output/{config.model}-{config.solver}/{situation}/correlations/same_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonemes-Frequency.pkl'
+)
+mtrfs_path = Path(
+    f'output/{config.model}-{config.solver}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/same_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonemes-Frequency/total_weights_per_subject.pkl'
+)
+results_path = Path(
+    f'output/{config.model}-{config.solver}/analysis/sensitivity_to_speech/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonemes-Frequency/'
+)
+results_path.mkdir(parents=True, exist_ok=True)
 # Hyper parameters
 NUMBER_OF_CLUSTERS = 2 
 KMEANS_NRUNS = 200
@@ -60,18 +65,18 @@ SIGNIFICANCE = .05
 
 # Read data n_subj, n_chans, n_feats, n_delays
 average_weights_subjects = load_pickle( 
-                        path=mtrfs_path
-                        )['average_weights_subjects']
+    path=mtrfs_path
+)['average_weights_subjects']
 average_correlation_across_subject = load_pickle(
-                                path=correlation_path
-                                )['average_correlation_subjects'].mean(axis=0)
+    path=correlation_path
+)['average_correlation_subjects'].mean(axis=0)
 
 # Take average across all subjects, then select specific channels and apply average across all the selection
 filter_best_chans = get_maximum_correlation_channels(average_correlation_across_subject=average_correlation_across_subject, number_of_lat_channels=config.relevant_channels)
 average_weights = average_weights_subjects.mean(axis=0)[filter_best_chans].mean(axis=0) # n_feats, n_delays
 
 # Classify labels for categorization
-phonemes = config.Exp_info().phonemes_phonet.copy()
+phonemes = config.exp_info.phonemes.copy()
 phonemes.remove('/sil/')
 
 # group = [
@@ -253,8 +258,7 @@ data = {
     'selected_window': selected_window,
     'keys_to_phonemes_labels': keys_to_phonemes_labels
 }
-os.makedirs(os.path.normpath(os.path.join('saves', 'mtrf_ridge_torch', 'External', 'sensitivity_speech_latency')), exist_ok=True)
-dump_pickle(path=os.path.normpath(os.path.join('saves', 'mtrf_ridge_torch', 'External', 'sensitivity_speech_latency', 'phonemes_discrete_phonet.pkl')), obj=data, rewrite=True)
+dump_pickle(path=os.path.normpath(results_path / 'phonemes_discrete.pkl'), obj=data, rewrite=True)
 
 # Graficamos
 fig, axes = plt.subplots(
@@ -332,7 +336,7 @@ for ax in fig.axes:
 
 # Ahora guardar la figura sin que se calcule el bbox de esos patches
 fig.savefig(
-    os.path.normpath(os.path.join('figures','figuras_tesis', 'resultados', 'mapa_fonemas.png')),
+    os.path.normpath(figures_path/ f'phonemes_discrete_map.png'),
     transparent=False,
     bbox_inches='tight',
     dpi=400
@@ -344,10 +348,22 @@ fig.show()
 # =====================================
 
 # Relevant paths
-situation, band = 'External', 'Theta'
-figures_path = os.path.normpath(f'figures/{config.model}/{situation}/sensitivity_speech_latency/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/')
-correlation_path = os.path.normpath(f'output/{config.model}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonological.pkl')
-mtrfs_path = os.path.normpath(f'output/{config.model}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonological/total_weights_per_subject.pkl')
+situation, band = 'External-External', 'Broad'
+figures_path = Path(
+    f'figures/analysis/sensitivity_to_speech/{config.model}-{config.solver}/{situation}/{band}'
+)
+figures_path.mkdir(parents=True, exist_ok=True)
+correlation_path = Path(
+    f'output/{config.model}-{config.solver}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonological.pkl'
+)
+mtrfs_path = Path(
+    f'output/{config.model}-{config.solver}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonological/total_weights_per_subject.pkl'
+)
+results_path = Path(
+    f'output/{config.model}-{config.solver}/analysis/sensitivity_to_speech/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonological/'
+)
+results_path.mkdir(parents=True, exist_ok=True)
+
 
 # Hyper parameters
 NUMBER_OF_CLUSTERS = 2 
@@ -368,7 +384,7 @@ filter_best_chans = get_maximum_correlation_channels(average_correlation_across_
 average_weights = average_weights_subjects.mean(axis=0)[filter_best_chans].mean(axis=0) # n_feats, n_delays
 
 # Classify labels for categorization
-phonological = list(config.Exp_info().phonological_labels).copy()
+phonological = list(config.exp_info.phonological_labels).copy()
 
 group1_labels = ['labial', 'lateral', 'open', 'vocalic', 'back', 'voice', 'nasal']
 group2_labels = ['dental', 'consonantal', 'pause', 'velar', 'flap', 'close', 'strident', 'continuant']
@@ -544,8 +560,8 @@ data = {
     'selected_window': selected_window,
     'keys_to_phonological_labels': keys_to_phonological_labels
 }
-os.makedirs(os.path.normpath(os.path.join('saves', 'mtrf_ridge_torch', 'External', 'sensitivity_speech_latency')), exist_ok=True)
-dump_pickle(path=os.path.normpath(os.path.join('saves', 'mtrf_ridge_torch', 'External', 'sensitivity_speech_latency', 'phonological.pkl')), obj=data)
+dump_pickle(path=os.path.normpath(results_path / 'phonological.pkl'), obj=data, rewrite=True)
+
 # Graficamos
 fig, axes = plt.subplots(
     figsize=(14, 7), 
@@ -624,10 +640,11 @@ for ax in fig.axes:
         im.set_clip_path(None)
 
 # Ahora guardar la figura sin que se calcule el bbox de esos patches
-# fig.savefig(
-#     'C:/Users/jocta/Documents/tesis_escrita/imagenes/resultados/mapa_fonologicas.svg',
-#     transparent=True,
-#     bbox_inches='tight'
-# )
-fig.show()
+fig.savefig(
+    os.path.normpath(figures_path/ f'phonological_map.png'),
+    transparent=False,
+    bbox_inches='tight',
+    dpi=400
+)
+# fig.show()
 

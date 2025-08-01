@@ -1,8 +1,10 @@
-import matplotlib.pyplot as plt
 from pathlib import Path
 import seaborn as sns
 import numpy as np
-import sys
+
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
 
 from load import load_data
 import config
@@ -15,7 +17,7 @@ stimuli = [
     'Envelope', 
     'Pitch-Log-Raw', 
     'Spectrogram', 
-    'Phonemes-Discrete-Phonet', 
+    'Phonemes-Discrete', 
     'Phonological'
 ]
 
@@ -24,12 +26,12 @@ stimulus_labels = {
     'Envelope': 'Env',
     'Pitch-Log-Raw': 'Pitch', 
     'Spectrogram': 'Spec',
-    'Phonemes-Discrete-Phonet': 'Phon',
+    'Phonemes-Discrete': 'Phon',
     'Phonological': 'PhonFeat'
 }
 
 # Load and concatenate all stimulus data
-preprocessed_data_path = f'saves_old/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
+preprocessed_data_path = f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
 
 correlation_matrix = []
 for session in config.sessions:
@@ -79,8 +81,11 @@ sns.heatmap(
     fmt='.2f',
     vmin=-1, vmax=1,
     square=True,
-    cbar_kws={'label': 'Correlation', 'fontsize': 12}
+    cbar_kws={'label': 'Correlation'}
 )
+cbar = plt.gca().collections[0].colorbar
+cbar.set_label('Correlation', fontsize=12)
+cbar.ax.tick_params(labelsize=12)
 
 plt.title(f'Stimulus correlation matrix - {situation}', fontsize=16)
 plt.xticks(rotation=90, ha='right', fontsize=12)

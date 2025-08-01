@@ -23,25 +23,30 @@ bands = [
     "Delta",
     "Theta",
     "Alpha",
-    "Beta1",
-    "Beta2",
-    "All"
+    "Beta",
+    "Broad"
 ]
+Path(rf'figures\analysis\average_trfs_by_norm').mkdir(
+    parents=True, 
+    exist_ok=True
+)
 files_not_found = []
 for band in bands:
     for stimulus in stimuli:
-        stimulus, band = 'Phonological', 'Delta'
-        print(f"\n\nProcessing {stimulus} in {band} band\n")
         
         # Load the data
+        # data_path = Path(
+        #     rf"output\mtrf-ridge\External-External\weights\stims_Standarize_EEG_Standarize\same_alpha\tmin-0.2_tmax0.6\{band}\{stimulus}\total_weights_per_subject.pkl"
+        # )# TODO va con distinct_alpha, pero no se corrió todavía
         data_path = Path(
-            rf"output\mtrf_ridge_torch\External\weights\stims_Normalize_EEG_Standarize\tmin-0.2_tmax0.6\{band}\{stimulus}\total_weights_per_subject.pkl"
-        )
-            # rf'output/mtrf_ridge_torch/External/weights/stims_Normalize_EEG_Standarize/tmin-0.2_tmax0.6/Delta/Phonological/total_weights_per_subject.pkl'
+            rf"output\mtrf-ridge-laplacian\External-External\weights\stims_Standarize_EEG_Standarize\same_alpha\tmin-0.2_tmax0.6\{band}\{stimulus}\total_weights_per_subject.pkl"
+        )# TODO va con distinct_alpha, pero no se corrió todavía
+            
         try:
             trfs = load_pickle(
                 path=data_path
             )["average_weights_subjects"]
+            print(f"\n\nProcessing {stimulus} in {band} band\n")
         except Exception as e:
             files_not_found.append((stimulus, band))
             continue        
@@ -61,10 +66,7 @@ for band in bands:
             trfs_normalized
         )
         if trfs_normalized.shape[2] == 1:
-            average_trfs_normalized = trfs_normalized.mean(
-                axis=(0,2)
-            )
-            
+            average_trfs_normalized = trfs_normalized.mean(axis=0).mean(axis=1)
             fig = plt.figure(
                 figsize=(6, 4),
                 constrained_layout=True
@@ -134,7 +136,7 @@ for band in bands:
             
             ax_chan = plt.subplot(211)
             evoked = mne.EvokedArray(
-                data=average_trfs_normalized, 
+                data=average_channels_trfs_normalized, 
                 info=config.info_mne
             )     
             evoked.shift_time(

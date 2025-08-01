@@ -2,7 +2,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import matplotlib.text as mtext
 import matplotlib
-import numpy as np
 import mne 
 
 from utils.general_functions import load_pickle
@@ -21,26 +20,25 @@ bands = [
     'Delta',
     'Theta',
     'Alpha',
-    'Beta1',
-    'Beta2',
-    'All'
+    'Beta',
+    'Broad'
 ]
 
 
 for band in bands:
     fig, axes = plt.subplots(
-                nrows=2, 
-                ncols=2, 
-                figsize=(8, 3), 
-                dpi=600, 
-                sharex=True, 
-                sharey=True,
-                tight_layout=True
-            )
+            nrows=2, 
+            ncols=2, 
+            figsize=(8, 3), 
+            dpi=600, 
+            sharex=True, 
+            sharey=True,
+            tight_layout=True
+        )
     axes = axes.flatten()
     for s, situation in enumerate(situations):
         
-        path_trfs = Path(rf'output\mtrf_ridge_torch\{situation}\weights\stims_Normalize_EEG_Standarize\tmin-0.2_tmax0.6\{band}\{stimulus}')
+        path_trfs = Path(rf'output\mtrf-ridge\{situation}\weights\stims_Standarize_EEG_Standarize\distinct_alpha\tmin-0.2_tmax0.6\{band}\{stimulus}')
         trfs = load_pickle(
             path=path_trfs/'total_weights_per_subject.pkl'
         )['average_weights_subjects'].mean(axis=0).mean(axis=1) # Shape n_chan, n_times
