@@ -20,14 +20,16 @@ from matplotlib.lines import Line2D
 import matplotlib.pylab as pylab
 import matplotlib.pyplot as plt
 from matplotlib import rc
+import matplotlib
+matplotlib.use('TkAgg')  # Use non-interactive backend for matplotlib
 import scienceplots
 
 # Modules
 from utils.general_functions import load_pickle, dump_pickle, get_maximum_correlation_channels
 import config, utils.plot as plot 
 
-rc('text', usetex=True)
-plt.style.use(['science'])
+# rc('text', usetex=False)
+# plt.style.use(['science'])
 pylab.rcParams.update(
     {
         'legend.fontsize': 16,
@@ -38,20 +40,20 @@ pylab.rcParams.update(
         'axes.titlesize': 16,
         'xtick.labelsize':16,
         'ytick.labelsize':16
-        }
-    )
+    }
+)
 
 # Relevant paths
-situation, band = 'External-External', 'Broad'
+situation, band, alpha_choice = 'External', 'Broad', 'distinct_alpha'
 figures_path = Path(
     f'figures/analysis/sensitivity_to_speech/{config.model}-{config.solver}/{situation}/{band}'
 )
 figures_path.mkdir(parents=True, exist_ok=True)
 correlation_path = Path(
-    f'output/{config.model}-{config.solver}/{situation}/correlations/same_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonemes-Frequency.pkl'
+    f'output/{config.model}-{config.solver}/{situation}/correlations/{alpha_choice}/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonemes-Frequency.pkl'
 )
 mtrfs_path = Path(
-    f'output/{config.model}-{config.solver}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/same_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonemes-Frequency/total_weights_per_subject.pkl'
+    f'output/{config.model}-{config.solver}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/{alpha_choice}/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonemes-Frequency/total_weights_per_subject.pkl'
 )
 results_path = Path(
     f'output/{config.model}-{config.solver}/analysis/sensitivity_to_speech/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonemes-Frequency/'
@@ -152,113 +154,132 @@ aris_significance = np.zeros(shape=len(rolling_windows))
 aris_random = np.zeros((len(rolling_windows), KMEANS_NRUNS*10))
 
 dataframes = []
-
-for k, window in tqdm(enumerate(rolling_windows),total=len(rolling_windows)):
-    # Use multidimensional scaling (MDS) to convert distances into features 
-    mds = MDS(
-        n_components=average_weights.shape[0], 
-        dissimilarity='precomputed', 
-        # dissimilarity='euclidean',
-        random_state=i,
-        normalized_stress='auto'
+if not Path(os.path.normpath(results_path / 'phonemes_discrete.pkl')).exists():
+    for k, window in tqdm(enumerate(rolling_windows),total=len(rolling_windows)):
+        # Use multidimensional scaling (MDS) to convert distances into features 
+        mds = MDS(
+            n_components=average_weights.shape[0], 
+            dissimilarity='precomputed', 
+            # dissimilarity='euclidean',
+            random_state=i,
+            normalized_stress='auto'
         )
 
-    correlation_matrix = np.corrcoef(average_weights[:, window])
-    correlation_matrix[np.isnan(correlation_matrix)]=0
-    dissimilarity_matrix = 1 - correlation_matrix
+        correlation_matrix = np.corrcoef(average_weights[:, window])
+        correlation_matrix[np.isnan(correlation_matrix)]=0
+        dissimilarity_matrix = 1 - correlation_matrix
 
-    # features = mds.fit_transform(average_weights[:, window])
-    features = mds.fit_transform(dissimilarity_matrix)
+        # features = mds.fit_transform(average_weights[:, window])
+        features = mds.fit_transform(dissimilarity_matrix)
 
-    # Initialize k-means labels
-    kmeans_labels = np.zeros(shape=(KMEANS_NRUNS, average_weights.shape[0]), dtype=int)
-    
-    # Apply KMeans on the derived feature space
-    for i in range(KMEANS_NRUNS):
-        kmeans = KMeans(
+        # Initialize k-means labels
+        kmeans_labels = np.zeros(shape=(KMEANS_NRUNS, average_weights.shape[0]), dtype=int)
+        
+        # Apply KMeans on the derived feature space
+        for i in range(KMEANS_NRUNS):
+            kmeans = KMeans(
                 n_clusters=NUMBER_OF_CLUSTERS, #consonants and no consonantes
                 random_state=i,
                 n_init='auto'
-                )
-        kmeans_labels[i] = kmeans.fit_predict(features)
+            )
+            kmeans_labels[i] = kmeans.fit_predict(features)
 
-    # Take mode
-    kmeans_labels = mode(kmeans_labels, axis=0, keepdims=True).mode.flatten()
+        # Take mode
+        kmeans_labels = mode(kmeans_labels, axis=0, keepdims=True).mode.flatten()
+        
+        # Compute confusion matrix between k-means clusters and manual labels
+        conf_matrix = confusion_matrix(manual_labels, kmeans_labels)
+
+        # Solve the label assignment problem, maximizing agreement
+        row_ind, col_ind = linear_sum_assignment(-conf_matrix)  
+        label_mapping = {col: row for row, col in zip(row_ind, col_ind)}
+
+        # Relabel k-means using the map to manual labels 
+        kmeans_labels = np.array([label_mapping[label] for label in kmeans_labels])
+
+        # Keep track of mappings
+        dataframes.append(
+            pd.DataFrame(
+                {
+                'Original_index': np.arange(average_weights.shape[0], dtype=int),
+                'Feature_1': features[:, 0],
+                'Feature_2': features[:, 1],
+                'Manual_label': manual_labels,
+                'Cluster_Label': kmeans_labels
+                }   
+            )   
+        )   
+        # Compute metrics
+        f_scores[k] = f1_score(manual_labels, kmeans_labels, average='weighted')
+        nmis[k] = normalized_mutual_info_score(manual_labels, kmeans_labels)
+        aris[k] = adjusted_rand_score(manual_labels, kmeans_labels)
+
+        # Add random permutation to make benchmark
+        random_clusters = np.zeros(shape=(KMEANS_NRUNS*10, average_weights.shape[0]), dtype=int)
+        for p in range(KMEANS_NRUNS*10):
+            random_cluster = np.random.randint(0, 2, size=len(manual_labels))
+            f_scores_random[k, p] = f1_score(manual_labels, random_cluster, average='weighted')
+            aris_random[k, p] = adjusted_rand_score(manual_labels, random_cluster)
+            nmis_random[k, p] = normalized_mutual_info_score(manual_labels, random_cluster)
+
+        pval_f = (sum(f_scores_random[k]>f_scores[k]) + 1)/(KMEANS_NRUNS*10 + 1)
+        pval_a = (sum(aris_random[k]>aris[k]) + 1)/(KMEANS_NRUNS*10 + 1)
+        pval_n = (sum(nmis_random[k]>nmis[k]) + 1)/(KMEANS_NRUNS*10 + 1)
+        f_scores_significance[k] = pval_f<SIGNIFICANCE 
+        aris_significance[k] = pval_a<SIGNIFICANCE
+        nmis_significance[k] = pval_n<SIGNIFICANCE
+
+    # for metric_label, metric, metric_random, metric_significance, col in zip(['F-score', 'Aris', 'Nmis'], [f_scores, aris, nmis],[f_scores_random, aris_random, nmis_random], [f_scores_significance, aris_significance, nmis_significance], ['C0', 'C1', 'C2']):
     
-    # Compute confusion matrix between k-means clusters and manual labels
-    conf_matrix = confusion_matrix(manual_labels, kmeans_labels)
+    # metric_label, metric, metric_random, metric_significance, col = 'F-scores', f_scores, f_scores_random, f_scores_significance, 'orange'
+    col='#eb5b34'
 
-    # Solve the label assignment problem, maximizing agreement
-    row_ind, col_ind = linear_sum_assignment(-conf_matrix)  
-    label_mapping = {col: row for row, col in zip(row_ind, col_ind)}
+    selected_window = 37#np.argmax(f_scores)
+    data = {
+        'F-scores': f_scores,
+        'Aris': aris,
+        'Nmis': nmis,
+        'F-scores_random': f_scores_random,
+        'Aris_random': aris_random,
+        'Nmis_random': nmis_random,
+        'F-scores_significance': f_scores_significance,
+        'Aris_significance': aris_significance,
+        'Nmis_significance': nmis_significance,
+        'rolling_windows_centers': rolling_windows_centers,
+        'dataframes': dataframes,
+        'phonemes': phonemes,
+        'group_2_labels': cons_ph,
+        'group_1_labels': voc_ph,
+        'NUMBER_OF_CLUSTERS': NUMBER_OF_CLUSTERS,
+        'KMEANS_NRUNS': KMEANS_NRUNS,
+        'ROLLING_WINDOW_SECONDS': ROLLING_WINDOW_SECONDS,
+        'SIGNIFICANCE': SIGNIFICANCE,
+        'selected_window': selected_window,
+        'keys_to_phonemes_labels': keys_to_phonemes_labels
+    }
+    dump_pickle(path=os.path.normpath(results_path / 'phonemes_discrete.pkl'), obj=data, rewrite=True)
+else:
+    data = load_pickle(path=os.path.normpath(results_path / 'phonemes_discrete.pkl'))
 
-    # Relabel k-means using the map to manual labels 
-    kmeans_labels = np.array([label_mapping[label] for label in kmeans_labels])
-
-    # Keep track of mappings
-    dataframes.append(
-                pd.DataFrame(
-                        {
-                        'Original_index': np.arange(average_weights.shape[0], dtype=int),
-                        'Feature_1': features[:, 0],
-                        'Feature_2': features[:, 1],
-                        'Manual_label': manual_labels,
-                        'Cluster_Label': kmeans_labels
-                        }   
-                    )   
-                )   
-    # Compute metrics
-    f_scores[k] = f1_score(manual_labels, kmeans_labels, average='weighted')
-    nmis[k] = normalized_mutual_info_score(manual_labels, kmeans_labels)
-    aris[k] = adjusted_rand_score(manual_labels, kmeans_labels)
-
-    # Add random permutation to make benchmark
-    random_clusters = np.zeros(shape=(KMEANS_NRUNS*10, average_weights.shape[0]), dtype=int)
-    for p in range(KMEANS_NRUNS*10):
-        random_cluster = np.random.randint(0, 2, size=len(manual_labels))
-        f_scores_random[k, p] = f1_score(manual_labels, random_cluster, average='weighted')
-        aris_random[k, p] = adjusted_rand_score(manual_labels, random_cluster)
-        nmis_random[k, p] = normalized_mutual_info_score(manual_labels, random_cluster)
-
-    pval_f = (sum(f_scores_random[k]>f_scores[k]) + 1)/(KMEANS_NRUNS*10 + 1)
-    pval_a = (sum(aris_random[k]>aris[k]) + 1)/(KMEANS_NRUNS*10 + 1)
-    pval_n = (sum(nmis_random[k]>nmis[k]) + 1)/(KMEANS_NRUNS*10 + 1)
-    f_scores_significance[k] = pval_f<SIGNIFICANCE 
-    aris_significance[k] = pval_a<SIGNIFICANCE
-    nmis_significance[k] = pval_n<SIGNIFICANCE
-
-# for metric_label, metric, metric_random, metric_significance, col in zip(['F-score', 'Aris', 'Nmis'], [f_scores, aris, nmis],[f_scores_random, aris_random, nmis_random], [f_scores_significance, aris_significance, nmis_significance], ['C0', 'C1', 'C2']):
-metric_label, metric, metric_random, metric_significance, col = 'Ari', aris, aris_random, aris_significance, 'green'
-# metric_label, metric, metric_random, metric_significance, col = 'F-scores', f_scores, f_scores_random, f_scores_significance, 'orange'
-col='#eb5b34'
-
-selected_window = 37#np.argmax(f_scores)
-# selected_window = 37
+selected_window = data["selected_window"]
+f_scores = data["F-scores"]
+aris = data["Aris"]
+nmis = data["Nmis"]
+f_scores_random = data["F-scores_random"]
+aris_random = data["Aris_random"]
+nmis_random = data["Nmis_random"]
+f_scores_significance = data["F-scores_significance"]
+aris_significance = data["Aris_significance"]
+nmis_significance = data["Nmis_significance"]
+rolling_windows_centers = data["rolling_windows_centers"]
+dataframes = data["dataframes"]
+phonemes = data.get("phonemes", None)
+keys_to_phonemes_labels = data.get("keys_to_phonemes_labels", None)
+group_1_labels = data.get("group_1_labels", None)
+group_2_labels = data.get("group_2_labels", None)        
 selected_window_time = rolling_windows_centers[selected_window]
 
-data = {
-    'F-scores': f_scores,
-    'Aris': aris,
-    'Nmis': nmis,
-    'F-scores_random': f_scores_random,
-    'Aris_random': aris_random,
-    'Nmis_random': nmis_random,
-    'F-scores_significance': f_scores_significance,
-    'Aris_significance': aris_significance,
-    'Nmis_significance': nmis_significance,
-    'rolling_windows_centers': rolling_windows_centers,
-    'dataframes': dataframes,
-    'phonemes': phonemes,
-    'group_2_labels': cons_ph,
-    'group_1_labels': voc_ph,
-    'NUMBER_OF_CLUSTERS': NUMBER_OF_CLUSTERS,
-    'KMEANS_NRUNS': KMEANS_NRUNS,
-    'ROLLING_WINDOW_SECONDS': ROLLING_WINDOW_SECONDS,
-    'SIGNIFICANCE': SIGNIFICANCE,
-    'selected_window': selected_window,
-    'keys_to_phonemes_labels': keys_to_phonemes_labels
-}
-dump_pickle(path=os.path.normpath(results_path / 'phonemes_discrete.pkl'), obj=data, rewrite=True)
+metric_label, metric, metric_random, metric_significance, col = 'Ari', aris, aris_random, aris_significance, 'green'
 
 # Graficamos
 fig, axes = plt.subplots(
@@ -266,7 +287,7 @@ fig, axes = plt.subplots(
     nrows=1,
     ncols=2,
     # tight_layout=True
-    )
+)
 
 # MÉTRICA
 axes[0].grid(True)
@@ -277,7 +298,7 @@ lower_percentile = np.percentile(metric_random, 5, axis=1)
 upper_percentile = np.percentile(metric_random, 95, axis=1)
 
 # Aplicamos el degradado basado en la densidad
-plot.plot.gradient_fill_density_based(
+plot.gradient_fill_density_based(
     rolling_windows_centers*1e3, 
     lower_percentile, 
     upper_percentile, 
@@ -329,6 +350,7 @@ axes[1].set_xlim(axes[1].get_xlim()[0]-.4, axes[1].get_xlim()[-1])
 # axes[1].set_ylim(axes[1].get_ylim()[0]-.005, axes[1].get_ylim()[-1]+.005)
 axes[1].grid(True, alpha=.7)
 
+
 # Remover los patches de degradado
 for ax in fig.axes:
     for im in ax.images:
@@ -341,23 +363,23 @@ fig.savefig(
     bbox_inches='tight',
     dpi=400
 )
-fig.show()
+# fig.show()
 
 # =====================================
 # REEPLICA DE ANALISIS PARA FONOLOFICAS
 # =====================================
 
 # Relevant paths
-situation, band = 'External-External', 'Broad'
+situation, band, alpha_choice = 'External', 'Broad', 'distinct_alpha'
 figures_path = Path(
     f'figures/analysis/sensitivity_to_speech/{config.model}-{config.solver}/{situation}/{band}'
 )
 figures_path.mkdir(parents=True, exist_ok=True)
 correlation_path = Path(
-    f'output/{config.model}-{config.solver}/{situation}/correlations/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonological.pkl'
+    f'output/{config.model}-{config.solver}/{situation}/correlations/{alpha_choice}/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonological.pkl'
 )
 mtrfs_path = Path(
-    f'output/{config.model}-{config.solver}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonological/total_weights_per_subject.pkl'
+    f'output/{config.model}-{config.solver}/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/{alpha_choice}/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonological/total_weights_per_subject.pkl'
 )
 results_path = Path(
     f'output/{config.model}-{config.solver}/analysis/sensitivity_to_speech/{situation}/weights/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/Phonological/'
@@ -373,21 +395,21 @@ SIGNIFICANCE = .05
 
 # Read data n_subj, n_chans, n_feats, n_delays
 average_weights_subjects = load_pickle( 
-                        path=mtrfs_path
-                        )['average_weights_subjects']
+    path=mtrfs_path
+)['average_weights_subjects']
 average_correlation_across_subject = load_pickle(
-                                path=correlation_path
-                                )['average_correlation_subjects'].mean(axis=0)
+    path=correlation_path
+)['average_correlation_subjects'].mean(axis=0)
 
 # Take average across all subjects, then select specific channels and apply average across all the selection
 filter_best_chans = get_maximum_correlation_channels(average_correlation_across_subject=average_correlation_across_subject, number_of_lat_channels=config.relevant_channels)
 average_weights = average_weights_subjects.mean(axis=0)[filter_best_chans].mean(axis=0) # n_feats, n_delays
 
 # Classify labels for categorization
-phonological = list(config.exp_info.phonological_labels).copy()
+phonological = [label for label in list(config.exp_info.phonological_labels).copy() if label not in ['pause', 'trill']]
 
 group1_labels = ['labial', 'lateral', 'open', 'vocalic', 'back', 'voice', 'nasal']
-group2_labels = ['dental', 'consonantal', 'pause', 'velar', 'flap', 'close', 'strident', 'continuant']
+group2_labels = ['dental', 'consonantal', 'velar', 'flap', 'close', 'strident', 'continuant']
 
 group1 = [phonological.index(ph) for ph in phonological if ph in group1_labels]
 group2 = [phonological.index(vowel) for vowel in group2_labels]
@@ -454,114 +476,134 @@ aris_significance = np.zeros(shape=len(rolling_windows))
 aris_random = np.zeros((len(rolling_windows), KMEANS_NRUNS*10))
 
 dataframes = []
+if not Path(os.path.normpath(results_path / 'phonemes_discrete.pkl')).exists():
+    for k, window in tqdm(enumerate(rolling_windows),total=len(rolling_windows)):
+        # Use multidimensional scaling (MDS) to convert distances into features 
+        mds = MDS(
+            n_components=average_weights.shape[0], 
+            dissimilarity='precomputed', 
+            # dissimilarity='euclidean',
+            random_state=i,
+            normalized_stress='auto'
+            )
 
-for k, window in tqdm(enumerate(rolling_windows),total=len(rolling_windows)):
-    # Use multidimensional scaling (MDS) to convert distances into features 
-    mds = MDS(
-        n_components=average_weights.shape[0], 
-        dissimilarity='precomputed', 
-        # dissimilarity='euclidean',
-        random_state=i,
-        normalized_stress='auto'
-        )
+        correlation_matrix = np.corrcoef(average_weights[:, window])
+        correlation_matrix[np.isnan(correlation_matrix)]=0
+        dissimilarity_matrix = 1 - correlation_matrix
 
-    correlation_matrix = np.corrcoef(average_weights[:, window])
-    correlation_matrix[np.isnan(correlation_matrix)]=0
-    dissimilarity_matrix = 1 - correlation_matrix
+        # features = mds.fit_transform(average_weights[:, window])
+        features = mds.fit_transform(dissimilarity_matrix)
 
-    # features = mds.fit_transform(average_weights[:, window])
-    features = mds.fit_transform(dissimilarity_matrix)
+        # Initialize k-means labels
+        kmeans_labels = np.zeros(shape=(KMEANS_NRUNS, average_weights.shape[0]), dtype=int)
+        
+        # Apply KMeans on the derived feature space
+        for i in range(KMEANS_NRUNS):
+            kmeans = KMeans(
+                    n_clusters=NUMBER_OF_CLUSTERS, #consonants and no consonantes
+                    random_state=i,
+                    n_init='auto'
+                    )
+            kmeans_labels[i] = kmeans.fit_predict(features)
 
-    # Initialize k-means labels
-    kmeans_labels = np.zeros(shape=(KMEANS_NRUNS, average_weights.shape[0]), dtype=int)
-    
-    # Apply KMeans on the derived feature space
-    for i in range(KMEANS_NRUNS):
-        kmeans = KMeans(
-                n_clusters=NUMBER_OF_CLUSTERS, #consonants and no consonantes
-                random_state=i,
-                n_init='auto'
-                )
-        kmeans_labels[i] = kmeans.fit_predict(features)
+        # Take mode
+        kmeans_labels = mode(kmeans_labels, axis=0, keepdims=True).mode.flatten()
+        
+        # Compute confusion matrix between k-means clusters and manual labels
+        conf_matrix = confusion_matrix(manual_labels, kmeans_labels)
 
-    # Take mode
-    kmeans_labels = mode(kmeans_labels, axis=0, keepdims=True).mode.flatten()
-    
-    # Compute confusion matrix between k-means clusters and manual labels
-    conf_matrix = confusion_matrix(manual_labels, kmeans_labels)
+        # Solve the label assignment problem, maximizing agreement
+        row_ind, col_ind = linear_sum_assignment(-conf_matrix)  
+        label_mapping = {col: row for row, col in zip(row_ind, col_ind)}
 
-    # Solve the label assignment problem, maximizing agreement
-    row_ind, col_ind = linear_sum_assignment(-conf_matrix)  
-    label_mapping = {col: row for row, col in zip(row_ind, col_ind)}
+        # Relabel k-means using the map to manual labels 
+        kmeans_labels = np.array([label_mapping[label] for label in kmeans_labels])
 
-    # Relabel k-means using the map to manual labels 
-    kmeans_labels = np.array([label_mapping[label] for label in kmeans_labels])
-
-    # Keep track of mappings
-    dataframes.append(
-                pd.DataFrame(
-                        {
-                        'Original_index': np.arange(average_weights.shape[0], dtype=int),
-                        'Feature_1': features[:, 0],
-                        'Feature_2': features[:, 1],
-                        'Manual_label': manual_labels,
-                        'Cluster_Label': kmeans_labels
-                        }   
+        # Keep track of mappings
+        dataframes.append(
+                    pd.DataFrame(
+                            {
+                            'Original_index': np.arange(average_weights.shape[0], dtype=int),
+                            'Feature_1': features[:, 0],
+                            'Feature_2': features[:, 1],
+                            'Manual_label': manual_labels,
+                            'Cluster_Label': kmeans_labels
+                            }   
+                        )   
                     )   
-                )   
-    # Compute metrics
-    f_scores[k] = f1_score(manual_labels, kmeans_labels, average='weighted')
-    nmis[k] = normalized_mutual_info_score(manual_labels, kmeans_labels)
-    aris[k] = adjusted_rand_score(manual_labels, kmeans_labels)
+        # Compute metrics
+        f_scores[k] = f1_score(manual_labels, kmeans_labels, average='weighted')
+        nmis[k] = normalized_mutual_info_score(manual_labels, kmeans_labels)
+        aris[k] = adjusted_rand_score(manual_labels, kmeans_labels)
 
-    # Add random permutation to make benchmark
-    random_clusters = np.zeros(shape=(KMEANS_NRUNS*10, average_weights.shape[0]), dtype=int)
-    for p in range(KMEANS_NRUNS*10):
-        random_cluster = np.random.randint(0, 2, size=len(manual_labels))
-        f_scores_random[k, p] = f1_score(manual_labels, random_cluster, average='weighted')
-        aris_random[k, p] = adjusted_rand_score(manual_labels, random_cluster)
-        nmis_random[k, p] = normalized_mutual_info_score(manual_labels, random_cluster)
+        # Add random permutation to make benchmark
+        random_clusters = np.zeros(shape=(KMEANS_NRUNS*10, average_weights.shape[0]), dtype=int)
+        for p in range(KMEANS_NRUNS*10):
+            random_cluster = np.random.randint(0, 2, size=len(manual_labels))
+            f_scores_random[k, p] = f1_score(manual_labels, random_cluster, average='weighted')
+            aris_random[k, p] = adjusted_rand_score(manual_labels, random_cluster)
+            nmis_random[k, p] = normalized_mutual_info_score(manual_labels, random_cluster)
 
-    pval_f = (sum(f_scores_random[k]>f_scores[k]) + 1)/(KMEANS_NRUNS*10 + 1)
-    pval_a = (sum(aris_random[k]>aris[k]) + 1)/(KMEANS_NRUNS*10 + 1)
-    pval_n = (sum(nmis_random[k]>nmis[k]) + 1)/(KMEANS_NRUNS*10 + 1)
-    f_scores_significance[k] = pval_f<SIGNIFICANCE 
-    aris_significance[k] = pval_a<SIGNIFICANCE
-    nmis_significance[k] = pval_n<SIGNIFICANCE
+        pval_f = (sum(f_scores_random[k]>f_scores[k]) + 1)/(KMEANS_NRUNS*10 + 1)
+        pval_a = (sum(aris_random[k]>aris[k]) + 1)/(KMEANS_NRUNS*10 + 1)
+        pval_n = (sum(nmis_random[k]>nmis[k]) + 1)/(KMEANS_NRUNS*10 + 1)
+        f_scores_significance[k] = pval_f<SIGNIFICANCE 
+        aris_significance[k] = pval_a<SIGNIFICANCE
+        nmis_significance[k] = pval_n<SIGNIFICANCE
 
-# for metric_label, metric, metric_random, metric_significance, col in zip(['F-score', 'Aris', 'Nmis'], [f_scores, aris, nmis],[f_scores_random, aris_random, nmis_random], [f_scores_significance, aris_significance, nmis_significance], ['C0', 'C1', 'C2']):
-metric_label, metric, metric_random, metric_significance, col = 'Ari', aris, aris_random, aris_significance, 'green'
-# metric_label, metric, metric_random, metric_significance, col = 'F-scores', f_scores, f_scores_random, f_scores_significance, 'orange'
-col='#eb5b34'
+    # for metric_label, metric, metric_random, metric_significance, col in zip(['F-score', 'Aris', 'Nmis'], [f_scores, aris, nmis],[f_scores_random, aris_random, nmis_random], [f_scores_significance, aris_significance, nmis_significance], ['C0', 'C1', 'C2']):
+    metric_label, metric, metric_random, metric_significance, col = 'Ari', aris, aris_random, aris_significance, 'green'
+    # metric_label, metric, metric_random, metric_significance, col = 'F-scores', f_scores, f_scores_random, f_scores_significance, 'orange'
+    col='#eb5b34'
 
-selected_window = 41#np.argmax(f_scores)
-aris[selected_window]
+    selected_window = 41#np.argmax(f_scores)
+    aris[selected_window]
+
+    data = {
+        'F-scores': f_scores,
+        'Aris': aris,
+        'Nmis': nmis,
+        'F-scores_random': f_scores_random,
+        'Aris_random': aris_random,
+        'Nmis_random': nmis_random,
+        'F-scores_significance': f_scores_significance,
+        'Aris_significance': aris_significance,
+        'Nmis_significance': nmis_significance,
+        'rolling_windows_centers': rolling_windows_centers,
+        'dataframes': dataframes,
+        'phonological': phonological,
+        'group_1_labels': group1_labels,
+        'group_2_labels': group2_labels,
+        'NUMBER_OF_CLUSTERS': NUMBER_OF_CLUSTERS,
+        'KMEANS_NRUNS': KMEANS_NRUNS,
+        'ROLLING_WINDOW_SECONDS': ROLLING_WINDOW_SECONDS,
+        'SIGNIFICANCE': SIGNIFICANCE,
+        'selected_window': selected_window,
+        'keys_to_phonological_labels': keys_to_phonological_labels
+    }
+    dump_pickle(path=os.path.normpath(results_path / 'phonological.pkl'), obj=data, rewrite=True)
+else:
+    data = load_pickle(path=os.path.normpath(results_path / 'phonemes_discrete.pkl'))
+
+selected_window = data["selected_window"]
+f_scores = data["F-scores"]
+aris = data["Aris"]
+nmis = data["Nmis"]
+f_scores_random = data["F-scores_random"]
+aris_random = data["Aris_random"]
+nmis_random = data["Nmis_random"]
+f_scores_significance = data["F-scores_significance"]
+aris_significance = data["Aris_significance"]
+nmis_significance = data["Nmis_significance"]
+rolling_windows_centers = data["rolling_windows_centers"]
+dataframes = data["dataframes"]
+phonemes = data.get("phonemes", None)
+keys_to_phonemes_labels = data.get("keys_to_phonemes_labels", None)
+group_1_labels = data.get("group_1_labels", None)
+group_2_labels = data.get("group_2_labels", None)        
+
 selected_window_time = rolling_windows_centers[selected_window]*1e3
-
-data = {
-    'F-scores': f_scores,
-    'Aris': aris,
-    'Nmis': nmis,
-    'F-scores_random': f_scores_random,
-    'Aris_random': aris_random,
-    'Nmis_random': nmis_random,
-    'F-scores_significance': f_scores_significance,
-    'Aris_significance': aris_significance,
-    'Nmis_significance': nmis_significance,
-    'rolling_windows_centers': rolling_windows_centers,
-    'dataframes': dataframes,
-    'phonological': phonological,
-    'group_1_labels': group1_labels,
-    'group_2_labels': group2_labels,
-    'NUMBER_OF_CLUSTERS': NUMBER_OF_CLUSTERS,
-    'KMEANS_NRUNS': KMEANS_NRUNS,
-    'ROLLING_WINDOW_SECONDS': ROLLING_WINDOW_SECONDS,
-    'SIGNIFICANCE': SIGNIFICANCE,
-    'selected_window': selected_window,
-    'keys_to_phonological_labels': keys_to_phonological_labels
-}
-dump_pickle(path=os.path.normpath(results_path / 'phonological.pkl'), obj=data, rewrite=True)
-
+metric_label, metric, metric_random, metric_significance, col = 'Ari', aris, aris_random, aris_significance, 'green'
 # Graficamos
 fig, axes = plt.subplots(
     figsize=(14, 7), 
@@ -601,8 +643,6 @@ axes[0].plot(
 
 axes[0].plot(rolling_windows_centers*1e3, metric, color=col, zorder=3)
 axes[0].scatter(rolling_windows_centers*1e3, metric, color=col, s=6, zorder=3, label='Métrica')
-
-
 
 axes[0].set(xlabel='Tiempo (ms)', ylabel=metric_label.upper(), xlim=(5, 550), title=r'\textit{Adjusted Rand Index}')
 
