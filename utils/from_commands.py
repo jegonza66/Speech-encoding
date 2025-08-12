@@ -26,7 +26,11 @@ Examples:
                 continue
             
             # Add argument based on type
-            if isinstance(attr_value, bool):
+            if attr_value is None:
+                # Example: treat as float if you expect a float
+                if attr_name in ["temporal_shift", "set_alpha"]:
+                    parser.add_argument(f'--{attr_name}', type=float, default=None, help=f'(float/None) {attr_name}')
+            elif isinstance(attr_value, bool):
                 # For booleans, use store_true/store_false but set default to a sentinel value
                 parser.add_argument(f'--{attr_name}', action='store_true', default=argparse.SUPPRESS,
                                   help=f'Enable {attr_name} (current: {attr_value})')

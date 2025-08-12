@@ -47,7 +47,7 @@ stimuli = [
         # 'Spectrogram',
         # 'Mfccs',
         # 'Phonological',
-        # 'Phonemes',
+        'Phonemes',
         'Phonemes-Discrete',
         'Phonemes-Frequency',
         # 'Phones-Discrete',
@@ -78,7 +78,7 @@ situations = [
         # 'External_Silence_80',
         # 'External_Silence_90',
 ]
-
+# Hizo hasta alpha de external inclusive hasta ahora
 bands = [
         'Delta', # 1-4 Hz
         'Theta', # 4-8 Hz
@@ -86,11 +86,13 @@ bands = [
         'Beta', # 13-25 Hz # elegir qe se mantenha el ancho del filtro
         'Broad', # 1-15 Hz
         # 'All', # 1-40 Hz
+        # 'Delta_Theta', # 1-8 Hz
         # 'Beta1', # 13-19 Hz
         # 'Beta2', # 19-25 Hz
         # 'Unfiltered' # None
 ]
 
+temporal_shift = None
 # ==========================================
 # LOADING/SAVING DATA, FIGURE CONFIGURATIONS
 praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
@@ -114,7 +116,7 @@ solver = 'ridge' # "ridge-laplacian"
 # ==============================
 # DEFAULT PENALIZATION PARAMETER
 correlation_limit_percentage = 0.05
-default_alpha, set_alpha = 400, 1000
+default_alpha, set_alpha = 400, None
 
 # ====================================================================
 # TFCE, T-TEST PARAMETERS, HIERARCHICAL_CLUSTERING and NUMBER OF FOLDS

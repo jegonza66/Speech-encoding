@@ -224,17 +224,21 @@ class TrialChannelData:
         # Apply a lowpass filter
         if self.band != 'Unfiltered':
             iir_params = {
-            "ftype": "cheby2",       # Filter type: Chebyshev Type II
-            "order": 4,              # Filter order
-            "rs": 20,                # Stopband attenuation (dB)
+                "ftype": "cheby2",       # Filter type: Chebyshev Type II
+                "order": 4,              # Filter order
+                "rs": 20,                # Stopband attenuation (dB)
             }
+            # iir_params = { #Nuevos exp de dili
+            #     "ftype": "butter",
+            #     "order": 2,
+            # }
             eeg = eeg.filter(
                 l_freq=self.l_freq_eeg,
                 h_freq=self.h_freq_eeg,
                 method="iir",
                 iir_params=iir_params
             )
-
+            
         # Get mne representation 
         eeg = eeg.resample(
             sfreq=self.sr, 
@@ -1303,15 +1307,44 @@ class TrialChannelData:
         # Create an array with the same length as the envelope filled with the offset value
         return np.full_like(envelope, fill_value=1, dtype=np.float32)    
     
+    def apply_temporal_shift(
+        self,
+        eeg:np.ndarray,
+        shift:float
+    )->np.ndarray:
+        """
+        Applies a temporal shift to the EEG data with respect to the envelope.
+        
+        Parameters
+        ----------
+        eeg : np.ndarray
+            EEG data to apply the temporal shift.
+        shift : float
+            Temporal shift in seconds to apply to the EEG data.
+        
+        Returns
+        -------
+        np.ndarray
+            EEG data after applying the temporal shift.
+        """
+        # Calculate the number of samples to shift
+        shift_samples = int(shift * self.sr)
+        
+        # Apply the shift to the EEG data
+        return np.roll(eeg, shift_samples, axis=0)
+
     def load_trial(
         self, 
-        stimuli:list
+        stimuli:list,
+        temporal_shift:Union[float, None]=None
         )->dict: 
         """Extract EEG and calculates specified stimuli.
         Parameters
         ----------
         stimuli : list
             A list containing possible stimuli.
+        temporal_shift : Union[float, None], optional
+            If specified, it will apply a temporal shift to the EEG data (with respect to the envelope).
 
         Returns
         -------
@@ -1383,6 +1416,11 @@ class TrialChannelData:
                 channel[stimulus] = self.extract_offset(
                     envelope=channel['Envelope']
                 )
+        if temporal_shift:
+            channel['EEG'] = self.apply_temporal_shift(
+                eeg=channel['EEG'],
+                shift=temporal_shift
+            )
         return channel
 
 class SessionData: 
@@ -1392,7 +1430,8 @@ class SessionData:
         situation: str='External', 
         stimuli: str='Envelope', 
         band: str='Theta', 
-        session: int=21
+        session: int=21,
+        temporal_shift: Union[float, None]=None
     )->None:
         """
         This class handles the loading (concatenating trials) and processing of EEG and stimuli data for a given session. 
@@ -1412,6 +1451,8 @@ class SessionData:
             Neural frequency band. 
         situation : str, optional
             Situation considered when performing the analysis, by default 'External'. 
+        temporal_shift : Union[float, None], optional
+            If specified, it will apply a temporal shift to the EEG data (with respect to the envelope).
         
         Returns
         -------
@@ -1428,6 +1469,7 @@ class SessionData:
         self.situation = situation
         self.stimuli = stimuli
         self.band = band
+        self.temporal_shift = temporal_shift
 
         # Define parameters
         self.session = session
@@ -1703,12 +1745,19 @@ class SessionData:
                         session=self.session,
                         band=self.band,
                         trial=trial,
-                        channel=2
+                        channel=2,
+                        
                 )
 
                 # Extract dictionaries with the data
-                trial_channel_1 = channel_1.load_trial(stimuli=self.stimuli.split('_'))
-                trial_channel_2 = channel_2.load_trial(stimuli=self.stimuli.split('_'))
+                trial_channel_1 = channel_1.load_trial(
+                    stimuli=self.stimuli.split('_'),
+                    temporal_shift=self.temporal_shift
+                )
+                trial_channel_2 = channel_2.load_trial(
+                    stimuli=self.stimuli.split('_'),
+                    temporal_shift=self.temporal_shift
+                )
     
                 # Load data to dictionary taking own stimuli and eeg signal. I.e: each subject predicts its own EEG with its own stimuli
                 if self.situation.startswith('Internal'):
@@ -2084,7 +2133,8 @@ def load_data(
     band:str,
     preprocessed_data_path:str, 
     situation:str='External',
-    save_results:bool=True
+    save_results:bool=True,
+    temporal_shift:Union[float, None]=None
 )->tuple:
     """
     Loads and processes EEG and stimuli data for a given session.
@@ -2127,6 +2177,8 @@ def load_data(
         the percentage of samples with silence within a row of the design matrix.
     save_results : bool, optional
         If True, saves the results in the preprocessed_data_path. Default is False.
+    temporal_shift : Union[float, None], optional
+        If not None, it is the temporal shift to apply to the EEG signal. Default is None.
 
     Returns
     -------
@@ -2182,6 +2234,7 @@ def load_data(
         band='_'.join(ordered_band), 
         situation=situation,
         session=session, 
+        temporal_shift=temporal_shift
     )
 
     # Try to load procesed data, if it fails it loads raw data
@@ -2262,7 +2315,8 @@ def check_syntax(
 #                         situation=situation,
 #                         stimuli=stimuli,
 #                         session=session,
-#                         band=band
+#                         band=band,
+#                         temporal_shift=config.temporal_shift
 #                     )
                     
 #                     # Print the progress of the iteration
@@ -2276,6 +2330,13 @@ def check_syntax(
 if __name__ == "__main__":
     import multiprocessing as mp
     import concurrent.futures
+    
+    # Command line and logging
+    from utils.from_commands import create_dynamic_parser, apply_args_to_config
+    parser = create_dynamic_parser()
+    args = parser.parse_args()
+    apply_args_to_config(args)
+    
     config.LOG_LEVEL = 'WARNING'
     # Crear todas las combinaciones de parámetros
     param_combinations = []
@@ -2292,7 +2353,8 @@ if __name__ == "__main__":
                         'preprocessed_data_path': preprocessed_data_path_main,
                         'band': band,
                         'stimuli': stimuli,
-                        'session': session
+                        'session': session,
+                        'temporal_shift': config.temporal_shift
                     })
     
     def process_single_session(params):
@@ -2308,7 +2370,8 @@ if __name__ == "__main__":
                 situation=params['situation'],
                 stimuli=params['stimuli'],
                 session=params['session'],
-                band=params['band']
+                band=params['band'],
+                temporal_shift=params['temporal_shift']
             )
             
             return {

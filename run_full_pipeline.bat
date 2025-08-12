@@ -2,8 +2,8 @@
 setlocal enabledelayedexpansion
 
 REM === User options: set to true or false ===
-set run_load=true
-set run_validation=true
+set run_load=false
+set run_validation=false
 set run_permutations=false
 set run_main=true
 
