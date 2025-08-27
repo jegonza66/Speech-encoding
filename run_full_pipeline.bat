@@ -2,15 +2,15 @@
 setlocal enabledelayedexpansion
 
 REM === User options: set to true or false ===
-set run_load=false
-set run_validation=false
+set run_load=true
+set run_validation=true
 set run_permutations=false
 set run_main=true
 
 REM === Run load.py ===
 if /i "%run_load%"=="true" (
     echo Running load.py...
-    python load.py
+    python load.py --number_of_workers 8
     if errorlevel 1 (
         echo load.py failed. Exiting.
         exit /b 1
@@ -35,7 +35,6 @@ if /i "%run_validation%"=="true" (
         exit /b 1
     )
 )
-
 
 REM === Run random_permutations.py 
 if /i "%run_permutations%"=="true" (
@@ -74,7 +73,7 @@ if /i "%run_main%"=="true" (
     )
 )
 
-REM === Run main.py SAME VAL, NO EXTERNAL VAL, RIDGE-LAPLACIAN
+REM === Run main.py DIFF VAL, NO EXTERNAL VAL, RIDGE-LAPLACIAN
 if /i "%run_main%"=="true" (
     echo Running main.py...
     if "%run_permutations%"=="true" (
@@ -89,7 +88,7 @@ if /i "%run_main%"=="true" (
 )
 
 
-REM === Run main.py SAME VAL, NO EXTERNAL VAL, RIDGE
+REM === Run main.py DIFF VAL, NO EXTERNAL VAL, RIDGE
 if /i "%run_main%"=="true" (
     echo Running main.py...
     if "%run_permutations%"=="true" (
@@ -105,3 +104,4 @@ if /i "%run_main%"=="true" (
 
 echo Pipeline completed.
 exit /b 0
+

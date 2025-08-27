@@ -6,22 +6,19 @@ import numpy as np
 import warnings
 import resampy
 import time
-import json
 import os
 
 # Specific libraries
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from sklearn.preprocessing import StandardScaler
-# from sklearn.cross_decomposition import CCA
-from sklearn.decomposition import PCA
 from praatio import pitch_and_intensity #
+from sklearn.cross_decomposition import CCA
+from sklearn.decomposition import PCA
 from scipy.interpolate import interp1d
 import scipy.io.wavfile as wavfile
 from scipy import signal as sgn
 # import opensmile
 import textgrids
 import librosa
-import torch
 import mne
 
 # Set TensorFlow environment variables BEFORE any TensorFlow imports
@@ -30,9 +27,10 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimizations warnin
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'  # Prevent TF from allocating all GPU memory
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'  # Use specific GPU if available
 
+
 from phonet.phonet import Phonet 
     
-from transformers import Wav2Vec2Model, Wav2Vec2Processor # In case we want to use Wav2Vec2
+# from transformers import Wav2Vec2Model, Wav2Vec2Processor # In case we want to use Wav2Vec2
 from transformers import WhisperProcessor, WhisperModel 
 
 # Modules
@@ -116,33 +114,11 @@ ALLOWED_STIMULI = [
     'Phonemes', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency', 
     'Phones', 'Phones-Envelope', 'Phones-Discrete',
     'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
-    'DNNs1',
-    'DNNs2',
-    'DNNs3',
-    'DNNs4',
-    'DNNs5',
-    'DNNs6',
-    'DNNs7',
-    'DNNs8',
-    'DNNs9',
-    'DNNs10',
-    'DNNs11',
-    'DNNs12',
-    'DNNs13',
-    'DNNs14',
-    'DNNs15',
-    'DNNs16',
-    'DNNs17',
-    'DNNs18',
-    'DNNs19',
-    'DNNs20',
-    'DNNs21',
-    'DNNs22',
-    'DNNs23',
-    'Turn',
+    'Wav2vec2',
+    'Offset'
     # 'Jitter', 'Shimmer'
 ]
-# Global cache for HF models to avoid re-loading on every call
+
 _PHONET_CACHE = {}
 def get_phonet_instance():
     """
@@ -156,24 +132,6 @@ def get_phonet_instance():
         logger.debug("Phonet model loaded and cached")
     
     return _PHONET_CACHE['phonet']
-_DNN_MODEL_CACHE = {}
-def _get_dnn_model(backbone: str, model_id: str, device: str):
-    bl = backbone.lower()
-    key = (bl, model_id, device)
-    if key in _DNN_MODEL_CACHE:
-        return _DNN_MODEL_CACHE[key]
-
-    if bl == "whisper":
-        processor = WhisperProcessor.from_pretrained(model_id)
-        model = WhisperModel.from_pretrained(model_id).to(device).eval()
-    elif bl == "wav2vec2":
-        processor = Wav2Vec2Processor.from_pretrained(model_id)
-        model = Wav2Vec2Model.from_pretrained(model_id).to(device).eval()
-    else:
-        raise ValueError(f"Unknown backbone: {backbone}")
-
-    _DNN_MODEL_CACHE[key] = (processor, model)
-    return processor, model
 
 class TrialChannelData:
     def __init__(
@@ -236,11 +194,10 @@ class TrialChannelData:
         self.praat_executable_path = config.praat_executable_path
         self.mistakes_control_path = os.path.normpath(f"data/mistakes_control/filtered_session{session}_trial{trial:02d}_channel{channel}.TextGrid")
         self.mistakes_path = os.path.normpath(f"data/mistakes_corrected/filtered_session{session}_trial{trial:02d}_channel{channel}.TextGrid")
+        self.phonemes_fname = os.path.normpath(f"data/phonemes/S{session}/s{session}.objects.{trial:02d}.channel{channel}.aligned_fa.TextGrid")
         self.eeg_fname = os.path.normpath(f"data/EEG/S{session}/s{session}-{channel}-Trial{trial}-Deci-Filter-Trim-ICA-Pruned.set")
         self.phrases_fname = os.path.normpath(f"data/phrases/S{session}/s{session}.objects.{trial:02d}.channel{channel}.phrases")
         self.wav_fname = os.path.normpath(f"data/wavs/S{session}/s{session}.objects.{trial:02d}.channel{channel}.wav")
-        self.turn_fname = os.path.normpath(f"data/turns/switches_external/sess_{session}_trial_{trial:02d}_ch_{channel}.json")
-        # self.turn_fname = os.path.normpath(f"data/turns/holds_external/sess_{session}_trial_{trial:02d}_ch_{channel}.json")
         self.pitch_fname = os.path.normpath(f"S{session}/s{session}.objects.{trial:02d}.channel{channel}.txt")
         
     def extract_eeg(
@@ -415,7 +372,7 @@ class TrialChannelData:
             sr=self.audio_sr, 
             n_mels=number_of_mels,
             y=wav
-        )
+            )
         # Transform to dB using normalization to 1
         S_DB = librosa.power_to_db(
             ref=np.max,
@@ -764,7 +721,7 @@ class TrialChannelData:
             try:
                 freq = general_functions.load_pickle('data/phon_frequency_dict/frequency_dict.pkl')
             except:
-                logger.warning("Frequency dictionary isn't Load. \n ---> loading it now...")
+                logger.warn("Frequency dictionary isn't Load. \n ---> loading it now...")
                 os.makedirs('data/phon_frequency_dict', exist_ok=True)
                 freq = general_functions.load_phon_frequency_dict(
                     save_path='data/phon_frequency_dict',
@@ -835,8 +792,8 @@ class TrialChannelData:
                 audio_file=self.wav_fname,
                 PLLR=True
             )
-
-            # posterior_prob: (num_frames, num_phones), original_fs ≈ 100 Hz # TODO: falta tomar los mismos recaudos que se toman en phonemes para no dividir por cero
+            
+            # posterior_prob: (num_frames, num_phones), original_fs ≈ 100 Hz
             num_target_frames = int((wav.shape[0] / self.audio_sr) * self.sr)
             posterior_prob = sgn.resample(
                 posterior_prob, 
@@ -993,150 +950,205 @@ class TrialChannelData:
         # Return data in desired shape
         return np.stack(phonological_features, axis=0).T
 
-    def extract_DNNs(
+    def extract_wav2vec2(
         self,
-        envelope: np.ndarray,
-        n_components: int = 16,
-        backbone: str = "wav2vec2",              # "whisper" or "wav2vec2"
-        model_id: str = None,                    # None -> use defaults below
-        encoder_layer: int = 1
-    ) -> np.ndarray:
+        envelope:np.ndarray,
+        eeg:np.ndarray,
+        n_components:int=16
+        )->np.ndarray:
         """
-        Build a n_components representation of the audio using a DNN encoder, then:
-          1) Standardize + PCA along feature dim
-          2) Interpolate over time to match envelope length
-        Returns array with shape (n_components, len(envelope)).
+        Extracts features from an audio file using the Wav2Vec2 model, applies PCA for dimensionality reduction, and returns the reduced features.
 
-        Notes:
-        - Uses Whisper by default (log-mel -> encoder). Disables 30 s padding.
-        - Time resampling uses linear interpolation in normalized time [0..1].
-        - For better stability across files, consider fitting PCA on a corpus.
+        Parameters
+        ----------
+        envelope : np.ndarray
+            Envelope of the audio signal using Hilbert transform.
+        eeg : np.ndarray
+            Filtered signal of EEG
+        n_components : int
+            Number of principal components to retain after applying PCA.
+
+        Returns
+        -------
+        np.ndarray
+            Reduced hidden states from the Wav2Vec2 model after applying PCA.
         """
-        # === 1 = LOAD AUDIO ====
-        sr, wav = wavfile.read(self.wav_fname)
-        if wav.ndim > 1:
-            wav = wav.mean(axis=1)
+        logger.warn('WARNING: TO RUN THIS FEATURE YOU NEED TO HAVE THE TRANSFORMER MODEL DOWNLOADED AND HAVE THE ENVELOPE MODEL ALREADY RUN FOR THE SITUATION OF INTEREST.')
         
-        # Normalize to [-1, 1]
-        if np.issubdtype(wav.dtype, np.integer):
-            wav = wav.astype(np.float32) / max(1, np.iinfo(wav.dtype).max)
-        else:
-            wav = wav.astype(np.float32)
-
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-
-        # Defaults if not provided
-        if model_id is None:
-            bl = backbone.lower()
-            if  bl == "whisper":
-                model_id = "openai/whisper-tiny"
-            elif bl == "wav2vec2":
-                model_id = "jonatasgrosman/wav2vec2-large-xlsr-53-spanish"
+        # Read file
+        wav = wavfile.read(self.wav_fname)[1]
+        wav = wav.astype("float")
+        
+        # Identify which moments of the given condition are present in the audio file
+        samples_info = general_functions.load_pickle(path=f'saves/preprocessed_data/{self.situation}/tmin-0.2_tmax0.6/samples_info/samples_info_{self.session}.pkl')
+        keepindexes = samples_info[f'keep_indexes{self.channel}']
+        len_trial = samples_info[f'trial_lengths{self.channel}'][self.trial]
+        keepindexes = [keep for keep in keepindexes if keep<=len_trial]
+        
+        filter_index_used_in_trial = []
+        for i in range(len(envelope)):
+            try:
+                filter_index_used_in_trial.append(keepindexes.index(i))
+            except Exception as err:
+                continue
+        
+        indexes_128Hz = np.array(keepindexes)[filter_index_used_in_trial]
+        
+        # Now, as the audio is sampled at 16e3 Hz instead of 128 Hz we have to consider more indexes (since in one sample step at 128 Hz has 8 indexes at 16e3 Hz)
+        indexes_16kHz = indexes_128Hz*(16e3/128)
+        dense_indexes = []
+        
+        # Complete consecutive samples
+        for i in range(len(indexes_128Hz)-1):
+            start = indexes_16kHz[i]
+            end = indexes_16kHz[i+1]
+            if indexes_128Hz[i+1]-indexes_128Hz[i]==1:
+                dense_indexes.extend(np.arange(start, end + 1))
             else:
-                raise ValueError(f"Unknown backbone: {backbone}")
+                dense_indexes.append(start)
+        dense_indexes.append(indexes_16kHz[-1])
+        dense_indexes = list(map(int,dense_indexes))
         
-        # Use cached model/processor
-        processor, model = _get_dnn_model(backbone, model_id, device)
+        # Redefine .wav to make 0 elements outside dense_indexes
+        mask = np.ones_like(wav, dtype=bool)
+        mask[dense_indexes] = False
+        wav[mask] = 0
+
+        # Get name of folder
+        modelfname = f'wav2vec2_weights_{TRANSFORMER_MODEL.split("wav2vec2-")[1]}' if 'wav2vec2' in TRANSFORMER_MODEL else f'whisper_weights_{TRANSFORMER_MODEL.split("whisper-")[1]}'
+
+        # Loads model and proccesor
+        ini = time.time()
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning, message="Passing `gradient_checkpointing` to a config initialization is deprecated")
+            processor = WhisperProcessor.from_pretrained(TRANSFORMER_MODEL, cache_dir=f'saves/preprocessed_data/{modelfname}')
+            model = WhisperModel.from_pretrained(TRANSFORMER_MODEL, cache_dir=f'saves/preprocessed_data/{modelfname}')
+
+            # processor = Wav2Vec2Processor.from_pretrained(wac2vec2model, cache_dir=f'saves/preprocessed_data/{modelfname}')
+            # model = Wav2Vec2Model.from_pretrained(wac2vec2model, cache_dir=f'saves/preprocessed_data/{modelfname}')
         
-        # Resample to model SR
-        model_sr = getattr(getattr(processor, "feature_extractor", None), "sampling_rate", 16000)
-        if sr != model_sr:
-            wav_model = sgn.resample_poly(wav, up=model_sr, down=sr)
-        else:
-            wav_model = wav
-            
-        # === 2 = GET ENCODER SEQUENCE ====
-        backbone_lower = backbone.lower()
-        if backbone_lower == "whisper":
-            with torch.no_grad():
-                inputs = processor(
-                    audio=wav_model,
-                    sampling_rate=model_sr,
-                    return_tensors="pt",
-                    # padding=False  # avoid 30s padding
-                    padding="max_length",          # pad a 30s -> 3000 frames
-                    return_attention_mask=True  
-                )
-                # Whisper uses input_features (log-mel)
-                use_amp = (device == "cuda")
-                with torch.amp.autocast(device, enabled=use_amp):
-                    outputs = model.encoder(
-                        input_features=inputs.input_features.to(device),
-                        attention_mask=inputs.attention_mask.to(device),
-                        output_hidden_states=True,
-                        return_dict=True
+        # Preprocessing: break .wav in consecutive windows to feed the model and then concatenate the results
+        # sample_windows = np.arange(0, wav.shape[0], 800e-3*self.audio_sr, dtype=int)
+        # sample_windows = np.concatenate((sample_windows, np.array([wav.shape[0]])))
+        # sample_windows = []
+        # current_window = [dense_indexes[0]]
+        # for i in range(1, len(dense_indexes)):
+        #     if dense_indexes[i]==(dense_indexes[i-1]+1):
+        #         current_window.append(dense_indexes[i])
+        #     else:
+        #         sample_windows.append(current_window)
+        #         current_window = [dense_indexes[i]]
+        # Preprocessing: break .wav in windows of 800ms to feed the model and then concatenate the results
+        sample_windows = np.arange(0, wav.shape[0], 800e-3*self.audio_sr, dtype=int)
+        sample_windows = np.concatenate((sample_windows, np.array([wav.shape[0]])))
+        
+        full_hidden_states = []
+        for sample_window_d, sample_window in tqdm(zip(np.roll(sample_windows, shift=1)[1:], sample_windows[1:]), total=sample_windows.shape[0]):
+            input_values = processor(
+                        wav[sample_window_d:sample_window],
+                        sampling_rate=self.audio_sr, 
+                        return_tensors="pt"
+                        ).input_features
+            # Get model's output
+            outputs = model.encoder(
+                    input_values, 
+                    output_hidden_states=True
                     )
-                
-                # Tomamos las hidden states del encoder
-                hs = outputs.hidden_states
-                # Quitar el embedding inicial si viene incluido (len = layers + 1)
-                if len(hs) == model.config.encoder_layers + 1:
-                    hs = hs[1:]
-                # Soportar índices negativos (e.g., -1 = última)
-                idx = encoder_layer if encoder_layer >= 0 else len(hs) + encoder_layer
-                if idx < 0 or idx >= len(hs):
-                    raise ValueError(f"encoder_layer={encoder_layer} fuera de rango (0..{len(hs)-1})")
-                # [B, T, D] -> [T, D]
-                H = hs[idx].squeeze(0).cpu().numpy()
+        
+            # Get last hidden layer
+            hidden_states = outputs.hidden_states[-1]  #(batch_size, sequence_length, hidden_size)
+            
+            # Adjust dimensions (take out batch dimension and resample sequence length to match envelope)
+            hidden_states = hidden_states.squeeze(0).detach().numpy()  
+            
+            full_hidden_states.append(hidden_states)
+            
+        # Apply PCA to find principal components 
+        pca = PCA(n_components=n_components)
+        pca.fit_transform(np.concatenate(full_hidden_states, axis=0))
+        logger.debug(f'Portion of variance of whole hidden layer explained by {n_components} components: {np.sum(pca.explained_variance_ratio_)*100:.2f}%')
 
-        elif backbone_lower == "wav2vec2":
-            with torch.no_grad():
-                inputs = processor(
-                    wav_model,
-                    sampling_rate=model_sr,
-                    return_tensors="pt",
-                    padding=False
+        hidden_state_final = []
+        # for hidden_states, sample_window, in zip(full_hidden_states, sample_windows):
+        for hidden_states, sample_window_d, sample_window in zip(full_hidden_states, np.roll(sample_windows, shift=1)[1:], sample_windows[1:]):
+            window_time = (sample_window-sample_window_d)/self.audio_sr
+            sample_freq_w = int(np.round(hidden_states.shape[0] / window_time, 0))
+            
+            hidden_states_reduced = pca.transform(hidden_states)
+            target_hidden_states = resampy.resample(
+                hidden_states_reduced, 
+                sample_freq_w, 
+                config.sr, 
+                axis=0
                 )
-                outputs = model(
-                    input_values=inputs.input_values.to(device),
-                    output_hidden_states=True,
-                    return_dict=True
-                )
-                hs = outputs.hidden_states
-                # Quitar el embedding inicial si viene incluido (len = layers + 1)
-                if len(hs) == model.config.num_hidden_layers + 1:
-                    hs = hs[1:]
-                idx = encoder_layer if encoder_layer >= 0 else len(hs) + encoder_layer
-                if idx < 0 or idx >= len(hs):
-                    raise ValueError(f"encoder_layer={encoder_layer} fuera de rango (0..{len(hs)-1})")
-                # [B, T, D] -> [T, D]
-                H = hs[idx].squeeze(0).cpu().numpy()
-        else:
-            raise ValueError(f"Unknown backbone: {backbone}. Use 'whisper' or 'wav2vec2'.")
+            hidden_state_final.append(target_hidden_states)
+        
+        hidden_state_final = np.concatenate(hidden_state_final, axis=0)
+        
+        logger.debug(f'The model took {(time.time()-ini)/60:.2f} minutes')
+        
+        # Cutoff to minimum length
+        min_length = min(eeg.shape[0], hidden_state_final.shape[0])
+        return hidden_state_final[:min_length]
+        
+        # reduced_hidden_states = pca.fit_transform(hidden_states.detach().numpy())
+        # reduced_hidden_states.shape
 
-        # Guard: very short inputs
-        if H.ndim != 2 or H.shape[0] < 2:
-            # Return zeros if we cannot form a sequence
-            logger.warning("Input audio is too short to extract features.")
-            return np.zeros((n_components, len(envelope)), dtype=np.float32)
+        # # reduced_hidden_states = gaussian_filter1d(hidden_states_resampled, sigma=15, axis=0)
+        # # reduced_hidden_states = smooth_with_spline(reduced_hidden_states, smoothing_factor=15)
+        
+        # # Create an interpolation function for each hidden state
+        # interp_funcs = [interp1d(np.arange(reduced_hidden_states.shape[0]), reduced_hidden_states[:, i], kind='linear') for i in range(reduced_hidden_states.shape[1])]
+        # new_time_points = np.linspace(0, reduced_hidden_states.shape[0] - 1, envelope.shape[0])
 
-        # === 3 = REDUCE DIMENSION ====
-        scaler = StandardScaler(with_mean=True, with_std=True)
-        Hs = scaler.fit_transform(H)                 # (T, D)
-        pca = PCA(n_components=min(n_components, Hs.shape[1]))
-        Z = pca.fit_transform(Hs)                    # (T, n_components_effective)
+        # # Apply interpolation to each hidden state
+        # hidden_states_resampled = np.array([interp_func(new_time_points) for interp_func in interp_funcs]).T  # Shape (envelope_length, hidden_size)
+        
+        # end = time.time()
+        # print(f'The model took {(end-ini)/60:.2f} minutes')
+        # return hidden_states_resampled
+        
+        # import matplotlib.pyplot as plt
+        # # plt.figure()
+        # # plt.plot(reduced_hidden_states[:,0])
+        # # plt.show(block=False)
+        # plt.figure()
+        # # hidden_states_filtered = lowpass_filter(hidden_states_resampled, cutoff=.1, fs=128)
+        # # plt.plot(hidden_states_filtered[:,0])
+        # plt.plot(hidden_states_resampled[:,0])
+        # plt.show(block=False)
+        
+        
 
-        # If model produced fewer dims than requested, pad with zeros
-        if Z.shape[1] < n_components:
-            pad = np.zeros((Z.shape[0], n_components - Z.shape[1]), dtype=Z.dtype)
-            Z = np.hstack([Z, pad])
+        # # Suponiendo que 'hidden_states_resampled' es de forma (n_samples, hidden_size)
+        # # y querés suavizar a lo largo del tiempo (axis=0)
+        # hidden_states_smoothed = gaussian_filter1d(hidden_states_resampled, sigma=15, axis=0)
+        
+        # plt.figure()
+        # # plt.plot(gaussian_filter1d(reduced_hidden_states[:,1], sigma=15, axis=0))
+        # plt.plot(reduced_hidden_states[:,1])
+        
+        # plt.show(block=False)
+       
+        # # # Apply PCA to find principal components that maximize correlation between EEG and audio
+        # cca = CCA(n_components=16)
+        # # if eeg.shape[0] < hidden_states_resampled.shape[0]:
+        # #     eeg = np.repeat(eeg, hidden_states_resampled.shape[0]//eeg.shape[0], axis=0)
 
-        # === 4 = RESAMPLE TO ENVELOPE ====
-        T_src = Z.shape[0]
-        T_tgt = int(len(envelope))
-
-        if T_src == T_tgt:
-            Z_t = Z
-        else:
-            # Normalize time to [0,1) to avoid relying on sample rates
-            x_src = np.linspace(0.0, 1.0, T_src, endpoint=False)
-            x_tgt = np.linspace(0.0, 1.0, T_tgt, endpoint=False)
-            interp = interp1d(x_src, Z, axis=0, kind="linear", fill_value="extrapolate", assume_sorted=True)
-            Z_t = interp(x_tgt)                      # (T_tgt, n_components)
-
-        # Return as (T_tgt, n_components) to match typical (features, time)
-        dnn_features = Z_t.astype(np.float32)
-        return dnn_features
+        # if eeg.shape[0]!=hidden_states_resampled.shape[0]:
+        #     min_length = min(eeg.shape[0], hidden_states_resampled.shape[0])
+        #     eeg = eeg[:min_length]
+        #     hidden_states_resampled = hidden_states_resampled[:min_length]
+        # ini = time.time()
+        # scaler_X = StandardScaler()
+        # scaler_Y = StandardScaler()
+        # X_scaled = scaler_X.fit_transform(hidden_states_resampled)
+        # Y_scaled = scaler_Y.fit_transform(eeg)
+        # cca = CCA(n_components=n_components, max_iter=1000)
+        # X_canonical, _ = cca.fit_transform(X_scaled, Y_scaled)
+        # end = time.time()
+        # print(f'The CCA took {(end-ini)/60:.2f} minutes')
+        # return X_canonical #- #np.mean(X_canonical, axis=1, keepdims=True)  
 
     def extract_mistakes(
         self, 
@@ -1274,45 +1286,6 @@ class TrialChannelData:
         elif difference<0:
             control_signal = np.concatenate((control_signal, np.zeros(shape=(np.abs(difference), 3)))) if separated else np.concatenate((control_signal, np.zeros(shape=(np.abs(difference), 1))))
         return control_signal
-    
-    def extract_turn_taking(
-        self,
-        envelope:np.ndarray,
-    ):
-        """
-        Extracts turn-taking features from the audio envelope.
-
-        Parameters
-        ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform.
-
-        Returns
-        -------
-        np.ndarray
-            Array with turn-taking features.
-        """
-        # Read json file
-        try: 
-            with open(self.turn_fname, 'r') as json_file:
-                turn_data_list = json.load(json_file)
-        except Exception as e:
-            logger.error(f"Error reading turn-taking file: {e}")
-            return np.zeros_like(envelope)
-
-        turn_feature = np.zeros_like(envelope)
-        for turn_data in turn_data_list:
-            start_sample = int(turn_data['ipu1_start_time'] * self.sr)
-            end_sample = int(turn_data['ipu1_end_time'] * self.sr)
-            
-            # Make a 300 ms ramp that ends valued 1 at the end of the IPU
-            samples_ramp = int(0.3*self.sr)
-            ramp = np.linspace(0, 1, samples_ramp)
-            
-            start = max(start_sample, end_sample - samples_ramp)
-            turn_feature[start:end_sample] = ramp.reshape(-1,1) if start!=start_sample else np.linspace(0, 1, end_sample - start_sample).reshape(-1,1)
-
-        return turn_feature
 
     def extract_offset(
         self,
@@ -1421,11 +1394,10 @@ class TrialChannelData:
                     envelope=channel['Envelope'], 
                     kind=stimulus
                 )
-            if stimulus.startswith('DNNs'):
-                encoder_layer = int(stimulus[-1])
-                channel[stimulus] = self.extract_DNNs(
-                    envelope=channel['Envelope'],
-                    encoder_layer=encoder_layer
+            if stimulus=='Wav2vec2':
+                channel[stimulus] = self.extract_wav2vec2(
+                    envelope=channel['Envelope'], 
+                    eeg=channel['EEG']
                 )
             if stimulus=='Spectrogram':
                 channel['Spectrogram'] = self.extract_spectrogram(
@@ -1442,10 +1414,6 @@ class TrialChannelData:
                 )
             if stimulus == 'Offset':
                 channel[stimulus] = self.extract_offset(
-                    envelope=channel['Envelope']
-                )
-            if stimulus == 'Turn':
-                channel[stimulus] = self.extract_turn_taking(
                     envelope=channel['Envelope']
                 )
         if temporal_shift:
@@ -1526,10 +1494,207 @@ class SessionData:
             else:
                 self.export_paths[f'{stimulus}'] = os.path.join(self.preprocessed_data_path, f'{stimulus}/')
 
+    # def load_from_raw(
+    #     self
+    #     )->dict:
+    #     """
+    #     Loads raw data, this includes EEG, Envelope, info and the rest of asked stimuli.
+
+    #     Returns
+    #     -------
+    #     dict
+    #         Sessions of both subjects
+    #     """
+
+    #     subject_1 = {}
+    #     subject_2 = {}
+
+    #     # Retrieve number of files, i.e: trials.
+    #     trials = list(set([int(fname.split('.')[2]) for fname in os.listdir(self.phrases_path) if fname.endswith('phrases')]))
+    #     trials = sorted(trials)  # Ensure order for progress
+
+    #     # Try to open preprocessed info of samples, if not creates raw.
+    #     try:
+    #         self.samples_info = general_functions.load_pickle(
+    #             path=os.path.join(
+    #                 self.samples_info_path, f'samples_info_{self.session}.pkl'
+    #             )
+    #         )
+    #         loaded_samples_info = True
+    #     except Exception as e:
+    #         logger.debug(f"Couldn't load samples info for session {self.session}. \nCreating new samples info dictionary. \nError: {e}")
+    #         loaded_samples_info = False
+    #         self.samples_info = {
+    #             'trial_lengths1': [0],
+    #             'trial_lengths2': [0],
+    #             'keep_indexes1':[],
+    #             'keep_indexes2':[]
+    #         }
+
+    #     # --- Parallelize trial processing ---
+    #     def process_trial(trial):
+    #         try:
+    #             channel_1 = TrialChannelData(
+    #                     situation=self.situation,
+    #                     session=self.session, 
+    #                     band=self.band,
+    #                     trial=trial, 
+    #                     channel=1
+    #             )
+    #             channel_2 = TrialChannelData(
+    #                     situation=self.situation,
+    #                     session=self.session,
+    #                     band=self.band,
+    #                     trial=trial,
+    #                     channel=2
+    #             )
+
+    #             trial_channel_1 = channel_1.load_trial(stimuli=self.stimuli.split('_'))
+    #             trial_channel_2 = channel_2.load_trial(stimuli=self.stimuli.split('_'))
+
+    #             if self.situation.startswith('Internal'):
+    #                 trial_subject_1 = trial_channel_1.copy()
+    #                 trial_subject_2 = trial_channel_2.copy()
+    #             else:
+    #                 trial_subject_1 = {key: trial_channel_2[key] for key in trial_channel_2 if key!='EEG'} 
+    #                 trial_subject_2 = {key: trial_channel_1[key] for key in trial_channel_1 if key!='EEG'}
+    #                 trial_subject_1['EEG'], trial_subject_2['EEG'] = trial_channel_1['EEG'], trial_channel_2['EEG']
+
+    #             current_speaker_1 = self.labeling(trial=trial, channel=2)
+    #             filter_1, filter_2 = current_speaker_1 == 1, current_speaker_1 == 2 
+    #             current_speaker_2 = current_speaker_1.copy()
+    #             current_speaker_2[filter_1] = 2
+    #             current_speaker_2[filter_2] = 1
+
+    #             trial_subject_1, current_speaker_1, minimum1 = self.match_lengths(
+    #                 speaker_labels=current_speaker_1,
+    #                 dic=trial_subject_1 
+    #             )
+    #             trial_subject_2, current_speaker_2, minimum2 = self.match_lengths(
+    #                 speaker_labels=current_speaker_2,
+    #                 dic=trial_subject_2 
+    #             )
+
+    #             # Return everything needed for later aggregation
+    #             return {
+    #                 "trial": trial,
+    #                 "trial_subject_1": trial_subject_1,
+    #                 "trial_subject_2": trial_subject_2,
+    #                 "current_speaker_1": current_speaker_1,
+    #                 "current_speaker_2": current_speaker_2,
+    #                 "minimum1": minimum1,
+    #                 "minimum2": minimum2,
+    #                 "success": True,
+    #                 "info": trial_channel_1['info']
+    #             }
+    #         except Exception as e:
+    #             logger.warning(f"Trial {trial} of session {self.session} couldn't be loaded.")
+    #             logger.warning(f"\nAn unexpected error occurred: {e}") 
+    #             return {
+    #                 "trial": trial,
+    #                 "success": False
+    #             }
+
+    #     results = []
+    #     total = len(trials)
+    #     print(f"Processing {total} trials with 5 workers...")
+
+    #     with ThreadPoolExecutor(max_workers=5) as executor:
+    #         future_to_trial = {executor.submit(process_trial, trial): trial for trial in trials}
+    #         for i, future in enumerate(as_completed(future_to_trial), 1):
+    #             result = future.result()
+    #             results.append(result)
+    #             trial_num = future_to_trial[future]
+    #             print(f"Completed trial {trial_num} ({i}/{total})", flush=True)
+
+    #     # Sort results by trial number to keep order
+    #     results = sorted(results, key=lambda x: x["trial"])
+
+    #     # Aggregate results
+    #     for res in results:
+    #         if not res["success"]:
+    #             self.samples_info['trial_lengths1'].append(0)
+    #             self.samples_info['trial_lengths2'].append(0)
+    #             continue
+
+    #         trial_subject_1 = res["trial_subject_1"]
+    #         trial_subject_2 = res["trial_subject_2"]
+    #         current_speaker_1 = res["current_speaker_1"]
+    #         current_speaker_2 = res["current_speaker_2"]
+    #         minimum1 = res["minimum1"]
+    #         minimum2 = res["minimum2"]
+
+    #         if not loaded_samples_info:
+    #             self.samples_info['trial_lengths1'].append(minimum1)
+    #             self.samples_info['trial_lengths2'].append(minimum2)
+    #             shifted_1 = self.shifted_indexes_to_keep(speaker_labels=current_speaker_1)
+    #             shifted_2 = self.shifted_indexes_to_keep(speaker_labels=current_speaker_2)
+    #             self.samples_info['keep_indexes1'] += (shifted_1 + np.sum(self.samples_info['trial_lengths1'][:-1])).tolist()
+    #             self.samples_info['keep_indexes2'] += (shifted_2 + np.sum(self.samples_info['trial_lengths2'][:-1])).tolist()
+
+    #         for key in trial_subject_1:
+    #             if key != 'info':
+    #                 if key not in subject_1:
+    #                     subject_1[key] = trial_subject_1[key]
+    #                     subject_2[key] = trial_subject_2[key]
+    #                 else:
+    #                     subject_1[key] = np.concatenate(
+    #                         (subject_1[key], trial_subject_1[key]), axis=0
+    #                     )
+    #                     subject_2[key] = np.concatenate(
+    #                         (subject_2[key], trial_subject_2[key]), axis=0
+    #                     )
+    #         # Save info from the first successful trial
+    #         if 'info' in trial_subject_1 and 'info' not in locals():
+    #             info = trial_subject_1['info']
+    #         elif 'info' not in locals():
+    #             info = res["info"]
+
+    #     # If no successful trial, set info to None
+    #     if 'info' not in locals():
+    #         info = None
+
+    #     # Save modified relevant indexes 
+    #     os.makedirs(
+    #         self.samples_info_path, 
+    #         exist_ok=True
+    #     )
+    #     general_functions.dump_pickle(
+    #         path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'), 
+    #         obj=self.samples_info, 
+    #         rewrite=True
+    #     )
+
+    #     # Save results, taking advantage of the fact that both subjects have the same keys
+    #     for key in subject_1:
+    #         os.makedirs(
+    #             self.export_paths[key], 
+    #             exist_ok=True
+    #         )
+    #         general_functions.dump_pickle(
+    #             path=os.path.join(self.export_paths[key], f'Sesion{self.session}.pkl'), 
+    #             obj=[subject_1[key], subject_2[key]], 
+    #             rewrite=True
+    #         )
+
+    #     # Save info of the setup                    
+    #     general_functions.dump_pickle(
+    #         path=os.path.join(self.preprocessed_data_path, 'EEG/info.pkl'), 
+    #         rewrite=True,
+    #         obj=info 
+    #     )
+
+    #     # Redefine subjects dictionaries to return only used stimuli
+    #     relevant_subject_1 = {key: subject_1[key] for key in self.stimuli.split('_') + ['EEG']}
+    #     relevant_subject_2 = {key: subject_2[key] for key in self.stimuli.split('_') + ['EEG']}
+    #     relevant_subject_1['info'] = info
+    #     relevant_subject_2['info'] = info
+
+    #     return relevant_subject_1, relevant_subject_2, self.samples_info
     def load_from_raw(
         self, 
         save_results:bool=True
-    )->dict:
+        )->dict:
         """
         Loads raw data, this includes EEG, Envelope, info and the rest of asked stimuli.
 
@@ -1569,18 +1734,18 @@ class SessionData:
             # Create trial for both channels in order to extract features and EEG signal
             try:
                 channel_1 = TrialChannelData(
-                    situation=self.situation,
-                    session=self.session, 
-                    band=self.band,
-                    trial=trial, 
-                    channel=1
+                        situation=self.situation,
+                        session=self.session, 
+                        band=self.band,
+                        trial=trial, 
+                        channel=1
                 )
                 channel_2 = TrialChannelData(
-                    situation=self.situation,
-                    session=self.session,
-                    band=self.band,
-                    trial=trial,
-                    channel=2,
+                        situation=self.situation,
+                        session=self.session,
+                        band=self.band,
+                        trial=trial,
+                        channel=2,
                         
                 )
 
@@ -1607,10 +1772,11 @@ class SessionData:
 
                 # Labeling of current speaker. {3:both_speaking, 2:speaker_talks, 1:interlocutor_talks, 0:silence}.
                 # The difference between _1 and _2 is that values 1 and 2 are swapped (changes the perspective of who is the speaker and who is the interlocutor)
-                current_speaker_1 = self.labeling(trial=trial, channel=2, sr=self.sr) # len matching eeg
+                current_speaker_1 = self.labeling(trial=trial, channel=2) # len matching eeg
+                filter_1, filter_2 = current_speaker_1 == 1, current_speaker_1 == 2 
                 current_speaker_2 = current_speaker_1.copy()
-                current_speaker_2[current_speaker_1 == 1] = 2
-                current_speaker_2[current_speaker_1 == 2] = 1
+                current_speaker_2[filter_1] = 2
+                current_speaker_2[filter_2] = 1
 
                 # Match length of speaker labels and trials with the info of its lengths
                 trial_subject_1, current_speaker_1, minimum1 = self.match_lengths(
@@ -1646,6 +1812,14 @@ class SessionData:
                             subject_2[key] = np.concatenate(
                                 (subject_2[key], trial_subject_2[key]), axis=0
                             )
+                # for key in trial_subject_2:
+                #     if key != 'info':
+                #         if key not in subject_2:
+                #             subject_2[key] = trial_subject_2[key]
+                #         else:
+                #             subject_2[key] = np.concatenate(
+                #                 (subject_2[key], trial_subject_2[key]), axis=0
+                #             )
 
             # Empty trial
             except Exception as e:
@@ -1731,7 +1905,7 @@ class SessionData:
         self, 
         trial:int, 
         channel:int,
-        sr:int
+        sr:int=config.sr
         )->np.ndarray:
         """
         Gives an array with speaking channel: 3 (both speak), 2 (interlocutor), 1 (channel), 0 (silence)
@@ -1960,8 +2134,7 @@ def load_data(
     preprocessed_data_path:str, 
     situation:str='External',
     save_results:bool=True,
-    temporal_shift:Union[float, None]=None,
-    overwrite: bool=False
+    temporal_shift:Union[float, None]=None
 )->tuple:
     """
     Loads and processes EEG and stimuli data for a given session.
@@ -1979,30 +2152,8 @@ def load_data(
     'Phonemes', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency', 
     'Phones', 'Phones-Envelope', 'Phones-Discrete',
     'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
-    'DNNs1',
-    'DNNs2',
-    'DNNs3',
-    'DNNs4',
-    'DNNs5',
-    'DNNs6',
-    'DNNs7',
-    'DNNs8',
-    'DNNs9',
-    'DNNs10',
-    'DNNs11',
-    'DNNs12',
-    'DNNs13',
-    'DNNs14',
-    'DNNs15',
-    'DNNs16',
-    'DNNs17',
-    'DNNs18',
-    'DNNs19',
-    'DNNs20',
-    'DNNs21',
-    'DNNs22',
-    'DNNs23',
-    'Turn',
+    'Wav2vec2',
+    'Offset'
     # 'Jitter', 'Shimmer'
     band : str
         Neural frequency band. It could be one of: 
@@ -2028,8 +2179,6 @@ def load_data(
         If True, saves the results in the preprocessed_data_path. Default is False.
     temporal_shift : Union[float, None], optional
         If not None, it is the temporal shift to apply to the EEG signal. Default is None.
-    overwrite : bool, optional
-        If True, overwrites the existing preprocessed data, forcing load_raw. Default is True.
 
     Returns
     -------
@@ -2048,30 +2197,8 @@ def load_data(
     'Phonemes', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency', 
     'Phones', 'Phones-Envelope', 'Phones-Discrete',
     'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
-    'DNNs1',
-    'DNNs2',
-    'DNNs3',
-    'DNNs4',
-    'DNNs5',
-    'DNNs6',
-    'DNNs7',
-    'DNNs8',
-    'DNNs9',
-    'DNNs10',
-    'DNNs11',
-    'DNNs12',
-    'DNNs13',
-    'DNNs14',
-    'DNNs15',
-    'DNNs16',
-    'DNNs17',
-    'DNNs18',
-    'DNNs19',
-    'DNNs20',
-    'DNNs21',
-    'DNNs22',
-    'DNNs23',
-    'Turn',
+    'Wav2vec2',
+    'Offset'
     # 'Jitter', 'Shimmer'
         If 'band' is not an allowed band frequency. Allowed ones are:
     'Delta',
@@ -2113,12 +2240,7 @@ def load_data(
     # Try to load procesed data, if it fails it loads raw data
     logger.info('Loading preprocesed data\n')
     try:
-        if not overwrite:
-            sessions_1, sessions_2, samples_info = session_obj.load_procesed()
-        else:
-            sessions_1, sessions_2, samples_info = session_obj.load_from_raw(
-               save_results=save_results
-            )
+        sessions_1, sessions_2, samples_info = session_obj.load_procesed()
         logger.info('Data loaded succesfully\n')
     except Exception as e:
         logger.debug(f"An error occurred while loading preprocessed data: {e}")
@@ -2291,3 +2413,289 @@ if __name__ == "__main__":
                 i=i,
                 length_of_iterator=len(futures)
             )
+
+
+    # def extract_jitter(
+    #     self, 
+    #     envelope: np.ndarray
+    # ) -> np.ndarray:
+    #     """
+    #     Extracts jitter (pitch period variation) matching the size of the envelope
+
+    #     Parameters
+    #     ----------
+    #     envelope : np.ndarray
+    #         Envelope of the audio signal using Hilbert transform
+
+    #     Returns
+    #     -------
+    #     np.ndarray
+    #         Jitter values with same length as envelope, shape (samples, 1)
+    #     """
+    #     # Read file
+    #     sr, wav = wavfile.read(self.wav_fname)
+    #     wav = wav.astype("float")
+        
+    #     # Processing object to extract audio features
+    #     smile = opensmile.Smile(
+    #         feature_set=opensmile.FeatureSet.eGeMAPSv02,
+    #         feature_level=opensmile.FeatureLevel.LowLevelDescriptors,
+    #         sampling_rate=self.audio_sr,
+    #         options={
+    #             "frameMode": "fixed",
+    #             "frameSize": 0.025,      # 25 ms window (default)
+    #             "frameStep": 1/128  # 128 Hz output
+    #         },
+    #         verbose=5
+    #     )
+
+    #     # Creates a pd.DataFrame to store audio features
+    #     y = smile.process_file(self.wav_fname)
+
+    #     # Removes file index of multindex, leaving just start and end times as index
+    #     y.index = y.index.droplevel(0)
+
+    #     # Transform to single index with elapsed time in seconds
+    #     y.index = y.index.map(lambda x: x[0].total_seconds())
+
+    #     # Extract jitter feature
+    #     jitter = y['jitterLocal_sma3nz'].values.reshape(-1, 1)
+    #     from IPython import embed
+    #     embed(header='Jitter extracted, now interpolating to match envelope length')
+
+    #     downsampling_factor = int(self.audio_sr/self.sr)
+    #     max_numtaps = int(len(jitter) / 3)
+    #     numtaps = min(3001, max_numtaps)
+    #     filter_coeffs = sgn.firwin(
+    #         numtaps=numtaps,
+    #         cutoff=(self.sr / 2.0)  *.99,  # Nyquist frequency of target sampling rate
+    #         fs=self.audio_sr, 
+    #         pass_zero='lowpass'
+    #     )
+
+    #     # Filter 
+    #     jitter_f = sgn.filtfilt(
+    #         b=filter_coeffs, 
+    #         a=np.array([1.0]), 
+    #         x=jitter.copy(),
+    #         axis=0
+    #     )
+
+    #     # Downsample 
+    #     jitter_f = jitter_f[::downsampling_factor]
+
+    #     import matplotlib.pyplot as plt
+    #     import matplotlib
+    #     matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
+    #     plt.figure()
+    #     plt.plot(jitter)
+    #     plt.plot(jitter_f)
+    #     plt.show(block=False)
+    #     # Create time array for interpolation
+    #     original_time = np.arange(len(jitter)) * (len(jitter) / len(wav)) * (1/self.audio_sr)
+    #     target_time = np.arange(len(envelope)) * (1/self.sr)
+        
+    #     # Interpolate to match envelope length
+    #     jitter_resampled = np.interp(target_time, original_time, jitter)
+        
+    #     return jitter_resampled.reshape(-1, 1)
+
+    # def extract_shimmer(
+    #     self, 
+    #     envelope: np.ndarray
+    # ) -> np.ndarray:
+    #     """
+    #     Extracts shimmer (amplitude variation) matching the size of the envelope
+
+    #     Parameters
+    #     ----------
+    #     envelope : np.ndarray
+    #         Envelope of the audio signal using Hilbert transform
+
+    #     Returns
+    #     -------
+    #     np.ndarray
+    #         Shimmer values with same length as envelope, shape (samples, 1)
+    #     """
+    #     # Read file
+    #     wav = wavfile.read(self.wav_fname)[1]
+    #     wav = wav.astype("float")
+        
+    #     # Get sample window size to match the sampling rate of the EEG
+    #     sample_window = int(self.audio_sr/self.sr)
+        
+    #     # Processing object to extract audio features
+    #     smile = opensmile.Smile(
+    #         feature_set=opensmile.FeatureSet.eGeMAPSv02,
+    #         feature_level=opensmile.FeatureLevel.LowLevelDescriptors
+    #     )
+
+    #     # Creates a pd.DataFrame to store audio features
+    #     y = smile.process_file(self.wav_fname)
+        
+    #     # Removes file index of multindex, leaving just start and end times as index
+    #     y.index = y.index.droplevel(0)
+
+    #     # Transform to single index with elapsed time in seconds
+    #     y.index = y.index.map(lambda x: x[0].total_seconds())
+
+    #     # Extract shimmer feature
+    #     shimmer = y['shimmerLocaldB_sma3nz'].values
+        
+    #     # Create time array for interpolation
+    #     original_time = np.arange(len(shimmer)) * (len(shimmer) / len(wav)) * (1/self.audio_sr)
+    #     target_time = np.arange(len(envelope)) * (1/self.sr)
+        
+    #     # Interpolate to match envelope length
+    #     shimmer_resampled = np.interp(target_time, original_time, shimmer)
+        
+    #     return shimmer_resampled.reshape(-1, 1)
+    
+    
+    
+    # def f_phonemes_phonet( 
+    #     self, 
+    #     envelope:np.ndarray, 
+    #     kind:str='Phonemes-Discrete-Phonet'
+    #     )->np.ndarray:
+    #     """
+    #     It makes a time-match matrix between the phonemes and the envelope using Phonet implementation. The values and shape of given matrix depend on kind.
+
+    #     Parameters
+    #     ----------
+    #     envelope : np.ndarray
+    #         Envelope of the audio signal using Hilbert transform
+    #     kind : str, optional
+    #     Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
+    #         ['Phonemes-Phonet', 'Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet', 'Phonemes-Frequency-Phonet']
+
+    #     Returns
+    #     -------
+    #     np.ndarray
+    #         if kind.startswith('Phonemes-Envelope'):
+    #             Matrix with envelope amplitude at given sample. The matrix dimension is SamplesXPhonemes_labels(in order)
+    #         elif kind.startswith('Phonemes-Discrete'):
+    #             Also a matrix but it has 1s and 0s instead of envelope amplitude.
+    #         elif kind.startswith('Phonemes-Onset'):
+    #             In this case the value of a given element is 1 just if its the first time is being pronounced and 0 elsewise. It doesn't repeat till the following phoneme is pronounced.
+            
+    #     Raises
+    #     ------
+    #     SyntaxError
+    #         Whether the input value of 'kind' is passed correctly. It must be a one of:
+    #         ['Phonemes-Phonet','Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet'].
+    #     """
+    #     # Check if given kind is a permited input value
+    #     allowed_kind = ['Phonemes-Phonet','Phonemes-Envelope-Phonet', 'Phonemes-Discrete-Phonet', 'Phonemes-Onset-Phonet', 'Phonemes-Frequency-Phonet']
+    #     if kind not in allowed_kind:
+    #         raise SyntaxError(f"{kind} is not an allowed kind of phoneme. Allowed phonemes are: {allowed_kind}")
+        
+    #     # Extract phonemes
+    #     if kind=='Phonemes-Phonet':
+    #         phonet_labels_phonemes = exp_info.phonemes_phonet.copy()
+    #         phonet_labels_phones = exp_info.ph_labels_phonet.copy()
+            
+    #         phones_obj = Phones(audio_file=self.wav_fname)
+    #         posterior_prob = phones_obj.compute_phones(PLLR=True) #9167
+            
+            
+    #         # Match features length
+    #         difference = len(posterior_prob) - len(envelope)
+
+    #         if difference > 0:
+    #             posterior_prob = posterior_prob[:-difference]
+    #         elif difference < 0:
+    #             # Repeat last sample (probably silence)
+    #             for i in range(np.abs(difference)):
+    #                 aux = posterior_prob[-1].copy() 
+    #                 posterior_prob = np.vstack((posterior_prob, aux.reshape(-1,1).T))
+            
+    #         # Map phones to phonemes, making the sum
+    #         posterior_prob_phonemes = np.zeros(shape=(posterior_prob.shape[0], len(phonet_labels_phonemes)))
+
+    #         for h, phone in enumerate(phonet_labels_phones):
+    #             phoneme_index = phonet_labels_phonemes.index(exp_info.phones_to_phonemes[phone])
+    #             posterior_prob_phonemes[:, phoneme_index] += posterior_prob[:, h]
+            
+    #         # Calculate posterior llr
+    #         pllr = np.zeros(shape=posterior_prob_phonemes.shape)
+    #         number_of_phonemes = posterior_prob_phonemes.shape[1]
+    #         for ph in range(number_of_phonemes):
+    #             pllr[:, ph] = np.log10(posterior_prob_phonemes[:, ph]/(1-posterior_prob_phonemes[:, ph]))
+            
+    #         # Centralizamos 
+    #         pllr = pllr - np.mean(pllr, axis=1, keepdims=True)  
+            
+    #         # Removemos silencios
+    #         pllr_without_silence = pllr[:, np.arange(number_of_phonemes) != phonet_labels_phonemes.index('/sil/')]
+    #         return pllr_without_silence
+    #     else:
+    #         phones_obj = Phones(audio_file=self.wav_fname)
+    #         time,  sec_phones = phones_obj.compute_phones() #9167
+        
+    #     # Remove silences, since it won't be used in prediction (when silence occurs, all phoneme are 0)
+    #     phonet_labels = exp_info.phonemes_phonet.copy()
+    #     phonet_labels.remove('/sil/')
+            
+    #     # Match features length
+    #     difference = len(sec_phones) - len(envelope)
+
+    #     if difference > 0:
+    #         sec_phones = sec_phones[:-difference]
+    #     elif difference < 0:
+    #         # In this case, silences are append
+    #         for i in range(np.abs(difference)):
+    #             sec_phones.append('<p:>')
+        
+    #     # Make empty array of phonemes
+    #     phonemes = np.zeros(shape=(len(sec_phones), len(phonet_labels)))
+        
+    #     # Match phoneme with kind
+    #     if kind.startswith('Phonemes-Envelope'):
+    #         for i, tagg in enumerate(sec_phones):
+    #             if (tagg!='<p:>') and (tagg!='sil'):
+    #                 phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = envelope[i]
+    #     elif kind.startswith('Phonemes-Discrete'):
+    #         for i, tagg in enumerate(sec_phones):
+    #             if (tagg!='<p:>') and (tagg!='sil'):
+    #                 phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1
+    #     elif kind.startswith('Phonemes-Frequency'):
+    #         try:
+    #             freq = funciones.load_pickle('Datos/phon_frequency_dict/frequency_dict.pkl')
+    #         except:
+    #             print("Frequency dictionary isn't Load. \n ---> loading it now...")
+    #             os.makedirs('Datos/phon_frequency_dict', exist_ok=True)
+    #             freq = funciones.load_phon_frequency_dict(
+    #                 save_path='Datos/phon_frequency_dict',
+    #                 plot_freq=True,
+    #                 )
+    #         for i, tagg in enumerate(sec_phones):
+    #             if (tagg!='<p:>') and (tagg!='sil'):
+    #                 phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1/freq[exp_info.phones_to_phonemes[tagg]]
+    #     elif kind.startswith('Phonemes-Frequency'):
+    #         try:
+    #             freq = funciones.load_pickle('Datos/phon_frequency_dict/frequency_dict.pkl')
+    #         except:
+    #             print("Frequency dictionary isn't Load. \n ---> loading it now...")
+    #             os.makedirs('Datos/phon_frequency_dict', exist_ok=True)
+    #             freq = funciones.load_phon_frequency_dict(
+    #                 save_path='Datos/phon_frequency_dict',
+    #                 plot_freq=True,
+    #                 )
+    #         for i, tagg in enumerate(sec_phones):
+    #             if (tagg!='<p:>') and (tagg!='sil'):
+    #                 phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1/freq['/'+tagg+'/']
+    #     elif kind.startswith('Phonemes-Onset'):
+    #         # Makes a list giving only first ocurrences of phonemes (also ordered by sample) 
+    #         phonemes_onset = [sec_phones[0]]
+    #         for i in range(1, len(sec_phones)):
+    #             if sec_phones[i] == sec_phones[i-1]:
+    #                 phonemes_onset.append(0)
+    #             else:
+    #                 phonemes_onset.append(sec_phones[i])
+    #         # Match phoneme with envelope
+    #         for i, tagg in enumerate(phonemes_onset):
+    #             if (tagg!='<p:>') and (tagg!='sil') and (tagg!=0):
+    #                 phonemes[i, phonet_labels.index(exp_info.phones_to_phonemes[tagg])] = 1
+    #     return phonemes
+    

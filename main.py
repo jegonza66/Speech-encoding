@@ -26,7 +26,9 @@ from utils.logs import setup_logger
 parser = create_dynamic_parser()
 args = parser.parse_args()
 apply_args_to_config(args)
-
+if config.set_alpha:
+    print(f"WARNING: ALPHA IS BEING FORCE TO {config.set_alpha}")
+    
 # Initialize logger
 logger = setup_logger(
     name='main',
@@ -113,17 +115,17 @@ for situation in config.situations:
             total_number_of_subjects = 0
 
             # from IPython import embed; embed()
-            # if config.same_validation_subjects:
-            #     alphas_total = []
-            #     alphas = load_pickle(path=alphas_path)
-            #     for session in config.sessions:
-            #         for subject in [1, 2]:
-            #             alphas_total.append(alphas[session][subject])
-            #     alphas_total = np.array(alphas_total)
-            #     config.set_alpha = 10**(np.median(np.log10(alphas_total)))
-            #     logger.info(f'Setting alpha to {config.set_alpha} for all subjects')
-            # else:
-            #     ...
+            if config.same_validation_subjects:
+                alphas_total = []
+                alphas = load_pickle(path=alphas_path)
+                for session in config.sessions:
+                    for subject in [1, 2]:
+                        alphas_total.append(alphas[session][subject])
+                alphas_total = np.array(alphas_total)
+                config.set_alpha = 10**(np.median(np.log10(alphas_total)))
+                logger.info(f'Setting alpha to {config.set_alpha} for all subjects')
+            else:
+                ...
             
             # Iterate over sessions
             for session in config.sessions:

@@ -41,21 +41,43 @@ stimuli = [
         # 'Phonological_Phonemes',
         # 'Phonological_Phonemes_Spectrogram',
 
-        # Simples
+        # # Simples
         # 'Envelope',
         # 'Pitch-Log-Raw',
         # 'Spectrogram',
-        # 'Mfccs',
+        # # 'Mfccs',
         # 'Phonological',
-        'Phonemes',
-        'Phonemes-Discrete',
-        'Phonemes-Frequency',
+        # 'Phonemes',
+        # 'Phonemes-Discrete',
+        # 'Phonemes-Frequency',
         # 'Phones-Discrete',
         # 'Phones',
         # # # 'Jitter', #TODO jitter y shimmer no los pudiste calcular bien
         # # # 'Shimmer',
-        # 'Wav2vec2' # TODO No esta bueno
-
+        # 'DNNs1',
+        # 'DNNs2',
+        # 'DNNs3',
+        # 'DNNs4',
+        # 'DNNs5',
+        # 'DNNs6',
+        # 'DNNs7',
+        # 'DNNs8',
+        # 'DNNs9',
+        # 'DNNs10',
+        # 'DNNs11',
+        # 'DNNs12',
+        # 'DNNs13',
+        # 'DNNs14',
+        # 'DNNs15',
+        # 'DNNs16', #wav2vec hasta 23, whisper 3
+        # 'DNNs17',
+        # 'DNNs18',
+        # 'DNNs19',
+        # 'DNNs20',
+        # 'DNNs21',
+        # 'DNNs22',
+        # 'DNNs23',
+        'Turn',
         # # Simples but non-standard
         # 'Envelope2',
         # 'Phonological1',
@@ -64,9 +86,9 @@ stimuli = [
 situations = [
         # 'All',
         'External',
-        'Internal',
-        'External_BS', #TODO 
-        'Internal_BS',
+        # 'Internal',
+        # 'External_BS', #TODO 
+        # 'Internal_BS',
         # 'External_Silence_100',
         # 'External_Silence_10',
         # 'External_Silence_20',
@@ -80,10 +102,10 @@ situations = [
 ]
 # Hizo hasta alpha de external inclusive hasta ahora
 bands = [
-        'Delta', # 1-4 Hz
-        'Theta', # 4-8 Hz
-        'Alpha', # 8-13 Hz
-        'Beta', # 13-25 Hz # elegir qe se mantenha el ancho del filtro
+        # 'Delta', # 1-4 Hz
+        # 'Theta', # 4-8 Hz
+        # 'Alpha', # 8-13 Hz
+        # 'Beta', # 13-25 Hz # elegir qe se mantenha el ancho del filtro
         'Broad', # 1-15 Hz
         # 'All', # 1-40 Hz
         # 'Delta_Theta', # 1-8 Hz
@@ -104,7 +126,7 @@ display_interactive_mode, no_figures = False, False
 
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
-external_validation = False # whether to use External hyperparameter or the one that maximize specific condition
+external_validation = True # whether to use External hyperparameter or the one that maximize specific condition
 same_validation_subjects = True # same hyperparameter for all subjects 
 statistical_test, perform_tfce = False, False
 use_gpu = True

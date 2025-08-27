@@ -146,6 +146,7 @@ class TorchMtrf:
         del y_temp
         
         if self.validation:
+            # Delete held out
             del X_pred, y_test
             
             # Make split for validation: validation sets, fixing the train percent of data
