@@ -44,6 +44,7 @@ for condition in stimuli:
             # Sum 1 windows of delays = [-26, ...,  0, ..., 77] surrounding indexes to keep
             for d in config.delays:
                 shifted_indexes = np.array(keep_indexes) + d
+                # Only keep indexes with full windows
                 if shifted_indexes.min() < 0 or shifted_indexes.max() >= stimulus.shape[0]:
                     continue
                 else:
@@ -78,6 +79,9 @@ for condition in stimuli:
                 "trial_mask_keep": trial_mask_keep,
                 "trial_stimulus": trial_stimulus
             }
+            
+            
+########################            
 # Make animation
 from matplotlib.widgets import Button
 from scipy.io import wavfile
@@ -186,8 +190,8 @@ class AudioPlotPlayer:
         
 if __name__ == "__main__":        
 
-    condition, session, ch = 'External', 21, 0
-    trial = 16
+    condition, session, ch = 'External', 30, 1
+    trial = 21
 
     wav_ch1 = Path(rf"data\wavs\S{session}\s{session}.objects.{trial:02}.channel1.wav")
     wav_ch2 = Path(rf"data\wavs\S{session}\s{session}.objects.{trial:02}.channel2.wav")

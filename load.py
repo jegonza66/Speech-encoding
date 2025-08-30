@@ -62,7 +62,6 @@ try:
     tf.keras.utils.disable_interactive_logging()
     
     # Configure TensorFlow for better performance
-    tf.config.threading.set_intra_op_parallelism_threads(4)
     tf.config.threading.set_inter_op_parallelism_threads(4)
     
     # Enable mixed precision if you have a compatible GPU
@@ -1305,8 +1304,8 @@ class TrialChannelData:
             start_sample = int(turn_data['ipu1_start_time'] * self.sr)
             end_sample = int(turn_data['ipu1_end_time'] * self.sr)
             
-            # Make a 300 ms ramp that ends valued 1 at the end of the IPU
-            samples_ramp = int(0.3*self.sr)
+            # Make a 400 ms ramp that ends valued 1 at the end of the IPU
+            samples_ramp = int(0.4*self.sr)
             ramp = np.linspace(0, 1, samples_ramp)
             
             start = max(start_sample, end_sample - samples_ramp)
