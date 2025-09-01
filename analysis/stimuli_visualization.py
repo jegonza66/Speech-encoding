@@ -14,28 +14,27 @@ from utils.general_functions import load_pickle
 from utils.processing import shifted_matrix
 import config
 
-
-stimulus_name = "Turn"
+stimulus_name = "Envelope"
 
 sessions_dic = {s: {0: None, 1: None} for s in config.sessions}
 stimuli = {
-    'External_BS': sessions_dic,
+    # 'External_BS': sessions_dic,
     'External': sessions_dic,
-    'Internal': sessions_dic
+    # 'Internal': sessions_dic
 }
 for condition in stimuli:
     for session in tqdm(sessions_dic, desc=f"Loading stimuli for {condition}", total=len(sessions_dic)):
         for ch in [0, 1]:
             # Get relevant indexes for each subject
             samples_info = load_pickle(
-                path=f"saves/preprocessed_data/External/tmin-0.2_tmax0.6/samples_info/samples_info_{session}.pkl"
+                path=f"saves/preprocessed_data/{condition}/tmin-0.2_tmax0.6/samples_info/samples_info_{session}.pkl"
             )
             trial_lengths = samples_info[f'trial_lengths{ch+1}']
             keep_indexes = samples_info[f'keep_indexes{ch+1}']
 
             # Load whole stimulus take average across multiple dimension
             stimulus = load_pickle(
-                path=f"saves/preprocessed_data/All/tmin-0.2_tmax0.6/{stimulus_name}/Sesion{session}.pkl"
+                path=f"saves/preprocessed_data/{condition}/tmin-0.2_tmax0.6/{stimulus_name}/Sesion{session}.pkl"
             )[ch].mean(axis=1)
             original_indexes = np.arange(stimulus.shape[0])
             mask_keep = np.zeros_like(original_indexes)
