@@ -111,6 +111,7 @@ class TorchMtrf:
         ValueError
             If the input data shapes are not compatible with the model.
         """
+        
         # Construct design matrix and transform for GPU computation
         X_train, X_pred = shifted_matrix(
             indices_to_keep=self.relevant_indexes,
@@ -123,17 +124,24 @@ class TorchMtrf:
             features=stims
         )
         del stims
-        n_featuresbyn_delays = X_train.shape[1]
-        n_features = n_featuresbyn_delays // len(config.delays)
         
         if self.relevant_indexes is None:
             self.relevant_indexes = np.arange(X_train.shape[0]+X_pred.shape[0])
+        
+        # Remove rows with all zeros
+        # from IPython import embed; embed()
+        mask = ~(torch.all(X_train == 0, dim=1))
+        X_train = X_train[mask]
+        
+        n_featuresbyn_delays = X_train.shape[1]
+        n_features = n_featuresbyn_delays // len(config.delays)
 
         # Get relevant indexes and transform to device, if available. If not, transform to CPU
         try:
             y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to(self.device)
             del eeg
             y_train = y_temp[self.train_indexes]
+            y_train = y_train[mask]
             y_test = y_temp[self.test_indexes]
         except:
             X_train = X_train.cpu()
@@ -142,6 +150,7 @@ class TorchMtrf:
             y_temp = torch.tensor(eeg[self.relevant_indexes]).to(torch.float32).to('cpu')
             del eeg            
             y_train = y_temp[self.train_indexes]
+            y_train = y_train[mask.cpu()]
             y_test = y_temp[self.test_indexes]
         del y_temp
         

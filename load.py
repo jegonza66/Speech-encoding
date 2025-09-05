@@ -238,7 +238,8 @@ class TrialChannelData:
         self.eeg_fname = os.path.normpath(f"data/EEG/S{session}/s{session}-{channel}-Trial{trial}-Deci-Filter-Trim-ICA-Pruned.set")
         self.phrases_fname = os.path.normpath(f"data/phrases/S{session}/s{session}.objects.{trial:02d}.channel{channel}.phrases")
         self.wav_fname = os.path.normpath(f"data/wavs/S{session}/s{session}.objects.{trial:02d}.channel{channel}.wav")
-        self.turn_fname = os.path.normpath(f"data/turns/switches_external/sess_{session}_trial_{trial:02d}_ch_{channel}.json")
+        turn_channel_logic = 2 if channel == 1 else 1 # Turns are from the interlocutor perspective (hearing)
+        self.turn_fname = os.path.normpath(f"data/turns/switches_external/sess_{session}_trial_{trial:02d}_ch_{turn_channel_logic}.json")
         # self.turn_fname = os.path.normpath(f"data/turns/holds_external/sess_{session}_trial_{trial:02d}_ch_{channel}.json")
         self.pitch_fname = os.path.normpath(f"S{session}/s{session}.objects.{trial:02d}.channel{channel}.txt")
         
@@ -1030,7 +1031,7 @@ class TrialChannelData:
             if  bl == "whisper":
                 model_id = "openai/whisper-tiny"
             elif bl == "wav2vec2":
-                model_id = "jonatasgrosman/wav2vec2-large-xlsr-53-spanish"
+                model_id = "jonatasgrosman/wav2vec2-large-xlsr-53-spanish" #TODO probar con base; chequear como fue finetuneado
             else:
                 raise ValueError(f"Unknown backbone: {backbone}")
         
@@ -1303,13 +1304,22 @@ class TrialChannelData:
         for turn_data in turn_data_list:
             start_sample = int(turn_data['ipu1_start_time'] * self.sr)
             end_sample = int(turn_data['ipu1_end_time'] * self.sr)
+            turn_feature[start_sample:end_sample] = np.linspace(
+                0, 1, end_sample - start_sample
+            ).reshape(-1, 1)
             
-            # Make a 400 ms ramp that ends valued 1 at the end of the IPU
-            samples_ramp = int(0.4*self.sr)
-            ramp = np.linspace(0, 1, samples_ramp)
+            # # Make a 400 ms ramp that ends valued 1 at the end of the IPU
+            # samples_ramp = int(0.4*self.sr)
+            # ramp = np.linspace(0, 1, samples_ramp)
             
-            start = max(start_sample, end_sample - samples_ramp)
-            turn_feature[start:end_sample] = ramp.reshape(-1,1) if start!=start_sample else np.linspace(0, 1, end_sample - start_sample).reshape(-1,1)
+            # start = max(start_sample, end_sample - samples_ramp)
+            # turn_feature[start:end_sample] = ramp.reshape(-1,1) if start!=start_sample else np.linspace(0, 1, end_sample - start_sample).reshape(-1,1)
+        
+        # Verify length
+        if turn_feature.shape[0] != envelope.shape[0]:
+            raise ValueError(f"Turn feature length {turn_feature.shape[0]} does not match envelope length {envelope.shape[0]}")
+            # Optionally, you could pad or truncate the turn_feature to match the envelope length
+            turn_feature = np.resize(turn_feature, envelope.shape)
 
         return turn_feature
 
@@ -1649,7 +1659,7 @@ class SessionData:
             # Empty trial
             except Exception as e:
                 logger.warning(f"Trial {trial} of session {self.session} couldn't be loaded.")
-                logger.warning(f"\nAn unexpected error occurred: {e}") 
+                logger.warning(f"\nAn unexpected error occurred (session {self.session}, trial {trial}): {e}") 
                 self.samples_info['trial_lengths1'].append(0)
                 self.samples_info['trial_lengths2'].append(0)
 
@@ -2185,6 +2195,7 @@ def check_syntax(
 #                     '\n===========================\n'
 #                 )
 #                 for session in config.sessions:
+#                 # for session in [27]:
 #                     print(f'\n-------> Start of session {session}\n')
                     
 #                     subject_1, subject_2, samples_info = load_data(

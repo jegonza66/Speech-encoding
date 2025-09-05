@@ -21,74 +21,158 @@ from utils.general_functions import load_pickle
 from utils.processing import shifted_matrix
 import config
 
-switch_turn_table = {
-    "session": [],
-    "channel": [],
-    "start_time": [],
-    "end_time": []
-}
-hold_turn_table = switch_turn_table.copy()
-
-sessions_dic = {s: {0: None, 1: None} for s in config.sessions}
-for session in tqdm(sessions_dic, desc=f"Processing turns for External condition", total=len(sessions_dic)):
-    for ch in [0, 1]:
+for session in tqdm(config.sessions, desc=f"Processing turns for External condition", total=len(config.sessions)):
+# for session in [21]:
+    for ch_speaker in [0, 1]:
+    # for ch_speaker in [0]:
         # Get relevant indexes for each subject
         samples_info = load_pickle(
             path=f"saves/preprocessed_data/External/tmin-0.2_tmax0.6/samples_info/samples_info_{session}.pkl"
         )
-        trial_lengths = samples_info[f'trial_lengths{ch+1}']
-        keep_indexes = samples_info[f'keep_indexes{ch+1}']
+        trial_lengths = samples_info[f'trial_lengths{ch_speaker+1}'] # has length of trials + 1 (0 at start)
+        keep_indexes = samples_info[f'keep_indexes{ch_speaker+1}']
 
-        for k, trial_length in enumerate(trial_lengths):
-            if k==0:
+        ch_interlocutor = 1 if ch_speaker == 0 else 0
+        trial_lengths_interlocutor = samples_info[f'trial_lengths{ch_interlocutor+1}']
+        if trial_lengths!=trial_lengths_interlocutor:
+            raise ValueError("Trial lengths for speaker and interlocutor do not match.")
+        keep_indexes_interlocutor = samples_info[f'keep_indexes{ch_interlocutor+1}']
+
+        for trial, trial_length in enumerate(trial_lengths):
+            if trial==0:
                 continue
-            trial_start = sum(trial_lengths[:k])
-            original_indexes = np.arange(trial_length) + trial_start
-            hearing_indexes = np.zeros_like(original_indexes)
-
-            # # Filter keep_indexes to only those within the current trial range
-            # keep_index = [idx for idx in keep_indexes if trial_start <= idx < trial_start + trial_length]
             
-            # # Map global keep_index to local trial indices
-            # local_keep_index = [idx - trial_start for idx in keep_index if trial_start <= idx < trial_start + trial_length]
-            
-            # Map global keep_indexes to local trial indices within the current trial range
-            local_keep_index = [idx - trial_start for idx in keep_indexes if trial_start <= idx < trial_start + trial_length]
-            hearing_indexes[local_keep_index] = 1
-            
-            # Sum 1 windows of delays = [-26, ...,  0, ..., 77] surrounding indexes to keep
-            for d in config.delays:
-                shifted_indexes = np.array(local_keep_index) + d
+            def get_hearing_indexes(trial_start, trial_length, keep_indexes):
+                original_indexes = np.arange(trial_length) + trial_start
+                hearing_indexes = np.zeros_like(original_indexes)
+                local_keep_index = [idx - trial_start for idx in keep_indexes if trial_start <= idx < trial_start + trial_length]
+                hearing_indexes[local_keep_index] = 1
+                for d in config.delays:
+                    shifted_indexes = np.array(local_keep_index) + d
+                    valid_shifted = shifted_indexes[(shifted_indexes >= 0) & (shifted_indexes < original_indexes.shape[0])]
+                    if valid_shifted.size == 0:
+                        continue
+                    hearing_indexes[valid_shifted] = 1
+                    
+                # Identify starting time of each hearing time
+                hearing_starts = (np.diff(hearing_indexes) > 0).nonzero()[0] + 1
+                hearing_ends = (np.diff(hearing_indexes) < 0).nonzero()[0] + 1
                 
-                # Only keep indexes within bounds
-                valid_shifted = shifted_indexes[(shifted_indexes >= 0) & (shifted_indexes < original_indexes.shape[0])]
-                if valid_shifted.size == 0:
-                   continue
-                hearing_indexes[valid_shifted] = 1
+                # To prevent last utterance without ending 
+                if hearing_starts.shape[0] > hearing_ends.shape[0]:
+                    hearing_starts = hearing_starts[:hearing_ends.shape[0]]
+                # To prevent first utterance without start
+                elif hearing_ends.shape[0] > hearing_starts.shape[0]:
+                    hearing_ends = hearing_ends[1:]
+                return original_indexes, hearing_starts/config.sr, hearing_ends/config.sr
             
-            # Identify starting time of each hearing time
-            hearing_starts = (np.diff(hearing_indexes) < 0).nonzero()[0] + 1
-            
-            hearing_starts_time = hearing_starts/config.sr
+            original_indexes, hearing_starts_time, hearing_ends_time = get_hearing_indexes(
+                sum(trial_lengths[:trial]), trial_length, keep_indexes
+            )
+            _, speaking_starts_time, speaking_ends_time = get_hearing_indexes(
+                sum(trial_lengths[:trial]), trial_length, keep_indexes_interlocutor
+            )
 
-            # trial_original_indexes = []
-            # trial_mask_keep = []
-            # trial_stimulus = []
-            
-            # # Segment data according to trial lengths
-            # for l, length in enumerate(trial_lengths):
-            #     start, end = sum(trial_lengths[:l]), sum(trial_lengths[:l+1])
-            #     if (start == end):
-            #         continue
-            #     trial_original_indexes.append(original_indexes[start:end])
-            #     trial_mask_keep.append(mask_keep[start:end])
-            #     trial_stimulus.append(stimulus[start:end])
+            # Find switches (take diff between end of speaker turn and next utterance to classify.
+            # If 100 ms between utterance with no overlap and the utterance corresponds to interlocutor classify as 
+            # switch. If 100 ms between utterance with no overlap and the utt correspons to speaker classify as hold.
+            # If overlap between utterances or not 100 ms between utterance is still the same turn)
+            prev_turn_start_s, switches_t_start, switches_t_end = [], [], []
+            prev_turn_start_h, holds_t_start, holds_t_end = [], [], []
+            for l, (start, end) in enumerate(zip(hearing_starts_time, hearing_ends_time), start=0):
+                # For the last value check if interlocutor speaks with interval of .1s
+                if (l+1) == len(hearing_starts_time):
+                    if any(speaking_starts_time - end >= 0.1):
+                        first_speak = speaking_starts_time[(speaking_starts_time - end >= 0.1)][0]
+                        end_first_speak = speaking_ends_time[(first_speak<=speaking_ends_time)][0]
 
-            # stimuli[condition][session][ch] = {
-            #     "original_indexes": original_indexes,
-            #     "mask_keep": mask_keep,
-            #     "stimulus": stimulus,
-            #     "trial_original_indexes": trial_original_indexes,
-            #     "trial_mask_keep": trial_mask_keep,
-            #     "trial_stimulus": trial_stimulus
-            # }
+                        # If so, next turn needs to be at least 400 ms to not qualify as backchannel
+                        if (end_first_speak - first_speak) >= .4:  
+                            prev_turn_start_s.append(start)
+                            switches_t_start.append(end)
+                            switches_t_end.append(first_speak)
+                        else:
+                            continue
+                    else:
+                        continue
+                # For the rest of these values
+                elif (l+1) <= len(hearing_starts_time):
+                    # Check if there are any possible holds or switches
+                    if (hearing_starts_time[l+1]-end) >= .1:
+                        # If there are possible interlocutor turns
+                        if any(speaking_starts_time - end >= .1):
+                            first_speak = speaking_starts_time[(speaking_starts_time >= end)][0]
+                            if first_speak-end<.1:
+                                continue
+                            end_first_speak = speaking_ends_time[(first_speak<=speaking_ends_time)][0]
+                            
+                            # Check if is a turn
+                            if first_speak < hearing_starts_time[l+1]:
+                                # If so, next turn needs to be at least 400 ms to not qualify as backchannel
+                                if (end_first_speak - first_speak) >= .4: 
+                                    prev_turn_start_s.append(start)
+                                    switches_t_start.append(end)
+                                    switches_t_end.append(first_speak)
+                                else:
+                                    continue
+                            #If not a switch must be a hold, just if next turn is at least 400 ms to not qualify as backchannel
+                            elif hearing_starts_time[l+1] - end >= .4:  
+                                prev_turn_start_h.append(start)
+                                holds_t_start.append(end)
+                                holds_t_end.append(hearing_starts_time[l+1])
+                            else:
+                                continue
+                        else:
+                            continue
+                    else:
+                        continue
+                    
+            # Save the data in a json
+            json_path = Path(rf"data\turns\switches_external\sess_{session}_trial_{trial:02}_ch_{ch_speaker+1}.json")
+            json_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(json_path, "w") as f:
+                json.dump([{
+                "speaker": 1,
+                "interlocutor": 2,
+                "ipu1_start_time": prev_start,
+                "ipu1_end_time": start,
+                "ipu2_start_time": end
+            } for prev_start, start, end in zip(prev_turn_start_s,switches_t_start, switches_t_end)], f, indent=2)
+
+            json_path = Path(rf"data\turns\holds_external\sess_{session}_trial_{trial:02}_ch_{ch_speaker+1}.json")
+            json_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(json_path, "w") as f:
+                json.dump([{
+                    "speaker": 1,
+                    "interlocutor": 2,
+                    "ipu1_start_time": prev_start,
+                    "ipu1_end_time": start,
+                    "ipu2_start_time": end
+                } for prev_start, start, end in zip(prev_turn_start_h, holds_t_start, holds_t_end)], f, indent=2)
+
+# [
+#   {
+#     "speaker": 1,
+#     "interlocutor": 2,
+#     "ipu1_start_time": 10.88,
+#     "ipu1_end_time": 12.201478
+#   },
+#   {
+#     "speaker": 1,
+#     "interlocutor": 2,
+#     "ipu1_start_time": 37.279514,
+#     "ipu1_end_time": 38.306368
+#   },
+#   {
+#     "speaker": 1,
+#     "interlocutor": 2,
+#     "ipu1_start_time": 60.581474,
+#     "ipu1_end_time": 61.06697
+#   },
+#   {
+#     "speaker": 1,
+#     "interlocutor": 2,
+#     "ipu1_start_time": 64.107184,
+#     "ipu1_end_time": 65.204067
+#   }
+# ]
