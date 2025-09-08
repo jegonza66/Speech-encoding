@@ -3,22 +3,16 @@ from typing import Union
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
-import warnings
-import resampy
-import time
 import json
 import os
 
 # Specific libraries
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from sklearn.preprocessing import StandardScaler
-# from sklearn.cross_decomposition import CCA
 from sklearn.decomposition import PCA
-from praatio import pitch_and_intensity #
+from praatio import pitch_and_intensity 
 from scipy.interpolate import interp1d
 import scipy.io.wavfile as wavfile
 from scipy import signal as sgn
-# import opensmile
 import textgrids
 import librosa
 import torch
@@ -36,6 +30,7 @@ from transformers import Wav2Vec2Model, Wav2Vec2Processor # In case we want to u
 from transformers import WhisperProcessor, WhisperModel 
 
 # Modules
+from utils.load_utils import shifted_indexes_to_keep, match_lengths, check_syntax, labeling, get_trials, get_export_paths, SEX_LIST, sort_stimuli_based_on_situation
 from utils.phoneme_implementation_from_phonet import compute_phones
 import utils.general_functions as general_functions
 import utils.processing as processing
@@ -62,17 +57,7 @@ try:
     tf.keras.utils.disable_interactive_logging()
     
     # Configure TensorFlow for better performance
-    tf.config.threading.set_inter_op_parallelism_threads(4)
-    
-    # Enable mixed precision if you have a compatible GPU
-    # tf.config.optimizer.set_experimental_options({'auto_mixed_precision': True})
-    
-    gpus = tf.config.experimental.list_physical_devices('GPU')
-    if gpus:
-        for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
-    
-    logger.info(f"TensorFlow configured. GPUs available: {len(gpus)}")
+    tf.config.threading.set_inter_op_parallelism_threads(6)
 except Exception as e:
     logger.warning(f"Could not configure TensorFlow optimally: {e}")
 
@@ -85,62 +70,7 @@ TRANSFORMER_MODEL = "openai/whisper-base"
 # TRANSFORMER_MODEL = "facebook/wav2vec2-large-xlsr-53-distilled"
 # TRANSFORMER_MODEL = "facebook/wav2vec2-base"
 
-SEX_LIST = ['M', 'M', 'M', 'F', 'F', 'F', 'F', 'M', 'M', 'M', 'F', 'F', 'F', 'F', 'M', 'M', 'M', 'F', 'F', 'M']
-ALLOWED_BANDS = [
-    'Delta',
-    'Theta',
-    'Alpha',
-    'Beta',
-    'Beta1',
-    'Beta2',
-    'All',
-    'Delta_Theta',
-    'Alpha_Delta_Theta',
-    'Broad',
-    'Unfiltered'
-]
-ALLOWED_SITUATIONS = [
-    'Internal',
-    'External',
-    'Internal_BS',
-    'External_BS', 
-    'Internal_All_Times',
-    'External_All_Times',
-    'All'
-]
-ALLOWED_STIMULI = [
-    'Envelope', 'Envelope2', 'Phonological', 'Phonological1', 'Phonological2', 'Spectrogram', 
-    'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 
-    'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 
-    'Phonemes', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency', 
-    'Phones', 'Phones-Envelope', 'Phones-Discrete',
-    'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
-    'DNNs1',
-    'DNNs2',
-    'DNNs3',
-    'DNNs4',
-    'DNNs5',
-    'DNNs6',
-    'DNNs7',
-    'DNNs8',
-    'DNNs9',
-    'DNNs10',
-    'DNNs11',
-    'DNNs12',
-    'DNNs13',
-    'DNNs14',
-    'DNNs15',
-    'DNNs16',
-    'DNNs17',
-    'DNNs18',
-    'DNNs19',
-    'DNNs20',
-    'DNNs21',
-    'DNNs22',
-    'DNNs23',
-    'Turn',
-    # 'Jitter', 'Shimmer'
-]
+
 # Global cache for HF models to avoid re-loading on every call
 _PHONET_CACHE = {}
 def get_phonet_instance():
@@ -174,14 +104,14 @@ def _get_dnn_model(backbone: str, model_id: str, device: str):
     _DNN_MODEL_CACHE[key] = (processor, model)
     return processor, model
 
-class TrialChannelData:
+class GetTrialData:
     def __init__(
         self, 
-        situation:str='External',
         band:str='Theta', 
         session:int=21, 
         channel:int=1, 
         trial:int=1, 
+        stimuli_length:int=None
     )->None: 
         """
         Initializes the TrialChannelData class with the given parameters.
@@ -196,8 +126,8 @@ class TrialChannelData:
             Channel number used to record the audio (it can be from subject 1 or subject 2)
         band : str, optional
             EEG frequency band, by default 'All'.
-        situation : str, optional
-            Situation considered when performing the analysis, by default 'External'. 
+        stimuli_length : int, optional
+            Length of the stimuli to be used, by default None. If None, the original length of the stimuli will be used.
 
         Returns
         -------
@@ -206,10 +136,10 @@ class TrialChannelData:
         Raises
         ------
         SyntaxError
-            If band or situation are not allowed values.
+            If band is not allowed.
         """
-        check_syntax(band=band, situation=situation)
-        self.situation = situation        
+        check_syntax(band=band)
+        self.stimuli_length = stimuli_length
         self.session = session
         self.channel = channel
         self.trial = trial
@@ -240,8 +170,8 @@ class TrialChannelData:
         self.wav_fname = os.path.normpath(f"data/wavs/S{session}/s{session}.objects.{trial:02d}.channel{channel}.wav")
         turn_channel_logic = 2 if channel == 1 else 1 # Turns are from the interlocutor perspective (hearing)
         self.turn_fname = os.path.normpath(f"data/turns/switches_external/sess_{session}_trial_{trial:02d}_ch_{turn_channel_logic}.json")
-        # self.turn_fname = os.path.normpath(f"data/turns/holds_external/sess_{session}_trial_{trial:02d}_ch_{channel}.json")
         self.pitch_fname = os.path.normpath(f"S{session}/s{session}.objects.{trial:02d}.channel{channel}.txt")
+        # self.turn_fname = os.path.normpath(f"data/turns/holds_external/sess_{session}_trial_{trial:02d}_ch_{channel}.json")
         
     def extract_eeg(
         self
@@ -292,24 +222,6 @@ class TrialChannelData:
         eeg = eeg.get_data().T*1e6 
         return eeg
     
-    def extract_info(
-        self
-        )->mne.Info:
-        """
-        A montage is define as a descriptor for the set up: EEG channel names and relative positions of sensors on the scalp. 
-        A montage can also contain locations for HPI points, fiducial points, or extra head shape points.In this case, 'BioSemi
-        cap with 128 electrodes (128+3 locations)'.
-
-        Returns
-        -------
-        mne.Info
-            Montage of the measurment.
-        """
-        # Define montage and info object
-        montage = mne.channels.make_standard_montage('biosemi128')
-        channel_names = montage.ch_names
-        return mne.create_info(ch_names=channel_names[:], sfreq=self.sr, ch_types='eeg').set_montage(montage)
-
     def extract_envelope(
         self,
         kind:str='Envelope'
@@ -420,9 +332,10 @@ class TrialChannelData:
         S_DB = librosa.power_to_db(
             ref=np.max,
             S=S
-        )
-        return S_DB.T
+        ).T
 
+        return S_DB
+        
     def extract_mfccs(
         self,
         number_of_mels:int=16,
@@ -501,7 +414,6 @@ class TrialChannelData:
    
     def extract_pitch(
         self, 
-        envelope:np.ndarray, 
         kind:str
         )->np.ndarray: 
         """
@@ -509,8 +421,6 @@ class TrialChannelData:
 
         Parameters
         ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform
         kind : str
             Kind of pitch use, by default 'Log-Raw'. Available kinds are:
             'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 'Pitch-Log-Phonemes'
@@ -656,7 +566,6 @@ class TrialChannelData:
 
     def extract_phonemes( 
         self, 
-        envelope:np.ndarray, 
         kind:str='Phonemes-Discrete'
         )->np.ndarray:
         """
@@ -665,8 +574,6 @@ class TrialChannelData:
 
         Parameters
         ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform
         kind : str, optional
         Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
             ['Phonemes', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency', 'Phonemes-Frequency']
@@ -696,7 +603,7 @@ class TrialChannelData:
             )
 
             # Repeat last sample (probably silence)
-            difference = len(posterior_prob) - len(envelope)
+            difference = len(posterior_prob) - self.stimuli_length
             if difference > 0:
                 posterior_prob = posterior_prob[:-difference]
             elif difference < 0:
@@ -740,7 +647,7 @@ class TrialChannelData:
         labels.remove('/sil/')
             
         # Match features length
-        difference = len(sec_phones) - len(envelope)
+        difference = len(sec_phones) - self.stimuli_length
         if difference > 0:
             sec_phones = sec_phones[:-difference]
         elif difference < 0:
@@ -752,11 +659,11 @@ class TrialChannelData:
         phonemes = np.zeros(shape=(len(sec_phones), len(labels)))
         
         # Match phoneme with kind
-        if kind.startswith('Phonemes-Envelope'):
-            for i, tagg in enumerate(sec_phones):
-                if (tagg!='<p:>') and (tagg!='sil'):
-                    phonemes[i, labels.index(config.exp_info.phones_to_phonemes[tagg])] = envelope[i]
-        elif kind.startswith('Phonemes-Discrete'):
+        # if kind.startswith('Phonemes-Envelope'):
+        #     for i, tagg in enumerate(sec_phones):
+        #         if (tagg!='<p:>') and (tagg!='sil'):
+        #             phonemes[i, labels.index(config.exp_info.phones_to_phonemes[tagg])] = envelope[i]
+        if kind.startswith('Phonemes-Discrete'):
             for i, tagg in enumerate(sec_phones):
                 if (tagg!='<p:>') and (tagg!='sil'):
                     phonemes[i, labels.index(config.exp_info.phones_to_phonemes[tagg])] = 1
@@ -789,7 +696,6 @@ class TrialChannelData:
     
     def extract_phones( 
         self, 
-        envelope:np.ndarray, 
         kind:str='Phones-Discrete'
         )->np.ndarray:
         """
@@ -797,8 +703,6 @@ class TrialChannelData:
 
         Parameters
         ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform
         kind : str, optional
            Kind of phoneme matrix to use, by default 'Envelope'. Available kinds are:
             ['Phones', 'Phones-Envelope', 'Phones-Discrete', 'Phones-Onset']
@@ -845,7 +749,7 @@ class TrialChannelData:
             )
             
             # Match features length
-            difference = len(posterior_prob) - len(envelope)
+            difference = len(posterior_prob) - self.stimuli_length
 
             if difference > 0:
                 posterior_prob = posterior_prob[:-difference]
@@ -880,9 +784,8 @@ class TrialChannelData:
         labels.remove('<p:>')
         labels.remove('sil')
         
-        # Resample sec_phones to match envelope length
-        num_target_frames = envelope.shape[0]
-        if len(sec_phones) != num_target_frames:
+        # Resample sec_phones to match stimuli length
+        if len(sec_phones) != self.stimuli_length:
             # Convert to array of strings for resample
             sec_phones = np.array(sec_phones)
             
@@ -891,12 +794,12 @@ class TrialChannelData:
             int_to_phone = {i: phone for phone, i in phone_to_int.items()}
             sec_phones_int = np.array([phone_to_int.get(p, phone_to_int['<p:>']) for p in sec_phones])
             sec_phones_resampled = np.round(
-                sgn.resample(sec_phones_int.astype(float), num_target_frames)
+                sgn.resample(sec_phones_int.astype(float), self.stimuli_length)
             ).astype(int)
             sec_phones = [int_to_phone[i] for i in sec_phones_resampled]
 
         # Match features length
-        difference = len(sec_phones) - len(envelope)
+        difference = len(sec_phones) - self.stimuli_length
         if difference > 0:
             sec_phones = sec_phones[:-difference]
         elif difference < 0:
@@ -908,11 +811,11 @@ class TrialChannelData:
         phones = np.zeros(shape=(len(sec_phones), len(labels)))
         
         # Match phoneme with kind
-        if kind.startswith('Phones-Envelope'):
-            for i, tagg in enumerate(sec_phones):
-                if (tagg!='<p:>') and (tagg!='sil'):
-                    phones[i, labels.index(tagg)] = envelope[i]
-        elif kind.startswith('Phones-Discrete'):
+        # if kind.startswith('Phones-Envelope'):
+        #     for i, tagg in enumerate(sec_phones):
+        #         if (tagg!='<p:>') and (tagg!='sil'):
+        #             phones[i, labels.index(tagg)] = envelope[i]
+        if kind.startswith('Phones-Discrete'):
             for i, tagg in enumerate(sec_phones):
                 if (tagg!='<p:>') and (tagg!='sil'):
                     phones[i, labels.index(tagg)] = 1
@@ -932,16 +835,13 @@ class TrialChannelData:
 
     def extract_phonological(
         self, 
-        envelope:np.ndarray,
-        kind: Union[str, None] = None
+        kind: Union[str, None] = 'Phonological'
         )->np.ndarray:
         """
         Retrive phonological features as a matrix matching envelope length, using Phonet implementation.
 
         Parameters
         ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform
         kind: str, optional
             Whether to extract phonological features of first or second groups. Available kinds are:
             ['Phonological1', 'Phonological2']. If None, it will extract all phonological features.
@@ -960,11 +860,11 @@ class TrialChannelData:
         
         # Interpole data in desire times
         desired_time = np.linspace(
-            0, envelope.shape[0]/self.sr + 1/self.sr , envelope.shape[0]
+            0, self.stimuli_length/self.sr + 1/self.sr, self.stimuli_length
         )
 
         # Get feature names
-        if kind is not None:
+        if kind!='Phonological':
             if kind == 'Phonological1':
                 phon_features_names = [
                     feat for feat in phon_features.columns if feat not in ['time', 'trill', 'pause'] + config.exp_info.phonological_labels2 
@@ -995,7 +895,6 @@ class TrialChannelData:
 
     def extract_DNNs(
         self,
-        envelope: np.ndarray,
         n_components: int = 16,
         backbone: str = "wav2vec2",              # "whisper" or "wav2vec2"
         model_id: str = None,                    # None -> use defaults below
@@ -1108,7 +1007,7 @@ class TrialChannelData:
         if H.ndim != 2 or H.shape[0] < 2:
             # Return zeros if we cannot form a sequence
             logger.warning("Input audio is too short to extract features.")
-            return np.zeros((n_components, len(envelope)), dtype=np.float32)
+            return np.zeros((n_components, self.stimuli_length), dtype=np.float32)
 
         # === 3 = REDUCE DIMENSION ====
         scaler = StandardScaler(with_mean=True, with_std=True)
@@ -1121,9 +1020,9 @@ class TrialChannelData:
             pad = np.zeros((Z.shape[0], n_components - Z.shape[1]), dtype=Z.dtype)
             Z = np.hstack([Z, pad])
 
-        # === 4 = RESAMPLE TO ENVELOPE ====
+        # === 4 = RESAMPLE TO DESIRED STIMULI LENGTH ====
         T_src = Z.shape[0]
-        T_tgt = int(len(envelope))
+        T_tgt = self.stimuli_length
 
         if T_src == T_tgt:
             Z_t = Z
@@ -1140,22 +1039,16 @@ class TrialChannelData:
 
     def extract_mistakes(
         self, 
-        envelope:np.ndarray, 
         kind:str='Mistakes-Separated'
         )->np.ndarray:
         """
         Calculates mistakes (lexical, articulatory, discursive) signal from annotated data
 
-        Parameters
-        ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform
-
         Returns
         -------
         np.ndarray
-            len(envelope)X3 binary array if separated else len(envelope)X1 binary array
-            len(envelope)X3 binary array if separated else len(envelope)X1
+            stimuli_lengthX3 binary array if separated else stimuli_lengthX1 binary array
+            stimuli_lengthX3 binary array if separated else stimuli_lengthX1
         """
         # Define kind
         separated=True if kind.endswith('Separated') else False
@@ -1198,9 +1091,9 @@ class TrialChannelData:
                 offset_filter = phrases_time<=mistakes[mistake]['end']
                 
                 mistake_signal[onset_filter&offset_filter, mistakes[mistake]['type']] = -np.ones(shape=np.sum(onset_filter&offset_filter))
-                
-        # Match length of mistake signal with envelope
-        difference = len(mistake_signal)-len(envelope)
+
+        # Match length of mistake signal with desired stimuli length
+        difference = len(mistake_signal)-self.stimuli_length
         if difference>0:
             mistake_signal = mistake_signal[:-difference]
         elif difference<0:
@@ -1210,21 +1103,15 @@ class TrialChannelData:
     
     def extract_mistakes_control(
         self, 
-        envelope:np.ndarray, 
         kind:str='Control-Separated'
         )->np.ndarray:
         """
         Calculates mistakes control (lexical, articulatory, discursive) signal from annotated data
 
-        Parameters
-        ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform
-
         Returns
         -------
         np.ndarray
-            len(envelope)X3 binary array if separated else len(envelope)X1
+            stimuli_length X3 binary array if separated else stimuli_length X1
         """
         # Define kind
         separated=True if kind.endswith('Separated') else False
@@ -1267,8 +1154,8 @@ class TrialChannelData:
                 offset_filter = phrases_time<=controls[control]['end']
                 control_signal[onset_filter&offset_filter, controls[control]['type']] = np.ones(shape=np.sum(onset_filter&offset_filter))#*controls[control]['score']
         
-        # Match length of mistake signal with envelope
-        difference = len(control_signal)-len(envelope)                
+        # Match length of mistake signal with desired stimuli length
+        difference = len(control_signal)-self.stimuli_length         
         if difference>0:
             control_signal = control_signal[:-difference]
         elif difference<0:
@@ -1298,9 +1185,9 @@ class TrialChannelData:
                 turn_data_list = json.load(json_file)
         except Exception as e:
             logger.error(f"Error reading turn-taking file: {e}")
-            return np.zeros_like(envelope)
+            return np.zeros(shape=(self.stimuli_length, 1))
 
-        turn_feature = np.zeros_like(envelope)
+        turn_feature = np.zeros(shape=(self.stimuli_length, 1))
         for turn_data in turn_data_list:
             start_sample = int(turn_data['ipu1_start_time'] * self.sr)
             end_sample = int(turn_data['ipu1_end_time'] * self.sr)
@@ -1308,24 +1195,13 @@ class TrialChannelData:
                 0, 1, end_sample - start_sample
             ).reshape(-1, 1)
             
-            # # Make a 400 ms ramp that ends valued 1 at the end of the IPU
-            # samples_ramp = int(0.4*self.sr)
-            # ramp = np.linspace(0, 1, samples_ramp)
-            
-            # start = max(start_sample, end_sample - samples_ramp)
-            # turn_feature[start:end_sample] = ramp.reshape(-1,1) if start!=start_sample else np.linspace(0, 1, end_sample - start_sample).reshape(-1,1)
-        
         # Verify length
-        if turn_feature.shape[0] != envelope.shape[0]:
-            raise ValueError(f"Turn feature length {turn_feature.shape[0]} does not match envelope length {envelope.shape[0]}")
-            # Optionally, you could pad or truncate the turn_feature to match the envelope length
-            turn_feature = np.resize(turn_feature, envelope.shape)
-
+        if turn_feature.shape[0] != self.stimuli_length:
+            raise ValueError(f"Turn feature length {turn_feature.shape[0]} does not match desired stimuli length {self.stimuli_length}")
         return turn_feature
 
     def extract_offset(
         self,
-        envelope:np.ndarray,
     )-> np.ndarray:
         """
         Gives an array of ones to create offset
@@ -1341,46 +1217,18 @@ class TrialChannelData:
             
         """
         # Create an array with the same length as the envelope filled with the offset value
-        return np.full_like(envelope, fill_value=1, dtype=np.float32)    
+        return np.ones(shape=(self.stimuli_length, 1), dtype=np.float32)    
     
-    def apply_temporal_shift(
-        self,
-        eeg:np.ndarray,
-        shift:float
-    )->np.ndarray:
-        """
-        Applies a temporal shift to the EEG data with respect to the envelope.
-        
-        Parameters
-        ----------
-        eeg : np.ndarray
-            EEG data to apply the temporal shift.
-        shift : float
-            Temporal shift in seconds to apply to the EEG data.
-        
-        Returns
-        -------
-        np.ndarray
-            EEG data after applying the temporal shift.
-        """
-        # Calculate the number of samples to shift
-        shift_samples = int(shift * self.sr)
-        
-        # Apply the shift to the EEG data
-        return np.roll(eeg, shift_samples, axis=0)
-
     def load_trial(
         self, 
         stimuli:list,
-        temporal_shift:Union[float, None]=None
+        eeg_exists:bool=False,
         )->dict: 
         """Extract EEG and calculates specified stimuli.
         Parameters
         ----------
         stimuli : list
             A list containing possible stimuli.
-        temporal_shift : Union[float, None], optional
-            If specified, it will apply a temporal shift to the EEG data (with respect to the envelope).
 
         Returns
         -------
@@ -1388,580 +1236,418 @@ class TrialChannelData:
             Dictionary with EEG, info and specified stimuli as mne objects
         """
         channel = {}
-        channel['EEG'] = self.extract_eeg()
-        channel['Envelope'] = self.extract_envelope()
-        channel['info'] = self.extract_info()
+        if not eeg_exists:
+            channel['EEG'] = self.extract_eeg()
 
         for stimulus in stimuli:
-            if stimulus=='Envelope2':
-                channel['Envelope2'] = self.extract_envelope(
+            if stimulus.startswith('Envelope'):
+                channel['Envelope'] = self.extract_envelope(
                     kind=stimulus
                 )
             if stimulus.startswith('Mfccs') or stimulus.startswith('Deltas'):
-                channel[stimulus] = self.extract_mfccs(
+                channel[stimulus] = self.extract_mfccs( 
                     kind=stimulus
                 )
             if stimulus.startswith('Pitch'):
                 channel[stimulus] = self.extract_pitch(
-                    envelope=channel['Envelope'], 
                     kind=stimulus
                 )
-            if stimulus=='Phonological':
+            if stimulus.startswith('Phonological'):
                 channel[stimulus] = self.extract_phonological(
-                    envelope=channel['Envelope']
-                )
-            if stimulus=='Phonological1':
-                channel[stimulus] = self.extract_phonological(
-                    envelope=channel['Envelope'],
-                    kind=stimulus
-                )
-            if stimulus=='Phonological2':
-                channel[stimulus] = self.extract_phonological(
-                    envelope=channel['Envelope'],
                     kind=stimulus
                 )
             if stimulus.startswith('Mistakes'):
                 channel[stimulus] = self.extract_mistakes(
-                    envelope=channel['Envelope'], 
                     kind=stimulus
                 )
             if stimulus.startswith('Control'):
                 channel[stimulus] = self.extract_mistakes_control(
-                    envelope=channel['Envelope'], 
                     kind=stimulus
                 )
             if stimulus.startswith('DNNs'):
                 encoder_layer = int(stimulus[-1])
                 channel[stimulus] = self.extract_DNNs(
-                    envelope=channel['Envelope'],
                     encoder_layer=encoder_layer
                 )
             if stimulus=='Spectrogram':
-                channel['Spectrogram'] = self.extract_spectrogram(
+                channel['Spectrogram'] = self.extract_spectrogram(#TODO no tiene stimulus_length
                 )
             if stimulus.startswith('Phonemes'):
                 channel[stimulus] = self.extract_phonemes(
-                    envelope=channel['Envelope'], 
                     kind=stimulus
                 )
             if stimulus.startswith('Phones'):
                 channel[stimulus] = self.extract_phones(
-                    envelope=channel['Envelope'], 
                     kind=stimulus
                 )
             if stimulus == 'Offset':
                 channel[stimulus] = self.extract_offset(
-                    envelope=channel['Envelope']
                 )
             if stimulus == 'Turn':
                 channel[stimulus] = self.extract_turn_taking(
-                    envelope=channel['Envelope']
                 )
-        if temporal_shift:
-            channel['EEG'] = self.apply_temporal_shift(
-                eeg=channel['EEG'],
-                shift=temporal_shift
-            )
+
+            # Resample to desire length
+            if self.stimuli_length is not None:
+                channel[stimulus] = self.resampling_to_desire_length(
+                    X=channel[stimulus]
+                )
         return channel
 
-class SessionData: 
-    def __init__(
-        self, 
-        preprocessed_data_path: str,
-        situation: str='External', 
-        stimuli: str='Envelope', 
-        band: str='Theta', 
-        session: int=21,
-        temporal_shift: Union[float, None]=None
-    )->None:
+    def resampling_to_desire_length(
+        self,
+        X: np.ndarray
+    )-> np.ndarray:
         """
-        This class handles the loading (concatenating trials) and processing of EEG and stimuli data for a given session. 
-        It supports both raw and preprocessed data, and can extract various features such as envelope, MFCCs, pitch, 
-        phonemes and more.
-        
+        Resamples the input array X to match the desired length using linear interpolation.
+
         Parameters
         ----------
-        preprocessed_data_path : str
-            Path directing to processed data
-        session : int
-            Session number, by default 21
-        stimuli : str
-            Stimuli to use in the analysis, by default 'Envelope'. 
-            If more than one stimulus is wanted, the separator should be '_'.
-        band : str
-            Neural frequency band. 
-        situation : str, optional
-            Situation considered when performing the analysis, by default 'External'. 
-        temporal_shift : Union[float, None], optional
-            If specified, it will apply a temporal shift to the EEG data (with respect to the envelope).
-        
-        Returns
-        -------
-        None
-        
-        Raises
-        ------
-        SyntaxError
-            If 'stim' is not an allowed stimulus.
-            If 'band' is not an allowed band frequency. 
-            If 'situation' is not an allowed situation.
-        """
-        check_syntax(stimuli=stimuli, band=band, situation=situation)           
-        self.situation = situation
-        self.stimuli = stimuli
-        self.band = band
-        self.temporal_shift = temporal_shift
-
-        # Define parameters
-        self.session = session
-        self.sr = config.sr
-
-        # Relevant paths
-        self.preprocessed_data_path = preprocessed_data_path
-        self.samples_info_path = os.path.join(self.preprocessed_data_path, f'samples_info/')
-        self.phn_path = f"data/phonemes/S{self.session}/"
-        self.phrases_path = f"data/phrases/S{self.session}/"
-
-        self.export_paths = {}
-
-        # Depending on filters the store path changes
-        self.export_paths['Envelope'] = os.path.join(self.preprocessed_data_path, 'Envelope/')
-        self.export_paths['EEG'] = os.path.join(self.preprocessed_data_path, f'EEG/{band}/')
-        
-        # The rest remain the same
-        for stimulus in ALLOWED_STIMULI:
-            if stimulus in self.export_paths:
-                continue
-            else:
-                self.export_paths[f'{stimulus}'] = os.path.join(self.preprocessed_data_path, f'{stimulus}/')
-
-    def load_from_raw(
-        self, 
-        save_results:bool=True
-    )->dict:
-        """
-        Loads raw data, this includes EEG, Envelope, info and the rest of asked stimuli.
+        X : np.ndarray
+            Input array to be resampled.
 
         Returns
         -------
-        dict
-            Sessions of both subjects
+        np.ndarray
+            Resampled array with the desired length.
         """
-        
-        # Subjects dictionaries, stores their data
-        subject_1 = {}
-        subject_2 = {}
+        # Resample to desire length
+        T_src = X.shape[0]
 
-        # Retrive number of files, i.e: trials. This is done this way because there are missing phonemes values
-        trials = list(set([int(fname.split('.')[2]) for fname in os.listdir(self.phrases_path) if fname.endswith('phrases')]))
+        if T_src == self.stimuli_length:
+            return X
+        else:
+            # Normalize time to [0,1) to avoid relying on sample rates
+            x_src = np.linspace(0.0, 1.0, T_src, endpoint=False)
+            x_tgt = np.linspace(0.0, 1.0, self.stimuli_length, endpoint=False)
+            interp = interp1d(x_src, X, axis=0, kind="linear", fill_value="extrapolate", assume_sorted=True)
+            return interp(x_tgt)    # (stim_length, n_components)
 
-        # Try to open preprocessed info of samples, if not crates raw. This dictionary contains data of trial lengths and indexes to keep up to given trial
+def load_samples_info(
+    preprocessed_data_path:str,
+    situation:str = 'External',
+    session:int = 21,
+    save_results:bool = True,
+    overwrite:bool = False
+)->dict:
+    """
+    Loads samples info dictionary for a given session and situation.
+    
+    Parameters
+    ----------
+    preprocessed_data_path : str
+        Path directing to processed data.
+    situation : str, optional
+        Situation considered when performing the analysis, by default 'External'.
+    session : int, optional
+        Session number, by default 21.
+    save_results : bool, optional
+        Whether to save the results, by default True.
+    overwrite : bool, optional
+        Whether to overwrite existing results, by default False.
+    
+    Returns
+    -------
+    dict
+        Information about the samples.
+    """
+    samples_info_path = os.path.join(preprocessed_data_path, f'samples_info/{situation}/')
+    if not overwrite:
         try:
-            self.samples_info = general_functions.load_pickle(
+            samples_info = general_functions.load_pickle(
                 path=os.path.join(
-                    self.samples_info_path, f'samples_info_{self.session}.pkl'
+                    samples_info_path, f'samples_info_{session}.pkl'
                 )
             )
-            loaded_samples_info = True
+            return samples_info
         except Exception as e:
-            logger.debug(f"Couldn't load samples info for session {self.session}. \nCreating new samples info dictionary. \nError: {e}")
-            loaded_samples_info = False
-            self.samples_info = {
-                'trial_lengths1': [0],
-                'trial_lengths2': [0],
-                'keep_indexes1':[],
-                'keep_indexes2':[]
-            }
+            logger.warning(f"Couldn't load samples info for session {session}.")
+            logger.debug(f"Error: {e}")
 
-        # Retrive and concatenate data of all trials
-        for p, trial in enumerate(tqdm(trials, desc=f'Loading session {self.session}', bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]")):
-            # Create trial for both channels in order to extract features and EEG signal
-            try:
-                channel_1 = TrialChannelData(
-                    situation=self.situation,
-                    session=self.session, 
-                    band=self.band,
-                    trial=trial, 
-                    channel=1
-                )
-                channel_2 = TrialChannelData(
-                    situation=self.situation,
-                    session=self.session,
-                    band=self.band,
-                    trial=trial,
-                    channel=2,
-                        
-                )
+    samples_info = {
+        'trial_lengths1': [0],
+        'trial_lengths2': [0],
+        'keep_indexes1':[],
+        'keep_indexes2':[]
+    }
+    trials = get_trials(
+        session=session
+    )
+    subject_1, subject_2 = {}, {}
+    for p, trial in enumerate(tqdm(
+        trials, 
+        desc=f'Loading samples info of session {session}', 
+        bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"
+    )):
+        # Load envelope and EEG
+        channel_1 = GetTrialData(
+            session=session, 
+            trial=trial,
+            band='Broad', 
+            channel=1,
+            stimuli_length=None
+        )
+        channel_2 = GetTrialData(
+            session=session,
+            trial=trial,
+            band='Broad',
+            channel=2,
+            stimuli_length=None
+        )
+        trial_channel_1 = channel_1.load_trial(
+            stimuli=['Envelope'], 
+            eeg_exists=False
+        )
+        trial_channel_2 = channel_2.load_trial(
+            stimuli=['Envelope'], 
+            eeg_exists=False
+        )
+        # When using Internal, EEG prediction is based on own stimuli. 
+        if situation.startswith('Internal'):
+            trial_subject_1 = trial_channel_1.copy()
+            trial_subject_2 = trial_channel_2.copy()
+        # When using External, EEG prediction is based on interlocutor stimuli
+        else:
+            trial_subject_1 = {key: trial_channel_2[key] for key in trial_channel_2 if key!='EEG'} 
+            trial_subject_2 = {key: trial_channel_1[key] for key in trial_channel_1 if key!='EEG'}
+            trial_subject_1['EEG'], trial_subject_2['EEG'] = trial_channel_1['EEG'], trial_channel_2['EEG']
+        
+        # Labeling of current speaker. {3:both_speaking, 2:speaker_talks, 1:interlocutor_talks, 0:silence}.
+        # The difference between _1 and _2 is that values 1 and 2 are swapped (changes the perspective of who is the speaker and who is the interlocutor)
+        current_speaker_1 = labeling(
+            session=session,
+            trial=trial, 
+            channel=2, 
+            sr=config.sr
+        )
+        current_speaker_2 = current_speaker_1.copy()
+        current_speaker_2[current_speaker_1 == 1] = 2
+        current_speaker_2[current_speaker_1 == 2] = 1
 
-                # Extract dictionaries with the data
-                trial_channel_1 = channel_1.load_trial(
-                    stimuli=self.stimuli.split('_'),
-                    temporal_shift=self.temporal_shift
+        # Match length of speaker labels and trials with the info of its lengths
+        trial_subject_1, current_speaker_1, minimum1 = match_lengths(
+            speaker_labels=current_speaker_1,
+            dic=trial_subject_1 
+        )
+        trial_subject_2, current_speaker_2, minimum2 = match_lengths(
+            speaker_labels=current_speaker_2,
+            dic=trial_subject_2 
+        )
+        samples_info['trial_lengths1'].append(minimum1)
+        samples_info['trial_lengths2'].append(minimum2)
+
+        # Preprocessing: calaculates the relevant indexes for the apropiate analysis. Add sum of all previous trials length. This is because at the end, all trials previous to the actual will be concatenated
+        shifted_1 = shifted_indexes_to_keep(speaker_labels=current_speaker_1, situation=situation)
+        shifted_2 = shifted_indexes_to_keep(speaker_labels=current_speaker_2, situation=situation)
+        samples_info['keep_indexes1'] += (shifted_1 + np.sum(samples_info['trial_lengths1'][:-1])).tolist()
+        samples_info['keep_indexes2'] += (shifted_2 + np.sum(samples_info['trial_lengths2'][:-1])).tolist()
+
+        # Store data as Internal, for consistency (have in mind that both channels have exactly the same length, so it does not matter which minimum we use to match lengths)
+        assert minimum1 == minimum2, "The minimum lengths of both channels should be the same."
+        trial_channel_1, current_speaker_1, _ = match_lengths(
+            speaker_labels=current_speaker_1,
+            dic=trial_channel_1,
+            minimum=minimum1 
+        )
+        trial_channel_2, current_speaker_2, _ = match_lengths(
+            speaker_labels=current_speaker_2,
+            dic=trial_channel_2,
+            minimum=minimum2 
+        )
+        
+        # Each subject with it's own data
+        for key in trial_channel_1:
+            if key not in subject_1:
+                subject_1[key] = trial_channel_1[key]
+                subject_2[key] = trial_channel_2[key]
+            else:
+                subject_1[key] = np.concatenate(
+                    (subject_1[key], trial_channel_1[key]), axis=0
                 )
-                trial_channel_2 = channel_2.load_trial(
-                    stimuli=self.stimuli.split('_'),
-                    temporal_shift=self.temporal_shift
+                subject_2[key] = np.concatenate(
+                    (subject_2[key], trial_channel_2[key]), axis=0
                 )
     
-                # Load data to dictionary taking own stimuli and eeg signal. I.e: each subject predicts its own EEG with its own stimuli
-                if self.situation.startswith('Internal'):
-                    trial_subject_1 = trial_channel_1.copy()
-                    trial_subject_2 = trial_channel_2.copy()
-                
-                # Load data to dictionary taking own eeg signal and interlocutors stimuli. I.e: predicts own EEG using stimuli from interlocutor
-                else:
-                    trial_subject_1 = {key: trial_channel_2[key] for key in trial_channel_2 if key!='EEG'} 
-                    trial_subject_2 = {key: trial_channel_1[key] for key in trial_channel_1 if key!='EEG'}
-                    trial_subject_1['EEG'], trial_subject_2['EEG'] = trial_channel_1['EEG'], trial_channel_2['EEG']
-
-                # Labeling of current speaker. {3:both_speaking, 2:speaker_talks, 1:interlocutor_talks, 0:silence}.
-                # The difference between _1 and _2 is that values 1 and 2 are swapped (changes the perspective of who is the speaker and who is the interlocutor)
-                current_speaker_1 = self.labeling(trial=trial, channel=2, sr=self.sr) # len matching eeg
-                current_speaker_2 = current_speaker_1.copy()
-                current_speaker_2[current_speaker_1 == 1] = 2
-                current_speaker_2[current_speaker_1 == 2] = 1
-
-                # Match length of speaker labels and trials with the info of its lengths
-                trial_subject_1, current_speaker_1, minimum1 = self.match_lengths(
-                    speaker_labels=current_speaker_1,
-                    dic=trial_subject_1 
-                )
-                trial_subject_2, current_speaker_2, minimum2 = self.match_lengths(
-                    speaker_labels=current_speaker_2,
-                    dic=trial_subject_2 
-                )
-
-                # Define/Re-define samples_info trial length
-                if not loaded_samples_info:
-                    self.samples_info['trial_lengths1'].append(minimum1)
-                    self.samples_info['trial_lengths2'].append(minimum2)
-
-                    # Preprocessing: calaculates the relevant indexes for the apropiate analysis. Add sum of all previous trials length. This is because at the end, all trials previous to the actual will be concatenated
-                    shifted_1 = self.shifted_indexes_to_keep(speaker_labels=current_speaker_1)
-                    shifted_2 = self.shifted_indexes_to_keep(speaker_labels=current_speaker_2)
-                    self.samples_info['keep_indexes1'] += (shifted_1 + np.sum(self.samples_info['trial_lengths1'][:-1])).tolist()
-                    self.samples_info['keep_indexes2'] += (shifted_2 + np.sum(self.samples_info['trial_lengths2'][:-1])).tolist()
-                
-                # Concatenates data of each subject, taking advantage of subject having the same keys
-                for key in trial_subject_1:
-                    if key != 'info':
-                        if key not in subject_1:
-                            subject_1[key] = trial_subject_1[key]
-                            subject_2[key] = trial_subject_2[key]
-                        else:
-                            subject_1[key] = np.concatenate(
-                                (subject_1[key], trial_subject_1[key]), axis=0
-                            )
-                            subject_2[key] = np.concatenate(
-                                (subject_2[key], trial_subject_2[key]), axis=0
-                            )
-
-            # Empty trial
-            except Exception as e:
-                logger.warning(f"Trial {trial} of session {self.session} couldn't be loaded.")
-                logger.warning(f"\nAn unexpected error occurred (session {self.session}, trial {trial}): {e}") 
-                self.samples_info['trial_lengths1'].append(0)
-                self.samples_info['trial_lengths2'].append(0)
-
-        # Get info of the setup that was exluded in the previous iteration
-        info = trial_channel_1['info']
-
-        # Saves modified relevant indexes
-        if save_results: 
+    # Saves modified relevant indexes
+    export_paths = get_export_paths(
+        preprocessed_data_path=preprocessed_data_path,
+        band="Broad"
+    )
+    if save_results: 
+        os.makedirs(
+            samples_info_path, 
+            exist_ok=True
+        )
+        general_functions.dump_pickle(
+            path=os.path.join(samples_info_path, f'samples_info_{session}.pkl'), 
+            obj=samples_info, 
+            rewrite=True
+        )
+        for key in subject_1:
             os.makedirs(
-                self.samples_info_path, 
+                export_paths[key], 
                 exist_ok=True
             )
             general_functions.dump_pickle(
-                path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl'), 
-                obj=self.samples_info, 
+                path=os.path.join(export_paths[key], f'Sesion{session}.pkl'), 
+                obj=[subject_1[key], subject_2[key]], 
                 rewrite=True
             )
+    return samples_info
 
-            # Save results, taking advantage of the fact that both subjects have the same keys
-            for key in subject_1:
-                os.makedirs(
-                    self.export_paths[key], 
-                    exist_ok=True
+def load_stimuli(
+    preprocessed_data_path:str,
+    situation:str,
+    samples_info:dict,
+    stimuli:str = 'Envelope',
+    band:str = 'Broad',
+    session:int = 21,
+    save_results:bool = True,
+    overwrite:bool = False
+)->tuple:
+    """
+    Loads and processes EEG and stimuli data for a given session.
+
+    Parameters
+    ----------
+    preprocessed_data_path : str, optional
+        Path directing to processed data, by default preprocessed_data_path.
+    stimuli : str, optional
+        Stimuli to use in the analysis, by default Envelope. 
+    band : str, optional
+        Neural frequency band, by default 'Broad'.
+    session : int, optional
+        Session number, by default session.
+    save_results : bool, optional
+        If True, saves the results in the preprocessed_data_path. Default is True.
+    overwrite : bool, optional
+        If True, overwrites the existing preprocessed data, forcing load_raw. Default is False.
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - dict: session of 1st subjects.
+        - dict: session of 2nd subjects.
+    """
+    export_paths = get_export_paths(
+        preprocessed_data_path=preprocessed_data_path,
+        band=band
+    )
+    subject_1, subject_2 = {}, {}
+    if not overwrite:
+        stimuli_to_be_computed = []
+        for stimulus in stimuli.split('_')+['EEG']:
+            try:
+                subject_1[stimulus], subject_2[stimulus] = general_functions.load_pickle(
+                    path=os.path.join(
+                        export_paths[stimulus], f'Sesion{session}.pkl'
+                        )
                 )
-                general_functions.dump_pickle(
-                    path=os.path.join(self.export_paths[key], f'Sesion{self.session}.pkl'), 
-                    obj=[subject_1[key], subject_2[key]], 
-                    rewrite=True
-                )
-
-            # Saves info of the setup                    
-            general_functions.dump_pickle(
-                path=os.path.join(self.preprocessed_data_path, 'EEG/info.pkl'), 
-                rewrite=True,
-                obj=info 
+            except Exception as e:
+                stimuli_to_be_computed.append(stimulus)
+                logger.warning(f"Couldn't load {stimulus} for session {session}.")
+        if stimuli_to_be_computed==[]:
+            sub1, sub2 = sort_stimuli_based_on_situation(
+                subject_1=subject_1,
+                subject_2=subject_2,
+                situation=situation
             )
 
-        # Redefine subjects dictionaries to return only used stimuli
-        relevant_subject_1 = {key: subject_1[key] for key in self.stimuli.split('_') + ['EEG']}
-        relevant_subject_2 = {key: subject_2[key] for key in self.stimuli.split('_') + ['EEG']}
-        relevant_subject_1['info'] = info
-        relevant_subject_2['info'] = info
+            return sub1, sub2
+    else:
+        stimuli_to_be_computed = stimuli.split('_')+['EEG']
 
-        return relevant_subject_1, relevant_subject_2, self.samples_info
+    stimuli = '_'.join(stimuli_to_be_computed)
+    stimuli = stimuli.replace('_EEG', '')
+    eeg_exists = 'EEG' not in stimuli_to_be_computed
+    logger.info(f"Stimuli to be computed: {stimuli}")
     
-    def load_procesed(
-        self
-        )->dict:
-        """
-        Loads procesed data, this includes EEG, info and stimuli.
-
-        Returns
-        -------
-        dict
-            Sessions of both subjects.
-        """
-        # Load EEGs and procesed data
-        eeg_subject_1, eeg_subject_2 = general_functions.load_pickle(
-            path=os.path.join(self.export_paths['EEG'], f'Sesion{self.session}.pkl')
+    trials = get_trials(
+        session=session
+    )
+    for p, trial in enumerate(tqdm(
+        trials, 
+        desc=f'Loading stimuli of session {session}', 
+        bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"
+    )):
+        # Load envelope and EEG
+        channel_1 = GetTrialData(
+            session=session, 
+            trial=trial, 
+            channel=1,
+            stimuli_length=samples_info['trial_lengths1'][p+1]
         )
-        info = general_functions.load_pickle(
-            path=os.path.join(self.preprocessed_data_path, f'EEG/info.pkl')
+        channel_2 = GetTrialData(
+            session=session,
+            trial=trial,
+            channel=2,
+            stimuli_length=samples_info['trial_lengths2'][p+1]
         )
-        samples_info = general_functions.load_pickle(
-            path=os.path.join(self.samples_info_path, f'samples_info_{self.session}.pkl')
+        trial_channel_1 = channel_1.load_trial(
+            stimuli=stimuli.split('_'),
+            eeg_exists=eeg_exists
         )
-        subject_1 = {'EEG': eeg_subject_1, 'info': info}
-        subject_2 = {'EEG': eeg_subject_2, 'info': info}
-        
-        # Loads stimuli to each subject
-        for stimulus in self.stimuli.split('_'):
-            subject_1[stimulus], subject_2[stimulus] = general_functions.load_pickle(
-                path=os.path.join(self.export_paths[stimulus], f'Sesion{self.session}.pkl')
-            )
-        return subject_1, subject_2, samples_info
-    
-    def labeling(
-        self, 
-        trial:int, 
-        channel:int,
-        sr:int
-        )->np.ndarray:
-        """
-        Gives an array with speaking channel: 3 (both speak), 2 (interlocutor), 1 (channel), 0 (silence)
-
-        Parameters
-        ----------
-        trial : int
-            Number of trial
-        channel : int
-            Channel of audio signal
-
-        Returns
-        -------
-        np.ndarray
-            Speaking channels by sample, matching EEG sample rate and almost matching its length
-        """
-        
-        # Read phrases into pandas.DataFrame
-        speaker_path = os.path.join(
-            self.phrases_path, 
-            f's{self.session}.objects.{trial:02d}.channel{channel}.phrases'
+        trial_channel_2 = channel_2.load_trial(
+            stimuli=stimuli.split('_'),
+            eeg_exists=eeg_exists
         )
-        speaker_table = pd.read_table(
-            speaker_path, 
-            header=None, 
-            sep="\t"
-        )
-
-        # Replace and '#' by ''. And then all text by 1 and silences by 0 
-        speaker_table.iloc[:, 2] = (
-            speaker_table.iloc[:, 2].replace("#", "").apply(len) > 0
-        ).apply(int)
-        
-        # Take difference in time and multiply it by sample rate in order to match envelope length (almost, miss by a sample or two)
-        samples = np.round(
-            (speaker_table[1] - speaker_table[0]).values * sr
-        ).astype("int")
-        
-        # Repeat speaker labels by the number of samples in each phrase
-        speaker = np.repeat(
-            speaker_table.iloc[:, 2].values, 
-            samples
-        )
-        
-        # Same with listener
-        listener_channel = (channel - 3) * -1
-        listener_path = os.path.join(
-            self.phrases_path, f's{self.session}.objects.{trial:02d}.channel{listener_channel}.phrases'
-        )
-        listener_table = pd.read_table(
-            listener_path, 
-            header=None, 
-            sep="\t"
-        )
-
-        # Replace and '#' by ''. And then all text by 1 and silences by 0
-        listener_table.iloc[:, 2] = (
-            listener_table.iloc[:, 2].replace("#", "").apply(len) > 0
-        ).apply(int)
-        
-        # Take difference in time and multiply it by sample rate in order to match envelope length (almost, miss by a sample or two)
-        samples = np.round(
-            (listener_table[1] - listener_table[0]).values * sr
-        ).astype("int")
-        
-        # Repeat speaker labels by the number of samples in each phrase
-        listener = np.repeat(
-            listener_table.iloc[:, 2].values,
-            samples
-        )
-
-        # If there are differences in length, corrects them with 0-padding
-        diff = len(speaker) - len(listener)
-        if diff > 0:
-            listener = np.concatenate(
-                [listener, np.repeat(0, diff)]
-            )
-        elif diff < 0:
-            speaker = np.concatenate(
-                [speaker, np.repeat(0, np.abs(diff))]
-            )
-
-        # Return an array with envelope length, having values 3 if both participants are speaking; 2, if just locutor; 1, interlocutor and 0, silence
-        return speaker + listener * 2
-    
-    def shifted_indexes_to_keep(
-        self,
-        speaker_labels:np.ndarray
-        )->np.ndarray:
-        """
-        Obtain shifted matrix indexes that match situation
-
-        Parameters
-        ----------
-        speaker_labels : np.ndarray
-            Labels of type of speaking for given sample
-
-        Returns
-        -------
-        np.ndarray
-            Indexes to keep for the analysis
-        """
-        # Change 0 with 4s, because shifted matrix pad zeros that could be mistaken with situation 0    
-        speaker_labels = np.array(speaker_labels)
-        speaker_labels = np.where(speaker_labels==0, 4, speaker_labels)
-
-        # Computes shifted matrix
-        shifted_matrix_speaker_labels = processing.shifted_matrix(
-            features=speaker_labels, 
-            use_gpu=config.use_gpu,
-            delays=config.delays 
-            ).astype(float)
-               
-        if 'Silence' in self.situation and any(char.isdigit() for char in self.situation):
-            percentage = int(self.situation.split('Silence_')[1])
-            
-            # Filter silence plus condition, plus padding
-            filter_silence_external = ((shifted_matrix_speaker_labels==0)|(shifted_matrix_speaker_labels==4)|(shifted_matrix_speaker_labels==1)).all(axis=1)
-            
-            # Just windows with x percent of silence condition
-            filter_silence_x_percent = (shifted_matrix_speaker_labels==4).sum(axis=1)<=int(percentage*len(config.delays)/100)
-        
-            return (filter_silence_external & filter_silence_x_percent).nonzero()[0]
-        
-        # Make the appropiate label
-        if self.situation == 'All':
-            return np.arange(len(shifted_matrix_speaker_labels))
-        elif self.situation.endswith('BS'):
-            situation_label = 3
-        elif self.situation.startswith('External'):
-            situation_label = 1
-        elif self.situation.startswith('Internal'):
-            situation_label = 2
-        else: # Silence
-            situation_label = 4
-
-        # Shifted matrix index where the given situation is ocurring in all row (number of samples dimension) # TODO: discutir si dejar 0s de paddeo o no. ---> yo creo que sí
-        # return ((shifted_matrix_speaker_labels==situation_label)).all(axis=1).nonzero()[0]
-        return ((shifted_matrix_speaker_labels==situation_label) | (shifted_matrix_speaker_labels==0)).all(axis=1).nonzero()[0]
-    
-    @staticmethod
-    def print_trials(
-        trials:list,
-        trial:int,
-        p:int
-    )->None:
-        """
-        Make print for trial update
-        """
-        # Determinar si es la última iteración
-        is_last = (p == len(trials) - 1)
-        end_char = '\n' if is_last else '\r'
-        
-        if (trials[p-1]+1!=trial) and p!=0:
-            missing_trials = []
-            t = trial
-            while trials[p-1]+1!=t:
-                missing_trials.append(t-1)
-                t-=1
-            missing_trials.sort()
-            if len(missing_trials)>1:
-                print(
-                    f'Trial {trial} of {trials[-1]}. Missing trials {", ".join(str(i) for i in missing_trials)}', 
-                    # flush=True,
-                    # end=end_char 
-                )
-            else:
-                print(
-                    f'Trial {trial} of {trials[-1]}. Missing trial {", ".join(str(i) for i in missing_trials)}', 
-                    # flush=True,
-                    # end=end_char 
-                )
-        elif (p==0) and (trials[0]!=1):
-            print(
-                f'Trial {trial} of {trials[-1]}. Missing trial 1', 
-                # flush=True,
-                # end=end_char               
-            )
+        # When using Internal, EEG prediction is based on own stimuli. 
+        if situation.startswith('Internal'):
+            trial_subject_1 = trial_channel_1.copy()
+            trial_subject_2 = trial_channel_2.copy()            
+        # When using External, EEG prediction is based on interlocutor stimuli
         else:
-            print(
-                f'Trial {trial} of {trials[-1]}.', 
-                # flush=True,
-                # end=end_char
-            )
-
-    def match_lengths(
-        self, 
-        dic:dict, 
-        speaker_labels:np.ndarray
-        )->tuple:
-        """
-        Match length of speaker labels and trial dictionary. It takes the minimum length between dic and speaker_labels (EEG)
-
-        Parameters
-        ----------
-        dic : dict
-            Trial dictionary containing data of stimuli and EEG
-        speaker_labels : np.ndarray
-            Labels of current speaker: 3 (both speak), 2 (interlocutor), 1 (channel), 0 (silence)
-
-        Returns
-        -------
-        tuple
-            Updated dictionary, speaker_labels if minimum_length is passed. Elsewhise
-            Updated dictionary, speaker_labels and minimum_length are returned.
-
-        """
-        # Get minimum between EEG and envelope to make cutoff
-        minimum = min([dic['Envelope'].shape[0]] + [dic['EEG'].shape[0]] + [len(speaker_labels)])
+            trial_subject_1 = {key: trial_channel_2[key] for key in trial_channel_2 if key!='EEG'} 
+            trial_subject_2 = {key: trial_channel_1[key] for key in trial_channel_1 if key!='EEG'}
+            if not eeg_exists:
+                trial_subject_1['EEG'], trial_subject_2['EEG'] = trial_channel_1['EEG'], trial_channel_2['EEG']
         
-        # Correct length 
-        for key in dic:
-            if key != 'info':
-                data = dic[key]
-                if data.shape[0] > minimum:
-                    dic[key] = data[:minimum]
+        # Store data as Internal, for consistency (have in mind that both channels have exactly the same length, so it does not matter which minimum we use to match lengths)
+        assert samples_info['trial_lengths1'][p+1] == samples_info['trial_lengths2'][p+1], "The minimum lengths of both channels should be the same."
+        trial_channel_1, current_speaker_1, _ = match_lengths(
+            speaker_labels=current_speaker_1,
+            dic=trial_channel_1,
+            minimum=samples_info['trial_lengths1'][p+1]
+        )
+        trial_channel_2, current_speaker_2, _ = match_lengths(
+            speaker_labels=current_speaker_2,
+            dic=trial_channel_2,
+            minimum=samples_info['trial_lengths2'][p+1]
+        )
+        
+        # Each subject with it's own data
+        for key in trial_channel_1:
+            if key not in subject_1:
+                subject_1[key] = trial_channel_1[key]
+                subject_2[key] = trial_channel_2[key]
+            else:
+                subject_1[key] = np.concatenate(
+                    (subject_1[key], trial_channel_1[key]), axis=0
+                )
+                subject_2[key] = np.concatenate(
+                    (subject_2[key], trial_channel_2[key]), axis=0
+                )
 
-        if len(speaker_labels) > minimum:
-            speaker_labels = speaker_labels[:minimum]
-        return dic, speaker_labels, minimum
-    
+    # Saves stimuli
+    if save_results:
+        for key in subject_1:
+            os.makedirs(
+                export_paths[key], 
+                exist_ok=True
+            )
+            general_functions.dump_pickle(
+                path=os.path.join(export_paths[key], f'Sesion{session}.pkl'), 
+                obj=[subject_1[key], subject_2[key]], 
+                rewrite=True
+            )
+    sub1, sub2 = sort_stimuli_based_on_situation(
+        subject_1=subject_1,
+        subject_2=subject_2,
+        situation=situation
+    )
+    return sub1, sub2
+
 def load_data(
     session:int, 
     stimuli:str, 
@@ -1969,7 +1655,6 @@ def load_data(
     preprocessed_data_path:str, 
     situation:str='External',
     save_results:bool=True,
-    temporal_shift:Union[float, None]=None,
     overwrite: bool=False
 )->tuple:
     """
@@ -1982,61 +1667,15 @@ def load_data(
     stimuli : str
         Stimuli to use in the analysis. If more than one stimulus is wanted, the separator should be '_'.
         Allowed stimuli are: 
-    'Envelope', 'Envelope2', 'Phonological', 'Phonological1', 'Phonological2', 'Spectrogram', 
-    'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 
-    'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 
-    'Phonemes', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency', 
-    'Phones', 'Phones-Envelope', 'Phones-Discrete',
-    'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
-    'DNNs1',
-    'DNNs2',
-    'DNNs3',
-    'DNNs4',
-    'DNNs5',
-    'DNNs6',
-    'DNNs7',
-    'DNNs8',
-    'DNNs9',
-    'DNNs10',
-    'DNNs11',
-    'DNNs12',
-    'DNNs13',
-    'DNNs14',
-    'DNNs15',
-    'DNNs16',
-    'DNNs17',
-    'DNNs18',
-    'DNNs19',
-    'DNNs20',
-    'DNNs21',
-    'DNNs22',
-    'DNNs23',
-    'Turn',
-    # 'Jitter', 'Shimmer'
-    band : str
-        Neural frequency band. It could be one of: 
-    'Delta',
-    'Theta',
-    'Alpha',
-    'Beta',
-    'Beta1',
-    'Beta2',
-    'All',
-    'Delta_Theta',
-    'Alpha_Delta_Theta',
-    'Broad',
-    'Unfiltered'
     preprocessed_data_path : str
         Path directing to processed data.
     situation : str, optional
         Situation considered when performing the analysis, by default 'External'. Allowed situations are: 
-        ['Internal','Internal_BS','External', 'External_BS', 'Internal_All_Times', 'External_All_Times'].
+        ['Internal','Internal_BS','External', 'External_BS', 'All'].
         Also any of the above options concatenated by '_Silence_x', where x is an integer that represents 
         the percentage of samples with silence within a row of the design matrix.
     save_results : bool, optional
         If True, saves the results in the preprocessed_data_path. Default is False.
-    temporal_shift : Union[float, None], optional
-        If not None, it is the temporal shift to apply to the EEG signal. Default is None.
     overwrite : bool, optional
         If True, overwrites the existing preprocessed data, forcing load_raw. Default is True.
 
@@ -2046,135 +1685,38 @@ def load_data(
         A tuple containing:
         - dict: sessions of both subjects.
         - dict: information about the samples.
-
-    Raises
-    ------
-    SyntaxError
-        If 'stim' is not an allowed stimulus. Allowed ones are:
-    'Envelope', 'Envelope2', 'Phonological', 'Phonological1', 'Phonological2', 'Spectrogram', 
-    'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 
-    'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 
-    'Phonemes', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency', 
-    'Phones', 'Phones-Envelope', 'Phones-Discrete',
-    'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
-    'DNNs1',
-    'DNNs2',
-    'DNNs3',
-    'DNNs4',
-    'DNNs5',
-    'DNNs6',
-    'DNNs7',
-    'DNNs8',
-    'DNNs9',
-    'DNNs10',
-    'DNNs11',
-    'DNNs12',
-    'DNNs13',
-    'DNNs14',
-    'DNNs15',
-    'DNNs16',
-    'DNNs17',
-    'DNNs18',
-    'DNNs19',
-    'DNNs20',
-    'DNNs21',
-    'DNNs22',
-    'DNNs23',
-    'Turn',
-    # 'Jitter', 'Shimmer'
-        If 'band' is not an allowed band frequency. Allowed ones are:
-    'Delta',
-    'Theta',
-    'Alpha',
-    'Beta',
-    'Beta1',
-    'Beta2',
-    'All',
-    'Delta_Theta',
-    'Alpha_Delta_Theta',
-    'Broad',
-    'Unfiltered'
-        If 'situation' is not an allowed situation. Allowed ones are:
-    'Internal',
-    'External',
-    'Internal_BS',
-    'External_BS', 
-    'Internal_All_Times',
-    'External_All_Times',
-    'All'
-        Also any of the above options concatenated by '_Silence_x', where x is an integer that represents 
-        the percentage of samples with silence within a row of the design matrix.
     """
     check_syntax(stimuli=stimuli, band=band, situation=situation)
                 
     # Re-order stimuli and band to create just one file for each case: 'Phonemes_Envelope' --> 'Envelope_Phonemes'
     ordered_stimuli = sorted(stimuli.split('_'))
-    ordered_band = sorted(band.split('_'))
-    session_obj = SessionData(
-        preprocessed_data_path=preprocessed_data_path, 
-        stimuli='_'.join(ordered_stimuli), 
-        band='_'.join(ordered_band), 
-        situation=situation,
-        session=session, 
-        temporal_shift=temporal_shift
-    )
 
     # Try to load procesed data, if it fails it loads raw data
-    logger.info('Loading preprocesed data\n')
-    try:
-        if not overwrite:
-            sessions_1, sessions_2, samples_info = session_obj.load_procesed()
-        else:
-            sessions_1, sessions_2, samples_info = session_obj.load_from_raw(
-               save_results=save_results
-            )
-        logger.info('Data loaded succesfully\n')
-    except Exception as e:
-        logger.debug(f"An error occurred while loading preprocessed data: {e}")
-        logger.warning("\nCouldn't load data, compute it from raw\n")
-        sessions_1, sessions_2, samples_info = session_obj.load_from_raw(
-            save_results=save_results
-        )
-    return sessions_1, sessions_2, samples_info
-
-def check_syntax(
-    stimuli: Union[str, None]=None, 
-    band: Union[str, None]=None, 
-    situation: Union[str, None]=None, 
-    )->None:
-    """
-    Check if the syntax of the parameters is correct.
-
-    Parameters
-    ----------
-    stimuli : Union[str, None], optional
-        Stimuli to use in the analysis. If more than one stimulus is wanted, the separator should be '_'.
-    band : Union[str, None], optional
-        Neural frequency band.
-    situation : Union[str, None], optional
-        Situation considered when performing the analysis.  
-    Raises
-    ------
-    SyntaxError
-        If 'stim' is not an allowed stimulus.
-        If 'band' is not an allowed band frequency.
-        If 'situation' is not an allowed situation.
-    """
+    logger.info('Loading preprocessed stimuli data\n')
     
-    # Check if band, stimuli and situation parameters where passed with the right syntax
-    if stimuli is not None:
-        for stimulus in stimuli.split('_'):
-            if stimulus not in ALLOWED_STIMULI:
-                raise SyntaxError(f"{stimulus} is not an allowed stimulus. Allowed stimuli are: {ALLOWED_STIMULI}. If more than one stimulus is wanted, the separator should be '_'.")
-    if band is not None:
-        if not band.startswith('Custom-'):
-            if band not in ALLOWED_BANDS:
-                raise SyntaxError(f"{band} is not an allowed band frecuency. Allowed bands are: {ALLOWED_BANDS}")
-    if situation is not None:
-        if not (situation.split('_Silence')[0] in ALLOWED_SITUATIONS):
-            raise SyntaxError(f"'{situation}' is not an allowed situation. Allowed ones are: {ALLOWED_SITUATIONS}")
-    return None
+    # This function already compute envelope if it doesn't exist
+    samples_info = load_samples_info(
+        preprocessed_data_path=preprocessed_data_path,
+        situation=situation,
+        session=session,
+        save_results=save_results,
+        overwrite=overwrite
+    )
+    session_1, session_2 = load_stimuli(
+        preprocessed_data_path=preprocessed_data_path,
+        samples_info=samples_info,
+        situation=situation,
+        stimuli='_'.join(ordered_stimuli),
+        band=band,
+        session=session,
+        overwrite=overwrite, 
+        save_results=save_results,
+    )    
+    
+    return session_1, session_2, samples_info
 
+# # =====================
+# # SIMPLE EXECUTION CODE
 # if __name__ == "__main__":
 #     for situation in config.situations:
 #         preprocessed_data_path_main = f'{config.saves_dir}/preprocessed_data/tmin{config.tmin}_tmax{config.tmax}/'
@@ -2183,7 +1725,7 @@ def check_syntax(
 #                 sorted_stimuli, sorted_bands = sorted(stimuli.split('_')), sorted(band.split('_'))
 #                 stimuli, band = '_'.join(sorted_stimuli), '_'.join(sorted_bands)
 
-#                 # Update
+#                 Update
 #                 logger.info(
 #                     '\n===========================\n'
 #                     '\tPARAMETERS\n\n'
@@ -2195,7 +1737,7 @@ def check_syntax(
 #                     '\n===========================\n'
 #                 )
 #                 for session in config.sessions:
-#                 # for session in [27]:
+#                 for session in [27]:
 #                     print(f'\n-------> Start of session {session}\n')
                     
 #                     subject_1, subject_2, samples_info = load_data(
@@ -2203,18 +1745,19 @@ def check_syntax(
 #                         situation=situation,
 #                         stimuli=stimuli,
 #                         session=session,
-#                         band=band,
-#                         temporal_shift=config.temporal_shift
+#                         band=band
 #                     )
                     
-#                     # Print the progress of the iteration
+#                     Print the progress of the iteration
 #                     general_functions.iteration_percentage(
 #                         txt=f'\n-------> End of session {session}\n', 
 #                         i=config.sessions.index(session), 
 #                         length_of_iterator=len(config.sessions),
-#                         # logger=logger
+#                         logger=logger
 #                     )
 
+# =======================
+# PARALLEL EXECUTION CODE
 if __name__ == "__main__":
     import multiprocessing as mp
     import concurrent.futures
@@ -2242,7 +1785,6 @@ if __name__ == "__main__":
                         'band': band,
                         'stimuli': stimuli,
                         'session': session,
-                        'temporal_shift': config.temporal_shift
                     })
     
     def process_single_session(params):
@@ -2259,7 +1801,6 @@ if __name__ == "__main__":
                 stimuli=params['stimuli'],
                 session=params['session'],
                 band=params['band'],
-                temporal_shift=params['temporal_shift']
             )
             
             return {
