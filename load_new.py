@@ -1675,6 +1675,7 @@ def load_data(
     
     return session_1, session_2, samples_info
 
+# # =====================
 # # SIMPLE EXECUTION CODE
 # if __name__ == "__main__":
 #     for situation in config.situations:
@@ -1715,6 +1716,7 @@ def load_data(
 #                         logger=logger
 #                     )
 
+# =======================
 # PARALLEL EXECUTION CODE
 if __name__ == "__main__":
     import multiprocessing as mp
@@ -1730,7 +1732,7 @@ if __name__ == "__main__":
     # Crear todas las combinaciones de parámetros
     param_combinations = []
     for situation in config.situations:
-        preprocessed_data_path_main = f'{config.saves_dir}/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
+        preprocessed_data_path_main = f'{config.saves_dir}/preprocessed_data/tmin{config.tmin}_tmax{config.tmax}/'
         for band in config.bands:
             for stimuli in config.stimuli:
                 sorted_stimuli, sorted_bands = sorted(stimuli.split('_')), sorted(band.split('_'))
