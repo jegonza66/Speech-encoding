@@ -63,6 +63,39 @@ ALLOWED_STIMULI = [
     # 'Jitter', 'Shimmer'
 ]
 
+def sort_stimuli_based_on_situation(
+    subject_1:dict,
+    subject_2:dict,
+    situation:str = 'External'
+)->tuple:
+    """
+    Sort stimuli based on situation
+
+    Parameters
+    ----------
+    subject_1 : dict
+        Dictionary with data of subject 1.
+    subject_2 : dict
+        Dictionary with data of subject 2.
+    situation : str
+        Situation considered when performing the analysis.  
+
+    Returns
+    -------
+    tuple
+        Updated dictionaries for subject 1 and subject 2.
+    """
+    sub1, sub2 = {}, {}
+    if situation.startswith('External') or situation=='All':
+        for key in subject_1:
+            if key!='EEG':
+               sub1[key] = subject_2[key]
+               sub2[key] = subject_1[key]
+    else:
+        sub1 = subject_1
+        sub2 = subject_2
+    return sub1, sub2
+
 def get_export_paths(
     preprocessed_data_path:str,
     band:str='Broad',
