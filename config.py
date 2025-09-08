@@ -42,10 +42,11 @@ stimuli = [
         # 'Phonological_Phonemes_Spectrogram',
 
         # # Simples
-        # 'Envelope',
+        'Envelope',
+        # 'Turn',
         # 'Pitch-Log-Raw',
         # 'Spectrogram',
-        # # 'Mfccs',
+        # 'Mfccs',
         # 'Phonological',
         # 'Phonemes',
         # 'Phonemes-Discrete',
@@ -77,18 +78,18 @@ stimuli = [
         # 'DNNs21',
         # 'DNNs22',
         # 'DNNs23',
-        'Turn',
+        # 'Turn',
         # # Simples but non-standard
         # 'Envelope2',
         # 'Phonological1',
         # 'Phonological2'
 ]
 situations = [
-        # 'All',
+        'All',
         'External',
-        # 'Internal',
-        # 'External_BS', #TODO 
-        # 'Internal_BS',
+        'Internal',
+        'External_BS', #TODO 
+        'Internal_BS',
         # 'External_Silence_100',
         # 'External_Silence_10',
         # 'External_Silence_20',

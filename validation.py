@@ -61,7 +61,7 @@ for situation in config.situations:
             )
             
             # Relevant paths
-            preprocessed_data_path = os.path.normpath(f'{config.saves_dir}/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/')
+            preprocessed_data_path = os.path.normpath(f'{config.saves_dir}/preprocessed_data/tmin{config.tmin}_tmax{config.tmax}/')
             figures_path = os.path.normpath(f'{config.figures_dir}/{config.model}-{config.solver}_trace/{situation}/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}')
             
             path_validation = f'{config.output_dir}/{config.model}-{config.solver}/{situation}/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'

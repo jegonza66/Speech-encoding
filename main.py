@@ -90,7 +90,7 @@ for situation in config.situations:
                     path_TFCE = f'{config.output_dir}/{config.model}-{config.solver}/{situation}/TFCE/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/distinct_alpha/tmin{config.tmin}_tmax{config.tmax}/'
                     save_results_path = f'{config.output_dir}/{config.model}-{config.solver}/{situation}/correlations/distinct_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/'
 
-            preprocessed_data_path = f'{config.saves_dir}/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/'
+            preprocessed_data_path = f'{config.saves_dir}/preprocessed_data/tmin{config.tmin}_tmax{config.tmax}/'
             if config.external_validation:
                 path_validation = f'{config.output_dir}/{config.model}-{config.solver}/External/validation/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
             else:

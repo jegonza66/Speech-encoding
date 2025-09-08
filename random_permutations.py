@@ -54,7 +54,7 @@ for situation in config.situations:
             )
             
             # Relevant paths
-            preprocessed_data_path = os.path.normpath(f'saves/preprocessed_data/{situation}/tmin{config.tmin}_tmax{config.tmax}/')
+            preprocessed_data_path = os.path.normpath(f'saves/preprocessed_data/tmin{config.tmin}_tmax{config.tmax}/')
             if config.same_validation_subjects:
                 if config.external_validation:
                     path_null = f'output/{config.model}-{config.solver}/External-{situation}/null_model/stims_{config.stims_preprocess}_EEG_{config.eeg_preprocess}/same_alpha/tmin{config.tmin}_tmax{config.tmax}/{band}/{stim}/'
