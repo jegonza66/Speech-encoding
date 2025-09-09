@@ -1163,8 +1163,7 @@ class GetTrialData:
         return control_signal
     
     def extract_turn_taking(
-        self,
-        envelope:np.ndarray,
+        self
     ):
         """
         Extracts turn-taking features from the audio envelope.
@@ -1602,6 +1601,15 @@ def load_stimuli(
             trial_subject_2 = {key: trial_channel_1[key] for key in trial_channel_1 if key!='EEG'}
             if not eeg_exists:
                 trial_subject_1['EEG'], trial_subject_2['EEG'] = trial_channel_1['EEG'], trial_channel_2['EEG']
+        current_speaker_1 = labeling(
+            session=session,
+            trial=trial, 
+            channel=2, 
+            sr=config.sr
+        )
+        current_speaker_2 = current_speaker_1.copy()
+        current_speaker_2[current_speaker_1 == 1] = 2
+        current_speaker_2[current_speaker_1 == 2] = 1
         
         # Store data as Internal, for consistency (have in mind that both channels have exactly the same length, so it does not matter which minimum we use to match lengths)
         assert samples_info['trial_lengths1'][p+1] == samples_info['trial_lengths2'][p+1], "The minimum lengths of both channels should be the same."
@@ -1725,7 +1733,7 @@ def load_data(
 #                 sorted_stimuli, sorted_bands = sorted(stimuli.split('_')), sorted(band.split('_'))
 #                 stimuli, band = '_'.join(sorted_stimuli), '_'.join(sorted_bands)
 
-#                 Update
+#                 # Update
 #                 logger.info(
 #                     '\n===========================\n'
 #                     '\tPARAMETERS\n\n'
@@ -1737,7 +1745,7 @@ def load_data(
 #                     '\n===========================\n'
 #                 )
 #                 for session in config.sessions:
-#                 for session in [27]:
+#                 # for session in [27]:
 #                     print(f'\n-------> Start of session {session}\n')
                     
 #                     subject_1, subject_2, samples_info = load_data(
@@ -1748,7 +1756,7 @@ def load_data(
 #                         band=band
 #                     )
                     
-#                     Print the progress of the iteration
+#                     # Print the progress of the iteration
 #                     general_functions.iteration_percentage(
 #                         txt=f'\n-------> End of session {session}\n', 
 #                         i=config.sessions.index(session), 
