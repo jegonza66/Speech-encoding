@@ -27,7 +27,7 @@ for session in tqdm(config.sessions, desc=f"Processing turns for External condit
     # for ch_speaker in [0]:
         # Get relevant indexes for each subject
         samples_info = load_pickle(
-            path=f"saves/preprocessed_data/External/tmin-0.2_tmax0.6/samples_info/samples_info_{session}.pkl"
+            path=f"saves/preprocessed_data/tmin-0.2_tmax0.6/samples_info/External/samples_info_{session}.pkl"
         )
         trial_lengths = samples_info[f'trial_lengths{ch_speaker+1}'] # has length of trials + 1 (0 at start)
         keep_indexes = samples_info[f'keep_indexes{ch_speaker+1}']
@@ -129,22 +129,24 @@ for session in tqdm(config.sessions, desc=f"Processing turns for External condit
                     
             # Save the data in a json
             json_path = Path(rf"data\turns\switches_external\sess_{session}_trial_{trial:02}_ch_{ch_speaker+1}.json")
+            ch_interlocutor = ch_speaker+1 
+            speaker = 2 if ch_interlocutor == 1 else 1
             json_path.parent.mkdir(parents=True, exist_ok=True)
             with open(json_path, "w") as f:
                 json.dump([{
-                "speaker": 1,
-                "interlocutor": 2,
-                "ipu1_start_time": prev_start,
-                "ipu1_end_time": start,
-                "ipu2_start_time": end
-            } for prev_start, start, end in zip(prev_turn_start_s,switches_t_start, switches_t_end)], f, indent=2)
+                    "speaker": speaker,
+                    "interlocutor": ch_interlocutor,
+                    "ipu1_start_time": prev_start,
+                    "ipu1_end_time": start,
+                    "ipu2_start_time": end
+                } for prev_start, start, end in zip(prev_turn_start_s,switches_t_start, switches_t_end)], f, indent=2)
 
             json_path = Path(rf"data\turns\holds_external\sess_{session}_trial_{trial:02}_ch_{ch_speaker+1}.json")
             json_path.parent.mkdir(parents=True, exist_ok=True)
             with open(json_path, "w") as f:
                 json.dump([{
-                    "speaker": 1,
-                    "interlocutor": 2,
+                    "speaker": speaker,
+                    "interlocutor": ch_interlocutor,
                     "ipu1_start_time": prev_start,
                     "ipu1_end_time": start,
                     "ipu2_start_time": end

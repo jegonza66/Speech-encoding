@@ -85,7 +85,7 @@ for situation in config.situations:
                     band=band
                 )
                 
-                eeg_subject_1, eeg_subject_2, info = subject_1['EEG'], subject_2['EEG'], subject_1['info']
+                eeg_subject_1, eeg_subject_2 = subject_1['EEG'], subject_2['EEG']
 
                 if config.just_load_data:
                     continue
@@ -101,9 +101,9 @@ for situation in config.situations:
                 relevant_indexes_2 = samples_info['keep_indexes2'].copy()
 
                 # Initialize empty variables to store relevant data of each fold 
-                null_weights_per_fold = np.zeros((config.n_folds, config.random_permutations, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float32)
-                null_correlation_per_channel_per_fold = np.zeros((config.n_folds, config.random_permutations, info['nchan']), dtype=np.float32)
-                null_errors_per_channel_per_fold = np.zeros((config.n_folds, config.random_permutations, info['nchan']), dtype=np.float32)
+                null_weights_per_fold = np.zeros((config.n_folds, config.random_permutations, config.info_mne['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float32)
+                null_correlation_per_channel_per_fold = np.zeros((config.n_folds, config.random_permutations, config.info_mne['nchan']), dtype=np.float32)
+                null_errors_per_channel_per_fold = np.zeros((config.n_folds, config.random_permutations, config.info_mne['nchan']), dtype=np.float32)
                 
                 # Run model for each subject
                 for subject, eeg, stims, relevant_indexes in zip((1, 2), (eeg_subject_1, eeg_subject_2), (stims_subject_1, stims_subject_2), (relevant_indexes_1, relevant_indexes_2)):

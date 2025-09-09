@@ -139,7 +139,7 @@ for situation in config.situations:
                     stimuli=stim,
                     band=band
                 )
-                eeg_subject_1, eeg_subject_2, info = subject_1['EEG'], subject_2['EEG'], subject_1['info']
+                eeg_subject_1, eeg_subject_2 = subject_1['EEG'], subject_2['EEG']
 
                 if config.just_load_data:
                     continue
@@ -164,17 +164,17 @@ for situation in config.situations:
                     print(f'\n\t······  Running model for Subject {subject}\n')
                     
                     # Initialize empty variables to store relevant data of each fold
-                    weights_per_fold = np.zeros((config.n_folds, info['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float32)
-                    correlation_per_channel = np.zeros((config.n_folds, info['nchan']))
-                    rmse_per_channel = np.zeros((config.n_folds, info['nchan']))
+                    weights_per_fold = np.zeros((config.n_folds, config.info_mne['nchan'], np.sum(n_feats), len(config.delays)), dtype=np.float32)
+                    correlation_per_channel = np.zeros((config.n_folds, config.info_mne['nchan']))
+                    rmse_per_channel = np.zeros((config.n_folds, config.info_mne['nchan']))
 
                     # Variable to store all channel's p-value
-                    topo_pvalues_corr_per_fold = np.zeros((config.n_folds, info['nchan']))
-                    topo_pvalues_rmse_per_fold = np.zeros((config.n_folds, info['nchan']))
+                    topo_pvalues_corr_per_fold = np.zeros((config.n_folds, config.info_mne['nchan']))
+                    topo_pvalues_rmse_per_fold = np.zeros((config.n_folds, config.info_mne['nchan']))
 
                     # Variable to store p-value of significant channels
-                    proba_correlation_per_channel = np.ones((config.n_folds, info['nchan']))
-                    proba_rmse_per_channel = np.ones((config.n_folds, info['nchan']))
+                    proba_correlation_per_channel = np.ones((config.n_folds, config.info_mne['nchan']))
+                    proba_rmse_per_channel = np.ones((config.n_folds, config.info_mne['nchan']))
 
                     # Set alpha for specific subject
                     if config.set_alpha is None:
@@ -236,7 +236,7 @@ for situation in config.situations:
                             f'\t\tFolds {", ".join(map(str, empty_fold_indices + 1))} out of {config.n_folds} are empty\n'
                             f'\t\t{">" * 26}')
                             
-                    average_weights = np.nanmean(weights_per_fold, axis=0) # info['nchan'], np.sum(n_feats), len(delays)
+                    average_weights = np.nanmean(weights_per_fold, axis=0) # config.info_mne['nchan'], np.sum(n_feats), len(delays)
                     average_weights = np.nan_to_num(average_weights)
                                     
                     # Take average correlation and RMSE between folds of all channels
@@ -249,8 +249,8 @@ for situation in config.situations:
                     rmse_good_channel_indexes = []
                 
                     # Variable to store significant channels
-                    repeated_good_correlation_channels = np.zeros(info['nchan'])
-                    repeated_good_rmse_channels = np.zeros(info['nchan'])
+                    repeated_good_correlation_channels = np.zeros(config.info_mne['nchan'])
+                    repeated_good_rmse_channels = np.zeros(config.info_mne['nchan'])
 
                     # Find good indexes by checking where all folds (at the same time) are significant
                     if config.statistical_test: 
@@ -277,10 +277,10 @@ for situation in config.situations:
                         null_rmse_per_channel_subjects.append(null_rmse_per_channel)
                     else: 
                         null_correlation_per_channel_subjects.append(
-                            np.zeros((config.n_folds, info['nchan'])) # Null correlation is zeros
+                            np.zeros((config.n_folds, config.info_mne['nchan'])) # Null correlation is zeros
                             )
                         null_rmse_per_channel_subjects.append(
-                            np.zeros((config.n_folds, info['nchan'])) # Null RMSE is zeros
+                            np.zeros((config.n_folds, config.info_mne['nchan'])) # Null RMSE is zeros
                             )
                     repeated_good_correlation_channels_subjects.append(corr_good_channel_indexes)
                     repeated_good_rmse_channels_subjects.append(rmse_good_channel_indexes)

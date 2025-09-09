@@ -36,30 +36,7 @@ ALLOWED_STIMULI = [
     'Phonemes', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency', 
     'Phones', 'Phones-Envelope', 'Phones-Discrete',
     'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
-    'DNNs1',
-    'DNNs2',
-    'DNNs3',
-    'DNNs4',
-    'DNNs5',
-    'DNNs6',
-    'DNNs7',
-    'DNNs8',
-    'DNNs9',
-    'DNNs10',
-    'DNNs11',
-    'DNNs12',
-    'DNNs13',
-    'DNNs14',
-    'DNNs15',
-    'DNNs16',
-    'DNNs17',
-    'DNNs18',
-    'DNNs19',
-    'DNNs20',
-    'DNNs21',
-    'DNNs22',
-    'DNNs23',
-    'Turn',
+    'Hearing-Turn',
     # 'Jitter', 'Shimmer'
 ]
 
@@ -91,6 +68,9 @@ def sort_stimuli_based_on_situation(
             if key!='EEG':
                sub1[key] = subject_2[key]
                sub2[key] = subject_1[key]
+            else:
+                sub1[key] = subject_1[key]
+                sub2[key] = subject_2[key]
     else:
         sub1 = subject_1
         sub2 = subject_2
@@ -124,7 +104,7 @@ def get_export_paths(
     export_paths['EEG'] = os.path.join(preprocessed_data_path, f'EEG/{band}/')
     
     # The rest remain the same
-    for stimulus in ALLOWED_STIMULI:
+    for stimulus in ALLOWED_STIMULI+config.stimuli:
         if stimulus in export_paths:
             continue
         else:
@@ -159,8 +139,13 @@ def check_syntax(
     # Check if band, stimuli and situation parameters where passed with the right syntax
     if stimuli is not None:
         for stimulus in stimuli.split('_'):
-            if stimulus not in ALLOWED_STIMULI:
-                raise SyntaxError(f"{stimulus} is not an allowed stimulus. Allowed stimuli are: {ALLOWED_STIMULI}. If more than one stimulus is wanted, the separator should be '_'.")
+            if (stimulus not in ALLOWED_STIMULI):
+                # Special dynamic case for DNNs name
+                parts = stimulus.split('DNNs')
+                if len(parts) == 2 and all(part.isdigit() for part in parts):
+                    continue
+                else:
+                    raise SyntaxError(f"{stimulus} is not an allowed stimulus. Allowed stimuli are: {ALLOWED_STIMULI}. If more than one stimulus is wanted, the separator should be '_'.")
     if band is not None:
         if not band.startswith('Custom-'):
             if band not in ALLOWED_BANDS:

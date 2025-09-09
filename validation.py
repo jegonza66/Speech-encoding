@@ -85,7 +85,7 @@ for situation in config.situations:
                     stimuli=stim,
                     band=band
                 )
-                eeg_subject_1, eeg_subject_2, info = subject_1['EEG'], subject_2['EEG'], subject_1['info']
+                eeg_subject_1, eeg_subject_2 = subject_1['EEG'], subject_2['EEG']
                 
                 if config.just_load_data:
                     continue

@@ -19,7 +19,7 @@ import config
 from matplotlib.animation import FuncAnimation, FFMpegWriter
 
 stimulus_name = "Envelope"
-stimulus_name = "Turn"
+stimulus_name = "Hearing-Turn"
 
 stimuli = {
     'External_BS': {s: {0: None, 1: None} for s in config.sessions},
@@ -34,24 +34,21 @@ for condition in stimuli:
             # ch = 1
             # Get relevant indexes for each subject
             samples_info = load_pickle(
-                path=f"saves/preprocessed_data/{condition}/tmin-0.2_tmax0.6/samples_info/samples_info_{session}.pkl"
+                path=f"saves/preprocessed_data/tmin-0.2_tmax0.6/samples_info/{condition}/samples_info_{session}.pkl"
             )
             trial_lengths = samples_info[f'trial_lengths{ch+1}'] # has length of trials + 1 (0 at start)
             keep_indexes = samples_info[f'keep_indexes{ch+1}']
 
             # Load whole stimulus take average across multiple dimension
-            if stimulus_name == "Turn":
-                stimulus = load_pickle(
-                    path=f"saves/preprocessed_data/External/tmin-0.2_tmax0.6/Turn/Sesion{session}.pkl"
-                )[ch].mean(axis=1)
+            stimulus = load_pickle(
+                    path=f"saves/preprocessed_data/tmin-0.2_tmax0.6/{stimulus_name}/Sesion{session}.pkl"
+                )
+            if condition.startswith("External") or stimulus_name == "Hearing-Turn":
+                chan = 1 if ch == 0 else 0
+                stimulus = stimulus[chan].mean(axis=1)
             else:
-                stimulus = load_pickle(
-                path=f"saves/preprocessed_data/{condition}/tmin-0.2_tmax0.6/{stimulus_name}/Sesion{session}.pkl"
-                )[ch].mean(axis=1)
-            
-            # stimulus = load_pickle(
-            #     path=f"saves/preprocessed_data/External/tmin-0.2_tmax0.6/{stimulus_name}/Sesion{session}.pkl"
-            # )[ch].mean(axis=1)
+                stimulus = stimulus[ch].mean(axis=1)
+
             original_indexes = np.arange(stimulus.shape[0])
             mask_keep = np.zeros_like(original_indexes)
             mask_keep[keep_indexes] = 1
@@ -99,11 +96,7 @@ for condition in stimuli:
 # all(stimuli['Internal'][22][0]['mask_keep']==stimuli['External'][22][0]['original_indexes'])
 ########################            
 # Make animation
-from matplotlib.widgets import Button
 from scipy.io import wavfile
-import sounddevice as sd
-import threading
-import time
 class AudioPlotPlayer:
     def __init__(self, stimuli, stimulus_name, wav_data, config, session, ch, trial, sr, x_speed=1.0, n_xticks=10):
         self.stimuli = stimuli
@@ -147,6 +140,9 @@ class AudioPlotPlayer:
         mask_int = self.stimuli['Internal'][self.session][self.ch]["trial_mask_keep"][self.trial].astype(bool).flatten()
         min_val = np.min(stimulus)
         max_val = np.max(stimulus)
+        if min_val == max_val:
+            min_val -= 1
+            max_val += 1
 
         self.ax.fill_between(
             time_axis,
@@ -215,7 +211,7 @@ class AudioPlotPlayer:
         print(f"Video saved. Play {self.video_filename} and the corresponding WAV file together for perfect sync.")
 
         # --- Add audio to video using ffmpeg ---
-        audio_path = f"videos/{self.session}_{self.trial+1}_audio.wav"
+        audio_path = f"turns_media/{self.session}_{self.trial+1}_audio.wav"
         # Save the audio as a WAV file
         from scipy.io.wavfile import write as wav_write
         wav_write(audio_path, self.sr, self.wav_data.astype(np.int16))
@@ -250,19 +246,36 @@ class AudioPlotPlayer:
         
 if __name__ == "__main__":        
     
-    # Desde la perspectiva del participante con canal 0. Es decir, se ve externo los momentos de habla de 1 y el estimulo de 1. Viceversa
-    session, ch = 22, 1
-    trial = 4 #TRIAL 4, 6(dudoso), 10(dudoso), 11(dudoso), 18(dudoso), 19(dudoso), 
-    # 22(habla uno), 26(habla uno y dudoso pq no), 28 (estsa maso) SESSION 27 ESTA MAL ANOTADO Y SON MUY COORTOS. EN 2 no habla un canal
+    # # Desde la perspectiva del participante con canal 0. Es decir, se ve externo los momentos de habla de 1 y el estimulo de 1. Viceversa
+    # session, ch = 21, 0
+    # trial = 1 #TRIAL 4, 6(dudoso), 10(dudoso), 11(dudoso), 18(dudoso), 19(dudoso), 
+    # # 22(habla uno), 26(habla uno y dudoso pq no), 28 (estsa maso) SESSION 27 ESTA MAL ANOTADO Y SON MUY COORTOS. EN 2 no habla un canal
+    
+    # wav_ch1 = Path(rf"data\wavs\S{session}\s{session}.objects.{trial:02}.channel1.wav")
+    # wav_ch2 = Path(rf"data\wavs\S{session}\s{session}.objects.{trial:02}.channel2.wav")
+    # if wav_ch1.exists() is False or wav_ch2.exists() is False:
+    #     raise FileNotFoundError(f"Missing WAV files for session {session}, trial {trial}")
+    # # Sum wavs
+    # sr, wav_ch1_data = wavfile.read(wav_ch1)
+    # sr, wav_ch2_data = wavfile.read(wav_ch2)
+    # wav_data = wav_ch1_data + wav_ch2_data
 
-    wav_ch1 = Path(rf"data\wavs\S{session}\s{session}.objects.{trial:02}.channel1.wav")
-    wav_ch2 = Path(rf"data\wavs\S{session}\s{session}.objects.{trial:02}.channel2.wav")
-    if wav_ch1.exists() is False or wav_ch2.exists() is False:
-        raise FileNotFoundError(f"Missing WAV files for session {session}, trial {trial}")
-    # Sum wavs
-    sr, wav_ch1_data = wavfile.read(wav_ch1)
-    sr, wav_ch2_data = wavfile.read(wav_ch2)
-    wav_data = wav_ch1_data + wav_ch2_data
+    # player = AudioPlotPlayer(stimuli, 'Envelope', wav_data, config, session, ch, trial, sr, x_speed=1)
+    # player.make_video()
+    from utils.load_utils import get_trials
+    for session in tqdm(config.sessions, total=len(config.sessions)):
+        for ch in [0, 1]:
+            for trial in get_trials(session):
+    
+                wav_ch1 = Path(rf"data\wavs\S{session}\s{session}.objects.{trial:02}.channel1.wav")
+                wav_ch2 = Path(rf"data\wavs\S{session}\s{session}.objects.{trial:02}.channel2.wav")
+                if wav_ch1.exists() is False or wav_ch2.exists() is False:
+                    raise FileNotFoundError(f"Missing WAV files for session {session}, trial {trial}")
+                # Sum wavs
+                sr, wav_ch1_data = wavfile.read(wav_ch1)
+                sr, wav_ch2_data = wavfile.read(wav_ch2)
+                wav_data = wav_ch1_data + wav_ch2_data
 
-    player = AudioPlotPlayer(stimuli, 'Envelope', wav_data, config, session, ch, trial, sr, x_speed=1)
-    player.make_video()
+                player = AudioPlotPlayer(stimuli, 'Envelope', wav_data, config, session, ch, trial, sr, x_speed=1)
+                player.fig.savefig(f"turns_media/figs/{stimulus_name}_session{session}_ch{ch+1}_trial{trial}.png", dpi=150)
+                plt.close('all')

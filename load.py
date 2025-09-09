@@ -168,7 +168,7 @@ class GetTrialData:
         self.eeg_fname = os.path.normpath(f"data/EEG/S{session}/s{session}-{channel}-Trial{trial}-Deci-Filter-Trim-ICA-Pruned.set")
         self.phrases_fname = os.path.normpath(f"data/phrases/S{session}/s{session}.objects.{trial:02d}.channel{channel}.phrases")
         self.wav_fname = os.path.normpath(f"data/wavs/S{session}/s{session}.objects.{trial:02d}.channel{channel}.wav")
-        turn_channel_logic = 2 if channel == 1 else 1 # Turns are from the interlocutor perspective (hearing)
+        turn_channel_logic = 2 if channel == 1 else 1 # Turns are from the interlocutor perspective (hearing) --> cada uno se guarda su propia transición (funciona para que quede bien en external)
         self.turn_fname = os.path.normpath(f"data/turns/switches_external/sess_{session}_trial_{trial:02d}_ch_{turn_channel_logic}.json")
         self.pitch_fname = os.path.normpath(f"S{session}/s{session}.objects.{trial:02d}.channel{channel}.txt")
         # self.turn_fname = os.path.normpath(f"data/turns/holds_external/sess_{session}_trial_{trial:02d}_ch_{channel}.json")
@@ -895,10 +895,9 @@ class GetTrialData:
 
     def extract_DNNs(
         self,
-        n_components: int = 16,
+        kind: str = 'DNNs',
         backbone: str = "wav2vec2",              # "whisper" or "wav2vec2"
-        model_id: str = None,                    # None -> use defaults below
-        encoder_layer: int = 1
+        model_id: str = None                    # None -> use defaults below
     ) -> np.ndarray:
         """
         Build a n_components representation of the audio using a DNN encoder, then:
@@ -911,97 +910,116 @@ class GetTrialData:
         - Time resampling uses linear interpolation in normalized time [0..1].
         - For better stability across files, consider fitting PCA on a corpus.
         """
-        # === 1 = LOAD AUDIO ====
-        sr, wav = wavfile.read(self.wav_fname)
-        if wav.ndim > 1:
-            wav = wav.mean(axis=1)
+        # Stimuli should be call ##DNNs##, where first ## implies number of components, and second ## the layer
+        n_components, encoder_layer = [int(part) for part in kind.split("DNNs")]
+        layer_path = os.path.normpath(f"data/DNNs_cache/{backbone}/layer_{encoder_layer}/session_{self.session}_trial{self.trial:02}_channel_{self.channel}.pkl")
         
-        # Normalize to [-1, 1]
-        if np.issubdtype(wav.dtype, np.integer):
-            wav = wav.astype(np.float32) / max(1, np.iinfo(wav.dtype).max)
-        else:
-            wav = wav.astype(np.float32)
-
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-
-        # Defaults if not provided
-        if model_id is None:
-            bl = backbone.lower()
-            if  bl == "whisper":
-                model_id = "openai/whisper-tiny"
-            elif bl == "wav2vec2":
-                model_id = "jonatasgrosman/wav2vec2-large-xlsr-53-spanish" #TODO probar con base; chequear como fue finetuneado
-            else:
-                raise ValueError(f"Unknown backbone: {backbone}")
-        
-        # Use cached model/processor
-        processor, model = _get_dnn_model(backbone, model_id, device)
-        
-        # Resample to model SR
-        model_sr = getattr(getattr(processor, "feature_extractor", None), "sampling_rate", 16000)
-        if sr != model_sr:
-            wav_model = sgn.resample_poly(wav, up=model_sr, down=sr)
-        else:
-            wav_model = wav
+        # Try to load preprocessed layer, to reduce later the dimension
+        try:
+            H = general_functions.load_pickle(
+                path=layer_path
+            )
+        # Run the whole pipeline, storing full layer for future use
+        except:
+            # Create the folder if it doesn't exist
+            os.makedirs(os.path.dirname(layer_path), exist_ok=True)
             
-        # === 2 = GET ENCODER SEQUENCE ====
-        backbone_lower = backbone.lower()
-        if backbone_lower == "whisper":
-            with torch.no_grad():
-                inputs = processor(
-                    audio=wav_model,
-                    sampling_rate=model_sr,
-                    return_tensors="pt",
-                    # padding=False  # avoid 30s padding
-                    padding="max_length",          # pad a 30s -> 3000 frames
-                    return_attention_mask=True  
-                )
-                # Whisper uses input_features (log-mel)
-                use_amp = (device == "cuda")
-                with torch.amp.autocast(device, enabled=use_amp):
-                    outputs = model.encoder(
-                        input_features=inputs.input_features.to(device),
-                        attention_mask=inputs.attention_mask.to(device),
+            # === 1 = LOAD AUDIO ====
+            sr, wav = wavfile.read(self.wav_fname)
+            if wav.ndim > 1:
+                wav = wav.mean(axis=1)
+            
+            # Normalize to [-1, 1]
+            if np.issubdtype(wav.dtype, np.integer):
+                wav = wav.astype(np.float32) / max(1, np.iinfo(wav.dtype).max)
+            else:
+                wav = wav.astype(np.float32)
+
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+
+            # Defaults if not provided
+            if model_id is None:
+                bl = backbone.lower()
+                if  bl == "whisper":
+                    model_id = "openai/whisper-tiny"
+                elif bl == "wav2vec2":
+                    model_id = "jonatasgrosman/wav2vec2-large-xlsr-53-spanish" #TODO probar con base; chequear como fue finetuneado
+                else:
+                    raise ValueError(f"Unknown backbone: {backbone}")
+            
+            # Use cached model/processor
+            processor, model = _get_dnn_model(backbone, model_id, device)
+            
+            # Resample to model SR
+            model_sr = getattr(getattr(processor, "feature_extractor", None), "sampling_rate", 16000)
+            if sr != model_sr:
+                wav_model = sgn.resample_poly(wav, up=model_sr, down=sr)
+            else:
+                wav_model = wav
+                
+            # === 2 = GET ENCODER SEQUENCE ====
+            backbone_lower = backbone.lower()
+            if backbone_lower == "whisper":
+                with torch.no_grad():
+                    inputs = processor(
+                        audio=wav_model,
+                        sampling_rate=model_sr,
+                        return_tensors="pt",
+                        # padding=False  # avoid 30s padding
+                        padding="max_length",          # pad a 30s -> 3000 frames
+                        return_attention_mask=True  
+                    )
+                    # Whisper uses input_features (log-mel)
+                    use_amp = (device == "cuda")
+                    with torch.amp.autocast(device, enabled=use_amp):
+                        outputs = model.encoder(
+                            input_features=inputs.input_features.to(device),
+                            attention_mask=inputs.attention_mask.to(device),
+                            output_hidden_states=True,
+                            return_dict=True
+                        )
+                    
+                    # Tomamos las hidden states del encoder
+                    hs = outputs.hidden_states
+                    # Quitar el embedding inicial si viene incluido (len = layers + 1)
+                    if len(hs) == model.config.encoder_layers + 1:
+                        hs = hs[1:]
+                    # Soportar índices negativos (e.g., -1 = última)
+                    idx = encoder_layer if encoder_layer >= 0 else len(hs) + encoder_layer
+                    if idx < 0 or idx >= len(hs):
+                        raise ValueError(f"encoder_layer={encoder_layer} fuera de rango (0..{len(hs)-1})")
+                    # [B, T, D] -> [T, D]
+                    H = hs[idx].squeeze(0).cpu().numpy()
+
+            elif backbone_lower == "wav2vec2":
+                with torch.no_grad():
+                    inputs = processor(
+                        wav_model,
+                        sampling_rate=model_sr,
+                        return_tensors="pt",
+                        padding=False
+                    )
+                    outputs = model(
+                        input_values=inputs.input_values.to(device),
                         output_hidden_states=True,
                         return_dict=True
                     )
-                
-                # Tomamos las hidden states del encoder
-                hs = outputs.hidden_states
-                # Quitar el embedding inicial si viene incluido (len = layers + 1)
-                if len(hs) == model.config.encoder_layers + 1:
-                    hs = hs[1:]
-                # Soportar índices negativos (e.g., -1 = última)
-                idx = encoder_layer if encoder_layer >= 0 else len(hs) + encoder_layer
-                if idx < 0 or idx >= len(hs):
-                    raise ValueError(f"encoder_layer={encoder_layer} fuera de rango (0..{len(hs)-1})")
-                # [B, T, D] -> [T, D]
-                H = hs[idx].squeeze(0).cpu().numpy()
-
-        elif backbone_lower == "wav2vec2":
-            with torch.no_grad():
-                inputs = processor(
-                    wav_model,
-                    sampling_rate=model_sr,
-                    return_tensors="pt",
-                    padding=False
-                )
-                outputs = model(
-                    input_values=inputs.input_values.to(device),
-                    output_hidden_states=True,
-                    return_dict=True
-                )
-                hs = outputs.hidden_states
-                # Quitar el embedding inicial si viene incluido (len = layers + 1)
-                if len(hs) == model.config.num_hidden_layers + 1:
-                    hs = hs[1:]
-                idx = encoder_layer if encoder_layer >= 0 else len(hs) + encoder_layer
-                if idx < 0 or idx >= len(hs):
-                    raise ValueError(f"encoder_layer={encoder_layer} fuera de rango (0..{len(hs)-1})")
-                # [B, T, D] -> [T, D]
-                H = hs[idx].squeeze(0).cpu().numpy()
-        else:
-            raise ValueError(f"Unknown backbone: {backbone}. Use 'whisper' or 'wav2vec2'.")
+                    hs = outputs.hidden_states
+                    # Quitar el embedding inicial si viene incluido (len = layers + 1)
+                    if len(hs) == model.config.num_hidden_layers + 1:
+                        hs = hs[1:]
+                    idx = encoder_layer if encoder_layer >= 0 else len(hs) + encoder_layer
+                    if idx < 0 or idx >= len(hs):
+                        raise ValueError(f"encoder_layer={encoder_layer} fuera de rango (0..{len(hs)-1})")
+                    # [B, T, D] -> [T, D]
+                    H = hs[idx].squeeze(0).cpu().numpy()
+            else:
+                raise ValueError(f"Unknown backbone: {backbone}. Use 'whisper' or 'wav2vec2'.")
+            
+            # Save full layer for future use
+            general_functions.dump_pickle(
+                path=layer_path, obj=H, rewrite=True, verbose=True
+            )
 
         # Guard: very short inputs
         if H.ndim != 2 or H.shape[0] < 2:
@@ -1263,10 +1281,9 @@ class GetTrialData:
                 channel[stimulus] = self.extract_mistakes_control(
                     kind=stimulus
                 )
-            if stimulus.startswith('DNNs'):
-                encoder_layer = int(stimulus[-1])
+            if 'DNNs' in stimulus:
                 channel[stimulus] = self.extract_DNNs(
-                    encoder_layer=encoder_layer
+                    kind=stimulus
                 )
             if stimulus=='Spectrogram':
                 channel['Spectrogram'] = self.extract_spectrogram(#TODO no tiene stimulus_length
@@ -1282,7 +1299,7 @@ class GetTrialData:
             if stimulus == 'Offset':
                 channel[stimulus] = self.extract_offset(
                 )
-            if stimulus == 'Turn':
+            if stimulus == 'Hearing-Turn':
                 channel[stimulus] = self.extract_turn_taking(
                 )
 
@@ -1723,130 +1740,130 @@ def load_data(
     
     return session_1, session_2, samples_info
 
-# # =====================
-# # SIMPLE EXECUTION CODE
-# if __name__ == "__main__":
-#     for situation in config.situations:
-#         preprocessed_data_path_main = f'{config.saves_dir}/preprocessed_data/tmin{config.tmin}_tmax{config.tmax}/'
-#         for band in config.bands:
-#             for stimuli in config.stimuli:
-#                 sorted_stimuli, sorted_bands = sorted(stimuli.split('_')), sorted(band.split('_'))
-#                 stimuli, band = '_'.join(sorted_stimuli), '_'.join(sorted_bands)
-
-#                 # Update
-#                 logger.info(
-#                     '\n===========================\n'
-#                     '\tPARAMETERS\n\n'
-#                     f'Model: {config.model}\n'
-#                     f'Band: {band}\n'
-#                     f'Stimulus: {stimuli}\n'
-#                     f'Condition: {situation}\n'
-#                     f'Time interval: ({config.tmin},{config.tmax})s\n'
-#                     '\n===========================\n'
-#                 )
-#                 for session in config.sessions:
-#                 # for session in [27]:
-#                     print(f'\n-------> Start of session {session}\n')
-                    
-#                     subject_1, subject_2, samples_info = load_data(
-#                         preprocessed_data_path=preprocessed_data_path_main,
-#                         situation=situation,
-#                         stimuli=stimuli,
-#                         session=session,
-#                         band=band
-#                     )
-                    
-#                     # Print the progress of the iteration
-#                     general_functions.iteration_percentage(
-#                         txt=f'\n-------> End of session {session}\n', 
-#                         i=config.sessions.index(session), 
-#                         length_of_iterator=len(config.sessions),
-#                         logger=logger
-#                     )
-
-# =======================
-# PARALLEL EXECUTION CODE
+# =====================
+# SIMPLE EXECUTION CODE
 if __name__ == "__main__":
-    import multiprocessing as mp
-    import concurrent.futures
-    
-    # Command line and logging
-    from utils.from_commands import create_dynamic_parser, apply_args_to_config
-    parser = create_dynamic_parser()
-    args = parser.parse_args()
-    apply_args_to_config(args)
-    
-    config.LOG_LEVEL = 'WARNING'
-    # Crear todas las combinaciones de parámetros
-    param_combinations = []
     for situation in config.situations:
         preprocessed_data_path_main = f'{config.saves_dir}/preprocessed_data/tmin{config.tmin}_tmax{config.tmax}/'
         for band in config.bands:
             for stimuli in config.stimuli:
                 sorted_stimuli, sorted_bands = sorted(stimuli.split('_')), sorted(band.split('_'))
                 stimuli, band = '_'.join(sorted_stimuli), '_'.join(sorted_bands)
-                
+
+                # Update
+                logger.info(
+                    '\n===========================\n'
+                    '\tPARAMETERS\n\n'
+                    f'Model: {config.model}\n'
+                    f'Band: {band}\n'
+                    f'Stimulus: {stimuli}\n'
+                    f'Condition: {situation}\n'
+                    f'Time interval: ({config.tmin},{config.tmax})s\n'
+                    '\n===========================\n'
+                )
                 for session in config.sessions:
-                    param_combinations.append({
-                        'situation': situation,
-                        'preprocessed_data_path': preprocessed_data_path_main,
-                        'band': band,
-                        'stimuli': stimuli,
-                        'session': session,
-                    })
+                # for session in [27]:
+                    print(f'\n-------> Start of session {session}\n')
+                    
+                    subject_1, subject_2, samples_info = load_data(
+                        preprocessed_data_path=preprocessed_data_path_main,
+                        situation=situation,
+                        stimuli=stimuli,
+                        session=session,
+                        band=band
+                    )
+                    
+                    # Print the progress of the iteration
+                    general_functions.iteration_percentage(
+                        txt=f'\n-------> End of session {session}\n', 
+                        i=config.sessions.index(session), 
+                        length_of_iterator=len(config.sessions),
+                        logger=logger
+                    )
+
+# # =======================
+# # PARALLEL EXECUTION CODE
+# if __name__ == "__main__":
+#     import multiprocessing as mp
+#     import concurrent.futures
     
-    def process_single_session(params):
-        """Procesa una sesión individual"""
-        try:
-            logger.info(
-                f"Processing: {params['stimuli']} | {params['band']} | "
-                f"{params['situation']} | Session {params['session']}"
-            )
-            
-            subject_1, subject_2, samples_info = load_data(
-                preprocessed_data_path=params['preprocessed_data_path'],
-                situation=params['situation'],
-                stimuli=params['stimuli'],
-                session=params['session'],
-                band=params['band'],
-            )
-            
-            return {
-                'session': params['session'],
-                'status': 'success',
-                'params': params
-            }
-            
-        except Exception as e:
-            logger.error(f"Error processing session {params['session']}: {e}")
-            return {
-                'session': params['session'],
-                'status': 'error',
-                'error': str(e),
-                'params': params
-            }
+#     # Command line and logging
+#     from utils.from_commands import create_dynamic_parser, apply_args_to_config
+#     parser = create_dynamic_parser()
+#     args = parser.parse_args()
+#     apply_args_to_config(args)
     
-    # Paralelizar el procesamiento
-    max_workers = min(mp.cpu_count() - 1, config.number_of_workers)  # Usar máximo 8 workers para evitar sobrecarga
-    logger.info(f"Starting parallel processing with {max_workers} workers")
-    logger.info(f"Total combinations to process: {len(param_combinations)}")
+#     config.LOG_LEVEL = 'WARNING'
+#     # Crear todas las combinaciones de parámetros
+#     param_combinations = []
+#     for situation in config.situations:
+#         preprocessed_data_path_main = f'{config.saves_dir}/preprocessed_data/tmin{config.tmin}_tmax{config.tmax}/'
+#         for band in config.bands:
+#             for stimuli in config.stimuli:
+#                 sorted_stimuli, sorted_bands = sorted(stimuli.split('_')), sorted(band.split('_'))
+#                 stimuli, band = '_'.join(sorted_stimuli), '_'.join(sorted_bands)
+                
+#                 for session in config.sessions:
+#                     param_combinations.append({
+#                         'situation': situation,
+#                         'preprocessed_data_path': preprocessed_data_path_main,
+#                         'band': band,
+#                         'stimuli': stimuli,
+#                         'session': session,
+#                     })
     
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Enviar todos los trabajos
-        futures = [executor.submit(process_single_session, params) for params in param_combinations]
+#     def process_single_session(params):
+#         """Procesa una sesión individual"""
+#         try:
+#             logger.info(
+#                 f"Processing: {params['stimuli']} | {params['band']} | "
+#                 f"{params['situation']} | Session {params['session']}"
+#             )
+            
+#             subject_1, subject_2, samples_info = load_data(
+#                 preprocessed_data_path=params['preprocessed_data_path'],
+#                 situation=params['situation'],
+#                 stimuli=params['stimuli'],
+#                 session=params['session'],
+#                 band=params['band'],
+#             )
+            
+#             return {
+#                 'session': params['session'],
+#                 'status': 'success',
+#                 'params': params
+#             }
+            
+#         except Exception as e:
+#             logger.error(f"Error processing session {params['session']}: {e}")
+#             return {
+#                 'session': params['session'],
+#                 'status': 'error',
+#                 'error': str(e),
+#                 'params': params
+#             }
+    
+#     # Paralelizar el procesamiento
+#     max_workers = min(mp.cpu_count() - 1, config.number_of_workers)  # Usar máximo 8 workers para evitar sobrecarga
+#     logger.info(f"Starting parallel processing with {max_workers} workers")
+#     logger.info(f"Total combinations to process: {len(param_combinations)}")
+    
+#     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+#         # Enviar todos los trabajos
+#         futures = [executor.submit(process_single_session, params) for params in param_combinations]
         
-        # Procesar resultados conforme se completan
-        for i, future in enumerate(concurrent.futures.as_completed(futures)):
-            result = future.result()
+#         # Procesar resultados conforme se completan
+#         for i, future in enumerate(concurrent.futures.as_completed(futures)):
+#             result = future.result()
             
-            if result['status'] == 'success':
-                logger.info(f"✓ Completed session {result['session']} ({i+1}/{len(futures)})")
-            else:
-                logger.error(f"✗ Failed session {result['session']}: {result['error']}")
+#             if result['status'] == 'success':
+#                 logger.info(f"✓ Completed session {result['session']} ({i+1}/{len(futures)})")
+#             else:
+#                 logger.error(f"✗ Failed session {result['session']}: {result['error']}")
             
-            # Mostrar progreso
-            general_functions.iteration_percentage(
-                txt=f"Overall progress: {i+1}/{len(futures)} completed",
-                i=i,
-                length_of_iterator=len(futures)
-            )
+#             # Mostrar progreso
+#             general_functions.iteration_percentage(
+#                 txt=f"Overall progress: {i+1}/{len(futures)} completed",
+#                 i=i,
+#                 length_of_iterator=len(futures)
+#             )
