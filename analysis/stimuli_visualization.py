@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-# """
-# Visualization of stimulus use in each condition
+"""
+Visualization of stimulus use in each condition
 
-# External_BS/Internal_BS: samples where both subjects are speaking
-# External: samples where interlocutor is speaking
-# Internal: samples where the locutor is speaking
-# """
+External_BS/Internal_BS: samples where both subjects are speaking
+External: samples where interlocutor is speaking
+Internal: samples where the locutor is speaking
+"""
 import matplotlib.pyplot as plt
 from pathlib import Path
 from tqdm import tqdm
@@ -92,10 +92,37 @@ for condition in stimuli:
                 "trial_mask_keep": trial_mask_keep,
                 "trial_stimulus": trial_stimulus
             }
-            
-# all(stimuli['Internal'][22][0]['mask_keep']==stimuli['External'][22][0]['original_indexes'])
-########################            
-# Make animation
+
+# =======================================================
+# Get statistics of hearing times per session and channel            
+hearing_times = []
+for session in config.sessions:
+    for ch in [0, 1]:
+        hearing_time_s = sum(stimuli['External'][session][ch]['mask_keep'])/config.sr
+        hearing_times.append(hearing_time_s)
+median_time, percentil_0, percentil_100 = np.median(hearing_times), np.percentile(hearing_times, 0), np.percentile(hearing_times, 100)
+print(f"\n\t\tMedian hearing time across all sessions and channels: {median_time//60:.0f} m {median_time%60:.0f} s ({percentil_0/60:.0f}-{percentil_100/60:.0f}) m, range\n")
+
+speaking_times = []
+for session in config.sessions:
+    for ch in [0, 1]:
+        speaking_time_s = sum(stimuli['External_BS'][session][ch]['mask_keep'])/config.sr
+        speaking_times.append(speaking_time_s)
+median_time, percentil_0, percentil_100 = np.median(speaking_times), np.percentile(speaking_times, 0), np.percentile(speaking_times, 100)
+print(f"\n\t\tMedian both speaking time across all sessions and channels: {median_time//60:.0f} m {median_time%60:.0f} s ({percentil_0:.0f}-{percentil_100:.0f}) s, range\n")
+
+# # Plot both distributions
+# plt.figure(figsize=(8, 5))
+# plt.hist(np.array(hearing_times)/60, bins=20, alpha=0.7, label='Hearing Time (External)', color='blue')
+# plt.hist(np.array(speaking_times)/60, bins=20, alpha=0.7, label='Speaking Time (External)', color='orange')
+# plt.xlabel('Time (minutes)')
+# plt.ylabel('Frequency')
+# plt.title('Distribution of Hearing and Speaking Times')
+# plt.legend()
+# plt.show()
+
+# ============================
+# Make video of dialogue turns
 from scipy.io import wavfile
 class AudioPlotPlayer:
     def __init__(self, stimuli, stimulus_name, wav_data, config, session, ch, trial, sr, x_speed=1.0, n_xticks=10):
@@ -118,7 +145,7 @@ class AudioPlotPlayer:
         self.stop_requested = False
         self.playing = False
 
-        self.video_filename = f"videos/{stimulus_name}_session{session}_ch{ch+1}_trial{self.trial+1}.mp4"
+        self.video_filename = f"turns_media/videos/{stimulus_name}_session{session}_ch{ch+1}_trial{self.trial+1}.mp4"
 
         # Plot both conditions
         time_axis = self.stimuli['External'][self.session][self.ch]["trial_original_indexes"][self.trial].astype(float)

@@ -1,5 +1,5 @@
 import numpy as np, mne
-number_of_workers = 8
+number_of_workers = 1
 saves_dir = 'saves'
 output_dir = 'output'
 figures_dir = 'figures'
@@ -42,8 +42,8 @@ stimuli = [
         # 'Phonological_Phonemes_Spectrogram',
 
         # # Simples
-        'Envelope',
-        # 'Turn',
+        # 'Envelope',
+        # 'Hearing-Turn',
         # 'Pitch-Log-Raw',
         # 'Spectrogram',
         # 'Mfccs',
@@ -55,41 +55,40 @@ stimuli = [
         # 'Phones',
         # # # 'Jitter', #TODO jitter y shimmer no los pudiste calcular bien
         # # # 'Shimmer',
-        # 'DNNs1',
-        # 'DNNs2',
-        # 'DNNs3',
-        # 'DNNs4',
-        # 'DNNs5',
-        # 'DNNs6',
-        # 'DNNs7',
-        # 'DNNs8',
-        # 'DNNs9',
-        # 'DNNs10',
-        # 'DNNs11',
-        # 'DNNs12',
-        # 'DNNs13',
-        # 'DNNs14',
-        # 'DNNs15',
-        # 'DNNs16', #wav2vec hasta 23, whisper 3
-        # 'DNNs17',
-        # 'DNNs18',
-        # 'DNNs19',
-        # 'DNNs20',
-        # 'DNNs21',
-        # 'DNNs22',
-        # 'DNNs23',
-        # 'Turn',
+        # '18DNNs1-hubert',
+        # '18DNNs2-hubert',
+        # '18DNNs3-hubert',
+        # '18DNNs4-hubert',
+        # '18DNNs5-hubert',
+        # '18DNNs6-hubert',
+        # '18DNNs7-hubert',
+        # '18DNNs8-hubert',
+        # '18DNNs9-hubert',
+        # '18DNNs10-hubert',
+        '18DNNs11-hubert',
+        '18DNNs12-hubert',
+        '18DNNs13-hubert',
+        '18DNNs14-hubert',
+        '18DNNs15-hubert',
+        '18DNNs16-hubert', #wav2vec hasta 23, whisper 3
+        '18DNNs17-hubert',
+        '18DNNs18-hubert',
+        '18DNNs19-hubert',
+        '18DNNs20-hubert',
+        '18DNNs21-hubert',
+        '18DNNs22-hubert',
+        '18DNNs23-hubert',
         # # Simples but non-standard
         # 'Envelope2',
         # 'Phonological1',
         # 'Phonological2'
 ]
 situations = [
-        'All',
+        # 'All',
         'External',
-        'Internal',
-        'External_BS', #TODO 
-        'Internal_BS',
+        # 'Internal',
+        # 'External_BS', #TODO 
+        # 'Internal_BS',
         # 'External_Silence_100',
         # 'External_Silence_10',
         # 'External_Silence_20',

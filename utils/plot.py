@@ -121,7 +121,8 @@ def define_ticks(
         axes.tick_params(axis='both', labelsize='medium')
         tags = ['Envelope', 'Instantaneous Freq.']
         ticks = np.arange(number_of_ticks)
-    elif ylabel.startswith('DNNs'):
+    # elif ylabel.startswith('DNNs'):
+    elif 'DNNs' in ylabel:
         axes.tick_params(axis='both', labelsize='medium')
         tags = [i for i in np.arange(0, number_of_ticks)]
         ticks = np.arange(number_of_ticks)

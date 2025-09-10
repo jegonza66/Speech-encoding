@@ -142,6 +142,8 @@ def check_syntax(
             if (stimulus not in ALLOWED_STIMULI):
                 # Special dynamic case for DNNs name
                 parts = stimulus.split('DNNs')
+                layer, backbone = parts[-1].split('-')
+                parts = [parts[0],layer]
                 if len(parts) == 2 and all(part.isdigit() for part in parts):
                     continue
                 else:
