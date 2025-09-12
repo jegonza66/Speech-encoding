@@ -929,6 +929,7 @@ class GetTrialData:
             )
         # Run the whole pipeline, storing full layer for future use
         except:
+            logger.warning(f"Cached DNN layer not found: {layer_path}. \n ---> extracting and caching it now...")
             # Create the folder if it doesn't exist
             os.makedirs(os.path.dirname(layer_path), exist_ok=True)
             
