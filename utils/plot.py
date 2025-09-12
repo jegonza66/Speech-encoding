@@ -510,7 +510,7 @@ def topomap(
     None
     """
     # Exit function
-    plt.close()
+    plt.close('all')
     if no_figures:
         return
     

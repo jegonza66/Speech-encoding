@@ -6,11 +6,12 @@ set run_load=true
 set run_validation=true
 set run_permutations=false
 set run_main=true
+set NUMOW=1
 
 REM === Run load.py ===
 if /i "%run_load%"=="true" (
     echo Running load.py...
-    python load.py --number_of_workers 8
+    python load.py --number_of_workers %NUMOW%
     if errorlevel 1 (
         echo load.py failed. Exiting.
         exit /b 1
@@ -86,7 +87,6 @@ if /i "%run_main%"=="true" (
         exit /b 1
     )
 )
-
 
 REM === Run main.py DIFF VAL, NO EXTERNAL VAL, RIDGE
 if /i "%run_main%"=="true" (
