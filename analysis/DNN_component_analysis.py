@@ -13,10 +13,9 @@ import os
 import config
 from utils.general_functions import load_pickle, dump_pickle
 
-# from load import main_parallel as main_load
+from load import main_parallel as main_load
 from validation import main as main_val
 from main import main as main_main
-from load import main_parallel as main_load
 
 def convert_numpy_keys(obj):
     """Convert numpy integers to Python integers for JSON serialization"""
@@ -33,11 +32,10 @@ def convert_numpy_keys(obj):
     else:
         return obj
 
-
+# Total: 2*8*23 = 368 analyses
 backbones = ["hubert", "wav2vec2"] # 2
 components = np.arange(12, 28, 2) # 8
 layers = np.arange(1, 24) # 23 
-# Total: 2*8*23 = 368 analyses
 
 correlations = {
     backbone: {
@@ -53,11 +51,23 @@ correlations_std = {
             } for n_components in components
     } for backbone in backbones
 }
+save_path = Path("output/mtrf-ridge/analysis/DNN_component_analysis")
+try:
+    data = load_pickle(path=save_path / "checkpoint_correlations.pkl")
+    correlations = data["correlations"]
+    correlations_std = data["correlations_std"]
+except FileNotFoundError:
+    pass
 
 for backbone in backbones:
     for n_components in components:  
         for layer in layers:
             stimuli = f'{n_components}DNNs{layer}-{backbone}'
+
+            if correlations[backbone][n_components][layer] is not None:
+                print(f"Skipping already computed {stimuli}")
+                continue
+            
             print(
                 f'\n\n\n\tProcessing {n_components} components, layer {layer}, backbone {backbone}\n',
                 f'\n\tStimuli:\t{stimuli}\n'
@@ -103,7 +113,7 @@ for backbone in backbones:
             correlations_std[backbone][n_components][layer] = main_results['average_correlation_subjects'].std(axis=1)/np.sqrt(128)
 
             # Save checkpoint
-            save_path = Path("output/mtrf-ridge/analysis/DNN_component_analysis")
+            
             save_path.mkdir(parents=True, exist_ok=True)
             dump_pickle(
                 path=save_path / "checkpoint_correlations.pkl",
