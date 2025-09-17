@@ -6,7 +6,7 @@ from utils.general_functions import load_pickle
 # =========
 # Load data
 backbone = "wav2vec2"
-n_components = 18
+n_components = 32
 n_layers = 24
 model = 'ridge'
 # model = 'ridge-laplacian'

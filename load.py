@@ -195,7 +195,8 @@ class GetTrialData:
         # Read the .set file. warning of annotations and 'boundry' events -data discontinuities-.
         eeg = mne.io.read_raw_eeglab(
             input_fname=self.eeg_fname, 
-            preload=True
+            preload=True,
+            verbose="CRITICAL"
         )
 
         # Apply a lowpass filter
@@ -1584,6 +1585,7 @@ def load_stimuli(
     """
     export_paths = get_export_paths(
         preprocessed_data_path=preprocessed_data_path,
+        stimuli=stimuli,
         band=band
     )
     subject_1, subject_2 = {}, {}
@@ -1776,71 +1778,109 @@ def load_data(
     
     return session_1, session_2, samples_info
 
-# # =====================
-# # SIMPLE EXECUTION CODE
-# if __name__ == "__main__":
-#     for situation in config.situations:
-#         preprocessed_data_path_main = f'{config.saves_dir}/preprocessed_data/tmin{config.tmin}_tmax{config.tmax}/'
-#         for band in config.bands:
-#             for stimuli in config.stimuli:
-#                 sorted_stimuli, sorted_bands = sorted(stimuli.split('_')), sorted(band.split('_'))
-#                 stimuli, band = '_'.join(sorted_stimuli), '_'.join(sorted_bands)
+import multiprocessing as mp
+import concurrent.futures
+from utils.from_commands import create_dynamic_parser, apply_args_to_config
+config.LOG_LEVEL = 'WARNING'
 
-#                 # Update
-#                 logger.info(
-#                     '\n===========================\n'
-#                     '\tPARAMETERS\n\n'
-#                     f'Model: {config.model}\n'
-#                     f'Band: {band}\n'
-#                     f'Stimulus: {stimuli}\n'
-#                     f'Condition: {situation}\n'
-#                     f'Time interval: ({config.tmin},{config.tmax})s\n'
-#                     '\n===========================\n'
-#                 )
-#                 for session in config.sessions:
-#                 # for session in [27]:
-#                     print(f'\n-------> Start of session {session}\n')
+parser = create_dynamic_parser()
+args = parser.parse_args()
+apply_args_to_config(args)
+
+
+# =====================
+# SIMPLE EXECUTION CODE
+def main_one_process(
+    situations = config.situations,
+    sessions = config.sessions,
+    stimuli = config.stimuli,
+    bands = config.bands,
+    saves_dir = config.saves_dir,
+    tmin = config.tmin,
+    tmax = config.tmax,
+    save_results = False
+):
+    total_results = {
+        situation: {
+            band: {
+                stim: {
+                    session: None for session in sessions
+                } for stim in stimuli
+            } for band in bands
+        } for situation in situations
+    }
+    for situation in situations:
+        preprocessed_data_path_main = f'{saves_dir}/preprocessed_data/tmin{tmin}_tmax{tmax}/'
+        for band in bands:
+            for stimulus in stimuli:
+                sorted_stimuli, sorted_bands = sorted(stimulus.split('_')), sorted(band.split('_'))
+                stimulus, band = '_'.join(sorted_stimuli), '_'.join(sorted_bands)
+
+                # Update
+                logger.info(
+                    '\n===========================\n'
+                    '\tPARAMETERS\n\n'
+                    f'Model: {config.model}\n'
+                    f'Band: {band}\n'
+                    f'Stimulus: {stimulus}\n'
+                    f'Condition: {situation}\n'
+                    f'Time interval: ({tmin},{tmax})s\n'
+                    '\n===========================\n'
+                )
+                for session in sessions:
+                    print(f'\n-------> Start of session {session}\n')
                     
-#                     subject_1, subject_2, samples_info = load_data(
-#                         preprocessed_data_path=preprocessed_data_path_main,
-#                         situation=situation,
-#                         stimuli=stimuli,
-#                         session=session,
-#                         band=band
-#                     )
+                    subject_1, subject_2, samples_info = load_data(
+                        preprocessed_data_path=preprocessed_data_path_main,
+                        situation=situation,
+                        stimuli=stimulus,
+                        session=session,
+                        band=band,
+                        save_results=save_results
+                    )
                     
-#                     # Print the progress of the iteration
-#                     general_functions.iteration_percentage(
-#                         txt=f'\n-------> End of session {session}\n', 
-#                         i=config.sessions.index(session), 
-#                         length_of_iterator=len(config.sessions),
-#                         logger=logger
-#                                        )
+                    # Print the progress of the iteration
+                    general_functions.iteration_percentage(
+                        txt=f'\n-------> End of session {session}\n', 
+                        i=sessions.index(session), 
+                        length_of_iterator=len(sessions),
+                        logger=logger
+                                       )
+                    total_results[situation][band][stimulus] = (subject_1, subject_2, samples_info)
 
 # =======================
 # PARALLEL EXECUTION CODE
-if __name__ == "__main__":
-    import multiprocessing as mp
-    import concurrent.futures
-    
-    
-    # Command line and logging
-    from utils.from_commands import create_dynamic_parser, apply_args_to_config
-    parser = create_dynamic_parser()
-    args = parser.parse_args()
-    apply_args_to_config(args)
-    
-    config.LOG_LEVEL = 'WARNING'
+def main_parallel(
+    situations = config.situations,
+    sessions = config.sessions,
+    stimuli = config.stimuli,
+    bands = config.bands,
+    saves_dir = config.saves_dir,
+    tmin = config.tmin,
+    tmax = config.tmax,
+    number_of_workers = config.number_of_workers,
+    save_results = True
+):
+    total_results = {
+        situation: {
+            band: {
+                stim: {
+                    session: None for session in sessions
+                } for stim in stimuli
+            } for band in bands
+        } for situation in situations
+    }
+
     # Crear todas las combinaciones de parámetros
     param_combinations = []
-    for situation in config.situations:
-        preprocessed_data_path_main = f'{config.saves_dir}/preprocessed_data/tmin{config.tmin}_tmax{config.tmax}/'
-        for band in config.bands:
-            for stimuli in config.stimuli:
+    for situation in situations:
+        preprocessed_data_path_main = f'{saves_dir}/preprocessed_data/tmin{tmin}_tmax{tmax}/'
+        for band in bands:
+            for stimuli in stimuli:
                 sorted_stimuli, sorted_bands = sorted(stimuli.split('_')), sorted(band.split('_'))
                 stimuli, band = '_'.join(sorted_stimuli), '_'.join(sorted_bands)
                 
-                for session in config.sessions:
+                for session in sessions:
                     param_combinations.append({
                         'situation': situation,
                         'preprocessed_data_path': preprocessed_data_path_main,
@@ -1863,6 +1903,7 @@ if __name__ == "__main__":
                 stimuli=params['stimuli'],
                 session=params['session'],
                 band=params['band'],
+                save_results=save_results
             )
             
             return {
@@ -1880,8 +1921,9 @@ if __name__ == "__main__":
                 'params': params
             }
     
+    
     # Paralelizar el procesamiento
-    max_workers = min(mp.cpu_count() - 1, config.number_of_workers)  # Usar máximo 8 workers para evitar sobrecarga
+    max_workers = min(mp.cpu_count() - 1, number_of_workers)  # Usar máximo 8 workers para evitar sobrecarga
     logger.info(f"Starting parallel processing with {max_workers} workers")
     logger.info(f"Total combinations to process: {len(param_combinations)}")
     
@@ -1892,6 +1934,10 @@ if __name__ == "__main__":
         # Procesar resultados conforme se completan
         for i, future in enumerate(concurrent.futures.as_completed(futures)):
             result = future.result()
+            
+            # Fill total_results with the result (success or error info)
+            params = result['params']
+            total_results[params['situation']][params['band']][params['stimuli']][params['session']] = result
             
             if result['status'] == 'success':
                 logger.info(f"✓ Completed session {result['session']} ({i+1}/{len(futures)})")
@@ -1904,3 +1950,15 @@ if __name__ == "__main__":
                 i=i,
                 length_of_iterator=len(futures)
             )
+    return total_results
+
+if __name__ == "__main__":
+    if config.parallel_load:
+        # Parallel execution
+        results = main_parallel(
+            
+        )
+    else:
+        # Parallel execution
+        results = main_one_process(
+        )

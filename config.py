@@ -1,8 +1,9 @@
 import numpy as np, mne
-number_of_workers = 1
+number_of_workers = 8
 saves_dir = 'saves'
 output_dir = 'output'
 figures_dir = 'figures'
+parallel_load = False
 
 # Logging configuration
 LOG_LEVEL = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
@@ -55,29 +56,29 @@ stimuli = [
         # 'Phones',
         # # # 'Jitter', #TODO jitter y shimmer no los pudiste calcular bien
         # # # 'Shimmer',
-        '18DNNs1-wav2vec2',
-        '18DNNs2-wav2vec2',
-        '18DNNs3-wav2vec2',
-        '18DNNs4-wav2vec2',
-        '18DNNs5-wav2vec2',
-        '18DNNs6-wav2vec2',
-        '18DNNs7-wav2vec2',
-        '18DNNs8-wav2vec2',
-        '18DNNs9-wav2vec2',
-        '18DNNs10-wav2vec2',
-        '18DNNs11-wav2vec2',
-        '18DNNs12-wav2vec2',
-        '18DNNs13-wav2vec2',
-        '18DNNs14-wav2vec2',
-        '18DNNs15-wav2vec2',
-        '18DNNs16-wav2vec2', 
-        '18DNNs17-wav2vec2',
-        '18DNNs18-wav2vec2',
-        '18DNNs19-wav2vec2',
-        '18DNNs20-wav2vec2',
-        '18DNNs21-wav2vec2',
-        '18DNNs22-wav2vec2',
-        '18DNNs23-wav2vec2',
+        '32DNNs1-hubert',
+        '32DNNs2-hubert',
+        '32DNNs3-hubert',
+        '32DNNs4-hubert',
+        '32DNNs5-hubert',
+        '32DNNs6-hubert',
+        '32DNNs7-hubert',
+        '32DNNs8-hubert',
+        '32DNNs9-hubert',
+        '32DNNs10-hubert',
+        '32DNNs11-hubert',
+        '32DNNs12-hubert',
+        '32DNNs13-hubert',
+        '32DNNs14-hubert',
+        '32DNNs15-hubert',
+        '32DNNs16-hubert', 
+        '32DNNs17-hubert',
+        '32DNNs18-hubert',
+        '32DNNs19-hubert',
+        '32DNNs20-hubert',
+        '32DNNs21-hubert',
+        '32DNNs22-hubert',
+        '32DNNs23-hubert',
         # # Simples but non-standard
         # 'Envelope2',
         # 'Phonological1',
@@ -156,7 +157,6 @@ alphas_swept = np.logspace(
         base=base_log
 )
 alpha_step = np.diff(np.log(alphas_swept))[0]
-save_alphas = True
 
 # =======================
 # RANDOM PERMUTATION TEST

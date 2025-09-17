@@ -78,8 +78,9 @@ def sort_stimuli_based_on_situation(
 
 def get_export_paths(
     preprocessed_data_path:str,
+    stimuli,
     band:str='Broad',
-    )->dict:
+)->dict:
     """
     Get export paths for each stimulus and EEG.
 
@@ -104,7 +105,7 @@ def get_export_paths(
     export_paths['EEG'] = os.path.join(preprocessed_data_path, f'EEG/{band}/')
     
     # The rest remain the same
-    for stimulus in ALLOWED_STIMULI+config.stimuli:
+    for stimulus in ALLOWED_STIMULI+config.stimuli+[stimuli]:
         if stimulus in export_paths:
             continue
         else:
