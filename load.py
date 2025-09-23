@@ -26,9 +26,12 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '0'  # Use specific GPU if available
 
 from phonet.phonet import Phonet 
     
-from transformers import Wav2Vec2Model, Wav2Vec2Processor, Wav2Vec2FeatureExtractor
-from transformers import WhisperProcessor, WhisperModel
-from transformers import HubertModel
+from transformers import (
+    Wav2Vec2Model, Wav2Vec2Processor, Wav2Vec2FeatureExtractor,
+    WhisperProcessor, WhisperModel,
+    HubertModel,
+    WavLMModel, WavLMProcessor
+)
 
 # Modules
 from utils.load_utils import shifted_indexes_to_keep, match_lengths, check_syntax, labeling, get_trials, get_export_paths, SEX_LIST, sort_stimuli_based_on_situation
@@ -102,6 +105,9 @@ def _get_dnn_model(backbone: str, model_id: str, device: str):
     elif bl == "hubert":
         processor = Wav2Vec2FeatureExtractor.from_pretrained(model_id)  # Use only feature extractor for Hubert
         model = HubertModel.from_pretrained(model_id).to(device).eval()
+    elif bl == "wavlm":
+        processor = WavLMProcessor.from_pretrained(model_id)
+        model = WavLMModel.from_pretrained(model_id).to(device).eval()
     else:
         raise ValueError(f"Unknown backbone: {backbone}")
 
@@ -917,7 +923,7 @@ class GetTrialData:
         """
         # Stimuli should be call ##DNNs##, where first ## implies number of components, and second ## the layer
         n_components, encoder_layer_backbone = [part for part in kind.split("DNNs")]
-        encoder_layer, backbone = encoder_layer_backbone.split('-')# "whisper", "wav2vec2", or "hubert"
+        encoder_layer, backbone = encoder_layer_backbone.split('-')# "whisper", "wav2vec2", "hubert" or "wavlm"
         n_components, encoder_layer = int(n_components), int(encoder_layer)
         
         # Path for caching full layer representation
@@ -952,11 +958,13 @@ class GetTrialData:
             if model_id is None:
                 bl = backbone.lower()
                 if  bl == "whisper":
-                    model_id = "openai/whisper-tiny"
+                    model_id = "openai/whisper-tiny"#TODO updt
                 elif bl == "wav2vec2":
                     model_id = "jonatasgrosman/wav2vec2-large-xlsr-53-spanish"
                 elif bl == "hubert":
                     model_id = "facebook/hubert-large-ll60k"  
+                elif bl == "wavlm":
+                    model_id = "microsoft/wavlm-large"
                 else:
                     raise ValueError(f"Unknown backbone: {backbone}")
             
@@ -964,7 +972,7 @@ class GetTrialData:
             processor, model = _get_dnn_model(backbone, model_id, device)
             
             # Resample to model SR
-            if backbone_lower == "hubert":
+            if backbone_lower in ["hubert", "wavlm"]:
                 model_sr = getattr(processor, "sampling_rate", 16000)
             else:
                 model_sr = getattr(getattr(processor, "feature_extractor", None), "sampling_rate", 16000)
@@ -1051,8 +1059,30 @@ class GetTrialData:
                         raise ValueError(f"encoder_layer={encoder_layer} fuera de rango (0..{len(hs)-1})")
                     # [B, T, D] -> [T, D]
                     H = hs[idx].squeeze(0).cpu().numpy()
+            elif backbone_lower == "wavlm":
+                with torch.no_grad():
+                    inputs = processor(
+                        wav_model,
+                        sampling_rate=model_sr,
+                        return_tensors="pt",
+                        padding=False
+                    )
+                    outputs = model(
+                        input_values=inputs.input_values.to(device),
+                        output_hidden_states=True,
+                        return_dict=True
+                    )
+                    hs = outputs.hidden_states
+                    # Remove initial embedding if present
+                    if len(hs) == model.config.num_hidden_layers + 1:
+                        hs = hs[1:]
+                    idx = encoder_layer if encoder_layer >= 0 else len(hs) + encoder_layer
+                    if idx < 0 or idx >= len(hs):
+                        raise ValueError(f"encoder_layer={encoder_layer} fuera de rango (0..{len(hs)-1})")
+                    # [B, T, D] -> [T, D]
+                    H = hs[idx].squeeze(0).cpu().numpy()
             else:
-                raise ValueError(f"Unknown backbone: {backbone}. Use 'whisper', 'wav2vec2', or 'hubert'.")
+                raise ValueError(f"Unknown backbone: {backbone}. Use 'whisper', 'wav2vec2', 'hubert', or 'wavlm'.")
             
             # Save full layer for future use
             general_functions.dump_pickle(
