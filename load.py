@@ -303,15 +303,15 @@ class GetTrialData:
 
     def extract_spectrogram(
         self,
-        number_of_mels:int=16
+        kind:str
         )->np.ndarray:
         """
-        Calculates spectrogram of .wav file between 16 Mel frequencies
+        Calculates spectrogram of .wav file between -## Mel frequencies
 
         Parameters
         ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform
+        kind : str
+            Kind of spectrogram to compute, by default 'Spectrogram-16'.
 
         Returns
         -------
@@ -330,7 +330,7 @@ class GetTrialData:
             hop_length=sample_window, 
             n_fft=sample_window, 
             sr=self.audio_sr, 
-            n_mels=number_of_mels,
+            n_mels=int(kind.split('-')[-1]),
             y=wav
         )
         # Transform to dB using normalization to 1
@@ -1322,8 +1322,9 @@ class GetTrialData:
                 channel[stimulus] = self.extract_DNNs(
                     kind=stimulus
                 )
-            if stimulus=='Spectrogram':
-                channel['Spectrogram'] = self.extract_spectrogram(#TODO no tiene stimulus_length
+            if stimulus.startswith('Spectrogram'):
+                channel[stimulus] = self.extract_spectrogram(
+                    kind=stimulus
                 )
             if stimulus.startswith('Phonemes'):
                 channel[stimulus] = self.extract_phonemes(

@@ -6,17 +6,17 @@ set run_load=true
 set run_validation=true
 set run_permutations=false
 set run_main=true
+set PARALLEL_LOAD=true
 set NUMOW=8
 
 REM === Run load.py ===
 if /i "%run_load%"=="true" (
     echo Running load.py...
-    if PARALLEL_LOAD(
+    if /i "%PARALLEL_LOAD%"=="true" (
         python load.py --number_of_workers %NUMOW% --parallel_load
     ) else (
         python load.py --number_of_workers %NUMOW% --no-parallel_load
     )
-    
     if errorlevel 1 (
         echo load.py failed. Exiting.
         exit /b 1

@@ -1,9 +1,9 @@
 """
-Este script tiene que correr para Hubert y Wav2Vec2.
-Para cada DNN, debe variar las n_components entre 12 y 26 de a pasos de 2, tomando los extremos.
-Debe registrar, únicamente el valor promedio de la correlación en cada capa (ni los pesos, ni los atributos) para ahorrar almacenamiento
-La idea es graficar muchas curvas (una por n_components), en las cuales se plotee la correlación promedio por capa
+This script runs Hubert and Wav2Vec2 representations.
+For each DNN, it varies n_components and registers the average correlation value at each layer.
+The idea is to plot many curves (one for each n_components), where the average correlation per layer is plotted.
 """
+import matplotlib.pyplot as plt
 from pathlib import Path
 import numpy as np
 import shutil
@@ -32,9 +32,9 @@ def convert_numpy_keys(obj):
     else:
         return obj
 
-# Total: 2*8*23 = 368 analyses
+# Total: 2*6*23 = 276 analyses
 backbones = ["hubert", "wav2vec2"] # 2
-components = np.arange(12, 28, 2) # 8
+components = np.concatenate([np.arange(12, 24, 2), np.array([21])]) # 6
 layers = np.arange(1, 24) # 23 
 
 correlations = {
@@ -53,11 +53,16 @@ correlations_std = {
 }
 save_path = Path("output/mtrf-ridge/analysis/DNN_component_analysis")
 try:
-    data = load_pickle(path=save_path / "checkpoint_correlations.pkl")
+    data = load_pickle(path=save_path / "checkpoint_DNN_component_correlations.pkl")
     correlations = data["correlations"]
     correlations_std = data["correlations_std"]
 except FileNotFoundError:
     pass
+
+correlations['hubert'][21] = {layer: None for layer in layers}
+correlations_std['hubert'][21] = {layer: None for layer in layers}
+correlations['wav2vec2'][21] = {layer: None for layer in layers}
+correlations_std['wav2vec2'][21] = {layer: None for layer in layers}
 
 for backbone in backbones:
     for n_components in components:  
@@ -113,10 +118,9 @@ for backbone in backbones:
             correlations_std[backbone][n_components][layer] = main_results['average_correlation_subjects'].std(axis=1)/np.sqrt(128)
 
             # Save checkpoint
-            
             save_path.mkdir(parents=True, exist_ok=True)
             dump_pickle(
-                path=save_path / "checkpoint_correlations.pkl",
+                path=save_path / "checkpoint_DNN_component_correlations.pkl",
                 obj={
                     "correlations": correlations,
                     "correlations_std": correlations_std
@@ -125,7 +129,7 @@ for backbone in backbones:
                 verbose=True
             )
             # Save json to legible format
-            with open(save_path / "checkpoint_correlations.json", 'w') as f:
+            with open(save_path / "checkpoint_DNN_component_correlations.json", 'w') as f:
                 json_data = {
                     "correlations": convert_numpy_keys(correlations),
                     "correlations_std": convert_numpy_keys(correlations_std)
@@ -137,5 +141,29 @@ for backbone in backbones:
                 shutil.rmtree(dir_to_remove, ignore_errors=True)
             except Exception as e:
                 raise(f"Could not remove directory {dir_to_remove}: {e}")
-            
-# Make plots
+
+# Make DNNs plots
+fig, axes = plt.subplots(
+    nrows=1, ncols=2, 
+    figsize=(18, 6), 
+    sharey=True, 
+    # tight_layout=True
+)
+fig.suptitle("DNN Layer Correlation Analysis: Hubert vs Wav2Vec2")
+for idx, backbone in enumerate(['hubert', 'wav2vec2']):
+    ax = axes[idx]
+    for n_components in components:
+        means = [correlations[backbone][n_components][layer].mean() for layer in layers]
+        stds = [correlations_std[backbone][n_components][layer].mean() for layer in layers]
+        ax.plot(layers, means, label=f'{n_components} components')
+        ax.fill_between(layers, np.array(means)-np.array(stds), np.array(means)+np.array(stds), alpha=0.2)
+    ax.set_xticks(layers)
+    ax.grid(visible=True, which='major', linestyle='--', axis='y', linewidth=0.5)
+    ax.set_xlabel("DNN Layer")
+    ax.set_title(f"{backbone.capitalize()}")
+axes[0].set_ylabel("Inter-Subject Correlation")
+axes[1].legend(title="Number of components", bbox_to_anchor=(1.05, 1), loc='upper left')
+fig.tight_layout(rect=[0, 0, 1, 0.97])
+fig.savefig(
+    "figures/analysis/dnn_layer_correlation/hubert_wav2vec2_all_components_layer_correlation.png"
+)

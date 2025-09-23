@@ -140,8 +140,14 @@ def check_syntax(
     # Check if band, stimuli and situation parameters where passed with the right syntax
     if stimuli is not None:
         for stimulus in stimuli.split('_'):
+            # Special dynamic case for DNNs and spectrograms name
             if (stimulus not in ALLOWED_STIMULI):
-                # Special dynamic case for DNNs name
+                if stimulus.startswith('Spectrogram'):
+                    n_mels = int(stimulus.split('-')[-1])
+                    if isinstance(n_mels, int) and (n_mels > 0):
+                        continue
+                    else:
+                        raise SyntaxError(f"{stimulus} is not an allowed stimulus. Allowed stimuli are: {ALLOWED_STIMULI}. If more than one stimulus is wanted, the separator should be '_'.")
                 parts = stimulus.split('DNNs')
                 layer, backbone = parts[-1].split('-')
                 parts = [parts[0],layer]
