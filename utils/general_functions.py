@@ -402,9 +402,10 @@ def cohen_d(
 
 
 def load_phon_frequency_dict(
+    phonet_obj,
     save_path:str=None,
-    plot_freq:bool=False
-    )->dict:
+    plot_freq:bool=False    
+)->dict:
     """
     Loads phoneme frequency dictionary.
     
@@ -421,44 +422,54 @@ def load_phon_frequency_dict(
         Dictionary with phoneme frequencies.
     """
     import config
-    from phoneme_implementation_from_phonet import Phones
-
+    from utils.phoneme_implementation_from_phonet import compute_phones
+    from utils.load_utils import get_trials
+    from tqdm import tqdm
     exp_info = config.Exp_info()
-    phon_frequency_dict = {key:0 for key in exp_info.phonemes_phonet.copy()}
-    for session in config.sessions:
-        print(f'\n Loading session {session}\n')
-        # Retrive number of files, i.e: trials
-        trials = [int(fname.split('.')[2]) for fname in os.listdir(fr'Datos\phrases\S{session}') if fname.endswith('phrases')]
-        trials = list(set([tr for tr in trials if trials.count(tr) > 1]))
-        for trial in trials:
-            print(f'\n\t\t---> Loading traial {trial}/{len(trials)}\n')
+    phon_frequency_dict = {key:0 for key in config.exp_info.phonemes.copy()}
+    for session in tqdm(config.sessions, total=len(config.sessions), desc='Computing phoneme frequencies'):
+        for trial in get_trials(session):
             for channel in [1,2]:
-                print(f'\n\t\t\t---> Channel {channel}\n')
-                
                 # Load labels and posterior probabilities
-                phonet_labels_phonemes = exp_info.phonemes_phonet.copy()
-                phonet_labels_phones = exp_info.ph_labels_phonet.copy()
-                phones_obj = Phones(audio_file=rf'Datos\wavs\S{session}\s{session}.objects.{trial:02d}.channel{channel}.wav')
-                posterior_prob = phones_obj.compute_phones(PLLR=True) #9167
+                phonet_labels_phonemes = config.exp_info.phonemes.copy()
+                phonet_labels_phones = config.exp_info.phones.copy()
+                posterior_prob = compute_phones(
+                    phonet_obj=phonet_obj,
+                    audio_file=rf'data\wavs\S{session}\s{session}.objects.{trial:02d}.channel{channel}.wav',
+                    PLLR=True
+                )
+                posterior_prob = np.clip(
+                    posterior_prob, 1e-6, 1-1e-6
+                )
                 
                 # Map phones to phonemes, making the sum
-                posterior_prob_phonemes = np.zeros(shape=(posterior_prob.shape[0], len(phonet_labels_phonemes)))
+                posterior_prob_phonemes = np.zeros(
+                    shape=(posterior_prob.shape[0], len(phonet_labels_phonemes))
+                )
 
                 for h, phone in enumerate(phonet_labels_phones):
-                    phoneme_index = phonet_labels_phonemes.index(exp_info.phones_to_phonemes[phone])
+                    phoneme_index = phonet_labels_phonemes.index(
+                        exp_info.phones_to_phonemes[phone]
+                    )
                     posterior_prob_phonemes[:, phoneme_index] += posterior_prob[:, h]
                 
                 # Calculate posterior llr
                 pllr = np.zeros(shape=posterior_prob_phonemes.shape)
                 number_of_phonemes = posterior_prob_phonemes.shape[1]
                 for ph in range(number_of_phonemes):
-                    pllr[:, ph] = np.log10(posterior_prob_phonemes[:, ph]/(1-posterior_prob_phonemes[:, ph]))
-                
+                    pllr[:, ph] = np.log10(
+                        posterior_prob_phonemes[:, ph]/(1-posterior_prob_phonemes[:, ph] + 1e-8)
+                    )
+
                 # Centralize pllr
+                pllr = np.nan_to_num(pllr, nan=0.0, posinf=0.0, neginf=0.0)
                 pllr = pllr - np.mean(pllr, axis=1, keepdims=True)  
-                
+
                 # Remove silences
-                phonemes = np.argmax(pllr, axis=1)
+                pllr_without_silence = pllr[:, np.arange(number_of_phonemes) != phonet_labels_phonemes.index('/sil/')]
+
+                # Get phoneme with max llr at each timepoint
+                phonemes = np.argmax(pllr_without_silence, axis=1)
                 
                 ind, counts = np.unique(phonemes, return_counts=True)
                 

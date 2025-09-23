@@ -679,9 +679,10 @@ class GetTrialData:
                 logger.warning("Frequency dictionary isn't Load. \n ---> loading it now...")
                 os.makedirs('data/phon_frequency_dict', exist_ok=True)
                 freq = general_functions.load_phon_frequency_dict(
+                    phonet_obj=get_phonet_instance(),
                     save_path='data/phon_frequency_dict',
                     plot_freq=True,
-                    )
+                )
             for i, tagg in enumerate(sec_phones):
                 if (tagg!='<p:>') and (tagg!='sil'):
                     phonemes[i, labels.index(config.exp_info.phones_to_phonemes[tagg])] = 1/freq[config.exp_info.phones_to_phonemes[tagg]]
