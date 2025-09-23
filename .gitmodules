@@ -1,0 +1,6 @@
+[submodule "..libs/phonet"]
+	path = ..libs/phonet
+	url = https://github.com/joctavio287/phonet
+[submodule "libs/phonet"]
+	path = libs/phonet
+	url = https://github.com/joctavio287/phonet
