@@ -30,7 +30,7 @@ from transformers import (
     Wav2Vec2Model, Wav2Vec2Processor, Wav2Vec2FeatureExtractor,
     WhisperProcessor, WhisperModel,
     HubertModel,
-    WavLMModel, WavLMProcessor
+    WavLMModel
 )
 
 # Modules
@@ -105,8 +105,8 @@ def _get_dnn_model(backbone: str, model_id: str, device: str):
     elif bl == "hubert":
         processor = Wav2Vec2FeatureExtractor.from_pretrained(model_id)  # Use only feature extractor for Hubert
         model = HubertModel.from_pretrained(model_id).to(device).eval()
-    elif bl == "wavlm":
-        processor = WavLMProcessor.from_pretrained(model_id)
+    elif bl == "wavlm":#FIXME: dado que utiliza más checkpoints y cosas intermedias no entra en gpu, habría que guardar cada layer por separado 
+        processor = Wav2Vec2FeatureExtractor.from_pretrained(model_id)
         model = WavLMModel.from_pretrained(model_id).to(device).eval()
     else:
         raise ValueError(f"Unknown backbone: {backbone}")
@@ -1624,10 +1624,11 @@ def load_stimuli(
     if not overwrite:
         stimuli_to_be_computed = []
         for stimulus in stimuli.split('_')+['EEG']:
+            stim_path = export_paths[stimulus]
             try:
                 subject_1[stimulus], subject_2[stimulus] = general_functions.load_pickle(
                     path=os.path.join(
-                        export_paths[stimulus], f'Sesion{session}.pkl'
+                        stim_path, f'Sesion{session}.pkl'
                         )
                 )
             except Exception as e:

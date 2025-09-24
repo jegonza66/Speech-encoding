@@ -105,7 +105,7 @@ def get_export_paths(
     export_paths['EEG'] = os.path.join(preprocessed_data_path, f'EEG/{band}/')
     
     # The rest remain the same
-    for stimulus in ALLOWED_STIMULI+config.stimuli+[stimuli]:
+    for stimulus in ALLOWED_STIMULI+config.stimuli+stimuli.split('_'):
         if stimulus in export_paths:
             continue
         else:
