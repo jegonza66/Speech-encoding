@@ -71,7 +71,6 @@ data_dnns_only = load_pickle(path=save_path_dnns_only)
 for layer in layers:
     correlations[f'21DNNs{layer}-{backbone}'] = data_dnns_only["correlations"][backbone][21][layer].mean()
 
-
 # Save and compute double and triple combinations
 save_path = Path("output/mtrf-ridge/analysis/DNN_similarity")
 try:
@@ -79,13 +78,14 @@ try:
 except FileNotFoundError:
     pass
 
-for combination in stimuli + double_combinations + triple_combinations:
+for r, combination in enumerate(stimuli + double_combinations + triple_combinations):
     if correlations[combination] is not None:
         print(f"Skipping already computed {combination}")
         continue
     print(
         f'\n\n\n\tProcessing combination {combination}\n',
-        f'\n\tStimuli:\t{combination}\n'
+        f'\n\tStimuli:\t{combination}\n',
+        f'\n\tProgress:\t{r+1}/{len(stimuli + double_combinations + triple_combinations)}\n'
     )
     # Run the validation script with arguments for backbone and n_components
     _ = main_load(
@@ -93,53 +93,56 @@ for combination in stimuli + double_combinations + triple_combinations:
         bands=['Broad'],
         stimuli=[combination],
         save_results=True,
-        number_of_workers=7
+        number_of_workers=12
     )
-    validation_path = Path(rf'output\mtrf-ridge\External\validation\stims_Standarize_EEG_Standarize\tmin-0.2_tmax0.6\Broad\{stimuli}')
+    validation_path = Path(rf'output\mtrf-ridge\External\validation\stims_Standarize_EEG_Standarize\tmin-0.2_tmax0.6\Broad\{combination}')
     if validation_path.exists():
         alphas = load_pickle(path=validation_path / 'corr_limit_0.01.pkl')
-        print(f"Validation found for {stimuli}, loading from disk.")
+        print(f"Validation found for {combination}, loading from disk.")
     else:
         alphas = main_val(
             situations=['External'],
-            stimuli=[stimuli],
+            stimuli=[combination],
             bands=['Broad'],
             save_results=True,
             no_figures=True
-        )['External']['Broad'][stimuli]
-    
-    alphas_total = []
-    for session in config.sessions:
-        for subject in [1, 2]:
-            alphas_total.append(alphas[session][subject])
-    alphas_total = np.array(alphas_total)
-    set_alpha = 10**(np.median(np.log10(alphas_total)))
+        )['External']['Broad'][combination]
+
+    # alphas_total = []
+    # for session in config.sessions:
+    #     for subject in [1, 2]:
+    #         alphas_total.append(alphas[session][subject])
+    # alphas_total = np.array(alphas_total)
+    # set_alpha = 10**(np.median(np.log10(alphas_total)))
     
     main_results = main_main(
         situations=['External'],
-        stimuli=[stimuli],
+        stimuli=[combination],
         bands=['Broad'],
         save_results=False,
-        set_alpha=set_alpha,
+        # set_alpha=set_alpha,
+        same_validation_subjects=False,  # Changed to optimal alpha
         no_figures=True
-    )['External']['Broad'][stimuli]
+    )['External']['Broad'][combination]
+    correlations[combination] = main_results['average_correlation_subjects'].mean()
     
     # Save checkpoint
     save_path.mkdir(parents=True, exist_ok=True)
     dump_pickle(
-        path=save_path / "checkpoint_DNN_component_correlations.pkl",
+        path=save_path / "checkpoint_DNN_similarity_correlations.pkl",
         obj=correlations,
         rewrite=True,
         verbose=True
     )
     # Save json to legible format
-    with open(save_path / "checkpoint_DNN_component_correlations.json", 'w') as f:
+    with open(save_path / "checkpoint_DNN_similarity_correlations.json", 'w') as f:
         json.dump(convert_numpy_keys(correlations), f, indent=4)
     # Remove saved data to save space
     try:
         if (combination in stimuli) or ('DNNs' not in combination):
             pass
         else:
+            # FIXME: remove each stimuli not combination
             dir_to_remove = os.path.normpath(rf'saves\preprocessed_data\tmin-0.2_tmax0.6\{combination}')
             shutil.rmtree(dir_to_remove, ignore_errors=True)
     except Exception as e:
@@ -147,6 +150,7 @@ for combination in stimuli + double_combinations + triple_combinations:
 
 # Get Venn diagrams for triple combinations
 savefig_path = Path("figures/analysis/DNN_similarity")
+savefig_path.mkdir(parents=True, exist_ok=True)
 for triple_combination in triple_combinations:
     st1, st2, st3 = triple_combination.split('_')
     double_comb1 = '_'.join(sorted([st1, st2]))
@@ -186,13 +190,13 @@ for triple_combination in triple_combinations:
         variance_int_complement_submodels
         ] 
     total_area = sum(areas)
-    areas = np.array([
-        0 if area<0 else area.round(3) 
-        for area in areas
-    ]) # note that the sum gives shared model variance_123
+    # areas = np.array([
+    #     0 if area<0 else area.round(3) 
+    #     for area in areas
+    # ]) # note that the sum gives shared model variance_123
     
     # Normalize to give percentage of variance explained by full model
-    areas = (areas*100/total_area).round(2)
+    areas = (np.array(areas)*100/total_area).round(2)
 
     # Create figure and title
     
@@ -203,8 +207,8 @@ for triple_combination in triple_combinations:
 
     # Make plot
     venn3(
-        subsets=areas, # left area diagran, right area diagram, shared area <--> (100, 010, 110, 001, 101, 011, 111).
-        set_labels=([0], [1], [2]), 
+        subsets=areas, # left area diagram, right area diagram, shared area <--> (100, 010, 110, 001, 101, 011, 111).
+        set_labels=(st1, st2, st3), 
         set_colors=('C0', 'C1', 'purple'), 
         alpha=0.45
         )
