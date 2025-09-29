@@ -3,6 +3,7 @@ from typing import Union
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
+import subprocess
 import json
 import os
 
@@ -25,7 +26,7 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'  # Prevent TF from allocating a
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'  # Use specific GPU if available
 
 from phonet.phonet import Phonet 
-    
+
 from transformers import (
     Wav2Vec2Model, Wav2Vec2Processor, Wav2Vec2FeatureExtractor,
     WhisperProcessor, WhisperModel,
@@ -965,6 +966,7 @@ class GetTrialData:
                     model_id = "facebook/hubert-large-ll60k"  
                 elif bl == "wavlm":
                     model_id = "microsoft/wavlm-large"
+                    # model_id = "microsoft/wavlm-base-plus"
                 else:
                     raise ValueError(f"Unknown backbone: {backbone}")
             
@@ -1014,6 +1016,10 @@ class GetTrialData:
                     # [B, T, D] -> [T, D]
                     H = hs[idx].squeeze(0).cpu().numpy()
 
+                    # Save full layer for future use
+                    general_functions.dump_pickle(
+                        path=layer_path, obj=H, rewrite=True, verbose=True
+                    )
             elif backbone_lower == "wav2vec2":
                 with torch.no_grad():
                     inputs = processor(
@@ -1036,6 +1042,11 @@ class GetTrialData:
                         raise ValueError(f"encoder_layer={encoder_layer} fuera de rango (0..{len(hs)-1})")
                     # [B, T, D] -> [T, D]
                     H = hs[idx].squeeze(0).cpu().numpy()
+                    
+                    # Save full layer for future use
+                    general_functions.dump_pickle(
+                        path=layer_path, obj=H, rewrite=True, verbose=True
+                    )
             elif backbone_lower == "hubert":
                 with torch.no_grad():
                     # Use feature extractor directly
@@ -1059,36 +1070,90 @@ class GetTrialData:
                         raise ValueError(f"encoder_layer={encoder_layer} fuera de rango (0..{len(hs)-1})")
                     # [B, T, D] -> [T, D]
                     H = hs[idx].squeeze(0).cpu().numpy()
+                    
+                    # Save full layer for future use
+                    general_functions.dump_pickle(
+                        path=layer_path, obj=H, rewrite=True, verbose=True
+                    )
             elif backbone_lower == "wavlm":
-                with torch.no_grad():
-                    inputs = processor(
-                        wav_model,
-                        sampling_rate=model_sr,
-                        return_tensors="pt",
-                        padding=False
+                try:
+                    subprocess.run([
+                        "python", "-m", "utils.load_utils",
+                        "--wav_path", self.wav_fname,
+                        "--model_id", model_id,
+                        "--encoder_layer", str(encoder_layer),
+                        "--output_path", layer_path
+                    ], check=True, capture_output=True, text=True)
+                
+                except subprocess.CalledProcessError as e:
+                    if e.stderr and 'CUDA out of memory' in e.stderr:
+                        logger.error(f"CUDA out of memory with model {model_id} and input length {len(wav_model)/model_sr:.1f}s. Try a smaller model or use CPU.")
+                        logger.error(f"Trying with half precision...")
+                        subprocess.run([
+                                "python", "-m", "utils.load_utils",
+                                "--wav_path", self.wav_fname,
+                                "--model_id", model_id,
+                                "--encoder_layer", str(encoder_layer),
+                                "--output_path", layer_path,
+                                "--half_precision", "True"
+                            ], check=True, capture_output=True, text=True)
+                    else:
+                        logger.error(f"Error running subprocess to extract WavLM features: {e.stderr}")
+                        raise e
+                try:
+                    H = general_functions.load_pickle(
+                        path=layer_path
                     )
-                    outputs = model(
-                        input_values=inputs.input_values.to(device),
-                        output_hidden_states=True,
-                        return_dict=True
-                    )
-                    hs = outputs.hidden_states
-                    # Remove initial embedding if present
-                    if len(hs) == model.config.num_hidden_layers + 1:
-                        hs = hs[1:]
-                    idx = encoder_layer if encoder_layer >= 0 else len(hs) + encoder_layer
-                    if idx < 0 or idx >= len(hs):
-                        raise ValueError(f"encoder_layer={encoder_layer} fuera de rango (0..{len(hs)-1})")
-                    # [B, T, D] -> [T, D]
-                    H = hs[idx].squeeze(0).cpu().numpy()
+                except:
+                    raise ValueError(f"Error loading cached WavLM layer from {layer_path}")
+                # with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
+                #     future = executor.submit(
+                #         run_dnn_in_subprocess,
+                #         wav_model, model_sr, None, None, encoder_layer, model.config, device, model_id
+                #     )
+                #     H = future.result()
+                # with torch.no_grad():
+                #     inputs = processor(
+                #         wav_model,
+                #         sampling_rate=model_sr,
+                #         return_tensors="pt",
+                #         padding=False
+                #     )
+                #     try:
+                #         input_tensor = inputs.input_values.to(device)
+                #         outputs = model(
+                #             input_values=input_tensor,
+                #             output_hidden_states=True,
+                #             return_dict=True
+                #         )
+                #     except RuntimeError as e:
+                #         if 'CUDA out of memory' in str(e):
+                #             logger.error(f"CUDA out of memory with model {model_id} and input length {len(wav_model)/model_sr:.1f}s. Try a smaller model or use CPU.")
+                #             logger.error(f"Trying with half precision...")
+                #             input_tensor = inputs.input_values.half().to(device)
+                #             model = model.half()
+                #             outputs = model(
+                #                 input_values=input_tensor,
+                #                 output_hidden_states=True,
+                #                 return_dict=True
+                #             )
+                #     hs = outputs.hidden_states
+                #     # Remove initial embedding if present
+                #     if len(hs) == model.config.num_hidden_layers + 1:
+                #         hs = hs[1:]
+                #     idx = encoder_layer if encoder_layer >= 0 else len(hs) + encoder_layer
+                #     if idx < 0 or idx >= len(hs):
+                #         raise ValueError(f"encoder_layer={encoder_layer} fuera de rango (0..{len(hs)-1})")
+                #     # [B, T, D] -> [T, D]
+                #     H = hs[idx].squeeze(0).cpu().numpy()
+                    
+                #     # Free GPU memory
+                #     if device == "cuda":
+                #         torch.cuda.empty_cache()
+                #         torch.cuda.ipc_collect()
             else:
                 raise ValueError(f"Unknown backbone: {backbone}. Use 'whisper', 'wav2vec2', 'hubert', or 'wavlm'.")
-            
-            # Save full layer for future use
-            general_functions.dump_pickle(
-                path=layer_path, obj=H, rewrite=True, verbose=True
-            )
-
+        
         # Guard: very short inputs
         if H.ndim != 2 or H.shape[0] < 2:
             # Return zeros if we cannot form a sequence

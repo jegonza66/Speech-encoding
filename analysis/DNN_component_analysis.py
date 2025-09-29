@@ -33,8 +33,10 @@ def convert_numpy_keys(obj):
         return obj
 
 # Total: 2*6*23 = 276 analyses
-backbones = ["hubert", "wav2vec2"] # 2
-components = np.concatenate([np.arange(12, 24, 2), np.array([21])]) # 6
+backbones = ["hubert", "wav2vec2", "wavlm"] # 2
+components = np.concatenate(
+    [np.arange(12, 24, 2), np.array([21])]
+    ) # 6
 layers = np.arange(1, 24) # 23 
 
 correlations = {
@@ -58,11 +60,8 @@ try:
     correlations_std = data["correlations_std"]
 except FileNotFoundError:
     pass
-
-correlations['hubert'][21] = {layer: None for layer in layers}
-correlations_std['hubert'][21] = {layer: None for layer in layers}
-correlations['wav2vec2'][21] = {layer: None for layer in layers}
-correlations_std['wav2vec2'][21] = {layer: None for layer in layers}
+correlations["wavlm"] = {n_components: {layer: None for layer in layers} for n_components in components}
+correlations_std["wavlm"] = {n_components: {layer: None for layer in layers} for n_components in components}
 
 for backbone in backbones:
     for n_components in components:  
@@ -83,7 +82,7 @@ for backbone in backbones:
                 bands=['Broad'],
                 stimuli=[stimuli],
                 save_results=True,
-                number_of_workers=7
+                number_of_workers=1
             )
 
             validation_path = Path(rf'output\mtrf-ridge\External\validation\stims_Standarize_EEG_Standarize\tmin-0.2_tmax0.6\Broad\{stimuli}')
@@ -142,28 +141,60 @@ for backbone in backbones:
             except Exception as e:
                 raise(f"Could not remove directory {dir_to_remove}: {e}")
 
+# # Make DNNs plots
+# fig, axes = plt.subplots(
+#     nrows=1, ncols=3, 
+#     figsize=(18, 6), 
+#     sharey=True, 
+#     # tight_layout=True
+# )
+# fig.suptitle("DNN Layer Correlation Analysis: Hubert vs Wav2Vec2 vs WavLM", fontsize=16)
+# for idx, backbone in enumerate(['hubert', 'wav2vec2', 'wavlm']):
+#     ax = axes[idx]
+#     for n_components in components:
+#         means = [correlations[backbone][n_components][layer].mean() for layer in layers]
+#         stds = [correlations_std[backbone][n_components][layer].mean() for layer in layers]
+#         ax.plot(layers, means, label=f'{n_components} components')
+#         ax.fill_between(layers, np.array(means)-np.array(stds), np.array(means)+np.array(stds), alpha=0.2)
+#     ax.set_xticks(layers)
+#     ax.grid(visible=True, which='major', linestyle='--', axis='y', linewidth=0.5)
+#     ax.set_xlabel("DNN Layer")
+#     ax.set_title(f"{backbone.capitalize()}")
+# axes[0].set_ylabel("Inter-Subject Correlation")
+# axes[1].legend(title="Number of components", bbox_to_anchor=(1.05, 1), loc='upper left')
+# fig.tight_layout(rect=[0, 0, 1, 0.97])
+# fig_save_path = Path("figures/analysis/dnn_layer_correlation")
+# fig_save_path.mkdir(parents=True, exist_ok=True)
+# fig.savefig(
+#     fig_save_path / "hubert_wav2vec2_all_components_layer_correlation.png"
+# )
+
 # Make DNNs plots
 fig, axes = plt.subplots(
-    nrows=1, ncols=2, 
-    figsize=(18, 6), 
-    sharey=True, 
-    # tight_layout=True
+    nrows=1, ncols=1, 
+    figsize=(7, 5), 
+    tight_layout=True
 )
-fig.suptitle("DNN Layer Correlation Analysis: Hubert vs Wav2Vec2")
-for idx, backbone in enumerate(['hubert', 'wav2vec2']):
+fig.suptitle(
+    "DNN Layer Correlation Analysis: Hubert vs Wav2Vec2 vs WavLM", 
+    fontsize=16
+)
+for idx, backbone in enumerate(['hubert', 'wav2vec2', 'wavlm']):
     ax = axes[idx]
     for n_components in components:
         means = [correlations[backbone][n_components][layer].mean() for layer in layers]
         stds = [correlations_std[backbone][n_components][layer].mean() for layer in layers]
-        ax.plot(layers, means, label=f'{n_components} components')
+        ax.plot(layers, means, label=f'{backbone.capitalize()} - {n_components} components')
         ax.fill_between(layers, np.array(means)-np.array(stds), np.array(means)+np.array(stds), alpha=0.2)
     ax.set_xticks(layers)
     ax.grid(visible=True, which='major', linestyle='--', axis='y', linewidth=0.5)
-    ax.set_xlabel("DNN Layer")
-    ax.set_title(f"{backbone.capitalize()}")
+    ax.set_xlabel("Layer")
+    # ax.set_title(f"{backbone.capitalize()}")
 axes[0].set_ylabel("Inter-Subject Correlation")
-axes[1].legend(title="Number of components", bbox_to_anchor=(1.05, 1), loc='upper left')
+axes[1].legend(title="Model - Number of components", bbox_to_anchor=(1.05, 1), loc='upper left')
 fig.tight_layout(rect=[0, 0, 1, 0.97])
+fig_save_path = Path("figures/analysis/dnn_layer_correlation")
+fig_save_path.mkdir(parents=True, exist_ok=True)
 fig.savefig(
-    "figures/analysis/dnn_layer_correlation/hubert_wav2vec2_all_components_layer_correlation.png"
+    fig_save_path / "hubert_wavlm_wav2vec2_all_components_layer_correlation.png"
 )

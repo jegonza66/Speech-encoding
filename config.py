@@ -1,5 +1,5 @@
 import numpy as np, mne
-number_of_workers = 8
+number_of_workers = 1
 saves_dir = 'saves'
 output_dir = 'output'
 figures_dir = 'figures'
@@ -46,7 +46,7 @@ stimuli = [
         # 'Envelope',
         # 'Hearing-Turn',
         # 'Pitch-Log-Raw',
-        'Spectrogram-21',
+        # 'Spectrogram-21_Envelope',
         # 'Mfccs',
         # 'Phonological',
         # 'Phonemes',
@@ -56,7 +56,31 @@ stimuli = [
         # 'Phones',
         # # # 'Jitter', #TODO jitter y shimmer no los pudiste calcular bien
         # # # 'Shimmer',
-        # '32DNNs1-hubert',
+        '2DNNs1-wavlm',
+        '2DNNs2-wavlm',
+        '2DNNs3-wavlm',
+        '2DNNs4-wavlm',
+        '2DNNs5-wavlm',
+        '2DNNs6-wavlm',
+        '2DNNs7-wavlm',
+        '2DNNs8-wavlm',
+        '2DNNs9-wavlm',
+        '2DNNs10-wavlm',
+        '2DNNs11-wavlm',
+        '2DNNs12-wavlm',
+        '2DNNs13-wavlm',
+        '2DNNs14-wavlm',
+        '2DNNs15-wavlm',
+        '2DNNs16-wavlm',
+        '2DNNs17-wavlm',
+        '2DNNs18-wavlm',
+        '2DNNs19-wavlm',
+        '2DNNs20-wavlm',
+        '2DNNs21-wavlm',
+        '2DNNs22-wavlm',
+        '2DNNs23-wavlm',
+
+        # '2DNNs1-hubert',
         # # Simples but non-standard
         # 'Envelope2',
         # 'Phonological1',

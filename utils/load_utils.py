@@ -3,6 +3,9 @@ import pandas as pd
 import numpy as np
 import os
 
+from transformers import Wav2Vec2FeatureExtractor, WavLMModel
+import torch
+
 from utils.processing import shifted_matrix
 import config
 
@@ -39,7 +42,6 @@ ALLOWED_STIMULI = [
     'Hearing-Turn',
     # 'Jitter', 'Shimmer'
 ]
-
 def sort_stimuli_based_on_situation(
     subject_1:dict,
     subject_2:dict,
@@ -366,3 +368,69 @@ def shifted_indexes_to_keep(
     # Shifted matrix index where the given situation is ocurring in all row (number of samples dimension)
     filter_indexes = (shifted_matrix_speaker_labels==situation_label) | (shifted_matrix_speaker_labels==0)
     return (filter_indexes).all(axis=1).nonzero()[0]
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--wav_path")
+    parser.add_argument("--model_id")
+    parser.add_argument("--encoder_layer", type=int)
+    parser.add_argument("--output_path")
+    parser.add_argument("--half_precision", type=bool, default=False)
+    args = parser.parse_args()
+    if args.half_precision:
+        print('HOLA')
+    # Load audio
+    import numpy as np
+    import torch
+    import sys
+    import scipy.io.wavfile as wavfile
+    from transformers import Wav2Vec2FeatureExtractor, WavLMModel
+    import utils.general_functions as general_functions
+    sr, wav = wavfile.read(args.wav_path)    
+    if wav.ndim > 1:
+        wav = wav.mean(axis=1)
+    wav = wav.astype(np.float32) / max(1, np.iinfo(wav.dtype).max)
+
+    processor = Wav2Vec2FeatureExtractor.from_pretrained(args.model_id)
+    model = WavLMModel.from_pretrained(args.model_id).to("cuda").eval()
+    model_sr = getattr(processor, "sampling_rate", 16000)
+    if sr != model_sr:
+        from scipy import signal as sgn
+        wav_model = sgn.resample_poly(wav, up=model_sr, down=sr)
+    else:
+        wav_model = wav
+
+    with torch.no_grad():
+        inputs = processor(
+            wav_model,
+            sampling_rate=model_sr,
+            return_tensors="pt",
+            padding=False
+        )
+        if args.half_precision:
+            input_tensor = inputs.input_values.half().to("cuda")
+            model = model.half()
+        else:
+            input_tensor = inputs.input_values.to("cuda")
+        try:
+            outputs = model(
+                input_values=input_tensor,
+                output_hidden_states=True,
+                return_dict=True
+            )
+        except RuntimeError as e:
+            if 'CUDA out of memory' in str(e):
+                print("CUDA out of memory", file=sys.stderr)
+                sys.exit(1) 
+            else:
+                raise
+        
+        hs = outputs.hidden_states
+        if len(hs) == model.config.num_hidden_layers + 1:
+            hs = hs[1:]
+        idx = args.encoder_layer if args.encoder_layer >= 0 else len(hs) + args.encoder_layer
+        H = hs[idx].squeeze(0).cpu().numpy()
+    general_functions.dump_pickle(
+        path=args.output_path, obj=H, rewrite=True, verbose=True
+    )

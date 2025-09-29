@@ -37,7 +37,7 @@ def convert_numpy_keys(obj):
         return obj
 
 layers = [1, 4, 8, 12, 16, 20, 23] # np.arange(1, 24)
-backbone = "hubert"
+backbone = "wavlm"
 
 stimuli = ['Spectrogram-21', 'Phonemes-Frequency'] + [f'21DNNs{layer}-{backbone}' for layer in layers]
 stimuli = sorted(stimuli)
