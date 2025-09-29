@@ -1974,16 +1974,16 @@ def main_parallel(
     for situation in situations:
         preprocessed_data_path_main = f'{saves_dir}/preprocessed_data/tmin{tmin}_tmax{tmax}/'
         for band in bands:
-            for stimuli in stimuli:
-                sorted_stimuli, sorted_bands = sorted(stimuli.split('_')), sorted(band.split('_'))
-                stimuli, band = '_'.join(sorted_stimuli), '_'.join(sorted_bands)
+            for stimuli_ in stimuli:
+                sorted_stimuli, sorted_bands = sorted(stimuli_.split('_')), sorted(band.split('_'))
+                stimuli_, band = '_'.join(sorted_stimuli), '_'.join(sorted_bands)
                 
                 for session in sessions:
                     param_combinations.append({
                         'situation': situation,
                         'preprocessed_data_path': preprocessed_data_path_main,
                         'band': band,
-                        'stimuli': stimuli,
+                        'stimuli': stimuli_,
                         'session': session,
                     })
     
