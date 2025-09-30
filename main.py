@@ -27,15 +27,6 @@ parser = create_dynamic_parser()
 args = parser.parse_args()
 apply_args_to_config(args)
 
-    
-# Initialize logger
-logger = setup_logger(
-    name='main',
-    log_to_file=config.LOG_TO_FILE,
-    log_dir=config.LOG_DIR if config.LOG_TO_FILE else None,
-    level=config.LOG_LEVEL
-)
-
 # ============
 # RUN ANALYSIS
 # ============
@@ -69,8 +60,14 @@ def main(
     perform_tfce = config.perform_tfce,
     n_permutations = config.n_permutations,
     number_of_jobs = config.number_of_jobs,
-    logger=logger
 ):
+    # Initialize logger
+    logger = setup_logger(
+        name='main',
+        log_to_file=config.LOG_TO_FILE,
+        log_dir=config.LOG_DIR if config.LOG_TO_FILE else None,
+        level=config.LOG_LEVEL
+    )
     if set_alpha:
         print(f"WARNING: ALPHA IS BEING FORCE TO {set_alpha}")
     total_results = {
@@ -380,6 +377,7 @@ def main(
                         obj={'average_weights_subjects':average_weights_subjects},
                         rewrite=True
                     )
+                
                 # Store total results
                 total_results[situation][band][stim] = {
                     'average_correlation_subjects': average_correlation_subjects,

@@ -47,7 +47,6 @@ def main(
     eeg_preprocess = config.eeg_preprocess,
     solver = config.solver,
     model = config.model, 
-    delays = config.delays,
     times = config.times,
     tmax = config.tmax,
     tmin = config.tmin,

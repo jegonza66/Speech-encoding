@@ -231,7 +231,7 @@ class GetTrialData:
             window='hamming', 
             method='fft'
         )
-        eeg = eeg.get_data().T*1e6 
+        eeg = eeg.get_data().T*1e6
         return eeg
     
     def extract_envelope(
@@ -1725,12 +1725,14 @@ def load_stimuli(
     )):
         # Load envelope and EEG
         channel_1 = GetTrialData(
+            band=band,
             session=session, 
             trial=trial, 
             channel=1,
             stimuli_length=samples_info['trial_lengths1'][p+1]
         )
         channel_2 = GetTrialData(
+            band=band,
             session=session,
             trial=trial,
             channel=2,
