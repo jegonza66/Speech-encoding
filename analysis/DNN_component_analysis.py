@@ -60,8 +60,7 @@ try:
     correlations_std = data["correlations_std"]
 except FileNotFoundError:
     pass
-correlations["wavlm"] = {n_components: {layer: None for layer in layers} for n_components in components}
-correlations_std["wavlm"] = {n_components: {layer: None for layer in layers} for n_components in components}
+
 
 for backbone in backbones:
     for n_components in components:  
@@ -82,7 +81,7 @@ for backbone in backbones:
                 bands=['Broad'],
                 stimuli=[stimuli],
                 save_results=True,
-                number_of_workers=1
+                number_of_workers=9
             )
 
             validation_path = Path(rf'output\mtrf-ridge\External\validation\stims_Standarize_EEG_Standarize\tmin-0.2_tmax0.6\Broad\{stimuli}')
@@ -170,31 +169,33 @@ for backbone in backbones:
 # )
 
 # Make DNNs plots
-fig, axes = plt.subplots(
+fig, ax = plt.subplots(
     nrows=1, ncols=1, 
     figsize=(7, 5), 
     tight_layout=True
 )
 fig.suptitle(
-    "DNN Layer Correlation Analysis: Hubert vs Wav2Vec2 vs WavLM", 
+    "DNN Layer Correlation Analysis", 
     fontsize=16
 )
 for idx, backbone in enumerate(['hubert', 'wav2vec2', 'wavlm']):
-    ax = axes[idx]
-    for n_components in components:
-        means = [correlations[backbone][n_components][layer].mean() for layer in layers]
-        stds = [correlations_std[backbone][n_components][layer].mean() for layer in layers]
-        ax.plot(layers, means, label=f'{backbone.capitalize()} - {n_components} components')
-        ax.fill_between(layers, np.array(means)-np.array(stds), np.array(means)+np.array(stds), alpha=0.2)
+    means = np.array([correlations[backbone][21][layer].mean() for layer in layers]) # 23, 18
+    stds = np.array([correlations_std[backbone][21][layer].mean() for layer in layers]) # 23, 18
+    # make boxplot per layer hue by backbone
+    ax.plot(layers, means, label=f'{backbone.capitalize()}')
+    ax.fill_between(layers, np.array(means)-np.array(stds), np.array(means)+np.array(stds), alpha=0.2)
     ax.set_xticks(layers)
     ax.grid(visible=True, which='major', linestyle='--', axis='y', linewidth=0.5)
     ax.set_xlabel("Layer")
     # ax.set_title(f"{backbone.capitalize()}")
-axes[0].set_ylabel("Inter-Subject Correlation")
-axes[1].legend(title="Model - Number of components", bbox_to_anchor=(1.05, 1), loc='upper left')
+ax.set_ylabel("Average Correlation")
+ax.legend(title="Model", loc='lower left', framealpha=0)
 fig.tight_layout(rect=[0, 0, 1, 0.97])
 fig_save_path = Path("figures/analysis/dnn_layer_correlation")
 fig_save_path.mkdir(parents=True, exist_ok=True)
 fig.savefig(
-    fig_save_path / "hubert_wavlm_wav2vec2_all_components_layer_correlation.png"
+    fig_save_path / "hubert_wavlm_wav2vec2_all_components_layer_correlation.png",
+    dpi=600,
+    transparent=True
 )
+

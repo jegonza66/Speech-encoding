@@ -1,13 +1,23 @@
 """
 This script generates a correlation matrix indicating the correlation value of different attributes
 """
+from matplotlib.collections import PathCollection
+from matplotlib_venn import venn3  
 import matplotlib.pyplot as plt
+import matplotlib.text as mtext
 from pathlib import Path
 import seaborn as sns
 import pandas as pd
+import json, shutil
 import numpy as np
+import mne
+import os
 
-from utils.general_functions import load_pickle
+from utils.plot import define_ticks, clustering_by_correlation
+from utils.general_functions import dump_pickle, load_pickle
+from load import main_parallel as main_load
+from validation import main as main_val
+from main import main as main_main
 import config
 
 stimuli = [
@@ -105,10 +115,7 @@ fig.savefig(
 
 
 ## TRF
-from utils.plot import define_ticks, clustering_by_correlation
-from matplotlib.collections import PathCollection
-import matplotlib.text as mtext
-import mne
+
 fig, axes_ = plt.subplots(nrows=2, ncols=2, figsize=(11, 10), layout='tight', sharex=True)
 band = 'Broad'
 fig.suptitle(f'TRFs ({band} band)', fontsize=20)
@@ -250,8 +257,7 @@ fig.savefig(
     dpi=500
 )
 
-from matplotlib_venn import venn3  
-from utils.general_functions import load_pickle
+
 models = [
     'Spectrogram-21', 
     'Phonemes-Discrete', 
@@ -261,7 +267,7 @@ models = [
     'Phonemes-Discrete_Phonological',
     'Spectrogram-21_Phonemes-Discrete_Phonological'
 ]
-
+models = ['_'.join(sorted(model.split('_'))) for model in models]
 corr_path = lambda model: Path(f"output/mtrf-ridge/External-External/correlations/same_alpha/tmin-0.2_tmax0.6/Broad/{model}.pkl")
 
 correlations = {
@@ -273,7 +279,7 @@ correlations = {
 savefig_path = Path("figures/analysis/model_visualization_matrix_corr/venn3")
 savefig_path.mkdir(parents=True, exist_ok=True)
 
-triple_combination = 'Spectrogram-21_Phonemes-Discrete_Phonological'
+triple_combination = models[-1]
 st1, st2, st3 = triple_combination.split('_')
 double_comb1 = '_'.join(sorted([st1, st2]))
 double_comb2 = '_'.join(sorted([st1, st3]))
@@ -324,15 +330,228 @@ areas = (np.array(areas)*100/total_area).round(2)
 
 plt.ioff()
 plt.figure(layout='tight')
-plt.title(f'Spectrogram ∪ Phonemes ∪ Phonological')
+# plt.title(f'Spectrogram ∪ Phonemes ∪ Phonological')
 
 # Make plot
-venn3(
+venn=venn3(
     subsets=areas, # left area diagram, right area diagram, shared area <--> (100, 010, 110, 001, 101, 011, 111).
     set_labels=(st1, st2, st3), 
     set_colors=('C0', 'C1', 'purple'), 
     alpha=0.45
     )
+for label in venn.subset_labels:
+    if label:  # Verificar que la etiqueta no sea None
+        label.set_fontsize(18)
+for label in venn.set_labels:
+    if label:  # Verificar que la etiqueta no sea None
+        label.set_fontsize(18)
 
-plt.savefig(savefig_path / f'venn3_{triple_combination}.png')
+plt.savefig(savefig_path / f'venn3_{triple_combination}.png', transparent=True, dpi=500)
 plt.close()
+
+def convert_numpy_keys(obj):
+    """Convert numpy integers to Python integers for JSON serialization"""
+    if isinstance(obj, dict):
+        return {int(k) if isinstance(k, np.integer) else k: convert_numpy_keys(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_keys(item) for item in obj]
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    else:
+        return obj
+
+# Save and compute double and triple combinations
+save_path = Path("output/mtrf-ridge/analysis/DNN_similarity")
+try:
+    correlations_old = load_pickle(save_path / "checkpoint_DNN_similarity_correlations.pkl")
+    # Update only missing entries
+    correlations_old.update(correlations)
+    correlations = correlations_old
+except FileNotFoundError:
+    pass
+
+# Make the same for 3 sheared models (layers 1, 8, 18). Each layer comparing for WavLM, Hubert and wav2vec2
+for layer in [1, 8, 18]:
+    backbones = ["wavlm", "hubert", "wav2vec2"]
+
+    stimuli = [f'21DNNs{layer}-{backbone}' for backbone in backbones]
+    stimuli = sorted(stimuli)
+    double_combinations = [
+        '_'.join(sorted([f'21DNNs{layer}-wavlm', f'21DNNs{layer}-wav2vec2'])) 
+    ] 
+    double_combinations += [
+        '_'.join(sorted([f'21DNNs{layer}-wavlm', f'21DNNs{layer}-hubert'])) 
+    ] 
+    double_combinations += [
+        '_'.join(sorted([f'21DNNs{layer}-wav2vec2', f'21DNNs{layer}-hubert'])) 
+    ] 
+    triple_combinations = [
+        '_'.join(sorted([f'21DNNs{layer}-wavlm', f'21DNNs{layer}-wav2vec2', f'21DNNs{layer}-hubert'])) 
+    ] 
+    for stimulus in stimuli + double_combinations + triple_combinations:
+        if stimulus not in correlations:
+            correlations[stimulus] = None
+
+    # Sole correlations
+    save_path_dnns_only = Path("output/mtrf-ridge/analysis/DNN_component_analysis/checkpoint_DNN_component_correlations.pkl")
+    data_dnns_only = load_pickle(path=save_path_dnns_only)
+    for backbone in backbones:
+        correlations[f'21DNNs{layer}-{backbone}'] = data_dnns_only['correlations'][backbone][21][layer].mean()
+
+
+    for r, combination in enumerate(stimuli + double_combinations + triple_combinations):
+        if correlations[combination] is not None:
+            print(f"Skipping already computed {combination}")
+            continue
+        print(
+            f'\n\n\n\tProcessing combination {combination}\n',
+            f'\n\tStimuli:\t{combination}\n',
+            f'\n\tProgress:\t{r+1}/{len(stimuli + double_combinations + triple_combinations)}\n'
+        )
+        # Run the validation script with arguments for backbone and n_components
+        _ = main_load(
+            situations=['External'],
+            bands=['Broad'],
+            stimuli=[combination],
+            save_results=True,
+            number_of_workers=12
+        )
+        validation_path = Path(rf'output\mtrf-ridge\External\validation\stims_Standarize_EEG_Standarize\tmin-0.2_tmax0.6\Broad\{combination}')
+        if validation_path.exists():
+            alphas = load_pickle(path=validation_path / 'corr_limit_0.01.pkl')
+            print(f"Validation found for {combination}, loading from disk.")
+        else:
+            alphas = main_val(
+                situations=['External'],
+                stimuli=[combination],
+                bands=['Broad'],
+                save_results=True,
+                no_figures=True
+            )['External']['Broad'][combination]
+
+        # alphas_total = []
+        # for session in config.sessions:
+        #     for subject in [1, 2]:
+        #         alphas_total.append(alphas[session][subject])
+        # alphas_total = np.array(alphas_total)
+        # set_alpha = 10**(np.median(np.log10(alphas_total)))
+        
+        main_results = main_main(
+            situations=['External'],
+            stimuli=[combination],
+            bands=['Broad'],
+            save_results=False,
+            # set_alpha=set_alpha,
+            same_validation_subjects=False,  # Changed to optimal alpha
+            no_figures=True
+        )['External']['Broad'][combination]
+        correlations[combination] = main_results['average_correlation_subjects'].mean()
+        
+        # Save checkpoint
+        save_path.mkdir(parents=True, exist_ok=True)
+        dump_pickle(
+            path=save_path / "checkpoint_DNN_similarity_correlations.pkl",
+            obj=correlations,
+            rewrite=True,
+            verbose=True
+        )
+        # Save json to legible format
+        with open(save_path / "checkpoint_DNN_similarity_correlations.json", 'w') as f:
+            json.dump(convert_numpy_keys(correlations), f, indent=4)
+        # Remove saved data to save space
+        try:
+            if (combination in stimuli) or ('DNNs' not in combination):
+                pass
+            else:
+                # FIXME: remove each stimuli not combination
+                dir_to_remove = os.path.normpath(rf'saves\preprocessed_data\tmin-0.2_tmax0.6\{combination}')
+                shutil.rmtree(dir_to_remove, ignore_errors=True)
+        except Exception as e:
+            raise(f"Could not remove directory {dir_to_remove}: {e}")
+
+# Get Venn diagrams for triple combinations
+savefig_path = Path("figures/analysis/model_visualization_matrix_corr/venn3")
+savefig_path.mkdir(parents=True, exist_ok=True)
+correlations = load_pickle(save_path / "checkpoint_DNN_similarity_correlations.pkl")
+triple_combinations = [
+    '_'.join(sorted([f'21DNNs{layer}-wavlm', f'21DNNs{layer}-wav2vec2', f'21DNNs{layer}-hubert'])) 
+    for layer in [1, 8, 18]
+]
+for triple_combination in triple_combinations:
+     # Create figure and title
+
+    st1, st2, st3 = triple_combination.split('_')
+    double_comb1 = '_'.join(sorted([st1, st2]))
+    double_comb2 = '_'.join(sorted([st1, st3]))
+    double_comb3 = '_'.join(sorted([st2, st3]))
+
+    # Simple variances
+    variance_1 = correlations[st1]**2
+    variance_2 = correlations[st2]**2
+    variance_3 = correlations[st3]**2
+    variance_12 = correlations[double_comb1]**2
+    variance_13 = correlations[double_comb2]**2
+    variance_23 = correlations[double_comb3]**2
+    variance_123 = correlations[triple_combination]**2
+
+    # Shared without each stimulus
+    variance_shared_with_1 = variance_123 - variance_23 #100
+    variance_shared_with_2 = variance_123 - variance_13 #010
+    variance_shared_with_3 = variance_123 - variance_12 #001
+
+    # Explained by subshared, but not by all shared model
+    variance_shared_with_12 = variance_13 + variance_23 - variance_3 - variance_123 #110
+    variance_shared_with_13 = variance_12 + variance_23 - variance_2 - variance_123 #101
+    variance_shared_with_23 = variance_12 + variance_13 - variance_1 - variance_123 #011
+
+    # Explained by one, two, three and full shared model but not by subshared models
+    variance_int_complement_submodels = variance_123 + variance_1 + variance_2 + variance_3 - variance_12 - variance_13 - variance_23 #111
+
+    # Get areas 
+    areas = [ # the order should be(100, 010, 110, 001, 101, 011, 111)
+        variance_shared_with_1, 
+        variance_shared_with_2, 
+        variance_shared_with_12, 
+        variance_shared_with_3,
+        variance_shared_with_13, 
+        variance_shared_with_23,
+        variance_int_complement_submodels
+        ] 
+    total_area = sum(areas)
+    # areas = np.array([
+    #     0 if area<0 else area.round(3) 
+    #     for area in areas
+    # ]) # note that the sum gives shared model variance_123
+
+    # Normalize to give percentage of variance explained by full model
+    areas = (np.array(areas)*100/total_area).round(2)
+
+    # Create figure and title
+
+    plt.ioff()
+    plt.figure(layout='tight')
+    layer = int(triple_combination.split('DNNs')[-1].split('-')[0])
+    plt.title(fr'Layer {layer}', fontsize=20)
+
+    # Make plot
+    label_st1 = f'Hubert'
+    label_st2 = f'WavLM'
+    label_st3 = f'Wav2Vec2'
+    venn = venn3(
+        subsets=areas, # left area diagram, right area diagram, shared area <--> (100, 010, 110, 001, 101, 011, 111).
+        set_labels=(label_st1, label_st2, label_st3), 
+        set_colors=('C0', 'C1', 'purple'), 
+        alpha=0.45
+    )
+    for label in venn.subset_labels:
+        if label:  # Verificar que la etiqueta no sea None
+            label.set_fontsize(18)
+    for label in venn.set_labels:
+        if label:  # Verificar que la etiqueta no sea None
+            label.set_fontsize(18)
+    plt.savefig(savefig_path / f'venn3_{triple_combination}.png', transparent=True, dpi=500)
+    plt.close()

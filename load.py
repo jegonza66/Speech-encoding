@@ -1964,7 +1964,7 @@ def main_parallel(
     total_results = {
         situation: {
             band: {
-                stim: {
+                '_'.join(sorted(stim.split('_'))): {
                     session: None for session in sessions
                 } for stim in stimuli
             } for band in bands
