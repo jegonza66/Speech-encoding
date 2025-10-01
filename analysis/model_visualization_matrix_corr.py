@@ -82,7 +82,10 @@ sns.boxplot(
     hue="Band", 
     showfliers=False, 
     whis=[5, 95],
-    ax=ax
+    ax=ax,
+    saturation=0.75,
+    boxprops=dict(alpha=0.5),
+    palette=['C0', 'C1', 'C2', 'C3', 'purple']
 )
 sns.stripplot(
     data=df, 
@@ -96,9 +99,9 @@ sns.stripplot(
     linewidth=0.5,
     edgecolor='black',
     legend=False,
-    ax=ax
+    ax=ax,
+    palette=['C0', 'C1', 'C2', 'C3', 'purple']
 )
-
 ax.set_ylabel("Mean Correlation (avg. across channels)", fontsize=15)
 ticks = ax.get_xticks()
 ax.set_xticks(ticks=ticks, labels=stimuli_names, rotation=30, ha='right', fontsize=15)
