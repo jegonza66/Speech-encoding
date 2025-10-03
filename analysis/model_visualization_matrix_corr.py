@@ -260,6 +260,58 @@ fig.savefig(
     dpi=500
 )
 
+#TOPO CORR
+average_correlation_subjects_phonological = load_pickle(
+    rf'output\mtrf-ridge\External-External\correlations\same_alpha\tmin-0.2_tmax0.6\Broad\Phonological.pkl'
+)['average_correlation_subjects'] # shape (n_subjects, n_channels)
+average_correlation_subjects_phonemes = load_pickle(
+    rf'output\mtrf-ridge\External-External\correlations\same_alpha\tmin-0.2_tmax0.6\Broad\Phonemes-Discrete.pkl'
+)['average_correlation_subjects'] # shape (n_subjects, n_channels)
+
+# Create figure and title
+fig, ax = plt.subplots(nrows=1, ncols=2, layout='tight', figsize=(8, 5))
+# plt.suptitle(f'{stim} {coefficient_name} = ({mean_average_coefficient.mean():.3f}'+r'$\pm$'+f'{mean_average_coefficient.std():.3f})')
+for average_correlation_subjects, stimulus, axis in zip(
+    [average_correlation_subjects_phonemes, average_correlation_subjects_phonological],
+    ['Phonemes-Discrete', 'Phonological'],
+    ax
+):
+    vmin = average_correlation_subjects.mean(0).min()
+    vmax = average_correlation_subjects.mean(0).max()
+    
+    # Make topomap
+    im = mne.viz.plot_topomap(
+        data=average_correlation_subjects.mean(axis=0),  # Mean across subjects
+        pos=config.info_mne,
+        cmap='OrRd',
+        vlim=(vmin, vmax),
+        show=False,
+        sphere=0.07,
+        axes=axis
+    )
+    if stimulus=='Phonemes-Discrete':
+        ticks = [0.293,0.323,0.353,0.383,0.413,0.442]
+    else:
+        ticks = np.linspace(vmin, vmax, 6).round(3) if vmin != vmax else [vmin]
+    plt.colorbar(
+        im[0],
+        ax=axis,
+        shrink=0.85,
+        label='Mean Correlation (avg. across subjects)',
+        orientation='horizontal',
+        boundaries=np.linspace(vmin, vmax, 100) if vmin != vmax else None,
+        ticks=ticks
+    )
+    axis.set_title('Phonemes' if stimulus=='Phonemes-Discrete' else 'Phonological\nfeatures', fontsize=18)
+
+fig.savefig(
+    Path(config.figures_dir) / 'analysis' / 'model_visualization_matrix_corr' / 'model_visualization_matrix_corr_topo_corr.png',
+    transparent=True,
+    dpi=500
+)
+
+
+
 
 models = [
     'Spectrogram-21', 
@@ -479,6 +531,7 @@ for layer in [1, 8, 18]:
 # Get Venn diagrams for triple combinations
 savefig_path = Path("figures/analysis/model_visualization_matrix_corr/venn3")
 savefig_path.mkdir(parents=True, exist_ok=True)
+save_path = Path("output/mtrf-ridge/analysis/DNN_similarity")
 correlations = load_pickle(save_path / "checkpoint_DNN_similarity_correlations.pkl")
 triple_combinations = [
     '_'.join(sorted([f'21DNNs{layer}-wavlm', f'21DNNs{layer}-wav2vec2', f'21DNNs{layer}-hubert'])) 
@@ -558,3 +611,90 @@ for triple_combination in triple_combinations:
             label.set_fontsize(18)
     plt.savefig(savefig_path / f'venn3_{triple_combination}.png', transparent=True, dpi=500)
     plt.close()
+
+
+
+plt.figure(layout='tight')
+plt.title(fr'Areas', fontsize=20)
+
+# Make plot
+label_st1 = f'H'
+label_st2 = f'WL'
+label_st3 = f'W2'
+areas = [ # the order should be(100, 010, 110, 001, 101, 011, 111)
+    .25, 
+    .25, 
+    .05, 
+    .25,
+    .05, 
+    .05,
+    .1
+    ] 
+total_area = sum(areas)
+# areas = np.array([
+#     0 if area<0 else area.round(3) 
+#     for area in areas
+# ]) # note that the sum gives shared model variance_123
+
+# Normalize to give percentage of variance explained by full model
+areas = (np.array(areas)*1000/total_area).round(2)
+venn = venn3(
+    subsets=areas, # left area diagram, right area diagram, shared area <--> (100, 010, 110, 001, 101, 011, 111).
+    set_labels=(label_st1, label_st2, label_st3), 
+    set_colors=('C0', 'C1', 'purple'), 
+    alpha=0.45
+)
+subset_labels = [
+    r'$H \setminus (WL \cup W2)$',
+    r'$WL \setminus (H \cup W2)$',
+    r'$(H \cap WL) \setminus W2$',
+    r'$W2 \setminus (H \cup WL)$',
+    r'$(H \cap W2) \setminus WL$',
+    r'$(WL \cap W2) \setminus H$',
+    r'$(H \cap WL \cap W2)$'
+]
+lista = [
+    variance_shared_with_1, 
+    variance_shared_with_2, 
+    variance_shared_with_3,
+    variance_shared_with_13, 
+    variance_shared_with_23,
+    variance_shared_with_12, 
+    variance_int_complement_submodels
+    ]
+for el in lista:
+    print(el)
+for i, label in enumerate(venn.subset_labels):
+    label.set_fontsize(18)
+    if i in [0,1]:
+        x, y = label.get_position()
+        if i==0:
+            x -= 0.03
+        else:
+            x += 0.03
+        label.set_position((x, y-0.03))
+    elif i ==2:
+        x, y = label.get_position()
+        label.set_position((x, y+0.03))
+    elif i==len(venn.subset_labels)-1:
+        x, y = label.get_position()
+        label.set_position((x, y+0.03))
+    elif i in [4,5]:
+        x, y = label.get_position()
+        if i==4:
+            x -= 0.05
+        else:
+            x += 0.05
+        label.set_position((x, y-0.03))
+    else:
+        x, y = label.get_position()
+        label.set_position((x, y+0.07))
+    label.set_text(subset_labels[i])
+
+for label in venn.set_labels:
+    label.set_text('')
+    label.set_fontsize(18)
+print(venn.set_labels)
+plt.show()
+plt.savefig(savefig_path / f'venn3_schematic.png', transparent=True, dpi=500)
+plt.close()
