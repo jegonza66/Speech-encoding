@@ -98,11 +98,12 @@ def main(
                 path_validation = f'{output_dir}/{model}-{solver}/{situation}/validation/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
                 alphas_path = os.path.join(path_validation, f'corr_limit_{val_correlation_limit_percentage}.pkl')
                 
-                # Try to access alphas
-                try:
-                    alphas = load_pickle(path=alphas_path)
-                except:
-                    alphas = {s: {} for s in sessions} 
+                # # Try to access alphas
+                # try:
+                #     alphas = load_pickle(path=alphas_path)
+                # except:
+                #     alphas = {s: {} for s in sessions} 
+                alphas = {s: {} for s in sessions} 
             
                 # Iterate over sessions
                 for session in sessions:
