@@ -24,7 +24,7 @@ save_path = Path(f"figures/analysis/turn_taking_ERPs/")
 save_path.mkdir(parents=True, exist_ok=True)
 base_path = Path(rf"data")
 
-for l_freq_eeg, h_freq_eeg in [(1,4), (1,8), (1,15), (4,8), (8,15), (15,30)]:
+for l_freq_eeg, h_freq_eeg in [(1,4), (1,8), (1,15), (4,8), (8, 13), (8,15), (15,30)]:
     erps = []
     erps_hold = []
     for session in tqdm(config.sessions, desc=f"Processing Band {l_freq_eeg}-{h_freq_eeg} Hz", total=len(config.sessions)):
@@ -79,15 +79,17 @@ for l_freq_eeg, h_freq_eeg in [(1,4), (1,8), (1,15), (4,8), (8,15), (15,30)]:
                 with open(turn_path, 'r') as f:
                     turn_times = json.load(f)
                 for turn in turn_times:
-                    turn_onsets.append(
-                        int((turn['ipu1_start_time'] + offset)*512)
-                    )
+                    if turn['ipu1_end_time']-turn['ipu1_start_time']  > .5: # evitar onsets negativos
+                        turn_onsets.append(
+                            int((turn['ipu1_end_time'] + offset)*512)
+                        )
                 with open(turn_path_holds, 'r') as f:
                     hold_times = json.load(f)
                 for hold in hold_times:
-                    hold_onsets.append(
-                        int((hold['ipu1_start_time'] + offset)*512)
-                    )
+                    if hold['ipu1_end_time']-hold['ipu1_start_time']  > .5: # evitar onsets negativos
+                        hold_onsets.append(
+                            int((hold['ipu1_end_time'] + offset)*512)
+                        )
                 eeg.append(raw)
             eeg = np.concatenate(eeg, axis=0)
             
@@ -150,7 +152,7 @@ for l_freq_eeg, h_freq_eeg in [(1,4), (1,8), (1,15), (4,8), (8,15), (15,30)]:
             # times = config.times
             
             # Extract epochs
-            times = np.arange(-1, 1.25 + 1/512, 1/512)
+            times = np.arange(-.5, .25 + 1/512, 1/512)
             epochs = np.zeros(
                 (len(turn_onsets), len(times), eeg.shape[1]) # (n_epochs, n_times, n_channels
             ) * np.nan
@@ -180,9 +182,9 @@ for l_freq_eeg, h_freq_eeg in [(1,4), (1,8), (1,15), (4,8), (8,15), (15,30)]:
             print(f"\n\tExtracted {len(epochs)} valid epochs for Session {session} Channel {channel}\n")
             
             # Extract ERP
-            erp = np.nanmean(np.nanmean(epochs, axis=0), axis=1)
+            erp = np.nanmean(epochs, axis=0)
             erps.append(erp)
-            erp_hold = np.nanmean(np.nanmean(epochs_hold, axis=0), axis=1)
+            erp_hold = np.nanmean(epochs_hold, axis=0)
             erps_hold.append(erp_hold)
 
     # Average across sessions and channels
@@ -193,16 +195,38 @@ for l_freq_eeg, h_freq_eeg in [(1,4), (1,8), (1,15), (4,8), (8,15), (15,30)]:
         np.array(erps_hold), axis=0
     )
 
-    # Plot ERP
-    plt.figure(figsize=(5, 5))
-    plt.plot(times[::-1], erp-erp_hold, label='ERP', alpha=0.8)
+    for region in ['parietal', 'motor']:
+        # Plot ERP: three subplots for ERP, ERP_hold, and ERP difference
+        fig, axs = plt.subplots(1, 3, figsize=(15, 5))
 
-    plt.title(f'Session {session} Channel {channel} - ERP - Band {l_freq_eeg}, {h_freq_eeg} Hz')
-    plt.xlabel('Time (s)')
-    plt.ylabel('Amplitude (µV)')
+        # Manually select electrodes (channels) to plot, e.g., [0, 1, 2]
+        motor_cortex = [
+            config.info_mne['ch_names'].index(channel) for channel in 
+            ['D21', 'D20', 'D19', 'D18', 'D17', 'D16', 'D15', 'D14', 'B20', 'B21', 'B22', 'B23', 'B24']
+            ]  # List of channel names
+        parietal_cortex = [
+            config.info_mne['ch_names'].index(channel) for channel in 
+            ['A3', 'A4', 'A19', 'A20', 'A5', 'A18', 'A31', 'A32']
+            ]  # List of 
+        
+        if 'parietal'==region:
+            selected_electrodes = parietal_cortex
+        elif 'motor'==region:
+            selected_electrodes = motor_cortex
+        erp_selection = np.nanmean(erp[:, selected_electrodes], axis=1)
+        erp_hold_selection = np.nanmean(erp_hold[:, selected_electrodes], axis=1)
+        axs[0].plot(times, erp_selection, label='Switch')
+        axs[1].plot(times, erp_hold_selection, label='Hold')
+        axs[2].plot(times, erp_selection - erp_hold_selection, label='Difference')
 
-    plt.grid(visible=True)
-    plt.legend()
+        axs[0].set_title(f'ERP - Band {l_freq_eeg}-{h_freq_eeg} Hz')
 
-    plt.savefig(save_path / rf"ERP_{l_freq_eeg}_{h_freq_eeg}.png", dpi=300)
-    # plt.show(block=False)
+        for ax in axs:
+            ax.set_xlabel('Time (s)')
+            ax.set_ylabel('Amplitude (µV)')
+            ax.grid(True)
+            ax.legend()
+
+        plt.tight_layout()
+        plt.savefig(save_path / rf"ERP_comparison_{l_freq_eeg}_{h_freq_eeg}_{region}.png", dpi=300)
+        # plt.show(block=False)

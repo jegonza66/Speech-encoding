@@ -35,12 +35,17 @@ from transformers import (
 )
 
 # Modules
-from utils.load_utils import shifted_indexes_to_keep, match_lengths, check_syntax, labeling, get_trials, get_export_paths, SEX_LIST, sort_stimuli_based_on_situation
+from utils.load_utils import (
+    SEX_LIST, shifted_indexes_to_keep, match_lengths, 
+    check_syntax, labeling, get_trials, get_export_paths,
+    sort_stimuli_based_on_situation, 
+    get_dnn_reduced_representation
+)
 from utils.phoneme_implementation_from_phonet import compute_phones
 import utils.general_functions as general_functions
 import utils.processing as processing
 import config
-import umap
+# import umap
 
 # Logging
 from utils.logs import setup_logger
@@ -906,243 +911,7 @@ class GetTrialData:
 
         # Return data in desired shape
         return np.stack(phonological_features, axis=0).T
-
-    # def extract_DNNs(
-    #     self,
-    #     kind: str = '18DNNs1-hubert',
-    #     model_id: str = None                    # None -> use defaults below
-    # ) -> np.ndarray:
-    #     """
-    #     Build a n_components representation of the audio using a DNN encoder, then:
-    #       1) Standardize + PCA along feature dim
-    #       2) Interpolate over time to match envelope length
-    #     Returns array with shape (n_components, len(envelope)).
-
-    #     Notes:
-    #     - Uses Whisper by default (log-mel -> encoder). Disables 30 s padding.
-    #     - Time resampling uses linear interpolation in normalized time [0..1].
-    #     - For better stability across files, consider fitting PCA on a corpus.
-    #     """
-    #     # Stimuli should be call ##DNNs##, where first ## implies number of components, and second ## the layer
-    #     n_components, encoder_layer_backbone = [part for part in kind.split("DNNs")]
-    #     encoder_layer, backbone = encoder_layer_backbone.split('-')# "whisper", "wav2vec2", "hubert" or "wavlm"
-    #     n_components, encoder_layer = int(n_components), int(encoder_layer)
-        
-    #     # Path for caching full layer representation
-    #     layer_path = os.path.normpath(f"data/DNNs_cache/{backbone}/layer_{encoder_layer}/session_{self.session}_trial{self.trial:02}_channel_{self.channel}.pkl")
-    #     backbone_lower = backbone.lower()
-        
-    #     # Try to load preprocessed layer, to reduce later the dimension
-    #     try:
-    #         H = general_functions.load_pickle(
-    #             path=layer_path
-    #         )
-    #     # Run the whole pipeline, storing full layer for future use
-    #     except:
-    #         logger.warning(f"Cached DNN layer not found: {layer_path}. \n ---> extracting and caching it now...")
-    #         # Create the folder if it doesn't exist
-    #         os.makedirs(os.path.dirname(layer_path), exist_ok=True)
-            
-    #         # === 1 = LOAD AUDIO ====
-    #         sr, wav = wavfile.read(self.wav_fname)
-    #         if wav.ndim > 1:
-    #             wav = wav.mean(axis=1)
-            
-    #         # Normalize to [-1, 1]
-    #         if np.issubdtype(wav.dtype, np.integer):
-    #             wav = wav.astype(np.float32) / max(1, np.iinfo(wav.dtype).max)
-    #         else:
-    #             wav = wav.astype(np.float32)
-
-    #         device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    #         # Defaults if not provided
-    #         if model_id is None:
-    #             bl = backbone.lower()
-    #             if  bl == "whisper":
-    #                 model_id = "openai/whisper-tiny"#TODO updt
-    #             elif bl == "wav2vec2":
-    #                 model_id = "jonatasgrosman/wav2vec2-large-xlsr-53-spanish"
-    #             elif bl == "hubert":
-    #                 model_id = "facebook/hubert-large-ll60k"  
-    #             elif bl == "wavlm":
-    #                 model_id = "microsoft/wavlm-large"
-    #                 # model_id = "microsoft/wavlm-base-plus"
-    #             else:
-    #                 raise ValueError(f"Unknown backbone: {backbone}")
-            
-    #         # Use cached model/processor
-    #         processor, model = _get_dnn_model(backbone, model_id, device)
-            
-    #         # Resample to model SR
-    #         if backbone_lower in ["hubert", "wavlm"]:
-    #             model_sr = getattr(processor, "sampling_rate", 16000)
-    #         else:
-    #             model_sr = getattr(getattr(processor, "feature_extractor", None), "sampling_rate", 16000)
-    #         if sr != model_sr:
-    #             wav_model = sgn.resample_poly(wav, up=model_sr, down=sr)
-    #         else:
-    #             wav_model = wav
-                
-    #         # === 2 = GET ENCODER SEQUENCE ====
-    #         if backbone_lower == "whisper":
-    #             with torch.no_grad():
-    #                 inputs = processor(
-    #                     audio=wav_model,
-    #                     sampling_rate=model_sr,
-    #                     return_tensors="pt",
-    #                     # padding=False  # avoid 30s padding
-    #                     padding="max_length",          # pad a 30s -> 3000 frames
-    #                     return_attention_mask=True  
-    #                 )
-    #                 # Whisper uses input_features (log-mel)
-    #                 use_amp = (device == "cuda")
-    #                 with torch.amp.autocast(device, enabled=use_amp):
-    #                     outputs = model.encoder(
-    #                         input_features=inputs.input_features.to(device),
-    #                         attention_mask=inputs.attention_mask.to(device),
-    #                         output_hidden_states=True,
-    #                         return_dict=True
-    #                     )
-                    
-    #                 # Tomamos las hidden states del encoder
-    #                 hs = outputs.hidden_states
-    #                 # Quitar el embedding inicial si viene incluido (len = layers + 1)
-    #                 if len(hs) == model.config.encoder_layers + 1:
-    #                     hs = hs[1:]
-    #                 # Soportar índices negativos (e.g., -1 = última)
-    #                 idx = encoder_layer if encoder_layer >= 0 else len(hs) + encoder_layer
-    #                 if idx < 0 or idx >= len(hs):
-    #                     raise ValueError(f"encoder_layer={encoder_layer} fuera de rango (0..{len(hs)-1})")
-    #                 # [B, T, D] -> [T, D]
-    #                 H = hs[idx].squeeze(0).cpu().numpy()
-
-    #                 # Save full layer for future use
-    #                 general_functions.dump_pickle(
-    #                     path=layer_path, obj=H, rewrite=True, verbose=True
-    #                 )
-    #         elif backbone_lower == "wav2vec2":
-    #             with torch.no_grad():
-    #                 inputs = processor(
-    #                     wav_model,
-    #                     sampling_rate=model_sr,
-    #                     return_tensors="pt",
-    #                     padding=False
-    #                 )
-    #                 outputs = model(
-    #                     input_values=inputs.input_values.to(device),
-    #                     output_hidden_states=True,
-    #                     return_dict=True
-    #                 )
-    #                 hs = outputs.hidden_states
-    #                 # Quitar el embedding inicial si viene incluido (len = layers + 1)
-    #                 if len(hs) == model.config.num_hidden_layers + 1:
-    #                     hs = hs[1:]
-    #                 idx = encoder_layer if encoder_layer >= 0 else len(hs) + encoder_layer
-    #                 if idx < 0 or idx >= len(hs):
-    #                     raise ValueError(f"encoder_layer={encoder_layer} fuera de rango (0..{len(hs)-1})")
-    #                 # [B, T, D] -> [T, D]
-    #                 H = hs[idx].squeeze(0).cpu().numpy()
-                    
-    #                 # Save full layer for future use
-    #                 general_functions.dump_pickle(
-    #                     path=layer_path, obj=H, rewrite=True, verbose=True
-    #                 )
-    #         elif backbone_lower == "hubert":
-    #             with torch.no_grad():
-    #                 # Use feature extractor directly
-    #                 inputs = processor(
-    #                     wav_model,
-    #                     sampling_rate=model_sr,
-    #                     return_tensors="pt",
-    #                     padding=False
-    #                 )
-    #                 outputs = model(
-    #                     input_values=inputs.input_values.to(device),
-    #                     output_hidden_states=True,
-    #                     return_dict=True
-    #                 )
-    #                 hs = outputs.hidden_states
-    #                 # Remove initial embedding if present
-    #                 if len(hs) == model.config.num_hidden_layers + 1:
-    #                     hs = hs[1:]
-    #                 idx = encoder_layer if encoder_layer >= 0 else len(hs) + encoder_layer
-    #                 if idx < 0 or idx >= len(hs):
-    #                     raise ValueError(f"encoder_layer={encoder_layer} fuera de rango (0..{len(hs)-1})")
-    #                 # [B, T, D] -> [T, D]
-    #                 H = hs[idx].squeeze(0).cpu().numpy()
-                    
-    #                 # Save full layer for future use
-    #                 general_functions.dump_pickle(
-    #                     path=layer_path, obj=H, rewrite=True, verbose=True
-    #                 )
-    #         elif backbone_lower == "wavlm":
-    #             try:
-    #                 subprocess.run([
-    #                     "python", "-m", "utils.load_utils",
-    #                     "--wav_path", self.wav_fname,
-    #                     "--model_id", model_id,
-    #                     "--encoder_layer", str(encoder_layer),
-    #                     "--output_path", layer_path
-    #                 ], check=True, capture_output=True, text=True)
-                
-    #             except subprocess.CalledProcessError as e:
-    #                 if e.stderr and 'CUDA out of memory' in e.stderr:
-    #                     logger.error(f"CUDA out of memory with model {model_id} and input length {len(wav_model)/model_sr:.1f}s. Try a smaller model or use CPU.")
-    #                     logger.error(f"Trying with half precision...")
-    #                     subprocess.run([
-    #                             "python", "-m", "utils.load_utils",
-    #                             "--wav_path", self.wav_fname,
-    #                             "--model_id", model_id,
-    #                             "--encoder_layer", str(encoder_layer),
-    #                             "--output_path", layer_path,
-    #                             "--half_precision", "True"
-    #                         ], check=True, capture_output=True, text=True)
-    #                 else:
-    #                     logger.error(f"Error running subprocess to extract WavLM features: {e.stderr}")
-    #                     raise e
-    #             try:
-    #                 H = general_functions.load_pickle(
-    #                     path=layer_path
-    #                 )
-    #             except:
-    #                 raise ValueError(f"Error loading cached WavLM layer from {layer_path}")
-    #         else:
-    #             raise ValueError(f"Unknown backbone: {backbone}. Use 'whisper', 'wav2vec2', 'hubert', or 'wavlm'.")
-        
-    #     # Guard: very short inputs
-    #     if H.ndim != 2 or H.shape[0] < 2:
-    #         # Return zeros if we cannot form a sequence
-    #         logger.warning("Input audio is too short to extract features.")
-    #         return np.zeros((n_components, self.stimuli_length), dtype=np.float32)
-
-    #     # === 3 = REDUCE DIMENSION ====
-    #     scaler = StandardScaler(with_mean=True, with_std=True)
-    #     Hs = scaler.fit_transform(H)                 # (T, D)
-    #     pca = PCA(n_components=min(n_components, Hs.shape[1]))
-    #     Z = pca.fit_transform(Hs)                    # (T, n_components_effective)
-
-    #     # If model produced fewer dims than requested, pad with zeros
-    #     if Z.shape[1] < n_components:
-    #         pad = np.zeros((Z.shape[0], n_components - Z.shape[1]), dtype=Z.dtype)
-    #         Z = np.hstack([Z, pad])
-
-    #     # === 4 = RESAMPLE TO DESIRED STIMULI LENGTH ====
-    #     T_src = Z.shape[0]
-    #     T_tgt = self.stimuli_length
-
-    #     if T_src == T_tgt:
-    #         Z_t = Z
-    #     else:
-    #         # Normalize time to [0,1] to avoid relying on sample rates
-    #         x_src = np.linspace(0.0, 1.0, T_src, endpoint=False)
-    #         x_tgt = np.linspace(0.0, 1.0, T_tgt, endpoint=False)
-    #         interp = interp1d(x_src, Z, axis=0, kind="linear", fill_value="extrapolate", assume_sorted=True)
-    #         Z_t = interp(x_tgt)                      # (T_tgt, n_components)
-
-    #     # Return as (T_tgt, n_components) to match typical (features, time)
-    #     dnn_features = Z_t.astype(np.float32)
-    #     return dnn_features
+    
     def extract_DNNs(
         self,
         kind: str = '18DNNs1-hubert',
@@ -1355,29 +1124,41 @@ class GetTrialData:
         # === 3 = REDUCE DIMENSION ====
         scaler = StandardScaler(with_mean=True, with_std=True)
         Hs = scaler.fit_transform(H)                 # (T, D)
-        # Use UMAP instead of PCA (non-linear embedding).
-        # Set n_components not greater than input dims for stability.
-        umap_n_components = min(n_components, Hs.shape[1])
-        # reducer = umap.UMAP(
+        
+        # === 3 = REDUCE DIMENSION ====
+        scaler = StandardScaler(with_mean=True, with_std=True)
+        Hs = scaler.fit_transform(H)                 # (T, D)
+        pca = get_dnn_reduced_representation(
+            self.wav_fname,
+            backbone=backbone,
+            encoder_layer=encoder_layer,
+            n_components=n_components,
+            full_layer_path=layer_path
+            )
+        Z = pca.transform(Hs)                    # (T, n_components_effective)
+        # # Use UMAP instead of PCA (non-linear embedding).
+        # # Set n_components not greater than input dims for stability.
+        # umap_n_components = min(n_components, Hs.shape[1])
+        # # reducer = umap.UMAP(
+        # #     n_components=umap_n_components,
+        # #     n_neighbors=15,      # adjust for local vs global structure
+        # #     min_dist=0.1,
+        # #     metric="euclidean",
+        # #     random_state=42
+        # # )
+        # reducer = umap.UMAP( #TODO ver como mejorar,
+        #     # umap preserva la estructura temporal? conviene usar tsvd o pca antes de umap? 
+        #     #conviene hacerlo por muestra temporal?
+        #     #  implementar además kmeans
         #     n_components=umap_n_components,
-        #     n_neighbors=15,      # adjust for local vs global structure
-        #     min_dist=0.1,
-        #     metric="euclidean",
-        #     random_state=42
+        #     n_neighbors=15, #valores entre 2 y 100 aprox, ajustar para estructura local vs global
+        #     min_dist=0.1, # distancia entre puntos en el espacio reducido, 0.0 (muy denso) a 0.99 (muy disperso)
+        #     metric="euclidean", #conviene otra?
+        #     random_state=None,   # allow parallelism
+        #     n_jobs=8,             # set to desired number of workers
+        #     # local_connectivity=
         # )
-        reducer = umap.UMAP( #TODO ver como mejorar,
-            # umap preserva la estructura temporal? conviene usar tsvd o pca antes de umap? 
-            #conviene hacerlo por muestra temporal?
-            #  implementar además kmeans
-            n_components=umap_n_components,
-            n_neighbors=15, #valores entre 2 y 100 aprox, ajustar para estructura local vs global
-            min_dist=0.1, # distancia entre puntos en el espacio reducido, 0.0 (muy denso) a 0.99 (muy disperso)
-            metric="euclidean", #conviene otra?
-            random_state=None,   # allow parallelism
-            n_jobs=8,             # set to desired number of workers
-            # local_connectivity=
-        )
-        Z = reducer.fit_transform(Hs)              # (T, n_components_effective)
+        # Z = reducer.fit_transform(Hs)              # (T, n_components_effective)
 
         # If model produced fewer dims than requested, pad with zeros
         if Z.shape[1] < n_components:

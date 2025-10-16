@@ -33,10 +33,9 @@ def convert_numpy_keys(obj):
         return obj
 
 # Total: 2*6*23 = 276 analyses
-backbones = ["hubert", "wav2vec2", "wavlm"] # 2
-components = np.concatenate(
-    [np.arange(12, 24, 2), np.array([21])]
-    ) # 6
+# backbones = ["hubert", "wav2vec2", "wavlm"] # 2
+backbones = ["hubert", "wavlm"] # 2
+components = np.array([12, 16, 21, 24])
 layers = np.arange(1, 24) # 23 
 
 correlations = {
@@ -46,21 +45,13 @@ correlations = {
             } for n_components in components
     } for backbone in backbones
 }
-correlations_std = {
-    backbone: {
-        n_components: {
-                layer: None for layer in layers
-            } for n_components in components
-    } for backbone in backbones
-}
+
 save_path = Path("output/mtrf-ridge/analysis/DNN_component_analysis")
 try:
     data = load_pickle(path=save_path / "checkpoint_DNN_component_correlations.pkl")
     correlations = data["correlations"]
-    correlations_std = data["correlations_std"]
 except FileNotFoundError:
     pass
-
 
 for backbone in backbones:
     for n_components in components:  
@@ -81,7 +72,7 @@ for backbone in backbones:
                 bands=['Broad'],
                 stimuli=[stimuli],
                 save_results=True,
-                number_of_workers=9
+                number_of_workers=6
             )
 
             validation_path = Path(rf'output\mtrf-ridge\External\validation\stims_Standarize_EEG_Standarize\tmin-0.2_tmax0.6\Broad\{stimuli}')
@@ -112,8 +103,7 @@ for backbone in backbones:
                 set_alpha=set_alpha,
                 no_figures=True
             )['External']['Broad'][stimuli]
-            correlations[backbone][n_components][layer] = main_results['average_correlation_subjects'].mean(axis=1)
-            correlations_std[backbone][n_components][layer] = main_results['average_correlation_subjects'].std(axis=1)/np.sqrt(128)
+            correlations[backbone][n_components][layer] = main_results['average_correlation_subjects']
 
             # Save checkpoint
             save_path.mkdir(parents=True, exist_ok=True)
@@ -121,7 +111,6 @@ for backbone in backbones:
                 path=save_path / "checkpoint_DNN_component_correlations.pkl",
                 obj={
                     "correlations": correlations,
-                    "correlations_std": correlations_std
                 },
                 rewrite=True,
                 verbose=True
@@ -130,7 +119,6 @@ for backbone in backbones:
             with open(save_path / "checkpoint_DNN_component_correlations.json", 'w') as f:
                 json_data = {
                     "correlations": convert_numpy_keys(correlations),
-                    "correlations_std": convert_numpy_keys(correlations_std)
                 }
                 json.dump(json_data, f, indent=4)
             # Remove saved data to save space
@@ -140,33 +128,35 @@ for backbone in backbones:
             except Exception as e:
                 raise(f"Could not remove directory {dir_to_remove}: {e}")
 
-# # Make DNNs plots
-# fig, axes = plt.subplots(
-#     nrows=1, ncols=3, 
-#     figsize=(18, 6), 
-#     sharey=True, 
-#     # tight_layout=True
-# )
-# fig.suptitle("DNN Layer Correlation Analysis: Hubert vs Wav2Vec2 vs WavLM", fontsize=16)
-# for idx, backbone in enumerate(['hubert', 'wav2vec2', 'wavlm']):
-#     ax = axes[idx]
-#     for n_components in components:
-#         means = [correlations[backbone][n_components][layer].mean() for layer in layers]
-#         stds = [correlations_std[backbone][n_components][layer].mean() for layer in layers]
-#         ax.plot(layers, means, label=f'{n_components} components')
-#         ax.fill_between(layers, np.array(means)-np.array(stds), np.array(means)+np.array(stds), alpha=0.2)
-#     ax.set_xticks(layers)
-#     ax.grid(visible=True, which='major', linestyle='--', axis='y', linewidth=0.5)
-#     ax.set_xlabel("DNN Layer")
-#     ax.set_title(f"{backbone.capitalize()}")
-# axes[0].set_ylabel("Inter-Subject Correlation")
-# axes[1].legend(title="Number of components", bbox_to_anchor=(1.05, 1), loc='upper left')
-# fig.tight_layout(rect=[0, 0, 1, 0.97])
-# fig_save_path = Path("figures/analysis/dnn_layer_correlation")
-# fig_save_path.mkdir(parents=True, exist_ok=True)
-# fig.savefig(
-#     fig_save_path / "hubert_wav2vec2_all_components_layer_correlation.png"
-# )
+# Make DNNs plots
+fig, axes = plt.subplots(
+    nrows=1, ncols=2, 
+    figsize=(18, 6), 
+    sharey=True, 
+    # tight_layout=True
+)
+fig.suptitle("DNN Layer Correlation Analysis: Hubert vs WavLM", fontsize=16)
+for idx, backbone in enumerate(['hubert', 'wavlm']):
+    ax = axes[idx]
+    for n_components in components:
+        means = [correlations[backbone][n_components][layer].mean() for layer in layers]
+        stds = [correlations[backbone][n_components][layer].std()/np.sqrt(18) for layer in layers]
+        ax.plot(layers, means, label=f'{n_components} components')
+        ax.fill_between(layers, np.array(means)-np.array(stds), np.array(means)+np.array(stds), alpha=0.2)
+        ax.set_xticks(layers)
+        ax.grid(visible=True, which='major', linestyle='--', axis='y', linewidth=0.5)
+        ax.set_xlabel("DNN Layer")
+        ax.set_title(f"{backbone.capitalize()}")
+axes[0].set_ylabel("Inter-Subject Correlation")
+axes[1].legend(title="Number of components", bbox_to_anchor=(1.05, 1), loc='upper left')
+# axes.set_ylabel("Inter-Subject Correlation")
+# axes.legend(title="Number of components", bbox_to_anchor=(1.05, 1), loc='upper left')
+fig.tight_layout(rect=[0, 0, 1, 0.97])
+fig_save_path = Path("figures/analysis/dnn_layer_correlation")
+fig_save_path.mkdir(parents=True, exist_ok=True)
+fig.savefig(
+    fig_save_path / "hubert_wavlm_all_components_layer_correlation.png"
+)
 
 # Make DNNs plots
 fig, ax = plt.subplots(
@@ -178,9 +168,10 @@ fig.suptitle(
     "DNN Layer Correlation Analysis", 
     fontsize=16
 )
-for idx, backbone in enumerate(['hubert', 'wav2vec2', 'wavlm']):
+# for idx, backbone in enumerate(['hubert', 'wav2vec2', 'wavlm']):
+for idx, backbone in enumerate(['hubert', 'wavlm']):
     means = np.array([correlations[backbone][21][layer].mean() for layer in layers]) # 23, 18
-    stds = np.array([correlations_std[backbone][21][layer].mean() for layer in layers]) # 23, 18
+    stds = np.array([correlations[backbone][21][layer].std()/np.sqrt(18) for layer in layers]) # 23, 18
     # make boxplot per layer hue by backbone
     ax.plot(layers, means, label=f'{backbone.capitalize()}')
     ax.fill_between(layers, np.array(means)-np.array(stds), np.array(means)+np.array(stds), alpha=0.2)
@@ -194,7 +185,7 @@ fig.tight_layout(rect=[0, 0, 1, 0.97])
 fig_save_path = Path("figures/analysis/dnn_layer_correlation")
 fig_save_path.mkdir(parents=True, exist_ok=True)
 fig.savefig(
-    fig_save_path / "hubert_wavlm_wav2vec2_all_components_layer_correlation.png",
+    fig_save_path / "hubert_wavlm_21_components_layer_correlation.png",
     dpi=600,
     transparent=True
 )

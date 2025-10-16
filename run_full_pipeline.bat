@@ -7,7 +7,7 @@ set run_validation=true
 set run_permutations=false
 set run_main=true
 set PARALLEL_LOAD=true
-set NUMOW=8
+set NUMOW=2
 
 REM === Run load.py ===
 if /i "%run_load%"=="true" (

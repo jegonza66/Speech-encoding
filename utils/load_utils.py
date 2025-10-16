@@ -3,9 +3,12 @@ import pandas as pd
 import numpy as np
 import os
 
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
 from transformers import Wav2Vec2FeatureExtractor, WavLMModel
 import torch
 
+import utils.general_functions as general_functions
 from utils.processing import shifted_matrix
 import config
 
@@ -114,7 +117,6 @@ def get_export_paths(
             export_paths[f'{stimulus}'] = os.path.join(preprocessed_data_path, f'{stimulus}/')
     return export_paths
 
-
 def check_syntax(
     stimuli: Union[str, None]=None, 
     band: Union[str, None]=None, 
@@ -165,7 +167,6 @@ def check_syntax(
         if not (situation.split('_Silence')[0] in ALLOWED_SITUATIONS):
             raise SyntaxError(f"'{situation}' is not an allowed situation. Allowed ones are: {ALLOWED_SITUATIONS}")
     return None
-
 
 def get_trials(
     session:int
@@ -369,6 +370,50 @@ def shifted_indexes_to_keep(
     filter_indexes = (shifted_matrix_speaker_labels==situation_label) | (shifted_matrix_speaker_labels==0)
     return (filter_indexes).all(axis=1).nonzero()[0]
 
+def get_dnn_reduced_representation(
+    wavfile:str,
+    backbone:str,
+    encoder_layer:int,
+    n_components:int,
+    full_layer_path:str
+)-> PCA:
+    """
+    Fits PCA to the concatenated hidden states of a DNN model and returns 
+    the reduction matrix to apply the transformation.
+    """
+    # data\wavs\S21\s21.objects.01.channel1.wav
+    session = int(wavfile.split('S')[1][:2])
+    trial_ = int(wavfile.split('objects.')[1][:2])
+    channel = int(wavfile.split('channel')[1].split('.')[0])
+    matrix_path = os.path.normpath(
+        f"data/DNNs_cache/matrix_reduction/{backbone}-{n_components}/layer_{encoder_layer}/session_{session}_channel_{channel}.npy"
+    )
+    if os.path.exists(matrix_path):
+        return np.load(matrix_path, allow_pickle=True).item()
+
+    dnn_representations = []
+    for trial in get_trials(session):
+        layer_trial = full_layer_path.replace(f'trial_{trial_:02d}', f'trial_{trial:02d}')
+        dnn_representations.append(general_functions.load_pickle(path=layer_trial))
+    full_dnn_representation = np.concatenate(dnn_representations, axis=0)
+    scaler = StandardScaler(with_mean=True, with_std=True)
+    full_dnn_representation = scaler.fit_transform(full_dnn_representation)
+    pca = PCA(
+        n_components=min(n_components, full_dnn_representation.shape[1])
+    )
+    pca.fit(full_dnn_representation)
+    os.makedirs(os.path.dirname(matrix_path), exist_ok=True)
+    np.save(matrix_path, pca)
+    os.makedirs(os.path.dirname(matrix_path.replace('.npy', '.txt')), exist_ok=True)
+    with open(matrix_path.replace('.npy', '.txt'), 'w') as f:
+        f.write(f"Backbone: {backbone}\n")
+        f.write(f"Encoder layer: {encoder_layer}\n")
+        f.write(f"Number of components: {n_components}\n")
+        f.write(f"Full representation shape: {full_dnn_representation.shape}\n")
+        f.write(f"Explained variance ratio: {pca.explained_variance_ratio_}\n")
+        f.write(f"Explained variance (cumulative): {pca.explained_variance_ratio_.sum()}\n")
+    return pca
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
@@ -378,8 +423,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_path")
     parser.add_argument("--half_precision", type=bool, default=False)
     args = parser.parse_args()
-    if args.half_precision:
-        print('HOLA')
+
     # Load audio
     import numpy as np
     import torch
