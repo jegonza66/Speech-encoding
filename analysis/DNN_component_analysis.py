@@ -170,7 +170,7 @@ fig.suptitle(
     "DNN Layer Correlation Analysis", 
     fontsize=16
 )
-for idx, backbone in enumerate(['hubert', 'wavlm', 'wav2vec2']):
+for idx, backbone in enumerate(['wavlm', 'hubert', 'wav2vec2']):
     means = np.array([correlations[backbone][21][layer].mean() for layer in layers]) # 23, 18
     stds = np.array([correlations[backbone][21][layer].std()/np.sqrt(18) for layer in layers]) # 23, 18
     # make boxplot per layer hue by backbone
