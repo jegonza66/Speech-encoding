@@ -43,6 +43,7 @@ ALLOWED_STIMULI = [
     'Phones', 'Phones-Envelope', 'Phones-Discrete',
     'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
     'Hearing-Turn',
+    'EEG-feature',
     # 'Jitter', 'Shimmer'
 ]
 def sort_stimuli_based_on_situation(

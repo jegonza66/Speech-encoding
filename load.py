@@ -97,6 +97,7 @@ def get_phonet_instance():
     
     return _PHONET_CACHE['phonet']
 _DNN_MODEL_CACHE = {}
+
 def _get_dnn_model(backbone: str, model_id: str, device: str):
     bl = backbone.lower()
     key = (bl, model_id, device)
@@ -240,6 +241,42 @@ class GetTrialData:
         eeg = eeg.get_data().T*1e6
         return eeg
     
+    def extract_eeg_feature(
+        self, 
+        eeg:np.ndarray
+    )-> np.ndarray:
+        """
+        Takes the EEG, computes the fft in polar representation, shuffles the phase and applies inverse transform, to get a stimulus
+        that preserves correlation structure of the EEG but not the temporal one.
+
+        Parameters
+        ----------
+        eeg : np.ndarray
+            The input EEG data.
+
+        Returns
+        -------
+        np.ndarray
+            The transformed EEG data.
+        """
+        # Compute the FFT
+        eeg_fft = np.fft.fft(
+            eeg, 
+            axis=0
+        )
+        # Convert to polar representation
+        magnitude = np.abs(eeg_fft)
+        phase = np.angle(eeg_fft)
+        
+        # Shuffle the phase (seed 42 for reproducibility)
+        np.random.seed(42)
+        np.random.shuffle(phase)
+        
+        # Reconstruct the signal
+        eeg_feature = magnitude * np.exp(1j * phase)
+        eeg_feature = np.fft.ifft(eeg_feature, axis=0)
+        return eeg_feature.real
+
     def extract_envelope(
         self,
         kind:str='Envelope'
@@ -331,6 +368,8 @@ class GetTrialData:
         np.ndarray
             Matrix with sprectrogram in given mel frequncies of dimension (Samples X Mel)
         """
+        n_mels = int(kind.split('-')[-1])
+        
         # Read file
         wav = wavfile.read(self.wav_fname)[1]
         wav = wav.astype("float")
@@ -338,12 +377,17 @@ class GetTrialData:
         # Get sample window size to match the sampling rate of the EEG
         sample_window = int(self.audio_sr/self.sr)
         
+        # choose an FFT size that is >= max(sample_window, 2 * n_mels)
+        def next_pow2(x):
+            return 1 << ((x - 1).bit_length())
+        n_fft = next_pow2(max(sample_window, 2 * n_mels, 256))
+        
         # Calculates the mel frequencies spectrogram giving the desire sampling (match the EEG)
         S = librosa.feature.melspectrogram(
             hop_length=sample_window, 
-            n_fft=sample_window, 
+            n_fft=n_fft, 
             sr=self.audio_sr, 
-            n_mels=int(kind.split('-')[-1]),
+            n_mels=n_mels,
             y=wav
         )
         # Transform to dB using normalization to 1
@@ -1384,6 +1428,11 @@ class GetTrialData:
             channel['EEG'] = self.extract_eeg()
 
         for stimulus in stimuli:
+            if stimulus == 'EEG-feature':
+                eeg_data = self.extract_eeg() if eeg_exists else channel['EEG']
+                channel['EEG-feature'] = self.extract_eeg_feature(
+                    eeg=eeg_data
+                )
             if stimulus.startswith('Envelope'):
                 channel['Envelope'] = self.extract_envelope(
                     kind=stimulus

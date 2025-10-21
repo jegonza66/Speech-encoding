@@ -34,7 +34,7 @@ def convert_numpy_keys(obj):
 
 # Total: 2*6*23 = 276 analyses
 # backbones = ["hubert", "wav2vec2", "wavlm"] # 2
-backbones = ["hubert", "wavlm"] # 2
+backbones = ["hubert", "wavlm", "wav2vec2"] # 2
 components = np.array([12, 16, 21, 24])
 layers = np.arange(1, 24) # 23 
 
@@ -52,6 +52,8 @@ try:
     correlations = data["correlations"]
 except FileNotFoundError:
     pass
+# for l in [1, 8, 18]:
+#     correlations['wav2vec2'][21][l] = None
 
 for backbone in backbones:
     for n_components in components:  
@@ -130,13 +132,13 @@ for backbone in backbones:
 
 # Make DNNs plots
 fig, axes = plt.subplots(
-    nrows=1, ncols=2, 
+    nrows=1, ncols=3, 
     figsize=(18, 6), 
     sharey=True, 
     # tight_layout=True
 )
-fig.suptitle("DNN Layer Correlation Analysis: Hubert vs WavLM", fontsize=16)
-for idx, backbone in enumerate(['hubert', 'wavlm']):
+fig.suptitle("DNN Layer Correlation Analysis: Hubert vs WavLM vs Wav2Vec2", fontsize=16)
+for idx, backbone in enumerate(['hubert', 'wavlm', 'wav2vec2']):
     ax = axes[idx]
     for n_components in components:
         means = [correlations[backbone][n_components][layer].mean() for layer in layers]
@@ -155,7 +157,7 @@ fig.tight_layout(rect=[0, 0, 1, 0.97])
 fig_save_path = Path("figures/analysis/dnn_layer_correlation")
 fig_save_path.mkdir(parents=True, exist_ok=True)
 fig.savefig(
-    fig_save_path / "hubert_wavlm_all_components_layer_correlation.png"
+    fig_save_path / "hubert_wavlm_wav2vec2_all_components_layer_correlation.png"
 )
 
 # Make DNNs plots
@@ -168,8 +170,7 @@ fig.suptitle(
     "DNN Layer Correlation Analysis", 
     fontsize=16
 )
-# for idx, backbone in enumerate(['hubert', 'wav2vec2', 'wavlm']):
-for idx, backbone in enumerate(['hubert', 'wavlm']):
+for idx, backbone in enumerate(['hubert', 'wavlm', 'wav2vec2']):
     means = np.array([correlations[backbone][21][layer].mean() for layer in layers]) # 23, 18
     stds = np.array([correlations[backbone][21][layer].std()/np.sqrt(18) for layer in layers]) # 23, 18
     # make boxplot per layer hue by backbone
@@ -185,8 +186,9 @@ fig.tight_layout(rect=[0, 0, 1, 0.97])
 fig_save_path = Path("figures/analysis/dnn_layer_correlation")
 fig_save_path.mkdir(parents=True, exist_ok=True)
 fig.savefig(
-    fig_save_path / "hubert_wavlm_21_components_layer_correlation.png",
+    fig_save_path / "hubert_wavlm_wav2vec2_21_components_layer_correlation.png",
     dpi=600,
     transparent=True
 )
 
+print(f"Figures saved in {fig_save_path.resolve()}")

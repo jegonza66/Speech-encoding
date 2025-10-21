@@ -152,7 +152,7 @@ def main(
                 total_number_of_subjects = 0
 
                 # from IPython import embed; embed()
-                if same_validation_subjects:
+                if same_validation_subjects and set_alpha is None:
                     alphas_total = []
                     alphas = load_pickle(path=alphas_path)
                     for session in sessions:
