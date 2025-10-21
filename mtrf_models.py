@@ -1,5 +1,6 @@
 #TODO implement solvers
 # Standard libraries
+import time
 import numpy as np, mne
 mne.set_log_level(verbose='WARNING')
 
@@ -9,6 +10,7 @@ from sklearn.linear_model import Ridge
 from typing import Union
 from tqdm import tqdm
 import torch
+import gc
 # from torchaudio.functional import fftconvolve
 
 # Modules
@@ -244,7 +246,14 @@ class TorchMtrf:
                 root_mean_square_error[i_alpha] = torch.sqrt(torch.pow(y_predicted - y_val, 2).mean(dim=0)).mean(dim=0)
                 root_mean_square_error_train[i_alpha] = torch.sqrt(torch.pow(y_predicted_train - y_train_for_val, 2).mean(dim=0)).mean(dim=0)
                 trfs[i_alpha] = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1).mean(dim=0).mean(dim=0) # shape n_chans, feats, delays --> delays
-            del X_train_for_val, y_train_for_val, y_predicted, y_val, X_pred
+            del X_train_for_val, y_train_for_val, y_predicted, y_predicted_train, y_val, X_pred, mtrfs
+
+            # Let GPU free memory
+            gc.collect()
+            if self.use_gpu and torch.cuda.is_available():
+                torch.cuda.synchronize()
+                torch.cuda.empty_cache()
+                time.sleep(.1)
             return trfs.detach().cpu().numpy(), correlations.detach().cpu().numpy(), root_mean_square_error.detach().cpu().numpy(), correlations_train.detach().cpu().numpy(), root_mean_square_error_train.detach().cpu().numpy()
         else:
             if self.shuffle:
@@ -300,6 +309,12 @@ class TorchMtrf:
                     root_mean_square_error[s] = torch.sqrt(torch.pow(y_predicted - y_test, 2).mean(dim=0))
                     
                 del X_train, y_train, X_pred, y_test, y_predicted
+                # Let GPU free memory   
+                gc.collect()
+                if self.use_gpu and torch.cuda.is_available():
+                    torch.cuda.synchronize()
+                    torch.cuda.empty_cache()
+                    time.sleep(.1)
                 return coefs.cpu().numpy(), correlations.cpu().numpy(), root_mean_square_error.cpu().numpy()
             else:
                 # Standarize and normalize
@@ -339,6 +354,12 @@ class TorchMtrf:
 
                 # Calculates and saves root mean square error of each channel
                 root_mean_square_error = torch.sqrt(torch.pow(y_predicted - y_test, 2).mean(dim=0))
+                # Let GPU free memory   
+                gc.collect()
+                if self.use_gpu and torch.cuda.is_available():
+                    torch.cuda.synchronize()
+                    torch.cuda.empty_cache()
+                    time.sleep(.1)
                 return mtrfs.cpu().numpy(), correlation_matrix.cpu().numpy(), root_mean_square_error.cpu().numpy()
     
     def _solver(
