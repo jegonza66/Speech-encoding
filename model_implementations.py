@@ -88,18 +88,18 @@ def fold_model(
         return weights, correlation_matrix, root_mean_square_error
     elif validation:
         mtrf = TorchMtrf(
-                relevant_indexes=np.array(relevant_indexes),
-                stims_preprocess=config.stims_preprocess, 
-                eeg_preprocess=config.eeg_preprocess,
-                train_indexes=train_indexes, 
-                test_indexes=test_indexes, 
-                use_gpu=config.use_gpu,
-                fit_intercept=False,
-                validation=True,
-                shuffle=False, 
-                alpha=alpha, 
-                solver=config.solver
-                )
+            relevant_indexes=np.array(relevant_indexes),
+            stims_preprocess=config.stims_preprocess, 
+            eeg_preprocess=config.eeg_preprocess,
+            train_indexes=train_indexes, 
+            test_indexes=test_indexes, 
+            use_gpu=config.use_gpu,
+            fit_intercept=False,
+            validation=True,
+            shuffle=False, 
+            alpha=alpha, 
+            solver=config.solver
+        )
         # Returns directly correlations per alpha
         return mtrf.fit(stims, eeg)
     else:

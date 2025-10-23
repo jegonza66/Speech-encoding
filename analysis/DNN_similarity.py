@@ -1,11 +1,9 @@
 """
 This script is designed to find which attributes correlate best with the different DNNs layers
 """
-from matplotlib_venn import venn3  
+from matplotlib_venn import venn3, venn2
 from pathlib import Path
 
-from utils.general_functions import load_pickle
-import config
 
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -14,36 +12,26 @@ import shutil
 import json
 import os
 
-import config
-from utils.general_functions import load_pickle, dump_pickle
+from utils.general_functions import (
+    load_pickle, dump_pickle, convert_numpy_keys
+)
 
 from load import main_parallel as main_load
 from validation import main as main_val
 from main import main as main_main
 
-def convert_numpy_keys(obj):
-    """Convert numpy integers to Python integers for JSON serialization"""
-    if isinstance(obj, dict):
-        return {int(k) if isinstance(k, np.integer) else k: convert_numpy_keys(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [convert_numpy_keys(item) for item in obj]
-    elif isinstance(obj, np.ndarray):
-        return obj.tolist()
-    elif isinstance(obj, np.integer):
-        return int(obj)
-    elif isinstance(obj, np.floating):
-        return float(obj)
-    else:
-        return obj
 
-layers = [1, 4, 8, 12, 16, 20, 23] # np.arange(1, 24)
-extra_layers = [2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15, 17, 18, 19, 21, 22]
+
+# layers = [1, 4, 8, 12, 16, 20, 23] # np.arange(1, 24)
+# extra_layers = [2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15, 17, 18, 19, 21, 22]
+# layers = sorted(layers+extra_layers)
+layers = list(np.arange(1,24).astype(int))
 # backbone = "wavlm"
 # backbone = "hubert"
 total_correlations = {}
 for backbone in ["wavlm", "hubert"]:
     stimuli = ['Spectrogram-21', 'Phonemes-Frequency'] + [f'21DNNs{layer}-{backbone}' for layer in layers]
-    stimuli += [f'21DNNs{layer}-{backbone}' for layer in extra_layers]
+    # stimuli += [f'21DNNs{layer}-{backbone}' for layer in extra_layers]
     stimuli = sorted(stimuli)
     double_combinations = [
         '_'.join(sorted(['Spectrogram-21', 'Phonemes-Frequency'])),
@@ -52,18 +40,18 @@ for backbone in ["wavlm", "hubert"]:
         '_'.join(sorted([f'21DNNs{layer}-{backbone}', 'Spectrogram-21'])) 
         for layer in layers
     ] 
-    double_combinations += [
-        '_'.join(sorted([f'21DNNs{layer}-{backbone}', 'Spectrogram-21'])) 
-        for layer in extra_layers
-    ] 
+    # double_combinations += [
+    #     '_'.join(sorted([f'21DNNs{layer}-{backbone}', 'Spectrogram-21'])) 
+    #     for layer in extra_layers
+    # ] 
     double_combinations += [
         '_'.join(sorted([f'21DNNs{layer}-{backbone}', 'Phonemes-Frequency'])) 
         for layer in layers
     ] 
-    double_combinations += [
-        '_'.join(sorted([f'21DNNs{layer}-{backbone}', 'Phonemes-Frequency'])) 
-        for layer in extra_layers
-    ] 
+    # double_combinations += [
+    #     '_'.join(sorted([f'21DNNs{layer}-{backbone}', 'Phonemes-Frequency'])) 
+    #     for layer in extra_layers
+    # ] 
     triple_combinations = [
         '_'.join(sorted([f'21DNNs{layer}-{backbone}', 'Spectrogram-21', 'Phonemes-Frequency'])) for layer in layers
     ] 
@@ -233,20 +221,66 @@ for backbone in ["wavlm", "hubert"]:
 
         plt.savefig(savefig_path / f'venn3_{backbone}_{layer}.png')
         plt.close()
+    # Same for double combinations
+    for double_combination in double_combinations:
+        st1, st2 = double_combination.split('_')
+        # Simple variances
+        variance_1 = correlations[st1]**2
+        variance_2 = correlations[st2]**2
+        variance_12 = correlations[double_combination]**2
+
+        # Shared without each stimulus
+        variance_shared_with_1 = variance_12 - variance_2 #10
+        variance_shared_with_2 = variance_12 - variance_1 #01
+
+        # Explained by one, two and full shared model but not by subshared models
+        variance_int_complement_submodels = variance_1 + variance_2 - variance_12 #11
+
+        # Get areas 
+        areas = [ # the order should be(10, 01, 11)
+            variance_shared_with_1, 
+            variance_shared_with_2, 
+            variance_int_complement_submodels
+            ] 
+        total_area = sum(areas)
+        # areas = np.array([
+        #     0 if area<0 else area.round(3) 
+        #     for area in areas
+        # ]) # note that the sum gives shared model variance_123
+        
+        # Normalize to give percentage of variance explained by full model
+        areas = (np.array(areas)*100/total_area).round(2)
+
+        # Create figure and title
+        
+        plt.ioff()
+        plt.figure(layout='tight')
+        plt.title(f'{backbone} - {double_combination}')
+
+        # Make plot
+        venn2(
+            subsets=areas, # left area diagram, right area diagram, shared area <--> (10, 01, 11).
+            set_labels=(st1, st2), 
+            set_colors=('C0', 'C1'), 
+            alpha=0.45
+            )
+
+        plt.savefig(savefig_path / f'venn2_{backbone}_{double_combination}.png')
+        plt.close()
 
     print("\nFigures saved in", savefig_path)
     total_correlations[backbone] = correlations
 # Plot shared variance of spectrogram and phonemes as a function of DNN layer separately for each backbone
 fig, axes = plt.subplots(1, 2, figsize=(12, 6), layout='tight', sharey=True)
 for ax, backbone in zip(axes, ["wavlm", "hubert"]):
-    stimuli = ['Spectrogram-21', 'Phonemes-Frequency'] + [f'21DNNs{layer}-{backbone}' for layer in layers+extra_layers]
+    stimuli = ['Spectrogram-21', 'Phonemes-Frequency'] + [f'21DNNs{layer}-{backbone}' for layer in layers]#+extra_layers]
     stimuli = sorted(stimuli)
     spectrogram_combinations = [
         '_'.join(sorted([f'21DNNs{layer}-{backbone}', 'Spectrogram-21'])) 
-        for layer in layers+extra_layers
+        for layer in sorted(layers)#+extra_layers)
     ] 
     phonemes_spectrogram = [
-        '_'.join(sorted([f'21DNNs{layer}-{backbone}', 'Phonemes-Frequency'])) for layer in layers+extra_layers
+        '_'.join(sorted([f'21DNNs{layer}-{backbone}', 'Phonemes-Frequency'])) for layer in sorted(layers)#+extra_layers)
     ] 
     for l, combination in enumerate([spectrogram_combinations, phonemes_spectrogram]):
         shared_variances = []
@@ -258,8 +292,8 @@ for ax, backbone in zip(axes, ["wavlm", "hubert"]):
             # Intersection variance = variance_1 + variance_2 - variance_12
             shared_variances.append(variance_dnn + variance_st - variance_shared)
         ax.plot(
-            sorted(layers+extra_layers), 
-            np.array(shared_variances)*100, 
+            sorted(layers),#+extra_layers), 
+            np.array(shared_variances)*100/variance_shared, 
             marker='o', 
             label='Spectrogram' if l==0 else 'Phonemes'
         )
@@ -267,7 +301,7 @@ for ax, backbone in zip(axes, ["wavlm", "hubert"]):
     ax.set_xlabel('DNN Layer')
     ax.grid()
     ax.legend()
-    ax.set_xticks(sorted(layers+extra_layers)[::2])
+    ax.set_xticks(sorted(layers)[::2])#+extra_layers)[::2])
 axes[0].set_ylabel('Shared Variance (%)')
 
 fig.savefig(savefig_path / f'shared_over_layers.png')

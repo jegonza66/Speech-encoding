@@ -4,6 +4,21 @@ import numpy as np, pickle, os, sys, mne, csv#, warnings, pandas as pd, scipy
 
 from utils.logs import log_function_call
 
+def convert_numpy_keys(obj):
+    """Convert numpy integers to Python integers for JSON serialization"""
+    if isinstance(obj, dict):
+        return {int(k) if isinstance(k, np.integer) else k: convert_numpy_keys(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_keys(item) for item in obj]
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    else:
+        return obj
+    
 class Suppress_print:
     """
     A context manager to suppress the standard output (stdout).
