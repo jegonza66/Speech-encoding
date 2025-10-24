@@ -133,9 +133,9 @@ for backbone in backbones:
 # Make DNNs plots
 fig, axes = plt.subplots(
     nrows=1, ncols=3, 
-    figsize=(18, 6), 
+    figsize=(12, 5), 
     sharey=True, 
-    # tight_layout=True
+    tight_layout=True
 )
 fig.suptitle("DNN Layer Correlation Analysis: Hubert vs WavLM vs Wav2Vec2", fontsize=16)
 for idx, backbone in enumerate(['hubert', 'wavlm', 'wav2vec2']):
@@ -150,10 +150,13 @@ for idx, backbone in enumerate(['hubert', 'wavlm', 'wav2vec2']):
         ax.set_xlabel("DNN Layer")
         ax.set_title(f"{backbone.capitalize()}")
 axes[0].set_ylabel("Inter-Subject Correlation")
-axes[1].legend(title="Number of components", bbox_to_anchor=(1.05, 1), loc='upper left')
-# axes.set_ylabel("Inter-Subject Correlation")
-# axes.legend(title="Number of components", bbox_to_anchor=(1.05, 1), loc='upper left')
-fig.tight_layout(rect=[0, 0, 1, 0.97])
+axes[-2].legend(
+    title="Number of components", 
+    # bbox_to_anchor=(1.05, 1), 
+    loc='lower center'
+)
+
+# fig.tight_layout(rect=[0, 0, 1, 0.97])
 fig_save_path = Path("figures/analysis/dnn_layer_correlation")
 fig_save_path.mkdir(parents=True, exist_ok=True)
 fig.savefig(
