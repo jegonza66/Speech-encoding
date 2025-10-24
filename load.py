@@ -1009,7 +1009,7 @@ class GetTrialData:
             if model_id is None:
                 bl = backbone.lower()
                 if  bl == "whisper":
-                    model_id = "openai/whisper-tiny"#TODO updt
+                    model_id = "openai/whisper-medium"#TODO updt
                 elif bl == "wav2vec2":
                     model_id = "jonatasgrosman/wav2vec2-large-xlsr-53-spanish"
                 elif bl == "hubert":
@@ -1040,8 +1040,8 @@ class GetTrialData:
                         audio=wav_model,
                         sampling_rate=model_sr,
                         return_tensors="pt",
-                        # padding=False  # avoid 30s padding
-                        padding="max_length",          # pad a 30s -> 3000 frames
+                        padding=False,  # avoid 30s padding
+                        # padding="max_length",          # pad a 30s -> 3000 frames
                         return_attention_mask=True  
                     )
                     # Whisper uses input_features (log-mel)
