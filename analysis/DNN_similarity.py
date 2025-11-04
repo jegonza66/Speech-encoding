@@ -18,6 +18,9 @@ from utils.general_functions import (
 from load import main_parallel as main_load
 from validation import main as main_val
 from main import main as main_main
+from processing import (
+    calculate_partitions_2, calculate_partitions_3, correct_pearson_square
+)
 import config
 
 from matplotlib import rc
@@ -166,39 +169,18 @@ for backbone in BACKBONES:
         double_comb1 = '_'.join(sorted([st1, st2]))
         double_comb2 = '_'.join(sorted([st1, st3]))
         double_comb3 = '_'.join(sorted([st2, st3]))
-
-        # Simple variances
-        variance_1 = correlations[st1]**2
-        variance_2 = correlations[st2]**2
-        variance_3 = correlations[st3]**2
-        variance_12 = correlations[double_comb1]**2
-        variance_13 = correlations[double_comb2]**2
-        variance_23 = correlations[double_comb3]**2
-        variance_123 = correlations[triple_combination]**2
-
-        # Shared without each stimulus
-        variance_shared_with_1 = variance_123 - variance_23 #100
-        variance_shared_with_2 = variance_123 - variance_13 #010
-        variance_shared_with_3 = variance_123 - variance_12 #001
-
-        # Explained by subshared, but not by all shared model
-        variance_shared_with_12 = variance_13 + variance_23 - variance_3 - variance_123 #110
-        variance_shared_with_13 = variance_12 + variance_23 - variance_2 - variance_123 #101
-        variance_shared_with_23 = variance_12 + variance_13 - variance_1 - variance_123 #011
-
-        # Explained by one, two, three and full shared model but not by subshared models
-        variance_int_complement_submodels = variance_123 + variance_1 + variance_2 + variance_3 - variance_12 - variance_13 - variance_23 #111
-
-        # Get areas 
-        areas = [ # the order should be(100, 010, 110, 001, 101, 011, 111)
-            variance_shared_with_1, 
-            variance_shared_with_2, 
-            variance_shared_with_12, 
-            variance_shared_with_3,
-            variance_shared_with_13, 
-            variance_shared_with_23,
-            variance_int_complement_submodels
-            ] 
+        measured_areas = calculate_partitions_3(
+            A=correlations[st1]**2,
+            B=correlations[st2]**2,
+            C=correlations[st3]**2,
+            AB_union=correlations[double_comb1]**2,
+            AC_union=correlations[double_comb2]**2,
+            BC_union=correlations[double_comb3]**2,
+            ABC_union=correlations[triple_combination]**2
+        )
+        areas = correct_pearson_square(
+            values=measured_areas
+            )
         total_area = sum(areas)
         
         # Normalize to give percentage of variance explained by full model
@@ -236,24 +218,14 @@ for backbone in BACKBONES:
     # Same for double combinations
     for double_combination in double_combinations:
         st1, st2 = double_combination.split('_')
-        # Simple variances
-        variance_1 = correlations[st1]**2
-        variance_2 = correlations[st2]**2
-        variance_12 = correlations[double_combination]**2
-
-        # Shared without each stimulus
-        variance_shared_with_1 = variance_12 - variance_2 #10
-        variance_shared_with_2 = variance_12 - variance_1 #01
-
-        # Explained by one, two and full shared model but not by subshared models
-        variance_int_complement_submodels = variance_1 + variance_2 - variance_12 #11
-
-        # Get areas 
-        areas = [ # the order should be(10, 01, 11)
-            variance_shared_with_1, 
-            variance_shared_with_2, 
-            variance_int_complement_submodels
-            ] 
+        measured_areas = calculate_partitions_2(
+            A=correlations[st1]**2,
+            B=correlations[st2]**2,
+            AB_union=correlations[double_combination]**2
+        )
+        areas = correct_pearson_square(
+            values=measured_areas
+            )
         total_area = sum(areas)
         
         # Normalize to give percentage of variance explained by full model

@@ -6,11 +6,11 @@ from typing import Tuple, Union
 # Specific libraries
 from scipy.cluster.hierarchy import linkage, leaves_list
 from scipy.spatial.distance import squareform
-from scipy.signal import cheby2, sosfiltfilt
-from typing import Optional, Sequence
+from scipy.optimize import minimize
 from scipy import signal
+
+from typing import Optional, Sequence
 import torch
-from scipy.signal import cheby2, sosfiltfilt, dimpulse
 
 def _compute_shifted(
     feats_t: torch.Tensor,
@@ -299,17 +299,17 @@ def cheby2_bandpass_filter_torch(
         Filtered tensor with the same shape as the input tensor.
     """
     y_np = y.cpu().numpy()
-    sos = cheby2(order, rs, [lowcut, highcut], btype='bandpass', fs=fs, output='sos')
+    sos = signal.cheby2(order, rs, [lowcut, highcut], btype='bandpass', fs=fs, output='sos')
     y_filt = np.copy(y_np)
     if channel_idx is None:
         # Filter all channels at once (axis=0 is time)
-        y_filt = sosfiltfilt(sos, y_np, axis=axis)
+        y_filt = signal.sosfiltfilt(sos, y_np, axis=axis)
     else:
         # Filter only selected channel(s)
         if isinstance(channel_idx, int):
             channel_idx = [channel_idx]
         for ch in channel_idx:
-            y_filt[:, ch] = sosfiltfilt(sos, y_np[:, ch])
+            y_filt[:, ch] = signal.sosfiltfilt(sos, y_np[:, ch])
     return torch.from_numpy(y_filt.copy()).to(y.device, dtype=y.dtype)
 
 def cheby2_bandpass_filter_np(
@@ -349,17 +349,17 @@ def cheby2_bandpass_filter_np(
     np.ndarray
         Filtered array with the same shape as the input.
     """
-    sos = cheby2(order, rs, [lowcut, highcut], btype='bandpass', fs=fs, output='sos')
+    sos = signal.cheby2(order, rs, [lowcut, highcut], btype='bandpass', fs=fs, output='sos')
     y_filt = np.copy(y)
     if channel_idx is None:
         # Filter all channels at once (axis=0 is time)
-        y_filt = sosfiltfilt(sos, y, axis=axis)
+        y_filt = signal.sosfiltfilt(sos, y, axis=axis)
     else:
         # Filter only selected channel(s)
         if isinstance(channel_idx, int):
             channel_idx = [channel_idx]
         for ch in channel_idx:
-            y_filt[:, ch] = sosfiltfilt(sos, y[:, ch])
+            y_filt[:, ch] = signal.sosfiltfilt(sos, y[:, ch])
     return y_filt
 
 def subsample(
@@ -625,6 +625,160 @@ def clustering_by_correlation(
     if null_indexes.shape[0]==0:
         null_indexes = None
     return ordered_indices, null_indexes
+
+def calculate_partitions_2(
+    A, B, AB_union
+)-> np.ndarray:
+    """
+    Calculate the 3 partitions of 2 sets given their sizes and union sizes.
+    
+    Parameters
+    ----------
+    A : int
+        Size of set A.
+    B : int
+        Size of set B.
+    AB_union : int
+        Size of the union of sets A and B.
+    
+    Returns
+    -------
+    np.ndarray
+        An array containing the sizes of the 3 partitions: 
+        [A only, B only, A∩B].
+    """ 
+    # Shared without each stimulus
+    variance_shared_with_A = AB_union - B #10
+    variance_shared_with_B = AB_union - A #01
+    variance_int_complement_submodels = A + B - AB_union #11
+
+    return np.array([
+        variance_shared_with_A,
+        variance_shared_with_B,
+        variance_int_complement_submodels
+    ])
+
+def calculate_partitions_3(
+    A, B, C, AB_union, AC_union, BC_union, ABC_union 
+)-> np.ndarray:
+    """
+    Calculate the 7 partitions of 3 sets given their sizes and union sizes.
+    
+    Parameters
+    ----------
+    A : int
+        Size of set A.
+    B : int
+        Size of set B.
+    C : int
+        Size of set C.
+    AB_union : int
+        Size of the union of sets A and B.
+    AC_union : int
+        Size of the union of sets A and C.
+    BC_union : int
+        Size of the union of sets B and C.
+    ABC_union : int
+        Size of the union of sets A, B, and C.
+    
+    Returns
+    -------
+    np.ndarray
+        An array containing the sizes of the 7 partitions: 
+        [A only, B only, A∩B only, C only, A∩C only, B∩C only, A∩B∩C].
+    """ 
+    # Shared without each stimulus
+    variance_shared_with_A = ABC_union - BC_union #100
+    variance_shared_with_B = ABC_union - AC_union #010
+    variance_shared_with_C = ABC_union - AB_union #001
+
+    # Explained by subshared, but not by all shared model
+    variance_shared_with_AB = AC_union + BC_union - C - ABC_union #110
+    variance_shared_with_AC = AB_union + BC_union - B - ABC_union #101
+    variance_shared_with_BC = AB_union + AC_union - A - ABC_union #011
+
+    # Explained by one, two, three and full shared model but not by subshared models
+    variance_int_complement_submodels = ABC_union + A + B + C - AB_union - AC_union - BC_union #111
+
+    return np.array([
+        variance_shared_with_A,
+        variance_shared_with_B,
+        variance_shared_with_AB,
+        variance_shared_with_C,
+        variance_shared_with_AC,
+        variance_shared_with_BC,
+        variance_int_complement_submodels
+    ])
+    
+def correct_pearson_square(
+    values:np.ndarray,
+)-> np.ndarray:
+    """
+    Correct the squared Pearson correlation values by applying a bias.
+
+    Parameters
+    ----------
+    values : np.ndarray
+        The original R^2 values to be corrected.
+
+    Returns
+    -------
+    np.ndarray
+        The corrected R^2 values.
+    """
+
+    # El optimizador intentará encontrar 7/3 valores de 'bias'
+    
+    # 1. Función objetivo: Minimizar la norma L2 de los sesgos 
+    def objective_function(biases):
+        return np.sum(np.square(biases))
+
+    # 2. Restricciones (constraints): Las 7 particiones deben ser >= 0 
+    def constraints_function(biases):
+        # Aplica los sesgos a los R^2 medidos
+        corrected_r2_values = values - biases
+        
+        # Calcula las particiones con los R^2 corregidos
+        if len(values)==7:
+            partitions = calculate_partitions_3(*corrected_r2_values)
+        elif len(values)==3:
+            partitions = calculate_partitions_2(*corrected_r2_values)
+        else:
+            raise ValueError("Length of values must be either 3 or 7.")
+        
+        # El optimizador requiere que todas las restricciones devuelvan >= 0
+        return partitions
+
+    # Configura las 7 restricciones (una para cada partición)
+    # 'type': 'ineq' significa que la función de restricción debe ser >= 0
+    constraints = [
+        {
+        'type': 'ineq', 
+        'fun': lambda biases, i=i: constraints_function(biases)[i]
+        } 
+        for i in range(len(values))
+    ]
+
+    # 3. Ejecuta el optimizador
+    # Inicia con sesgos de cero
+    initial_biases = np.zeros(len(values))
+    
+    # 'args' pasa los valores medidos a nuestras funciones
+    result = minimize(
+        objective_function,
+        initial_biases,
+        method='SLSQP', # Un método bueno para problemas con restricciones
+        constraints=constraints
+    )
+
+    if not result.success:
+        print("Advertencia: La optimización de corrección de varianza falló.")
+        # Decide cómo manejar el fallo (p.ej., usar los valores originales)
+        return values 
+
+    # 4. Devuelve los R^2 corregidos
+    corrected_biases = result.x
+    return values - corrected_biases
 
 class Standarize():
     def __init__(
