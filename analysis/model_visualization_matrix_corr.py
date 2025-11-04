@@ -14,11 +14,16 @@ import mne
 import os
 
 from utils.plot import define_ticks, clustering_by_correlation
-from utils.general_functions import dump_pickle, load_pickle
+from utils.general_functions import dump_pickle, load_pickle, convert_numpy_keys
 from load import main_parallel as main_load
 from validation import main as main_val
 from main import main as main_main
 import config
+
+from matplotlib import rc
+rc('text', usetex=True)
+import scienceplots
+plt.style.use(['science'])
 
 stimuli = [
     'Envelope',
@@ -34,6 +39,7 @@ stimuli_names = [
     'Phonemes',
     'Phonological\nfeatures'
 ]
+name_mapping = {stimulus: name for stimulus, name in zip(stimuli, stimuli_names)}
 bands = [
     'Broad',
     'Delta',
@@ -58,14 +64,14 @@ for band_idx, band in enumerate(bands):
     for stim_idx, stimulus in enumerate(stimuli):
         corr = correlations[band][stimulus]  # shape (n_subjects, n_channels)
         subj_means = corr.mean(axis=1) # mean across channels
-        subj_sems = corr.std(axis=1, ddof=1) / np.sqrt(corr.shape[1]) # SEM across channels
-        for subj, (mean, sem) in enumerate(zip(subj_means, subj_sems)):
+        # subj_sems = corr.std(axis=1, ddof=1) / np.sqrt(corr.shape[1]) # SEM across channels
+        for subj, mean in enumerate(subj_means):
             data.append({
                 "Band": band,
                 "Stimulus": stimuli_names[stim_idx],
                 "Subject": subj,
                 "MeanCorrelation": mean,
-                "SEM": sem
+                # "SEM": sem
             })
 
 df = pd.DataFrame(data)
@@ -106,159 +112,69 @@ ax.set_ylabel("Mean Correlation (avg. across channels)", fontsize=15)
 ticks = ax.get_xticks()
 ax.set_xticks(ticks=ticks, labels=stimuli_names, rotation=30, ha='right', fontsize=15)
 ax.set_xlabel(None)
-ax.legend(title='Band', loc=(.13, .65), fontsize=12, title_fontsize=12, framealpha=0)
+ax.legend(title='Band', loc=(.13, .65), fontsize=12, title_fontsize=12, frameon=True)
 path_fig = Path(config.figures_dir) / 'analysis' / 'model_visualization_matrix_corr' / 'model_visualization_matrix_corr.png'
 path_fig.parent.mkdir(parents=True, exist_ok=True)
+# fig.savefig(
+#     path_fig,
+#     transparent=True, 
+#     dpi=700
+# )
+fig.show()
+# ===============================
+# Matrix topographical correlation plots
+n_stims, n_bands = len(stimuli), len(bands)
+
+# Get mean correlations across subjects and total max and min
+correlations = {(stim,band):load_pickle(path=correlation_path(stim, band))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
+
+# Create figure and title
+fig, axes = plt.subplots(
+        # figsize=(3*n_stims,1.5*n_bands), 
+        figsize=(11,7), 
+        nrows=n_bands, 
+        ncols=n_stims, 
+        layout="constrained"
+        )
+if n_stims==1:
+    axes = axes.reshape(n_bands, 1)
+elif n_bands==1:
+    axes = axes.reshape(1, n_stims)
+
+# Configure axis
+for ax, col in zip(axes[0], stimuli):
+    ax.set_title(name_mapping[col], fontsize=15)
+for ax, row in zip(axes[:,0], bands):
+    ax.set_ylabel(row, rotation=90, fontsize=15)
+
+
+# Iterate over bands
+for i, band in enumerate(bands):
+    for j, stim in enumerate(stimuli):
+        # Get average correlation of each stimulus across subjects
+        average_correlation = correlations[(stim,band)]
+
+        # Plot topomap        
+        im = mne.viz.plot_topomap(
+            data=average_correlation, 
+            pos=config.info_mne, 
+            axes=axes[i, j], 
+            show=False, 
+            sphere=0.07, 
+            cmap='Reds', 
+            vlim=(correlations[(stim,band)].min(), correlations[(stim,band)].max()),
+        )
+        # Add colorbar for each row
+        cbar = fig.colorbar(im[0], ax=axes[i, j], orientation='vertical')
+        cbar.ax.tick_params(labelsize=15)
 fig.savefig(
-    path_fig,
+    Path(config.figures_dir) / 'analysis' / 'model_visualization_matrix_corr' / 'model_visualization_matrix_corr_topo.png',
     transparent=True, 
     dpi=500
 )
 # fig.show()
 
 
-## TRF
-
-fig, axes_ = plt.subplots(nrows=2, ncols=2, figsize=(11, 10), layout='tight', sharex=True)
-band = 'Broad'
-fig.suptitle(f'TRFs ({band} band)', fontsize=20)
-for stim in ['Phonemes-Discrete', 'Phonological']:
-    mean_average_weights_subjects = load_pickle(
-        rf'output\mtrf-ridge\External-External\weights\stims_Standarize_EEG_Standarize\same_alpha\tmin-0.2_tmax0.6\{band}\{stim}\total_weights_per_subject.pkl'
-    )['average_weights_subjects'].mean(axis=0)
-    axes = axes_[:, 0] if stim == 'Phonemes-Discrete' else axes_[:, 1]
-
-    # Create evoked response as graph of weights averaged across all feats and subjects 
-    weights = mean_average_weights_subjects.mean(axis=1)
-    evoked = mne.EvokedArray(data=weights, info=config.info_mne)
-
-    # Relabel time 0
-    evoked.shift_time(config.times[0], relative=True)
-
-    # Plot
-    evoked.plot(
-        scalings={'eeg':1}, 
-        zorder='std', 
-        time_unit='ms',
-        show=False, 
-        spatial_colors=True, 
-        units='mTRF (a.u.)',
-        axes=axes[0],
-        gfp=False
-        # sphere=(0.95, 0.8, 0, 0.5)
-    )
-
-    # Add mean of all channels
-    axes[0].plot(
-        config.times*1e3, #ms
-        evoked._data.mean(0), 
-        'k', 
-        label='Mean', 
-        zorder=130, 
-        linewidth=2
-        )
-    if stim=='Phonemes-Discrete':
-        axes[0].set_title('Phonemes', fontsize=18)
-    else:
-        axes[0].set_title('Phonological\nfeatures', fontsize=18)
-    # Eliminar la etiqueta "Nave"
-    for txt in fig.findobj(mtext.Text):
-        if "ave" in txt.get_text():
-                txt.remove()
-
-    # Graph properties
-    axes[0].grid(visible=True)
-    axes[0].set_xlabel(xlabel='')
-    axes[0].set_ylabel(ylabel='mTRF (a.u.)', fontsize=18)
-    axes[0].legend(framealpha=0)
-
-    for ax in fig.axes:
-        # Verificar si el eje contiene un objeto de tipo "PathCollection" (los puntos de los canales)
-        for artist in ax.get_children():
-            if isinstance(artist, PathCollection):
-                ax.remove()  # Eliminar el eje que contiene el esquema de la cabeza original
-                break
-            
-    # Obtener las posiciones de los sensores en 2D
-    montage = evoked.info.get_montage()
-    pos = montage.get_positions()['ch_pos']  # Diccionario con las posiciones de los canales
-
-    # Crear un eje adicional para la cabecita sin sensores
-    ax_head_outline = fig.add_axes([.265, 0.56, 0.15, 0.15])  # [x, y, width, height]
-
-    # Graficar solo el contorno de la cabeza (sin sensores)
-    ax_head_outline.patch.set_alpha(0.1) 
-    mne.viz.plot_topomap(
-        np.zeros(len(evoked.ch_names)),  # Datos ficticios (todos ceros)
-        evoked.info,
-        axes=ax_head_outline,
-        show=False,
-        sensors=False,  # No graficar los sensores
-        outlines='head',  # Graficar solo el contorno de la cabeza
-        cmap='binary',
-        contours=1
-    )
-    ax_head_outline.set_aspect('equal')  # Mantener la proporción de aspecto
-    ax_head_outline.axis('off')  # Ocultar los ejes
-
-    # Crear un eje adicional para graficar los sensores
-    ax_head = fig.add_axes([.277, 0.562, 0.125, 0.125])  # [x, y, width, height]
-
-    # Convertir las posiciones a un array 2D (x, y)
-    colors = [line.get_color() for line in axes[0].get_lines()[:len(evoked.ch_names)]]
-    pos_2d = np.array([pos[ch][:2] for ch in evoked.ch_names])  # Solo tomamos las coordenadas x e y
-    ax_head.scatter(pos_2d[:, 0], pos_2d[:, 1], c=colors, s=18)  # s es el tamaño de los puntos
-    ax_head.set_aspect('equal')  # Mantener la proporción de aspecto
-    ax_head.axis('off')  # Ocultar los ejes
-
-    # Now average across channels to make mesh
-    feat_weights = mean_average_weights_subjects.mean(axis=0)
-
-    # Perform clustering
-    order, null_indexes = clustering_by_correlation(weights=feat_weights) 
-    feat_weights = feat_weights[order]
-
-    # Create colormesh figure
-    number_of_ticks = feat_weights.shape[0]
-    im = axes[1].pcolormesh(
-            config.times * 1000, 
-            np.arange(number_of_ticks), 
-            feat_weights, 
-            cmap='RdBu_r', 
-            shading='auto',
-            vmin=-np.abs(feat_weights).max(),
-            vmax=np.abs(feat_weights).max()
-            )
-    axes[1].set_xlabel('Time (ms)', fontsize=18)
-    axes[1].set_ylabel('Phonemes', fontsize=18)
-    # axes[1].set_yticklabels(axes[1].get_yticklabels(), fontsize=18)
-    # axes[1].tick_params(axis='y', labelsize=18)
-
-    # labels = axes[1].get_yticklabels()
-    # for label in labels:
-    #     label.get_fontsize()
-    #     label.set_fontsize(18)
-    # axes[1].tick_params(axis='y', labelsize=18)
-    # axes[1].tick_params(axis='x')
-    # Set figure configuration
-    if stim=='Phonemes-Discrete':
-        define_ticks(axes=axes[1], number_of_ticks=number_of_ticks, ylabel='Phonemes', xlabel='Time (ms)', title=None, order=order, zeros_index=null_indexes)
-    else:
-        define_ticks(axes=axes[1], number_of_ticks=number_of_ticks, ylabel='Phonological', xlabel='Time (ms)', title=None, order=order, zeros_index=null_indexes)
-    axes[1].set_ylabel('Phonemes' if stim=='Phonemes-Discrete' else 'Features', fontsize=18)
-    axes[1].tick_params(axis='x', labelsize=18)
-    axes[0].tick_params(axis='y', labelsize=18)
-    axes[1].tick_params(axis='y', labelsize=18)
-
-fig_save_path = Path(config.figures_dir) / 'analysis' / 'model_visualization_matrix_corr' / 'model_visualization_matrix_corr_trf.png'
-fig_save_path.parent.mkdir(parents=True, exist_ok=True)
-
-# fig.axes[3].set_position([0.9, 0.015, 0.2, 0.12])  # lower right
-fig.savefig(
-    fig_save_path,
-    transparent=True, 
-    dpi=500
-)
 
 #TOPO CORR
 average_correlation_subjects_phonological = load_pickle(
@@ -304,6 +220,7 @@ for average_correlation_subjects, stimulus, axis in zip(
     )
     axis.set_title('Phonemes' if stimulus=='Phonemes-Discrete' else 'Phonological\nfeatures', fontsize=18)
 
+
 fig.savefig(
     Path(config.figures_dir) / 'analysis' / 'model_visualization_matrix_corr' / 'model_visualization_matrix_corr_topo_corr.png',
     transparent=True,
@@ -313,10 +230,19 @@ fig.savefig(
 
 
 
+# models = [
+#     'Spectrogram-21', 
+#     'Phonemes-Discrete', 
+#     'Phonological',
+#     'Spectrogram-21_Phonemes-Discrete',
+#     'Spectrogram-21_Phonological',
+#     'Phonemes-Discrete_Phonological',
+#     'Spectrogram-21_Phonemes-Discrete_Phonological'
+# ]
 models = [
-    'Spectrogram-21', 
-    'Phonemes-Discrete', 
+    'Phonemes-Discrete',
     'Phonological',
+    'Spectrogram-21', 
     'Spectrogram-21_Phonemes-Discrete',
     'Spectrogram-21_Phonological',
     'Phonemes-Discrete_Phonological',
@@ -373,10 +299,6 @@ areas = [ # the order should be(100, 010, 110, 001, 101, 011, 111)
     variance_int_complement_submodels
     ] 
 total_area = sum(areas)
-# areas = np.array([
-#     0 if area<0 else area.round(3) 
-#     for area in areas
-# ]) # note that the sum gives shared model variance_123
 
 # Normalize to give percentage of variance explained by full model
 areas = (np.array(areas)*100/total_area).round(2)
@@ -384,40 +306,26 @@ areas = (np.array(areas)*100/total_area).round(2)
 # Create figure and title
 
 plt.ioff()
-plt.figure(layout='tight')
-# plt.title(f'Spectrogram ∪ Phonemes ∪ Phonological')
+plt.figure(layout='tight', figsize=(5, 5))
 
 # Make plot
 venn=venn3(
     subsets=areas, # left area diagram, right area diagram, shared area <--> (100, 010, 110, 001, 101, 011, 111).
-    set_labels=(st1, st2, st3), 
-    set_colors=('C0', 'C1', 'purple'), 
+    set_labels=(name_mapping[st1], name_mapping[st2], name_mapping[st3]), 
+    set_colors=('blue', 'red', '#87CEEB'), # 'orange', '#87CEEB'), orange es phonemes, '#87CEEB' spectrogram, blue envelepoe, red pitch
     alpha=0.45
     )
 for label in venn.subset_labels:
     if label:  # Verificar que la etiqueta no sea None
-        label.set_fontsize(18)
+        label.set_fontsize(15)
+        label.set_text(label.get_text() + r' \%')
 for label in venn.set_labels:
     if label:  # Verificar que la etiqueta no sea None
-        label.set_fontsize(18)
-
+        label.set_fontsize(15)
 plt.savefig(savefig_path / f'venn3_{triple_combination}.png', transparent=True, dpi=500)
-plt.close()
+# plt.show()
+# plt.close()
 
-def convert_numpy_keys(obj):
-    """Convert numpy integers to Python integers for JSON serialization"""
-    if isinstance(obj, dict):
-        return {int(k) if isinstance(k, np.integer) else k: convert_numpy_keys(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [convert_numpy_keys(item) for item in obj]
-    elif isinstance(obj, np.ndarray):
-        return obj.tolist()
-    elif isinstance(obj, np.integer):
-        return int(obj)
-    elif isinstance(obj, np.floating):
-        return float(obj)
-    else:
-        return obj
 
 # Save and compute double and triple combinations
 save_path = Path("output/mtrf-ridge/analysis/DNN_similarity")
@@ -665,36 +573,180 @@ lista = [
 for el in lista:
     print(el)
 for i, label in enumerate(venn.subset_labels):
-    label.set_fontsize(18)
-    if i in [0,1]:
-        x, y = label.get_position()
-        if i==0:
-            x -= 0.03
-        else:
-            x += 0.03
-        label.set_position((x, y-0.03))
-    elif i ==2:
-        x, y = label.get_position()
-        label.set_position((x, y+0.03))
-    elif i==len(venn.subset_labels)-1:
-        x, y = label.get_position()
-        label.set_position((x, y+0.03))
-    elif i in [4,5]:
-        x, y = label.get_position()
-        if i==4:
-            x -= 0.05
-        else:
-            x += 0.05
-        label.set_position((x, y-0.03))
-    else:
-        x, y = label.get_position()
-        label.set_position((x, y+0.07))
+    label.set_text(name_mapping[label.get_text()] + r'\%')
+    # label.set_fontsize(15)
+    # if i in [0,1]:
+    #     x, y = label.get_position()
+    #     if i==0:
+    #         x -= 0.03
+    #     else:
+    #         x += 0.03
+    #     label.set_position((x, y-0.03))
+    # elif i ==2:
+    #     x, y = label.get_position()
+    #     label.set_position((x, y+0.03))
+    # elif i==len(venn.subset_labels)-1:
+    #     x, y = label.get_position()
+    #     label.set_position((x, y+0.03))
+    # elif i in [4,5]:
+    #     x, y = label.get_position()
+    #     if i==4:
+    #         x -= 0.05
+    #     else:
+    #         x += 0.05
+    #     label.set_position((x, y-0.03))
+    # else:
+    #     x, y = label.get_position()
+    #     label.set_position((x, y+0.07))
     label.set_text(subset_labels[i])
 
 for label in venn.set_labels:
     label.set_text('')
-    label.set_fontsize(18)
+    label.set_fontsize(15)
 print(venn.set_labels)
 plt.show()
 plt.savefig(savefig_path / f'venn3_schematic.png', transparent=True, dpi=500)
 plt.close()
+
+
+## TRFs
+fig, axes_ = plt.subplots(nrows=2, ncols=2, figsize=(11, 10), layout='tight', sharex=True)
+band = 'Broad'
+fig.suptitle(f'TRFs ({band} band)', fontsize=20)
+for stim in ['Phonemes-Discrete', 'Phonological']:
+    mean_average_weights_subjects = load_pickle(
+        rf'output\mtrf-ridge\External-External\weights\stims_Standarize_EEG_Standarize\same_alpha\tmin-0.2_tmax0.6\{band}\{stim}\total_weights_per_subject.pkl'
+    )['average_weights_subjects'].mean(axis=0)
+    axes = axes_[:, 0] if stim == 'Phonemes-Discrete' else axes_[:, 1]
+
+    # Create evoked response as graph of weights averaged across all feats and subjects 
+    weights = mean_average_weights_subjects.mean(axis=1)
+    evoked = mne.EvokedArray(data=weights, info=config.info_mne)
+
+    # Relabel time 0
+    evoked.shift_time(config.times[0], relative=True)
+
+    # Plot
+    evoked.plot(
+        scalings={'eeg':1}, 
+        zorder='std', 
+        time_unit='ms',
+        show=False, 
+        spatial_colors=True, 
+        units='mTRF (a.u.)',
+        axes=axes[0],
+        gfp=False
+        # sphere=(0.95, 0.8, 0, 0.5)
+    )
+
+    # Add mean of all channels
+    axes[0].plot(
+        config.times*1e3, #ms
+        evoked._data.mean(0), 
+        'k', 
+        label='Mean', 
+        zorder=130, 
+        linewidth=2
+        )
+    if stim=='Phonemes-Discrete':
+        axes[0].set_title('Phonemes', fontsize=18)
+    else:
+        axes[0].set_title('Phonological\nfeatures', fontsize=18)
+    # Eliminar la etiqueta "Nave"
+    for txt in fig.findobj(mtext.Text):
+        if "ave" in txt.get_text():
+                txt.remove()
+
+    # Graph properties
+    axes[0].grid(visible=True)
+    axes[0].set_xlabel(xlabel='')
+    axes[0].set_ylabel(ylabel='mTRF (a.u.)', fontsize=18)
+    axes[0].legend(framealpha=0)
+
+    for ax in fig.axes:
+        # Verificar si el eje contiene un objeto de tipo "PathCollection" (los puntos de los canales)
+        for artist in ax.get_children():
+            if isinstance(artist, PathCollection):
+                ax.remove()  # Eliminar el eje que contiene el esquema de la cabeza original
+                break
+            
+    # Obtener las posiciones de los sensores en 2D
+    montage = evoked.info.get_montage()
+    pos = montage.get_positions()['ch_pos']  # Diccionario con las posiciones de los canales
+
+    # Crear un eje adicional para la cabecita sin sensores
+    ax_head_outline = fig.add_axes([.265, 0.56, 0.15, 0.15])  # [x, y, width, height]
+
+    # Graficar solo el contorno de la cabeza (sin sensores)
+    ax_head_outline.patch.set_alpha(0.1) 
+    mne.viz.plot_topomap(
+        np.zeros(len(evoked.ch_names)),  # Datos ficticios (todos ceros)
+        evoked.info,
+        axes=ax_head_outline,
+        show=False,
+        sensors=False,  # No graficar los sensores
+        outlines='head',  # Graficar solo el contorno de la cabeza
+        cmap='binary',
+        contours=1
+    )
+    ax_head_outline.set_aspect('equal')  # Mantener la proporción de aspecto
+    ax_head_outline.axis('off')  # Ocultar los ejes
+
+    # Crear un eje adicional para graficar los sensores
+    ax_head = fig.add_axes([.277, 0.562, 0.125, 0.125])  # [x, y, width, height]
+
+    # Convertir las posiciones a un array 2D (x, y)
+    colors = [line.get_color() for line in axes[0].get_lines()[:len(evoked.ch_names)]]
+    pos_2d = np.array([pos[ch][:2] for ch in evoked.ch_names])  # Solo tomamos las coordenadas x e y
+    ax_head.scatter(pos_2d[:, 0], pos_2d[:, 1], c=colors, s=18)  # s es el tamaño de los puntos
+    ax_head.set_aspect('equal')  # Mantener la proporción de aspecto
+    ax_head.axis('off')  # Ocultar los ejes
+
+    # Now average across channels to make mesh
+    feat_weights = mean_average_weights_subjects.mean(axis=0)
+
+    # Perform clustering
+    order, null_indexes = clustering_by_correlation(weights=feat_weights) 
+    feat_weights = feat_weights[order]
+
+    # Create colormesh figure
+    number_of_ticks = feat_weights.shape[0]
+    im = axes[1].pcolormesh(
+            config.times * 1000, 
+            np.arange(number_of_ticks), 
+            feat_weights, 
+            cmap='RdBu_r', 
+            shading='auto',
+            vmin=-np.abs(feat_weights).max(),
+            vmax=np.abs(feat_weights).max()
+            )
+    axes[1].set_xlabel('Time (ms)', fontsize=18)
+    axes[1].set_ylabel('Phonemes', fontsize=18)
+    # axes[1].set_yticklabels(axes[1].get_yticklabels(), fontsize=18)
+    # axes[1].tick_params(axis='y', labelsize=18)
+
+    # labels = axes[1].get_yticklabels()
+    # for label in labels:
+    #     label.get_fontsize()
+    #     label.set_fontsize(18)
+    # axes[1].tick_params(axis='y', labelsize=18)
+    # axes[1].tick_params(axis='x')
+    # Set figure configuration
+    if stim=='Phonemes-Discrete':
+        define_ticks(axes=axes[1], number_of_ticks=number_of_ticks, ylabel='Phonemes', xlabel='Time (ms)', title=None, order=order, zeros_index=null_indexes)
+    else:
+        define_ticks(axes=axes[1], number_of_ticks=number_of_ticks, ylabel='Phonological', xlabel='Time (ms)', title=None, order=order, zeros_index=null_indexes)
+    axes[1].set_ylabel('Phonemes' if stim=='Phonemes-Discrete' else 'Features', fontsize=18)
+    axes[1].tick_params(axis='x', labelsize=18)
+    axes[0].tick_params(axis='y', labelsize=18)
+    axes[1].tick_params(axis='y', labelsize=18)
+
+fig_save_path = Path(config.figures_dir) / 'analysis' / 'model_visualization_matrix_corr' / 'model_visualization_matrix_corr_trf.png'
+fig_save_path.parent.mkdir(parents=True, exist_ok=True)
+
+# fig.axes[3].set_position([0.9, 0.015, 0.2, 0.12])  # lower right
+fig.savefig(
+    fig_save_path,
+    transparent=True, 
+    dpi=500
+)
