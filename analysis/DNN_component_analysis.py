@@ -129,16 +129,17 @@ for backbone in BACKBONES:
                 bands=['Broad'],
                 save_results=True,
                 no_figures=True,
-                n_folds=2 if n_components > 200 else 10
+                n_folds=2 if n_components > 200 else 10,
+                recompute=False
             )['External']['Broad'][stimuli]
 
-            # Get median alpha across sessions and subjects
-            alphas_total = []
-            for session in config.sessions:
-                for subject in [1, 2]:
-                    alphas_total.append(alphas[session][subject])
-            alphas_total = np.array(alphas_total)
-            set_alpha = 10**(np.median(np.log10(alphas_total)))
+            # # Get median alpha across sessions and subjects # ACA QUEREMOS MAXIMIZAR CORRELACIÓN, CADA SUJETO DEBERÍA TENER SU PROPIO ALPHA
+            # alphas_total = []
+            # for session in config.sessions:
+            #     for subject in [1, 2]:
+            #         alphas_total.append(alphas[session][subject])
+            # alphas_total = np.array(alphas_total)
+            # set_alpha = 10**(np.median(np.log10(alphas_total)))
             
             # Main results with optimal alpha
             main_results = main_main(
@@ -146,7 +147,8 @@ for backbone in BACKBONES:
                 stimuli=[stimuli],
                 bands=['Broad'],
                 save_results=False,
-                set_alpha=set_alpha,
+                set_alpha=None,
+                same_validation_subjects=False,
                 no_figures=True
             )['External']['Broad'][stimuli]
 
