@@ -51,7 +51,10 @@ for backbone in BACKBONES:
 
 # Load computed data and create missing entries if so
 try:
-    data = load_pickle(path=SAVE_PATH / "checkpoint_DNN_component_correlations.pkl")
+    checkpoint_path = SAVE_PATH / "checkpoint_DNN_component_correlations.pkl"
+    if not checkpoint_path.is_file():
+        raise FileNotFoundError
+    data = load_pickle(path=checkpoint_path)
     correlations = data["correlations"]
     for backbone in BACKBONES:
         if backbone not in correlations:
@@ -84,8 +87,7 @@ try:
                     10: None
                 }
 except FileNotFoundError:
-    pass
-
+    print("No previous checkpoint found, starting from scratch.")
 
 # Compute missing entries
 components_to_use = COMPONENTS.copy()

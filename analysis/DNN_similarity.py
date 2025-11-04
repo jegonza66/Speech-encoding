@@ -18,7 +18,7 @@ from utils.general_functions import (
 from load import main_parallel as main_load
 from validation import main as main_val
 from main import main as main_main
-from processing import (
+from utils.processing import (
     calculate_partitions_2, calculate_partitions_3, correct_pearson_square
 )
 import config
@@ -72,7 +72,10 @@ for backbone in BACKBONES:
 
     # Save and compute double and triple combinations
     try:
-        correlations = load_pickle(SAVE_PATH / f"checkpoint_{NUMBER_OF_DNN_COMPONENTS}_DNN_{backbone}_similarity_correlations.pkl")
+        checkpoint_path = SAVE_PATH / f"checkpoint_{NUMBER_OF_DNN_COMPONENTS}_DNN_{backbone}_similarity_correlations.pkl"
+        if not checkpoint_path.is_file():
+            raise FileNotFoundError
+        correlations = load_pickle(path=checkpoint_path)
     except Exception as e:
         print(f"Error loading correlations: {e}\n")
 
@@ -80,14 +83,13 @@ for backbone in BACKBONES:
     for stimulus in stimuli + double_combinations + triple_combinations:
         if stimulus not in correlations:
             correlations[stimulus] = None
-    number_of_nans = sum([1 for v in correlations.values() if v is None])
-    l=0
+    number_of_nans, l = sum([1 for v in correlations.values() if v is None]), 0
     for r, combination in enumerate(stimuli + double_combinations + triple_combinations):
         
         if correlations[combination] is not None:
             print(f"Skipping already computed {combination}")
             continue
-        l+=1
+        l += 1
         print(
             f'\n\n\n\tProcessing combination {combination}\n',
             f'\n\tStimuli:\t{combination}\n',

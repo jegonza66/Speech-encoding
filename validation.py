@@ -102,9 +102,9 @@ def main(
                 # Try to access alphas
                 try:
                     if recompute:
-                        alphas = load_pickle(path=alphas_path)
-                    else:
                         alphas = {s: {} for s in sessions}
+                    else:
+                        alphas = load_pickle(path=alphas_path)
                 except:
                     alphas = {s: {} for s in sessions} 
             
