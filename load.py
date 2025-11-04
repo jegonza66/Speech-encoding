@@ -1035,41 +1035,98 @@ class GetTrialData:
                 
             # === 2 = GET ENCODER SEQUENCE ====
             if backbone_lower == "whisper":
-                with torch.no_grad():
-                    inputs = processor(
-                        audio=wav_model,
-                        sampling_rate=model_sr,
-                        return_tensors="pt",
-                        padding=False,  # avoid 30s padding
-                        # padding="max_length",          # pad a 30s -> 3000 frames
-                        return_attention_mask=True  
-                    )
-                    # Whisper uses input_features (log-mel)
-                    use_amp = (device == "cuda")
-                    with torch.amp.autocast(device, enabled=use_amp):
-                        outputs = model.encoder(
-                            input_features=inputs.input_features.to(device),
-                            attention_mask=inputs.attention_mask.to(device),
-                            output_hidden_states=True,
-                            return_dict=True
-                        )
-                    
-                    # Tomamos las hidden states del encoder
-                    hs = outputs.hidden_states
-                    # Quitar el embedding inicial si viene incluido (len = layers + 1)
-                    if len(hs) == model.config.encoder_layers + 1:
-                        hs = hs[1:]
-                    # Soportar índices negativos (e.g., -1 = última)
-                    idx = encoder_layer if encoder_layer >= 0 else len(hs) + encoder_layer
-                    if idx < 0 or idx >= len(hs):
-                        raise ValueError(f"encoder_layer={encoder_layer} fuera de rango (0..{len(hs)-1})")
-                    # [B, T, D] -> [T, D]
-                    H = hs[idx].squeeze(0).cpu().numpy()
+                raise NotImplementedError("Whisper backbone is not implemented in this version.")
+                # # Segmentate audio in 30s chunks to avoid padding and concatenate exitsing results
+                # window_size = 30 * model_sr  # 30 seconds in samples
+                # step_size = int(0.125 * model_sr)  # 125ms en muestras
+                # wav_len = len(wav_model)
+                
+                # # Prepare all windows for batch processing
+                # window_starts = range(0, wav_len - window_size + 1, step_size)
+                # windows = [wav_model[start:start + window_size] for start in window_starts]
+                # batch_size = 16  # Try 4, 8, or 16 depending on your GPU
 
-                    # Save full layer for future use
-                    general_functions.dump_pickle(
-                        path=layer_path, obj=H, rewrite=True, verbose=True
-                    )
+                # embeddings = []
+                # for i in range(0, len(windows), batch_size):
+                #     batch_windows = windows[i:i+batch_size]
+                #     inputs = processor(
+                #         audio=batch_windows,
+                #         sampling_rate=model_sr,
+                #         return_tensors="pt",
+                #         padding="max_length",
+                #         max_length=window_size,
+                #         return_attention_mask=True
+                #     )
+                #     with torch.no_grad():
+                #         outputs = model.encoder(
+                #             input_features=inputs.input_features.to(device),
+                #             attention_mask=inputs.attention_mask.to(device),
+                #             output_hidden_states=True,
+                #             return_dict=True
+                #         )
+                #         num_lay = len(outputs.hidden_states)
+                #         if num_lay == model.config.encoder_layers + 1:
+                #             outputs_hidden_states = outputs.hidden_states[1:]
+                #         idx = encoder_layer if encoder_layer >= 0 else num_lay + encoder_layer
+                #         last_frames = int(step_size / 160)
+                #         emb = outputs_hidden_states[idx][:, -last_frames:, :].cpu().numpy()
+                #         embeddings.extend([emb[j] for j in range(emb.shape[0])])
+
+                # H = np.concatenate(embeddings, axis=0)  # [T, D]
+
+                # # Save full layer for future use
+                # general_functions.dump_pickle(
+                #     path=layer_path, obj=H, rewrite=True, verbose=True
+                # )
+                # # wav_chunks = []
+                # # for start in range(0, wav_len, chunk_size):
+                # #     end = min(start + chunk_size, wav_len)
+                # #     chunk = wav_model[start:end]
+                # #     if chunk.size > 0:
+                # #         wav_chunks.append(chunk)
+                # # with torch.no_grad():
+                # #     total_H = []
+                # #     for chunk in wav_chunks:
+                # #         mel_spectrogram = processor( # 30s de audio -> 3000 frames pq Whisper usa 10ms hop
+                # #             audio=chunk,
+                # #             sampling_rate=model_sr,
+                # #             return_tensors="pt",
+                # #             padding='max_length',          # pad a 30s -> 3000 frames subtrials de 30 segs y concatenar
+                # #             return_attention_mask=True   # Solo si padding_max_length se usa
+                # #         ) #graficar para ver que es melspectrogram
+                # #         # Whisper uses input_features (log-mel)
+                # #         use_amp = (device == "cuda")
+                # #         with torch.amp.autocast(device, enabled=use_amp):
+                # #             outputs = model.encoder(
+                # #                 input_features=mel_spectrogram.input_features.to(device),
+                # #                 attention_mask=mel_spectrogram.attention_mask.to(device),
+                # #                 output_hidden_states=True,
+                # #                 return_dict=True
+                # #             )
+                # #             num_lay = len(outputs.hidden_states)
+
+                # #             # Quitar el embedding inicial si viene incluido (len = layers + 1)
+                # #             if num_lay == model.config.encoder_layers + 1:
+                # #                 outputs_hidden_states = outputs.hidden_states[1:]
+                # #             # Soportar índices negativos (e.g., -1 = última)
+                # #             idx = encoder_layer if encoder_layer >= 0 else num_lay + encoder_layer
+                # #             if idx < 0 or idx >= num_lay:
+                # #                 raise ValueError(f"encoder_layer={encoder_layer} fuera de rango (0..{num_lay-1})")    
+                # #         # Recorta solo los frames válidos (sin padding)
+                # #         valid_frames = int(mel_spectrogram.attention_mask.sum().item())
+                # #          total_H.append(outputs_hidden_states[idx][:, :valid_frames, :])
+                    
+                #     # total_H len num_chunks, each element [1, T_chunk, D]
+                #     # hs = torch.cat(total_H, dim=1)  # [1, T_total, D]
+
+                #     # [B, T, D] -> [T, D]
+                #     # H = hs.squeeze(0).cpu().numpy()
+                # # H = np.concatenate(embeddings, axis=0) # [T, D]
+
+                # # # Save full layer for future use
+                # # general_functions.dump_pickle(
+                # #     path=layer_path, obj=H, rewrite=True, verbose=True
+                # # )
             elif backbone_lower == "wav2vec2":
                 with torch.no_grad():
                     inputs = processor(
@@ -1166,43 +1223,17 @@ class GetTrialData:
             return np.zeros((n_components, self.stimuli_length), dtype=np.float32)
 
         # === 3 = REDUCE DIMENSION ====
-        scaler = StandardScaler(with_mean=True, with_std=True)
-        Hs = scaler.fit_transform(H)                 # (T, D)
-        
-        # === 3 = REDUCE DIMENSION ====
-        scaler = StandardScaler(with_mean=True, with_std=True)
-        Hs = scaler.fit_transform(H)                 # (T, D)
-        pca = get_dnn_reduced_representation(
+        # scaler = StandardScaler(with_mean=True, with_std=True)
+        # Hs = scaler.fit_transform(H)                 # (T, D)
+        scaler, pca = get_dnn_reduced_representation(
             self.wav_fname,
             backbone=backbone,
             encoder_layer=encoder_layer,
             n_components=n_components,
             full_layer_path=layer_path
             )
+        Hs = scaler.transform(H)                 # (T, D)
         Z = pca.transform(Hs)                    # (T, n_components_effective)
-        # # Use UMAP instead of PCA (non-linear embedding).
-        # # Set n_components not greater than input dims for stability.
-        # umap_n_components = min(n_components, Hs.shape[1])
-        # # reducer = umap.UMAP(
-        # #     n_components=umap_n_components,
-        # #     n_neighbors=15,      # adjust for local vs global structure
-        # #     min_dist=0.1,
-        # #     metric="euclidean",
-        # #     random_state=42
-        # # )
-        # reducer = umap.UMAP( #TODO ver como mejorar,
-        #     # umap preserva la estructura temporal? conviene usar tsvd o pca antes de umap? 
-        #     #conviene hacerlo por muestra temporal?
-        #     #  implementar además kmeans
-        #     n_components=umap_n_components,
-        #     n_neighbors=15, #valores entre 2 y 100 aprox, ajustar para estructura local vs global
-        #     min_dist=0.1, # distancia entre puntos en el espacio reducido, 0.0 (muy denso) a 0.99 (muy disperso)
-        #     metric="euclidean", #conviene otra?
-        #     random_state=None,   # allow parallelism
-        #     n_jobs=8,             # set to desired number of workers
-        #     # local_connectivity=
-        # )
-        # Z = reducer.fit_transform(Hs)              # (T, n_components_effective)
 
         # If model produced fewer dims than requested, pad with zeros
         if Z.shape[1] < n_components:
@@ -2099,9 +2130,10 @@ if __name__ == "__main__":
     if config.parallel_load:
         # Parallel execution
         results = main_parallel(
-            
+            save_results=config.save_results
         )
     else:
         # Parallel execution
         results = main_one_process(
+            save_results=config.save_results
         )

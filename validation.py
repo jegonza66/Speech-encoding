@@ -59,6 +59,7 @@ def main(
     just_load_data = config.just_load_data,
     save_results = config.save_results,
     save_figures = config.save_figures,
+    recompute = True,
     no_figures = config.no_figures,
     logger=logger
 ):
@@ -98,12 +99,14 @@ def main(
                 path_validation = f'{output_dir}/{model}-{solver}/{situation}/validation/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
                 alphas_path = os.path.join(path_validation, f'corr_limit_{val_correlation_limit_percentage}.pkl')
                 
-                # # Try to access alphas
-                # try:
-                #     alphas = load_pickle(path=alphas_path)
-                # except:
-                #     alphas = {s: {} for s in sessions} 
-                alphas = {s: {} for s in sessions} 
+                # Try to access alphas
+                try:
+                    if recompute:
+                        alphas = load_pickle(path=alphas_path)
+                    else:
+                        alphas = {s: {} for s in sessions}
+                except:
+                    alphas = {s: {} for s in sessions} 
             
                 # Iterate over sessions
                 for session in sessions:
@@ -137,7 +140,9 @@ def main(
                     # Run model for each subject
                     for subject, eeg, stims, relevant_indexes in zip((1, 2), (eeg_subject_1, eeg_subject_2), (stims_subject_1, stims_subject_2), (relevant_indexes_1, relevant_indexes_2)):
                         print(f'\n\n\t······  Running model for Subject {subject}\n')
-                        
+                        if alphas[session].get(subject) is not None:
+                            print(f'\n\t······  Skipping Subject {subject}, already computed alpha: {alphas[session][subject]}\n')
+                            continue
                         # Make sweep 
                         correlations_per_fold = np.zeros(
                             (n_folds, len(alphas_swept))
@@ -225,8 +230,7 @@ def main(
                         os.makedirs(name=path_validation, exist_ok=True)
                         if save_results:
                             dump_pickle(path=alphas_path, obj=alphas, rewrite=True)
-                            
-                        total_results[situation][band][stim] = alphas.copy()
+                    total_results[situation][band][stim] = alphas.copy()
                         
                     # Print the progress of the iteration
                     iteration_percentage(

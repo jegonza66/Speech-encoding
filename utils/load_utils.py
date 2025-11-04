@@ -389,8 +389,9 @@ def get_dnn_reduced_representation(
     matrix_path = os.path.normpath(
         f"data/DNNs_cache/matrix_reduction/{backbone}-{n_components}/layer_{encoder_layer}/session_{session}_channel_{channel}.npy"
     )
-    if os.path.exists(matrix_path):
-        return np.load(matrix_path, allow_pickle=True).item()
+    scaler_path = matrix_path.replace('.npy', '_scaler.npy')
+    if os.path.exists(matrix_path) and os.path.exists(scaler_path):
+        return np.load(scaler_path, allow_pickle=True).item(), np.load(matrix_path, allow_pickle=True).item()
 
     dnn_representations = []
     for trial in get_trials(session):
@@ -404,6 +405,8 @@ def get_dnn_reduced_representation(
     )
     pca.fit(full_dnn_representation)
     os.makedirs(os.path.dirname(matrix_path), exist_ok=True)
+    os.makedirs(os.path.dirname(scaler_path), exist_ok=True)
+    np.save(scaler_path, scaler)
     np.save(matrix_path, pca)
     os.makedirs(os.path.dirname(matrix_path.replace('.npy', '.txt')), exist_ok=True)
     with open(matrix_path.replace('.npy', '.txt'), 'w') as f:
@@ -413,7 +416,7 @@ def get_dnn_reduced_representation(
         f.write(f"Full representation shape: {full_dnn_representation.shape}\n")
         f.write(f"Explained variance ratio: {pca.explained_variance_ratio_}\n")
         f.write(f"Explained variance (cumulative): {pca.explained_variance_ratio_.sum()}\n")
-    return pca
+    return scaler, pca
 
 if __name__ == "__main__":
     import argparse
