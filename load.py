@@ -1419,25 +1419,7 @@ class GetTrialData:
             raise ValueError(f"Turn feature length {turn_feature.shape[0]} does not match desired stimuli length {self.stimuli_length}")
         return turn_feature
 
-    def extract_offset(
-        self,
-    )-> np.ndarray:
-        """
-        Gives an array of ones to create offset
-
-        Parameters
-        ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform.
-
-        Returns
-        -------
-        np.ndarray
-            
-        """
-        # Create an array with the same length as the envelope filled with the offset value
-        return np.ones(shape=(self.stimuli_length, 1), dtype=np.float32)    
-    
+   
     def load_trial(
         self, 
         stimuli:list,
@@ -1511,41 +1493,7 @@ class GetTrialData:
                 channel[stimulus] = self.extract_turn_taking(
                 )
 
-            # Resample to desire length
-            if self.stimuli_length is not None:
-                channel[stimulus] = self.resampling_to_desire_length(
-                    X=channel[stimulus]
-                )
         return channel
-
-    def resampling_to_desire_length(
-        self,
-        X: np.ndarray
-    )-> np.ndarray:
-        """
-        Resamples the input array X to match the desired length using linear interpolation.
-
-        Parameters
-        ----------
-        X : np.ndarray
-            Input array to be resampled.
-
-        Returns
-        -------
-        np.ndarray
-            Resampled array with the desired length.
-        """
-        # Resample to desire length
-        T_src = X.shape[0]
-
-        if T_src == self.stimuli_length:
-            return X
-        else:
-            # Normalize time to [0,1) to avoid relying on sample rates
-            x_src = np.linspace(0.0, 1.0, T_src, endpoint=False)
-            x_tgt = np.linspace(0.0, 1.0, self.stimuli_length, endpoint=False)
-            interp = interp1d(x_src, X, axis=0, kind="linear", fill_value="extrapolate", assume_sorted=True)
-            return interp(x_tgt)    # (stim_length, n_components)
 
 def load_samples_info(
     preprocessed_data_path:str,
