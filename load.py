@@ -228,9 +228,17 @@ class GetTrialData:
                 l_freq=self.l_freq_eeg,
                 h_freq=self.h_freq_eeg,
                 method="iir",
-                iir_params=iir_params
+                iir_params=iir_params,
+                phase='zero'
             )
-            
+            # eeg.filter(
+            #     l_freq=self.l_freq_eeg,
+            #     h_freq=self.h_freq_eeg,
+            #     method='fir',
+            #     fir_design='firwin',
+            #     phase='zero'  # 'zero' es el valor por defecto
+            # )
+        
         # Get mne representation 
         eeg = eeg.resample(
             sfreq=self.sr, 
@@ -1643,6 +1651,7 @@ def load_samples_info(
     # Saves modified relevant indexes
     export_paths = get_export_paths(
         preprocessed_data_path=preprocessed_data_path,
+        stimuli='Envelope',
         band="Broad"
     )
     if save_results: 
