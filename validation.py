@@ -166,7 +166,10 @@ def main(
                         kf_test = KFold(n_folds, shuffle=False)
 
                         # Keep relevant indexes for eeg
-                        relevant_eeg = eeg[relevant_indexes]
+                        if relevant_indexes is not None:
+                            relevant_eeg = eeg[relevant_indexes]
+                        else:
+                            relevant_eeg = eeg
                         
                         # Run folds 
                         for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):

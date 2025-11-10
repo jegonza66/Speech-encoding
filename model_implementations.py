@@ -66,7 +66,7 @@ def fold_model(
     """
     if shuffle:
         mtrf = TorchMtrf(
-            relevant_indexes=np.array(relevant_indexes),
+            relevant_indexes=relevant_indexes if relevant_indexes is not None else None,
             stims_preprocess=config.stims_preprocess, 
             eeg_preprocess=config.eeg_preprocess,
             train_indexes=train_indexes, 
@@ -88,7 +88,7 @@ def fold_model(
         return weights, correlation_matrix, root_mean_square_error
     elif validation:
         mtrf = TorchMtrf(
-            relevant_indexes=np.array(relevant_indexes),
+            relevant_indexes=relevant_indexes if relevant_indexes is not None else None,
             stims_preprocess=config.stims_preprocess, 
             eeg_preprocess=config.eeg_preprocess,
             train_indexes=train_indexes, 
