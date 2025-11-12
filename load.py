@@ -48,15 +48,7 @@ import config
 # import umap
 
 # Logging
-from utils.logs import setup_logger
-
-# Initialize logger
-logger = setup_logger(
-    name='load',
-    log_to_file=config.LOG_TO_FILE,
-    log_dir=config.LOG_DIR if config.LOG_TO_FILE else None,
-    level=config.LOG_LEVEL
-)
+from utils.logs import setup_logger, get_logger
 
 try:
     import tensorflow as tf
@@ -70,7 +62,8 @@ try:
     # Configure TensorFlow for better performance
     tf.config.threading.set_inter_op_parallelism_threads(6)
 except Exception as e:
-    logger.warning(f"Could not configure TensorFlow optimally: {e}")
+    if config.LOG_LEVEL == "WARNING" or config.LOG_LEVEL == "DEBUG":
+        print(f"Could not configure TensorFlow optimally: {e}")
 
 # Review this If we want to update packages
 mne.set_log_level(verbose='CRITICAL')
@@ -84,7 +77,7 @@ TRANSFORMER_MODEL = "openai/whisper-base"
 
 # Global cache for HF models to avoid re-loading on every call
 _PHONET_CACHE = {}
-def get_phonet_instance():
+def get_phonet_instance(logger=get_logger(__name__)):
     """
     Get a cached Phonet instance to avoid reloading models
     """
@@ -129,7 +122,8 @@ class GetTrialData:
         session:int=21, 
         channel:int=1, 
         trial:int=1, 
-        stimuli_length:int=None
+        stimuli_length:int=None,
+        logger=get_logger(__name__)
     )->None: 
         """
         Initializes the TrialChannelData class with the given parameters.
@@ -157,6 +151,7 @@ class GetTrialData:
             If band is not allowed.
         """
         check_syntax(band=band)
+        self.logger = logger if logger is not None else get_logger(__name__)
         self.stimuli_length = stimuli_length
         self.session = session
         self.channel = channel
@@ -664,7 +659,7 @@ class GetTrialData:
             labels_phonemes = config.exp_info.phonemes.copy()
             labels_phones = config.exp_info.phones.copy()
             posterior_prob = compute_phones(
-                phonet_obj=get_phonet_instance(), 
+                phonet_obj=get_phonet_instance(logger=self.logger), 
                 audio_file=self.wav_fname,
                 PLLR=True
             )
@@ -708,7 +703,7 @@ class GetTrialData:
             return pllr_without_silence
         else:
             sec_phones = compute_phones(
-                phonet_obj=get_phonet_instance(), 
+                phonet_obj=get_phonet_instance(logger=self.logger), 
                 audio_file=self.wav_fname
             )
         
@@ -741,10 +736,10 @@ class GetTrialData:
             try:
                 freq = general_functions.load_pickle('data/phon_frequency_dict/frequency_dict.pkl')
             except:
-                logger.warning("Frequency dictionary isn't Load. \n ---> loading it now...")
+                self.logger.warning("Frequency dictionary isn't Load. \n ---> loading it now...")
                 os.makedirs('data/phon_frequency_dict', exist_ok=True)
                 freq = general_functions.load_phon_frequency_dict(
-                    phonet_obj=get_phonet_instance(),
+                    phonet_obj=get_phonet_instance(logger=self.logger),
                     save_path='data/phon_frequency_dict',
                     plot_freq=True,
                 )
@@ -806,7 +801,7 @@ class GetTrialData:
             wav = wavfile.read(self.wav_fname)[1]
             wav = wav.astype("float")
             posterior_prob = compute_phones(
-                phonet_obj=get_phonet_instance(), 
+                phonet_obj=get_phonet_instance(logger=self.logger), 
                 audio_file=self.wav_fname,
                 PLLR=True
             )
@@ -844,7 +839,7 @@ class GetTrialData:
             return pllr_without_silence
         else:
             # Extract phones
-            phonet = get_phonet_instance()
+            phonet = get_phonet_instance(logger=self.logger)
             sec_phones = compute_phones(
                 phonet_obj=phonet, 
                 audio_file=self.wav_fname
@@ -923,7 +918,7 @@ class GetTrialData:
             Matrix with phonological features with shape SAMPLES X FEATURES
         """
         # Use cached Phonet instance instead of creating new one
-        phonet = get_phonet_instance()
+        phonet = get_phonet_instance(logger=self.logger)
         phon_features = phonet.get_PLLR(
             audio_file=self.wav_fname, 
             plot_flag=False
@@ -996,7 +991,7 @@ class GetTrialData:
             )
         # Run the whole pipeline, storing full layer for future use
         except:
-            logger.warning(f"Cached DNN layer not found: {layer_path}. \n ---> extracting and caching it now...")
+            self.logger.warning(f"Cached DNN layer not found: {layer_path}. \n ---> extracting and caching it now...")
             # Create the folder if it doesn't exist
             os.makedirs(os.path.dirname(layer_path), exist_ok=True)
             
@@ -1202,8 +1197,8 @@ class GetTrialData:
                 
                 except subprocess.CalledProcessError as e:
                     if e.stderr and 'CUDA out of memory' in e.stderr:
-                        logger.error(f"CUDA out of memory with model {model_id} and input length {len(wav_model)/model_sr:.1f}s. Try a smaller model or use CPU.")
-                        logger.error(f"Trying with half precision...")
+                        self.logger.error(f"CUDA out of memory with model {model_id} and input length {len(wav_model)/model_sr:.1f}s. Try a smaller model or use CPU.")
+                        self.logger.error(f"Trying with half precision...")
                         subprocess.run([
                                 "python", "-m", "utils.load_utils",
                                 "--wav_path", self.wav_fname,
@@ -1213,7 +1208,7 @@ class GetTrialData:
                                 "--half_precision", "True"
                             ], check=True, capture_output=True, text=True)
                     else:
-                        logger.error(f"Error running subprocess to extract WavLM features: {e.stderr}")
+                        self.logger.error(f"Error running subprocess to extract WavLM features: {e.stderr}")
                         raise e
                 try:
                     H = general_functions.load_pickle(
@@ -1227,7 +1222,7 @@ class GetTrialData:
         # Guard: very short inputs
         if H.ndim != 2 or H.shape[0] < 2:
             # Return zeros if we cannot form a sequence
-            logger.warning("Input audio is too short to extract features.")
+            self.logger.warning("Input audio is too short to extract features.")
             return np.zeros((n_components, self.stimuli_length), dtype=np.float32)
 
         # === 3 = REDUCE DIMENSION ====
@@ -1411,7 +1406,7 @@ class GetTrialData:
             with open(self.turn_fname, 'r') as json_file:
                 turn_data_list = json.load(json_file)
         except Exception as e:
-            logger.error(f"Error reading turn-taking file: {e}")
+            self.logger.error(f"Error reading turn-taking file: {e}")
             return np.zeros(shape=(self.stimuli_length, 1))
 
         turn_feature = np.zeros(shape=(self.stimuli_length, 1))
@@ -1508,7 +1503,8 @@ def load_samples_info(
     situation:str = 'External',
     session:int = 21,
     save_results:bool = True,
-    overwrite:bool = False
+    overwrite:bool = False,
+    logger=get_logger(__name__)
 )->dict:
     """
     Loads samples info dictionary for a given session and situation.
@@ -1684,7 +1680,8 @@ def load_stimuli(
     band:str = 'Broad',
     session:int = 21,
     save_results:bool = True,
-    overwrite:bool = False
+    overwrite:bool = False,
+    logger=get_logger(__name__)
 )->tuple:
     """
     Loads and processes EEG and stimuli data for a given session.
@@ -1760,23 +1757,27 @@ def load_stimuli(
             session=session, 
             trial=trial, 
             channel=1,
-            stimuli_length=samples_info['trial_lengths1'][p+1]
+            stimuli_length=samples_info['trial_lengths1'][p+1],
+            logger=logger
         )
         channel_2 = GetTrialData(
             band=band,
             session=session,
             trial=trial,
             channel=2,
-            stimuli_length=samples_info['trial_lengths2'][p+1]
+            stimuli_length=samples_info['trial_lengths2'][p+1],
+            logger=logger
         )
+        stimuli_to_load = stimuli.split('_')
         trial_channel_1 = channel_1.load_trial(
-            stimuli=stimuli.split('_'),
+            stimuli=stimuli_to_load,
             eeg_exists=eeg_exists
         )
         trial_channel_2 = channel_2.load_trial(
-            stimuli=stimuli.split('_'),
+            stimuli=stimuli_to_load,
             eeg_exists=eeg_exists
         )
+
         # When using Internal, EEG prediction is based on own stimuli. 
         if situation.startswith('Internal'):
             trial_subject_1 = trial_channel_1.copy()
@@ -1880,6 +1881,13 @@ def load_data(
         - dict: sessions of both subjects.
         - dict: information about the samples.
     """
+    # Initialize logger
+    logger = setup_logger(
+        name='load',
+        log_to_file=config.LOG_TO_FILE,
+        log_dir=config.LOG_DIR if config.LOG_TO_FILE else None,
+        level=config.LOG_LEVEL
+    )
     check_syntax(stimuli=stimuli, band=band, situation=situation)
                 
     # Re-order stimuli and band to create just one file for each case: 'Phonemes_Envelope' --> 'Envelope_Phonemes'
@@ -1894,7 +1902,8 @@ def load_data(
         situation=situation,
         session=session,
         save_results=save_results,
-        overwrite=overwrite
+        overwrite=overwrite,
+        logger=logger
     )
     session_1, session_2 = load_stimuli(
         preprocessed_data_path=preprocessed_data_path,
@@ -1912,7 +1921,6 @@ def load_data(
 import multiprocessing as mp
 import concurrent.futures
 from utils.from_commands import create_dynamic_parser, apply_args_to_config
-config.LOG_LEVEL = 'WARNING'
 
 parser = create_dynamic_parser()
 args = parser.parse_args()
@@ -1929,7 +1937,8 @@ def main_one_process(
     saves_dir = config.saves_dir,
     tmin = config.tmin,
     tmax = config.tmax,
-    save_results = False
+    save_results = False,
+    logger=get_logger(__name__)
 ):
     total_results = {
         situation: {
@@ -1948,7 +1957,7 @@ def main_one_process(
                 stimulus, band = '_'.join(sorted_stimuli), '_'.join(sorted_bands)
 
                 # Update
-                logger.info(
+                logger.debug(
                     '\n===========================\n'
                     '\tPARAMETERS\n\n'
                     f'Model: {config.model}\n'
@@ -1976,7 +1985,7 @@ def main_one_process(
                         i=sessions.index(session), 
                         length_of_iterator=len(sessions),
                         logger=logger
-                                       )
+                    )
                     total_results[situation][band][stimulus] = (subject_1, subject_2, samples_info)
 
 # =======================
@@ -1990,7 +1999,8 @@ def main_parallel(
     tmin = config.tmin,
     tmax = config.tmax,
     number_of_workers = config.number_of_workers,
-    save_results = True
+    save_results = True,
+    logger=get_logger(__name__)
 ):
     total_results = {
         situation: {
