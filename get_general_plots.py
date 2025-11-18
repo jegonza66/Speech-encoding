@@ -22,16 +22,16 @@ def main(
     total_number_of_subjects: int,
     alphas_subjects: list, # n_subj
     average_weights_subjects: np.ndarray,  # n_subj, n_chans, n_feats, n_delays
-    average_rmse_subjects: np.ndarray, # n_subj, n_chans
     pvalues_corr_subjects: np.ndarray, # n_subj, n_chans
-    pvalues_rmse_subjects: np.ndarray, # n_subj, n_chans
     average_correlation_subjects: np.ndarray, # n_subj, n_chans
-    repeated_good_rmse_channels_subjects: np.ndarray, # n_subj, n_chans
     repeated_good_correlation_channels_subjects: np.ndarray, # n_subj, n_chans
     correlation_per_channel_subjects: np.ndarray, # n_subj, n_chans
     null_correlation_per_channel_subjects: np.ndarray, # n_chans
     pvalue_tfce: Union[None, np.ndarray] = None, # n_chans
-    same_validation_subjects: bool = False
+    same_validation_subjects: bool = False,
+    ROI: bool = False,
+    ROI_labels: list = None,
+    logger = None
     )->None:
     """
     Main function to generate general plots for the project.
@@ -44,13 +44,18 @@ def main(
     """
     
     # Initialize logger for plotting module
-    logger = setup_logger(
-        name='get_general_plots',
-        log_to_file=config.LOG_TO_FILE,
-        log_dir=config.LOG_DIR if config.LOG_TO_FILE else None,
-        level=config.LOG_LEVEL
-    )
-    
+    if logger is None:
+        logger = setup_logger(
+            name='get_general_plots',
+            log_to_file=config.LOG_TO_FILE,
+            log_dir=config.LOG_DIR if config.LOG_TO_FILE else None,
+            level=config.LOG_LEVEL
+        )
+    if ROI:
+        logger.info("📊 Generando gráficos generales para ROI...")
+        logger.info("Not implemented yet for ROI")
+        return
+
     logger.info(f"🔄 Total de sujetos a procesar: {average_weights_subjects.shape[0]}")
     logger.info(f"📈 Sesiones: {config.sessions}")
     
@@ -91,7 +96,7 @@ def main(
                     logger.error(error_msg)
             
             try:
-                # Plot head topomap across al channel for correlation and rmse
+                # Plot head topomap across al channel for correlation
                 plot.topomap(
                     good_channels_indexes=repeated_good_correlation_channels_subjects[subject], 
                     average_coefficient=average_correlation_subjects[subject], 
@@ -103,18 +108,6 @@ def main(
                     subject=subject, 
                     session=session, 
                     no_figures=config.no_figures
-                    )
-                plot.topomap(
-                    good_channels_indexes=repeated_good_rmse_channels_subjects[subject], 
-                    average_coefficient=average_rmse_subjects[subject], 
-                    info=config.info_mne,
-                    coefficient_name='RMSE', 
-                    save=config.save_figures, 
-                    display_interactive_mode=config.display_interactive_mode,
-                    save_path=path_figures, 
-                    subject=subject, 
-                    session=session, 
-                    no_figures=config.no_figures #TODO: remove all config. parameters and put them in plot module
                     )
                 logger.debug(f"✓ Topomapas completados para sesión {session}, sujeto {subject_in_session+1}")
             except Exception as e:
@@ -129,7 +122,6 @@ def main(
                         save=config.save_figures, 
                         save_path=path_figures, 
                         average_correlation=average_correlation_subjects[subject],
-                        average_rmse=average_rmse_subjects[subject], 
                         best_alpha=alphas_subjects[subject], 
                         average_weights=average_weights_subjects[subject], 
                         times=config.times,
@@ -155,16 +147,6 @@ def main(
     logger.debug("✓ Generando topomapas promedio de métricas...")
     
     # Plot average topomap metrics across each subject
-    plot.average_topomap(
-        average_coefficient_subjects=average_rmse_subjects, 
-        stim=stim, 
-        info=config.info_mne, 
-        display_interactive_mode=config.display_interactive_mode,
-        save=config.save_figures, 
-        save_path=path_figures, 
-        coefficient_name='RMSE', 
-        no_figures=config.no_figures
-        )
     plot.average_topomap(
         average_coefficient_subjects=average_correlation_subjects, 
         stim=stim, 
@@ -244,15 +226,7 @@ def main(
             coefficient_name='correlation', 
             no_figures=config.no_figures
             )
-        plot.topo_average_pval(
-            pvalues_coefficient_subjects=pvalues_rmse_subjects, 
-            info=config.info_mne, 
-            display_interactive_mode=config.display_interactive_mode,
-            save=config.save_figures, 
-            save_path=path_figures, 
-            coefficient_name='RMSE', 
-            no_figures=config.no_figures
-            )
+
 
         logger.debug("✓ Generando topomapas de canales repetidos...")
         # Plot topomap of sum of repeated channels across all subject
@@ -265,15 +239,7 @@ def main(
             coefficient_name='correlation',
             no_figures=config.no_figures
             )
-        plot.topo_repeated_channels(
-            repeated_good_coefficients_channels_subjects=repeated_good_rmse_channels_subjects,
-            info=config.info_mne, 
-            display_interactive_mode=config.display_interactive_mode, 
-            save=config.save_figures,
-            save_path=path_figures,
-            coefficient_name='RMSE',
-            no_figures=config.no_figures
-            )
+        
     if config.perform_tfce and same_validation_subjects:
         logger.info("✓ Generando gráfico de p-valores TFCE...")
         # Plot t and p values

@@ -187,7 +187,8 @@ class GetTrialData:
         # self.turn_fname = os.path.normpath(f"data/turns/holds_external/sess_{session}_trial_{trial:02d}_ch_{channel}.json")
         
     def extract_eeg(
-        self
+        self,
+        filter_eeg:dict=None
     )->np.ndarray:
         """
         Reads the EEG data from a .set file, applies a filter based on the specified band, and downsamples the data.
@@ -209,31 +210,30 @@ class GetTrialData:
         )
 
         # Apply a lowpass filter
-        if self.band != 'Unfiltered':
-            iir_params = {
-                "ftype": "cheby2",       # Filter type: Chebyshev Type II
-                "order": 4,              # Filter order
-                "rs": 20,                # Stopband attenuation (dB)
-            }
-            # iir_params = { #Nuevos exp de dili
-            #     "ftype": "butter",
-            #     "order": 2,
-            # }
+        if filter_eeg is not None:
             eeg = eeg.filter(
                 l_freq=self.l_freq_eeg,
                 h_freq=self.h_freq_eeg,
-                method="iir",
-                iir_params=iir_params,
-                phase='zero'
+                **filter_eeg
             )
-            # eeg.filter(
-            #     l_freq=self.l_freq_eeg,
-            #     h_freq=self.h_freq_eeg,
-            #     method='fir',
-            #     fir_design='firwin',
-            #     phase='zero'  # 'zero' es el valor por defecto
-            # )
-        
+        else:
+            if self.band != 'Unfiltered':
+                # iir_params = { #Nuevos exp de dili
+                #     "ftype": "butter",
+                #     "order": 2,
+                # }
+                eeg = eeg.filter(
+                    l_freq=self.l_freq_eeg,
+                    h_freq=self.h_freq_eeg,
+                    method="iir",
+                    iir_params={
+                        "ftype": "cheby2",       # Filter type: Chebyshev Type II
+                        "order": 4,              # Filter order
+                        "rs": 20,                # Stopband attenuation (dB)
+                    },
+                    phase='zero'
+                )
+            
         # Get mne representation 
         eeg = eeg.resample(
             sfreq=self.sr, 
@@ -1422,11 +1422,11 @@ class GetTrialData:
             raise ValueError(f"Turn feature length {turn_feature.shape[0]} does not match desired stimuli length {self.stimuli_length}")
         return turn_feature
 
-   
     def load_trial(
         self, 
         stimuli:list,
         eeg_exists:bool=False,
+        filter_eeg:dict=None
         )->dict: 
         """Extract EEG and calculates specified stimuli.
         Parameters
@@ -1441,7 +1441,9 @@ class GetTrialData:
         """
         channel = {}
         if not eeg_exists:
-            channel['EEG'] = self.extract_eeg()
+            channel['EEG'] = self.extract_eeg(
+                filter_eeg=filter_eeg if filter_eeg is not None else None
+            )
 
         for stimulus in stimuli:
             if stimulus == 'EEG-feature':
@@ -1504,7 +1506,7 @@ def load_samples_info(
     session:int = 21,
     save_results:bool = True,
     overwrite:bool = False,
-    logger=get_logger(__name__)
+    logger=get_logger(__name__),
 )->dict:
     """
     Loads samples info dictionary for a given session and situation.
@@ -1681,7 +1683,8 @@ def load_stimuli(
     session:int = 21,
     save_results:bool = True,
     overwrite:bool = False,
-    logger=get_logger(__name__)
+    logger=get_logger(__name__),
+    filter_eeg:dict=None
 )->tuple:
     """
     Loads and processes EEG and stimuli data for a given session.
@@ -1771,11 +1774,13 @@ def load_stimuli(
         stimuli_to_load = stimuli.split('_')
         trial_channel_1 = channel_1.load_trial(
             stimuli=stimuli_to_load,
-            eeg_exists=eeg_exists
+            eeg_exists=eeg_exists,
+            filter_eeg=filter_eeg if filter_eeg is not None else None
         )
         trial_channel_2 = channel_2.load_trial(
             stimuli=stimuli_to_load,
-            eeg_exists=eeg_exists
+            eeg_exists=eeg_exists,
+            filter_eeg=filter_eeg if filter_eeg is not None else None
         )
 
         # When using Internal, EEG prediction is based on own stimuli. 
@@ -1849,8 +1854,10 @@ def load_data(
     band:str,
     preprocessed_data_path:str, 
     situation:str='External',
+    filter_eeg:dict=None,
     save_results:bool=True,
-    overwrite: bool=False
+    overwrite: bool=False,
+    logger:any = None
 )->tuple:
     """
     Loads and processes EEG and stimuli data for a given session.
@@ -1881,13 +1888,15 @@ def load_data(
         - dict: sessions of both subjects.
         - dict: information about the samples.
     """
+
     # Initialize logger
-    logger = setup_logger(
-        name='load',
-        log_to_file=config.LOG_TO_FILE,
-        log_dir=config.LOG_DIR if config.LOG_TO_FILE else None,
-        level=config.LOG_LEVEL
-    )
+    if logger is None:
+        logger = setup_logger(
+            name='load',
+            log_to_file=config.LOG_TO_FILE,
+            log_dir=config.LOG_DIR if config.LOG_TO_FILE else None,
+            level=config.LOG_LEVEL
+        )
     check_syntax(stimuli=stimuli, band=band, situation=situation)
                 
     # Re-order stimuli and band to create just one file for each case: 'Phonemes_Envelope' --> 'Envelope_Phonemes'
@@ -1895,7 +1904,7 @@ def load_data(
 
     # Try to load procesed data, if it fails it loads raw data
     logger.info('Loading preprocessed stimuli data\n')
-    
+
     # This function already compute envelope if it doesn't exist
     samples_info = load_samples_info(
         preprocessed_data_path=preprocessed_data_path,
@@ -1905,6 +1914,10 @@ def load_data(
         overwrite=overwrite,
         logger=logger
     )
+    
+    if filter_eeg is not None:
+        overwrite, save_results = True, False
+        logger.info(f"Applying EEG filters: {filter_eeg}\n Output will not be saved.")
     session_1, session_2 = load_stimuli(
         preprocessed_data_path=preprocessed_data_path,
         samples_info=samples_info,
@@ -1914,6 +1927,7 @@ def load_data(
         session=session,
         overwrite=overwrite, 
         save_results=save_results,
+        filter_eeg=filter_eeg if filter_eeg is not None else None
     )    
     
     return session_1, session_2, samples_info
@@ -1922,9 +1936,10 @@ import multiprocessing as mp
 import concurrent.futures
 from utils.from_commands import create_dynamic_parser, apply_args_to_config
 
-parser = create_dynamic_parser()
-args = parser.parse_args()
-apply_args_to_config(args)
+if __name__ == "__main__":
+    parser = create_dynamic_parser()
+    args = parser.parse_args()
+    apply_args_to_config(args)
 
 
 # =====================
@@ -1938,7 +1953,8 @@ def main_one_process(
     tmin = config.tmin,
     tmax = config.tmax,
     save_results = False,
-    logger=get_logger(__name__)
+    logger=get_logger(__name__),
+    filter_eeg:dict=None
 ):
     total_results = {
         situation: {
@@ -1976,7 +1992,8 @@ def main_one_process(
                         stimuli=stimulus,
                         session=session,
                         band=band,
-                        save_results=save_results
+                        save_results=save_results,
+                        filter_eeg=filter_eeg if filter_eeg is not None else None
                     )
                     
                     # Print the progress of the iteration
@@ -1986,7 +2003,8 @@ def main_one_process(
                         length_of_iterator=len(sessions),
                         logger=logger
                     )
-                    total_results[situation][band][stimulus] = (subject_1, subject_2, samples_info)
+                    total_results[situation][band][stimulus][session] = (subject_1, subject_2, samples_info)
+    return total_results
 
 # =======================
 # PARALLEL EXECUTION CODE
@@ -2000,7 +2018,8 @@ def main_parallel(
     tmax = config.tmax,
     number_of_workers = config.number_of_workers,
     save_results = True,
-    logger=get_logger(__name__)
+    logger=get_logger(__name__),
+    filter_eeg:dict=None
 ):
     total_results = {
         situation: {
@@ -2028,40 +2047,24 @@ def main_parallel(
                         'band': band,
                         'stimuli': stimuli_,
                         'session': session,
+                        'filter_eeg': filter_eeg if filter_eeg is not None else None
                     })
     
     def process_single_session(params):
-        """Procesa una sesión individual"""
-        try:
-            logger.info(
-                f"Processing: {params['stimuli']} | {params['band']} | "
-                f"{params['situation']} | Session {params['session']}"
-            )
-            
-            subject_1, subject_2, samples_info = load_data(
-                preprocessed_data_path=params['preprocessed_data_path'],
-                situation=params['situation'],
-                stimuli=params['stimuli'],
-                session=params['session'],
-                band=params['band'],
-                save_results=save_results
-            )
-            
-            return {
-                'session': params['session'],
-                'status': 'success',
-                'params': params
-            }
-            
-        except Exception as e:
-            logger.error(f"Error processing session {params['session']}: {e}")
-            return {
-                'session': params['session'],
-                'status': 'error',
-                'error': str(e),
-                'params': params
-            }
-    
+        logger.info(
+            f"Processing: {params['stimuli']} | {params['band']} | "
+            f"{params['situation']} | Session {params['session']}"
+        )
+        subject_1, subject_2, samples_info = load_data(
+            preprocessed_data_path=params['preprocessed_data_path'],
+            situation=params['situation'],
+            stimuli=params['stimuli'],
+            session=params['session'],
+            band=params['band'],
+            save_results=save_results,
+            filter_eeg=params['filter_eeg']
+        )
+        return params, subject_1, subject_2, samples_info
     
     # Paralelizar el procesamiento
     max_workers = min(mp.cpu_count() - 1, number_of_workers)  # Usar máximo 8 workers para evitar sobrecarga
@@ -2069,27 +2072,28 @@ def main_parallel(
     logger.info(f"Total combinations to process: {len(param_combinations)}")
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Enviar todos los trabajos
-        futures = [executor.submit(process_single_session, params) for params in param_combinations]
-        
-        # Procesar resultados conforme se completan
+        futures = {
+            executor.submit(process_single_session, params): params
+            for params in param_combinations
+        }
+        total_jobs = len(futures)
         for i, future in enumerate(concurrent.futures.as_completed(futures)):
-            result = future.result()
-            
-            # Fill total_results with the result (success or error info)
-            params = result['params']
-            total_results[params['situation']][params['band']][params['stimuli']][params['session']] = result
-            
-            if result['status'] == 'success':
-                logger.info(f"✓ Completed session {result['session']} ({i+1}/{len(futures)})")
-            else:
-                logger.error(f"✗ Failed session {result['session']}: {result['error']}")
-            
-            # Mostrar progreso
+            params = futures[future]
+            try:
+                params, subject_1, subject_2, samples_info = future.result()
+                total_results.setdefault(params['situation'], {}).setdefault(
+                    params['band'], {}
+                ).setdefault(
+                    params['stimuli'], {}
+                )[params['session']] = (subject_1, subject_2, samples_info)
+                logger.info(f"✓ Completed session {params['session']} ({i+1}/{total_jobs})")
+            except Exception as e:
+                logger.error(f"✗ Failed session {params['session']}: {e}")
+                raise
             general_functions.iteration_percentage(
-                txt=f"Overall progress: {i+1}/{len(futures)} completed",
+                txt=f"Overall progress: {i+1}/{total_jobs} completed",
                 i=i,
-                length_of_iterator=len(futures)
+                length_of_iterator=total_jobs
             )
     return total_results
 

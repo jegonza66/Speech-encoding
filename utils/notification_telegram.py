@@ -11,7 +11,8 @@ def tel_message(
     message: str = 'Script finished', 
     image: Optional[Union[str, bytes]] = None, 
     caption: Optional[str] = None,
-    verbose: bool = True
+    verbose: bool = True,
+    logger:any = None
     ) -> bool:
     '''
     Sends Telegram message with image support.
@@ -27,29 +28,29 @@ def tel_message(
     Returns:
         bool: True if sent correctly
     '''
-    
+    printfunc = logger.info if logger is not None else print
     try:
         if image is not None:
-            return _send_image(api_token, chat_id, image, caption, verbose)
+            return _send_image(api_token, chat_id, image, caption, verbose, printfunc)
         else:
-            return _send_text(api_token, chat_id, message, verbose)
+            return _send_text(api_token, chat_id, message, verbose, printfunc)
     except Exception as e:
         if verbose:
-            print(f"Error: {e}")
+            printfunc(f"Error: {e}")
         return False
 
-def _send_text(api_token: str, chat_id: str, message: str, verbose: bool):
+def _send_text(api_token: str, chat_id: str, message: str, verbose: bool, printfunc):
     """Sends text message"""
     url = f'https://api.telegram.org/bot{api_token}/sendMessage'
     response = requests.post(url, json={'chat_id': chat_id, 'text': message})
     
     success = response.status_code == 200
     if verbose:
-        print("✓ Message sent" if success else f"✗ Error: {response.status_code}")
+        printfunc("✓ Message sent" if success else f"✗ Error: {response.status_code}")
     return success
 
 def _send_image(api_token: str, chat_id: str, image: Union[str, bytes], 
-                   caption: Optional[str], verbose: bool):
+                   caption: Optional[str], verbose: bool, printfunc):
     """Sends image with optional caption"""
     url = f'https://api.telegram.org/bot{api_token}/sendPhoto'
     data = {'chat_id': chat_id}
@@ -60,7 +61,7 @@ def _send_image(api_token: str, chat_id: str, image: Union[str, bytes],
     if isinstance(image, str):
         if not os.path.exists(image):
             if verbose:
-                print(f"✗ File not found: {image}")
+                printfunc(f"✗ File not found: {image}")
             return False
         with open(image, 'rb') as f:
             files = {'photo': f}
@@ -72,12 +73,12 @@ def _send_image(api_token: str, chat_id: str, image: Union[str, bytes],
     
     else:
         if verbose:
-            print("✗ Invalid image format")
+            printfunc("✗ Invalid image format")
         return False
     
     success = response.status_code == 200
     if verbose:
-        print("✓ Image sent" if success else f"✗ Error: {response.status_code}")
+        printfunc("✓ Image sent" if success else f"✗ Error: {response.status_code}")
     return success
 
 

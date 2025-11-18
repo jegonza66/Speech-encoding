@@ -1,4 +1,3 @@
-#TODO implement solvers
 # Standard libraries
 import time
 import numpy as np, mne
@@ -31,7 +30,8 @@ class TorchMtrf:
         shuffle:bool=False, 
         validation:bool=False,
         use_gpu:bool=True,
-        solver:str='ridge'
+        solver:str='ridge',
+        logger:any=None
     )->None:
         """
         Initialize the TorchMtrf model, a PyTorch implementation of the TimeDelayingRidge of stimulus to predict EEG.
@@ -82,6 +82,7 @@ class TorchMtrf:
         self.validation = validation
         self.use_gpu = use_gpu
         self.device = torch.device("cuda" if use_gpu and torch.cuda.is_available() else "cpu")
+        self.logger = logger
     
     def fit(
         self, 
@@ -131,7 +132,6 @@ class TorchMtrf:
             self.relevant_indexes = np.arange(X_train.shape[0]+X_pred.shape[0])
         
         # Remove rows with all zeros
-        # from IPython import embed; embed()
         mask = ~(torch.all(X_train == 0, dim=1))
         X_train = X_train[mask]
         
@@ -193,29 +193,23 @@ class TorchMtrf:
                 device=self.device, 
                 dtype=torch.float32
             )
-            root_mean_square_error = torch.zeros(
-                len(self.alpha), 
-                device=self.device, 
-                dtype=torch.float32
-            )
             correlations_train = torch.zeros(
                 len(self.alpha), 
                 device=self.device, 
                 dtype=torch.float32
             )
-            root_mean_square_error_train = torch.zeros(
-                len(self.alpha), 
-                device=self.device, 
-                dtype=torch.float32
-            )
+
             trfs = torch.zeros(
                 len(self.alpha), 
                 len(config.delays), 
                 device=self.device, 
                 dtype=torch.float32
             )
-            
-            for i_alpha, alph in tqdm(enumerate(self.alpha), total=len(self.alpha), desc='Sweeping progress', bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"):
+            if self.logger and self.logger.level <= 10:
+                iterator = tqdm(enumerate(self.alpha), total=len(self.alpha), desc='Sweeping progress', bar_format="{desc}: {percentage:3.0f}%| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]")
+            else:
+                iterator = enumerate(self.alpha)
+            for i_alpha, alph in iterator:
 
                 # Fit the model
                 mtrfs = self._solver(
@@ -243,8 +237,6 @@ class TorchMtrf:
                 except RuntimeWarning:
                     correlations_train[i_alpha] = 0
                 
-                root_mean_square_error[i_alpha] = torch.sqrt(torch.pow(y_predicted - y_val, 2).mean(dim=0)).mean(dim=0)
-                root_mean_square_error_train[i_alpha] = torch.sqrt(torch.pow(y_predicted_train - y_train_for_val, 2).mean(dim=0)).mean(dim=0)
                 trfs[i_alpha] = mtrfs.view(n_features, len(config.delays), mtrfs.shape[-1]).permute(2, 0, 1).mean(dim=0).mean(dim=0) # shape n_chans, feats, delays --> delays
             del X_train_for_val, y_train_for_val, y_predicted, y_predicted_train, y_val, X_pred, mtrfs
 
@@ -253,8 +245,9 @@ class TorchMtrf:
             if self.use_gpu and torch.cuda.is_available():
                 torch.cuda.synchronize()
                 torch.cuda.empty_cache()
-                time.sleep(.1)
-            return trfs.detach().cpu().numpy(), correlations.detach().cpu().numpy(), root_mean_square_error.detach().cpu().numpy(), correlations_train.detach().cpu().numpy(), root_mean_square_error_train.detach().cpu().numpy()
+                if n_features>32:
+                    time.sleep(.1)
+            return trfs.detach().cpu().numpy(), correlations.detach().cpu().numpy(), correlations_train.detach().cpu().numpy()
         else:
             if self.shuffle:
                 iterations = np.arange(config.random_permutations)
@@ -268,11 +261,6 @@ class TorchMtrf:
                 correlations = torch.zeros(
                     size=(config.random_permutations, config.info_mne['nchan']), 
                     device=self.device, 
-                    dtype=torch.float32
-                    )
-                root_mean_square_error = torch.zeros(
-                    size=(config.random_permutations, config.info_mne['nchan']),
-                    device=self.device,
                     dtype=torch.float32
                     )
                 
@@ -306,16 +294,15 @@ class TorchMtrf:
                     except RuntimeWarning:
                         correlations[s] = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
                     
-                    root_mean_square_error[s] = torch.sqrt(torch.pow(y_predicted - y_test, 2).mean(dim=0))
-                    
                 del X_train, y_train, X_pred, y_test, y_predicted
                 # Let GPU free memory   
                 gc.collect()
                 if self.use_gpu and torch.cuda.is_available():
                     torch.cuda.synchronize()
                     torch.cuda.empty_cache()
-                    time.sleep(.1)
-                return coefs.cpu().numpy(), correlations.cpu().numpy(), root_mean_square_error.cpu().numpy()
+                    if n_features>32:
+                        time.sleep(.1)
+                return coefs.cpu().numpy(), correlations.cpu().numpy()
             else:
                 # Standarize and normalize
                 X_train, y_train, X_pred, y_test = self._standarize_normalize(
@@ -352,15 +339,14 @@ class TorchMtrf:
                 except RuntimeWarning:
                     correlation_matrix = torch.zeros(y_predicted.shape[1], device=self.device, dtype=torch.float32)
 
-                # Calculates and saves root mean square error of each channel
-                root_mean_square_error = torch.sqrt(torch.pow(y_predicted - y_test, 2).mean(dim=0))
                 # Let GPU free memory   
                 gc.collect()
                 if self.use_gpu and torch.cuda.is_available():
                     torch.cuda.synchronize()
                     torch.cuda.empty_cache()
-                    time.sleep(.1)
-                return mtrfs.cpu().numpy(), correlation_matrix.cpu().numpy(), root_mean_square_error.cpu().numpy()
+                    if mtrfs.shape[1]>32:
+                        time.sleep(.1)
+                return mtrfs.cpu().numpy(), correlation_matrix.cpu().numpy()
     
     def _solver(
         self, 
@@ -1607,7 +1593,6 @@ class TimeDelayingRidgeRegression(TimeDelayingRidge):
 
             #             # Transform back to time domain
             # TRF_t_band = torch.fft.irfft(TRF_f_band, axis=0).real   # (N, F, C)
-            # # from IPython import embed; embed()
 
             # return TRF_t_band[config.delays%(N-1)] # delays, F, C
                         
@@ -1694,7 +1679,6 @@ class TimeDelayingRidgeRegression(TimeDelayingRidge):
 
 
                             
-#             from IPython import embed; embed()
 #             import mne
 #             import matplotlib.pyplot as plt
 #             import matplotlib

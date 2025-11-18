@@ -22,7 +22,8 @@ def fold_model(
     statistical_test:bool=False, 
     path_null:str=None, 
     session:int=None, 
-    subject:int=None
+    subject:int=None,
+    logger:any=None
     ) -> tuple:
     """
     Perform parallel fold model training and evaluation. 
@@ -76,16 +77,16 @@ def fold_model(
             fit_intercept=False,
             shuffle=True, 
             alpha=alpha,
-            solver=config.solver
-
+            solver=config.solver,
+            logger=logger
         )
             
         # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
-        weights, correlation_matrix, root_mean_square_error = mtrf.fit( # n_iterations, n_chans, feats, delays; # n_iterations, n_chans
+        weights, correlation_matrix = mtrf.fit( # n_iterations, n_chans, feats, delays; # n_iterations, n_chans
             stims, 
             eeg
             )
-        return weights, correlation_matrix, root_mean_square_error
+        return weights, correlation_matrix
     elif validation:
         mtrf = TorchMtrf(
             relevant_indexes=relevant_indexes if relevant_indexes is not None else None,
@@ -98,14 +99,15 @@ def fold_model(
             validation=True,
             shuffle=False, 
             alpha=alpha, 
-            solver=config.solver
+            solver=config.solver,
+            logger=logger
         )
         # Returns directly correlations per alpha
         return mtrf.fit(stims, eeg)
     else:
         # Implement mne model
         if config.model=='mtrf_ridge':
-            weights, correlation_matrix, root_mean_square_error = old_functions(
+            weights, correlation_matrix = old_functions(
                 relevant_indexes=np.array(relevant_indexes),
                 train_indexes=train_indexes, 
                 test_indexes=test_indexes, 
@@ -129,31 +131,30 @@ def fold_model(
                 validation=False,
                 shuffle=False, 
                 alpha=alpha, 
-                solver=config.solver
+                solver=config.solver,
+                logger=logger
             )
             
             # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
-            weights, correlation_matrix, root_mean_square_error = mtrf.fit(stims, eeg) 
+            weights, correlation_matrix = mtrf.fit(stims, eeg) 
             
         # Perform statistical test
         if statistical_test:
             # Null Hypothesis (H0): There is no significant relationship between the predicted and actual EEG data. The test statistic (e.g., correlation or RMSE) follows the null distribution.
             # Alternative Hypothesis (H1): There is a significant relationship between the predicted and actual EEG data. The test statistic follows the alternative distribution.
             null_data = load_pickle(path=os.path.join(path_null, f'null_metrics_ses_{session}_sub_{subject}_{config.random_permutations}.pkl'))
-            null_correlation_per_channel, null_errors = null_data['null_correlation_per_channel_per_fold'], null_data['null_errors_per_fold']
+            null_correlation_per_channel = null_data['null_correlation_per_channel_per_fold']
             iterations =  null_correlation_per_channel.shape[1]
 
             # Correlation and RMSE (n_iterations, n_channels)
             null_correlation_matrix = null_correlation_per_channel[fold]
-            null_root_mean_square_error = null_errors[fold]
 
             # p-values for both tests: probability of getting a value equal or greater than the measured value, given the null hypothesis distribution (P(X>=X_obs|H0))
             # (null_correlation_matrix > correlation_matrix) is the number of iterations that surpasses the measured values for each channel (n_channels)
             p_corr = ((null_correlation_matrix > correlation_matrix).sum(axis=0) + 1) / (iterations + 1) # +1 to avoid division by zero, right tail test
-            p_rmse = ((null_root_mean_square_error < root_mean_square_error).sum(axis=0) + 1) / (iterations + 1) # left tail test
-            return fold, weights, correlation_matrix, root_mean_square_error, p_corr, p_rmse, null_correlation_per_channel, null_errors
+            return fold, weights, correlation_matrix, p_corr, null_correlation_per_channel
         else:
-            return fold, weights, correlation_matrix, root_mean_square_error
+            return fold, weights, correlation_matrix
 
 def old_functions(
     relevant_indexes:np.ndarray,
@@ -196,21 +197,21 @@ def old_functions(
     """
        
     mtrf = ReceptiveFieldAdaptation(
-                relevant_indexes=np.array(relevant_indexes),
-                stims_preprocess=config.stims_preprocess, 
-                eeg_preprocess=config.eeg_preprocess,
-                train_indexes=train_indexes, 
-                test_indexes=test_indexes, 
-                sample_rate=config.sr, 
-                fit_intercept=False,
-                tmin=config.tmin, 
-                tmax=config.tmax, 
-                estimator=estimator, #timedelayingridge falta config# todo
-                validation=False,
-                shuffle=False,
-                alpha=alpha, 
-                n_jobs=1
-            )
+        relevant_indexes=np.array(relevant_indexes),
+        stims_preprocess=config.stims_preprocess, 
+        eeg_preprocess=config.eeg_preprocess,
+        train_indexes=train_indexes, 
+        test_indexes=test_indexes, 
+        sample_rate=config.sr, 
+        fit_intercept=False,
+        tmin=config.tmin, 
+        tmax=config.tmax, 
+        estimator=estimator, #timedelayingridge falta config# todo
+        validation=False,
+        shuffle=False,
+        alpha=alpha, 
+        n_jobs=1
+    )
             
     # The fit already already consider relevant indexes of train and test data and applies standarization|normalization
     mtrf.fit(stims, eeg)
@@ -228,8 +229,5 @@ def old_functions(
         correlation_matrix = np.array([np.corrcoef(eeg_test[:, j], predicted[:, j])[0,1] for j in range(eeg_test.shape[1])])
     except RuntimeWarning:
         correlation_matrix = np.zeros(eeg_test.shape[1])
-
-    # Calculates and saves root mean square error of each channel
-    root_mean_square_error = np.array(np.sqrt(np.power((predicted - eeg_test), 2).mean(0)))
     
-    return weights, correlation_matrix, root_mean_square_error
+    return weights, correlation_matrix

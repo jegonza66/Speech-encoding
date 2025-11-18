@@ -246,9 +246,8 @@ def iteration_percentage(
         percentage_bar =  f"[{'·'*(l):50s}] {(l*2)/100:.0%}"
     
     message = f"{txt}\n{percentage_bar}\n\n"
-    
     if logger is not None:
-        logger.info(message)
+        logger.info(message.rstrip())
     else:
         sys.stdout.write(message + '\n')
 

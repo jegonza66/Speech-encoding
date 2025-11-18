@@ -29,7 +29,7 @@ Examples:
             if attr_value is None:
                 # Example: treat as float if you expect a float
                 if attr_name in ["temporal_shift", "set_alpha"]:
-                    parser.add_argument(f'--{attr_name}', type=float, default=None, help=f'(float/None) {attr_name}')
+                    parser.add_argument(f'--{attr_name}', type=float, default=argparse.SUPPRESS, help=f'(float/None) {attr_name}')
             elif isinstance(attr_value, bool):
                 # For booleans, use store_true/store_false but set default to a sentinel value
                 parser.add_argument(f'--{attr_name}', action='store_true', default=argparse.SUPPRESS,
@@ -45,7 +45,7 @@ Examples:
     
     return parser
 
-def apply_args_to_config(args):
+def apply_args_to_config(args, logger=None):
     """Apply parsed arguments to config"""
     for arg_name, arg_value in vars(args).items():
         if hasattr(config, arg_name):
@@ -59,9 +59,13 @@ def apply_args_to_config(args):
                     arg_value = [float(x) for x in arg_value]
             
             setattr(config, arg_name, arg_value)
-            print(f"Override: {arg_name} = {arg_value}")
-
+            if arg_value is not None:
+                if logger:
+                    logger.info(f"Override: {arg_name} = {arg_value}")
+                else:   
+                    print(f"Override: {arg_name} = {arg_value}")
 # Use it
-parser = create_dynamic_parser()
-args = parser.parse_args()
-apply_args_to_config(args)
+if __name__=='__main__':
+    parser = create_dynamic_parser()
+    args = parser.parse_args()
+    apply_args_to_config(args)

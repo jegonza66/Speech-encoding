@@ -22,10 +22,20 @@ from utils.telegram_config import API_TOKEN, CHAT_ID
 from utils.from_commands import create_dynamic_parser, apply_args_to_config
 from utils.logs import setup_logger
 
+# Initialize logger
+logger_main = setup_logger(
+    name='main',
+    log_to_file=config.LOG_TO_FILE,
+    log_dir=config.LOG_DIR if config.LOG_TO_FILE else None,
+    level=config.LOG_LEVEL,
+    console_output=True
+)
+
 # Use it
-parser = create_dynamic_parser()
-args = parser.parse_args()
-apply_args_to_config(args)
+if __name__ == "__main__":
+    parser = create_dynamic_parser()
+    args = parser.parse_args()
+    apply_args_to_config(args, logger=logger_main)
 
 # ============
 # RUN ANALYSIS
@@ -60,16 +70,21 @@ def main(
     perform_tfce = config.perform_tfce,
     n_permutations = config.n_permutations,
     number_of_jobs = config.number_of_jobs,
+    logger_main=logger_main,
+    ROI:bool=config.ROI,
+    validation_results:dict=None,
+    load_results:dict=None
 ):
-    # Initialize logger
-    logger = setup_logger(
-        name='main',
-        log_to_file=config.LOG_TO_FILE,
-        log_dir=config.LOG_DIR if config.LOG_TO_FILE else None,
-        level=config.LOG_LEVEL
-    )
     if set_alpha:
-        print(f"WARNING: ALPHA IS BEING FORCE TO {set_alpha}")
+        logger_main.warning(f"\n\n\tWARNING: ALPHA IS BEING FORCE TO {set_alpha}\n\n")
+    
+    if validation_results is not None:
+        logger_main.info("Using provided validation results")
+        ROI=False
+        situations = list(validation_results.keys())
+        bands = validation_results[situations[0]].keys()
+        stimuli = validation_results[situations[0]][list(bands)[0]].keys()
+    
     total_results = {
         situation: {
             band: {
@@ -88,15 +103,15 @@ def main(
                 stim, band = '_'.join(sorted_stimuli), '_'.join(sorted_bands)
 
                 # Update
-                logger.info(
-                    '\n===========================\n'
-                    '\tPARAMETERS\n\n'
-                    f'Model: {model}-{solver}\n'
-                    f'Band: {band}\n'
-                    f'Stimulus: {stim}\n'
-                    f'Condition: {situation}\n'
-                    f'Time interval: ({tmin},{tmax})s\n'
-                    '\n===========================\n'
+                logger_main.info(
+                    '\n\t\t===========================\n'
+                    '\t\t\tPARAMETERS\n\n'
+                    f'\t\tModel: {model}-{solver}\n'
+                    f'\t\tBand: {band}\n'
+                    f'\t\tStimulus: {stim}\n'
+                    f'\t\tCondition: {situation}\n'
+                    f'\t\tTime interval: ({tmin},{tmax})s\n'
+                    '\n\t\t===========================\n'
                 )
 
                 # Relevant paths
@@ -132,20 +147,18 @@ def main(
                     path_validation = f'{output_dir}/{model}-{solver}/External/validation/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
                 else:
                     path_validation = f'{output_dir}/{model}-{solver}/{situation}/validation/stims_{stims_preprocess}_EEG_{eeg_preprocess}/tmin{tmin}_tmax{tmax}/{band}/{stim}/'
+                if ROI:
+                    path_validation = path_validation.replace(f'EEG', 'ROI')
                 alphas_path = os.path.join(path_validation, f'corr_limit_{val_correlation_limit_percentage}.pkl')
 
 
                 # Make lists to store relevant data across sobjects
                 repeated_good_correlation_channels_subjects = []
-                repeated_good_rmse_channels_subjects = []
                 null_correlation_per_channel_subjects = []
-                null_rmse_per_channel_subjects = []
                 correlation_per_channel_subjects = []
                 average_correlation_subjects = []
                 average_weights_subjects = []
-                average_rmse_subjects = []
                 pvalues_corr_subjects = []
-                pvalues_rmse_subjects = []
                 alphas_subjects = []
 
                 # Store total number of subjects (18) to save figures and results just in this case
@@ -154,43 +167,63 @@ def main(
                 # from IPython import embed; embed()
                 if same_validation_subjects and set_alpha is None:
                     alphas_total = []
-                    alphas = load_pickle(path=alphas_path)
-                    for session in sessions:
-                        for subject in [1, 2]:
-                            alphas_total.append(alphas[session][subject])
+                    if validation_results is not None:
+                        for session in sessions:
+                            for subject in [1, 2]:
+                                alphas_total.append(validation_results[situation][band][stim][session][subject])
+                    else:
+                        alphas = load_pickle(path=alphas_path)
+                        for session in sessions:
+                            for subject in [1, 2]:
+                                alphas_total.append(alphas[session][subject])
                     alphas_total = np.array(alphas_total)
                     set_alpha = 10**(np.median(np.log10(alphas_total)))
-                    logger.info(f'Setting alpha to {set_alpha} for all subjects')
+                    logger_main.info(f'Setting alpha to {set_alpha} for all subjects')
                 else:
                     ...
                 
                 # Iterate over sessions
                 for session in sessions:
-                    print(f'\n-------> Start of session {session}\n')
+                    logger_main.info(f'\n-------> Start of session {session}\n')
 
                     # Load data by subject, EEG and info
-                    subject_1, subject_2, samples_info = load_data(
-                        preprocessed_data_path=preprocessed_data_path,
-                        situation=situation,
-                        session=session,
-                        stimuli=stim,
-                        band=band,
-                        save_results=save_results
-                    )
-                    eeg_subject_1, eeg_subject_2 = subject_1['EEG'], subject_2['EEG']
+                    if load_results:
+                        subject_1, subject_2, samples_info = load_results[situation][band][stim][session]
+                    else:
+                        subject_1, subject_2, samples_info = load_data(
+                            preprocessed_data_path=preprocessed_data_path,
+                            situation=situation,
+                            session=session,
+                            stimuli=stim,
+                            band=band,
+                            save_results=save_results,
+                            logger=logger_main
+                        )          
+                    if ROI:
+                        ROI_labels = load_pickle(
+                            path=rf'data\ROIs\S{session}\s{session}-1-roi-signals-bilateral-labels.pkl'
+                        )
+                        eeg_subject_1 = load_pickle(
+                            path=rf'data\ROIs\S{session}\s{session}-1-roi-signals-bilateral.pkl'
+                        )
+                        eeg_subject_2 = load_pickle(
+                            path=rf'data\ROIs\S{session}\s{session}-2-roi-signals-bilateral.pkl'
+                        )
+                        relevant_indexes_1 = np.arange(eeg_subject_1.shape[0])
+                        relevant_indexes_2 = np.arange(eeg_subject_2.shape[0])
+                        logger_main.info("Using ROI data for EEG")
+                    else:
+                        eeg_subject_1, eeg_subject_2 = subject_1['EEG'], subject_2['EEG']
+                        relevant_indexes_1 = samples_info['keep_indexes1'].copy()
+                        relevant_indexes_2 = samples_info['keep_indexes2'].copy()
 
                     if just_load_data:
                         continue
 
                     # Load stimuli by subject (i.e: concatenated stimuli features)
                     n_feats = [subject_1[stimulus].shape[1] for stimulus in stim.split('_')]
-                    delayed_length_per_stimuli = [n_feat*len(delays) for n_feat in n_feats]
                     stims_subject_1 = np.hstack([subject_1[stimulus] for stimulus in stim.split('_')])
                     stims_subject_2 = np.hstack([subject_2[stimulus] for stimulus in stim.split('_')])
-
-                    # Get relevant indexes
-                    relevant_indexes_1 = samples_info['keep_indexes1'].copy()
-                    relevant_indexes_2 = samples_info['keep_indexes2'].copy()
 
                     # Run model for each subject
                     for subject, eeg, stims, relevant_indexes in zip(
@@ -199,30 +232,30 @@ def main(
                         (stims_subject_1, stims_subject_2), 
                         (relevant_indexes_1, relevant_indexes_2)
                         ):
-                        print(f'\n\t······  Running model for Subject {subject}\n')
+                        logger_main.info(f'\n\t······  Running model for Subject {subject}\n')
                         
                         # Initialize empty variables to store relevant data of each fold
                         weights_per_fold = np.zeros((n_folds, info_mne['nchan'], np.sum(n_feats), len(delays)), dtype=np.float32)
                         correlation_per_channel = np.zeros((n_folds, info_mne['nchan']))
-                        rmse_per_channel = np.zeros((n_folds, info_mne['nchan']))
 
                         # Variable to store all channel's p-value
                         topo_pvalues_corr_per_fold = np.zeros((n_folds, info_mne['nchan']))
-                        topo_pvalues_rmse_per_fold = np.zeros((n_folds, info_mne['nchan']))
 
                         # Variable to store p-value of significant channels
                         proba_correlation_per_channel = np.ones((n_folds, info_mne['nchan']))
-                        proba_rmse_per_channel = np.ones((n_folds, info_mne['nchan']))
 
                         # Set alpha for specific subject
-                        if set_alpha is None:
-                            try:
-                                alphas = load_pickle(path=alphas_path)
-                                alpha = alphas[session][subject]
-                            except:
-                                alpha = default_alpha
+                        if validation_results is not None and set_alpha is None:
+                            alpha = validation_results[situation][band][stim][session][subject]
                         else:
-                            alpha = set_alpha
+                            if set_alpha is None:
+                                try:
+                                    alphas = load_pickle(path=alphas_path)
+                                    alpha = alphas[session][subject]
+                                except:
+                                    alpha = default_alpha
+                            else:
+                                alpha = set_alpha
                         alphas_subjects.append(alpha)
 
                         # Make the Kfold test
@@ -233,101 +266,94 @@ def main(
                         
                         # Run folds
                         for fold, (train_indexes, test_indexes) in enumerate(kf_test.split(relevant_eeg)):
-                            logger.debug(f'\n\t······  [{fold+1}/{n_folds}]\t-->\t α:{alpha:.2f}')
+                            logger_main.debug(f'\n\t······  [{fold+1}/{n_folds}]\t-->\t α:{alpha:.2f}')
 
                             # Store model output
-                            output = fold_model(
-                                fold=fold,
-                                alpha=alpha,
-                                stims=stims,
-                                eeg=eeg,
-                                statistical_test=statistical_test,
-                                relevant_indexes=relevant_indexes,
-                                train_indexes=train_indexes,
-                                test_indexes=test_indexes,
-                                path_null=path_null,
-                                validation=False,
-                                subject=subject,                              
-                                session=session
-                            )
-                            # Update weights and metrics per fold
-                            fold, weights_per_fold[fold], correlation_per_channel[fold], rmse_per_channel[fold] = output[:4]
-                            
-                            # If statistical test is performed, get p-values and null correlation
-                            if statistical_test:
-                                p_corr, p_rmse, null_correlation_per_channel, null_rmse_per_channel = output[4:]
+                            if not statistical_test:
+                                fold, weights_per_fold[fold], correlation_per_channel[fold] = fold_model(
+                                    fold=fold,
+                                    alpha=alpha,
+                                    stims=stims,
+                                    eeg=eeg,
+                                    statistical_test=statistical_test,
+                                    relevant_indexes=relevant_indexes,
+                                    train_indexes=train_indexes,
+                                    test_indexes=test_indexes,
+                                    path_null=path_null,
+                                    validation=False,
+                                    subject=subject,                              
+                                    session=session,
+                                    logger=logger_main
+                                )
+                            else:
+                                fold, weights_per_fold[fold], correlation_per_channel[fold], p_corr, null_correlation_per_channel= fold_model(
+                                    fold=fold,
+                                    alpha=alpha,
+                                    stims=stims,
+                                    eeg=eeg,
+                                    statistical_test=statistical_test,
+                                    relevant_indexes=relevant_indexes,
+                                    train_indexes=train_indexes,
+                                    test_indexes=test_indexes,
+                                    path_null=path_null,
+                                    validation=False,
+                                    subject=subject,                              
+                                    session=session,
+                                    logger=logger_main
+                                )
 
                                 # p-values for significant channels (the rest are ones, i.e: not significant)
                                 proba_correlation_per_channel[fold][p_corr < significance_threshold] = p_corr[p_corr < significance_threshold]
-                                proba_rmse_per_channel[fold][p_rmse < significance_threshold] = p_rmse[p_rmse < significance_threshold]
                                 
                                 # all p-values for topographic distribution across channels
                                 topo_pvalues_corr_per_fold[fold] = p_corr
-                                topo_pvalues_rmse_per_fold[fold] = p_rmse
 
                         # Take average weights, avoiding folds entirely filled with zeros
                         empty_mask = np.array([np.all(weight == 0) for weight in weights_per_fold])
                         if empty_mask.any():
                             empty_fold_indices = np.where(empty_mask)[0]
                             weights_per_fold[empty_mask] = np.nan
-                            logger.warning(f'\n\t\t{">" * 26}\n'
+                            logger_main.warning(f'\n\t\t{">" * 26}\n'
                                 f'\t\tFolds {", ".join(map(str, empty_fold_indices + 1))} out of {n_folds} are empty\n'
                                 f'\t\t{">" * 26}')
                                 
                         average_weights = np.nanmean(weights_per_fold, axis=0) # info_mne['nchan'], np.sum(n_feats), len(delays)
                         average_weights = np.nan_to_num(average_weights)
                                         
-                        # Take average correlation and RMSE between folds of all channels
+                        # Take average correlation 
                         average_correlation = np.nanmean(correlation_per_channel, axis=0)
                         average_correlation = np.nan_to_num(average_correlation)
-                        average_rmse = rmse_per_channel.mean(axis=0)
 
                         # Channels that passed the tests
                         corr_good_channel_indexes = []
-                        rmse_good_channel_indexes = []
                     
                         # Variable to store significant channels
                         repeated_good_correlation_channels = np.zeros(info_mne['nchan'])
-                        repeated_good_rmse_channels = np.zeros(info_mne['nchan'])
 
                         # Find good indexes by checking where all folds (at the same time) are significant
                         if statistical_test: 
                             corr_good_channel_indexes, = np.where(
                                 np.all((proba_correlation_per_channel < 1), axis=0)
                             )
-                            rmse_good_channel_indexes, = np.where(
-                                np.all((proba_rmse_per_channel < 1), axis=0)
-                            )
                             if len(corr_good_channel_indexes) == 0:
-                                logger.warning('No significant channels found (correlation)')   
+                                logger_main.warning('No significant channels found (correlation)')   
                                 corr_good_channel_indexes = []
-                            if len(rmse_good_channel_indexes) == 0:
-                                logger.warning('No significant channels found (RMSE)')   
-                                rmse_good_channel_indexes = []
 
                         # Avergae p-values across all folds
                         topo_pval_corr_subject = topo_pvalues_corr_per_fold.mean(axis=0)
-                        topo_pval_rmse_subject = topo_pvalues_rmse_per_fold.mean(axis=0)
 
-                        # Saves average correlation, RMSE and weights between folds of each channel of each subject to take average above subjects channels
+                        # Saves average correlation and weights between folds of each channel of each subject to take average above subjects channels
                         if statistical_test:
                             null_correlation_per_channel_subjects.append(null_correlation_per_channel)  
-                            null_rmse_per_channel_subjects.append(null_rmse_per_channel)
                         else: 
                             null_correlation_per_channel_subjects.append(
                                 np.zeros((n_folds, info_mne['nchan'])) # Null correlation is zeros
                                 )
-                            null_rmse_per_channel_subjects.append(
-                                np.zeros((n_folds, info_mne['nchan'])) # Null RMSE is zeros
-                                )
                         repeated_good_correlation_channels_subjects.append(corr_good_channel_indexes)
-                        repeated_good_rmse_channels_subjects.append(rmse_good_channel_indexes)
                         correlation_per_channel_subjects.append(correlation_per_channel)
                         average_correlation_subjects.append(average_correlation)
                         pvalues_corr_subjects.append(topo_pval_corr_subject)
-                        pvalues_rmse_subjects.append(topo_pval_rmse_subject)
                         average_weights_subjects.append(average_weights)
-                        average_rmse_subjects.append(average_rmse)
 
                         # Update the number of subjects
                         total_number_of_subjects+=1
@@ -337,7 +363,7 @@ def main(
                         txt=f'\n-------> End of session {session}\n', 
                         i=sessions.index(session), 
                         length_of_iterator=len(sessions),
-                        # logger=logger
+                        logger=logger_main
                     )
 
                 if just_load_data:
@@ -346,12 +372,13 @@ def main(
                 # Get desire shape n_subject, shape of array. For ex.: shape(average_weights_subjects) = n_subj, n_chans, n_feats, n_delays
                 average_correlation_subjects = np.stack(average_correlation_subjects , axis=0) # n_subj, n_chans
                 average_weights_subjects = np.stack(average_weights_subjects, axis=0) # n_subj, n_chans, n_feats, n_delays
-                average_rmse_subjects = np.stack(average_rmse_subjects , axis=0) # n_subj, n_chans
                 pvalues_corr_subjects = np.stack(pvalues_corr_subjects , axis=0) # n_subj, n_chans
-                pvalues_rmse_subjects = np.stack(pvalues_rmse_subjects , axis=0) # n_subj, n_chans
 
                 # Save results
                 if save_results and total_number_of_subjects==18:
+                    if ROI:
+                        save_results_path += 'ROI/'
+                        path_weights += 'ROI/'
                     os.makedirs(save_results_path, exist_ok=True)
                     os.makedirs(path_weights, exist_ok=True)
                     
@@ -385,15 +412,17 @@ def main(
                 }
 
                 if perform_tfce:
+                    if ROI:
+                        path_TFCE += 'ROI/'
                     try:
-                        logger.info("Loading TFCE data")
+                        logger_main.info("Loading TFCE data")
                         tvalue_tfce, pvalue_tfce = load_pickle(
                             path=os.path.join(path_TFCE, band, stim + f'_{n_permutations}.pkl')
                             )
-                        logger.info('Successful load ✓')
+                        logger_main.info('Successful load ✓')
                     except:
-                        logger.warning("Load fail")
-                        logger.info(f"Computing TFCE: {n_permutations} permutations.")
+                        logger_main.warning("Load fail")
+                        logger_main.info(f"Computing TFCE: {n_permutations} permutations.")
 
                         # Compute TFCE to get p-value
                         tvalue_tfce, pvalue_tfce = tfce(
@@ -416,8 +445,8 @@ def main(
                 stimulus_runtimes[f"{band}_{stim}"] = stim_runtime
                 
                 # Print stimulus completion time
-                logger.info(
-                    f"\n\t{'='*40}\n"
+                logger_main.info(
+                    f"\n\n\t{'='*40}\n"
                     f"\t✅ STIMULUS COMPLETED: {band}_{stim}\n\n"
                     f"\t⏱️  Runtime: {stim_runtime}\n"
                     f"\t📊 Subjects processed: {total_number_of_subjects}\n"
@@ -425,25 +454,25 @@ def main(
                 )
                 
                 if not no_figures:
-                    logger.info("🎨 Iniciando generación de gráficos...")
+                    logger_main.info("🎨 Iniciando generación de gráficos...")
                     get_general_plots.main(
                         repeated_good_correlation_channels_subjects=repeated_good_correlation_channels_subjects,
                         null_correlation_per_channel_subjects=null_correlation_per_channel_subjects,
-                        repeated_good_rmse_channels_subjects=repeated_good_rmse_channels_subjects,
                         correlation_per_channel_subjects=correlation_per_channel_subjects,
                         average_correlation_subjects=average_correlation_subjects,
                         average_weights_subjects=average_weights_subjects,
                         total_number_of_subjects=total_number_of_subjects,
-                        average_rmse_subjects=average_rmse_subjects,
                         pvalues_corr_subjects=pvalues_corr_subjects,
-                        pvalues_rmse_subjects=pvalues_rmse_subjects,
                         alphas_subjects=alphas_subjects,
                         path_figures=path_figures,
                         pvalue_tfce=pvalue_tfce if perform_tfce else None,
                         n_feats=n_feats,
                         band=band,
                         stim=stim,
-                        same_validation_subjects=same_validation_subjects
+                        same_validation_subjects=same_validation_subjects,
+                        ROI=ROI,
+                        ROI_labels=ROI_labels if ROI else None,
+                        logger=logger_main
                     )
         # Get total run time
         total_runtime = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
@@ -462,8 +491,9 @@ def main(
             api_token=API_TOKEN,
             chat_id=CHAT_ID, 
             message=text,
-            caption='Run finished'
-            )
+            caption='Run finished',
+            logger=logger_main
+        )
 
         # Dump metadata
         metadata_path = f'saves/log/main/{datetime.now().strftime("%Y-%m-%d--%H-%M-%S")}/'
@@ -479,9 +509,10 @@ def main(
         )
         
         # Print the completion message
-        logger.info(text)
+        logger_main.info(text)
     return total_results
 
 
 if __name__ == "__main__":
     results = main()
+    # print(load_pickle(r"output\mtrf-ridge\External\correlations\distinct_alpha\tmin-0.2_tmax0.6\Broad\ROI\Envelope.pkl")['average_correlation_subjects'].mean())

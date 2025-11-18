@@ -3,6 +3,10 @@ import pandas as pd
 import numpy as np
 import os
 
+# Set TensorFlow environment variables BEFORE any TensorFlow imports
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimizations warnings
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0=all, 1=info, 2=warnings, 3=errors only
+
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from transformers import Wav2Vec2FeatureExtractor, WavLMModel
@@ -44,8 +48,10 @@ ALLOWED_STIMULI = [
     'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
     'Hearing-Turn',
     'EEG-feature',
+    'ROIs'
     # 'Jitter', 'Shimmer'
 ]
+
 def sort_stimuli_based_on_situation(
     subject_1:dict,
     subject_2:dict,
@@ -71,7 +77,7 @@ def sort_stimuli_based_on_situation(
     sub1, sub2 = {}, {}
     if situation.startswith('External') or situation=='All':
         for key in subject_1:
-            if key!='EEG':
+            if key!='EEG' and key!='ROI':
                sub1[key] = subject_2[key]
                sub2[key] = subject_1[key]
             else:

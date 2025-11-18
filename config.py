@@ -7,7 +7,7 @@ parallel_load = True
 
 # Logging configuration
 LOG_LEVEL = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
-LOG_TO_FILE = True
+LOG_TO_FILE = False
 LOG_DIR = "saves/detailed_logs"
 
 # ==========================================
@@ -32,10 +32,10 @@ stimuli = [
 
         # # Combined 1st level features
         # 'Envelope_Pitch-Log-Raw',
-        # 'Envelope_Spectrogram',
+        'Envelope',
         # 'Pitch-Log-Raw_Spectrogram',
         # 'Envelope_Pitch-Log-Raw_Spectrogram',
-
+        # 'Phonological'
         # # Combined best performance features
         # 'Phonological_Spectrogram',
         # 'Phonemes_Spectrogram',
@@ -43,10 +43,13 @@ stimuli = [
         # 'Phonological_Phonemes_Spectrogram',
 
         # # Simples
-        # 'Envelope',
+        # 'Envelope_Phonemes-Discrete',
+        # 'Phonemes-Discrete_Spectrogram-21',
+        # 'Envelope_Spectrogram-21',
+        # 'Phonemes-Discrete_Envelope_Spectrogram-21'
         # 'Hearing-Turn',
         # 'Pitch-Log-Raw',
-        # 'Spectrogram-21_Envelope',
+        # 'Spectrogram-21',
         # 'Mfccs',
         # 'Phonological',
         # 'Phonemes',
@@ -59,7 +62,7 @@ stimuli = [
         # '2DNNs1-wavlm',
         # '21DNNs1-whisper',
         # 'Spectrogram-21', 
-        '32DNNs6-wav2vec2',
+        # '32DNNs6-wav2vec2',
         # 'Phonemes-Discrete', 
         # 'Phonological',
         # 'Spectrogram-21_Phonemes-Discrete', # se rompe en parallel ver pq
@@ -110,7 +113,8 @@ bands = [
 temporal_shift = None
 # ==========================================
 # LOADING/SAVING DATA, FIGURE CONFIGURATIONS
-praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
+# praat_executable_path = r"C:\Users\User\Downloads\programas_descargados_por_octavio\Praat.exe" #r"C:\Program Files\Praat\Praat.exe"#
+praat_executable_path = r"C:\Users\jocta\Downloads\programas\Praat.exe"
 save_results, save_figures = True, True
 hierarchical_clustering = True
 just_load_data = False
@@ -119,8 +123,9 @@ display_interactive_mode, no_figures = False, False
 
 # ==========================================
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
-external_validation = True # whether to use External hyperparameter or the one that maximize specific condition
-same_validation_subjects = True # same hyperparameter for all subjects 
+ROI = False # whether to use ROI data or full EEG data
+external_validation = False # whether to use External hyperparameter or the one that maximize specific condition
+same_validation_subjects = False # same hyperparameter for all subjects 
 statistical_test, perform_tfce = False, False
 use_gpu = True
 
@@ -165,10 +170,21 @@ times = (delays/sr)
 
 # =================
 # MODEL COMPARISON
-montage = mne.channels.make_standard_montage('biosemi128')
-info_mne = mne.create_info(ch_names=montage.ch_names[:], sfreq=sr, ch_types='eeg').set_montage(montage)
-relevant_channels = 12 # None
-
+if ROI:
+    info_mne = mne.create_info(
+        ch_names=[
+            'transversetemporal-lh', 'transversetemporal-rh',
+            'superiortemporal-lh', 'superiortemporal-rh',
+            'parsopercularis-lh', 'parsopercularis-rh',
+            'inferiorparietal-lh', 'inferiorparietal-rh'
+        ], 
+        sfreq=sr, 
+        ch_types='eeg'
+   )
+else:
+    montage = mne.channels.make_standard_montage('biosemi128')
+    info_mne = mne.create_info(ch_names=montage.ch_names[:], sfreq=sr, ch_types='eeg').set_montage(montage)
+    relevant_channels = 12 # None
 # ============
 # PLOTS LABELS
 class Exp_info:
