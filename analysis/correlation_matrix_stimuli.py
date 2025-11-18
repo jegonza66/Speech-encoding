@@ -1,3 +1,7 @@
+"""
+Generate and save correlation matrix heatmaps for different stimuli under specified situations.
+"""
+
 from pathlib import Path
 import seaborn as sns
 import numpy as np

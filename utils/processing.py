@@ -778,7 +778,24 @@ def correct_pearson_square(
 
     # 4. Devuelve los R^2 corregidos
     corrected_biases = result.x
-    return values - corrected_biases
+    if len(values)==3:
+        final_corrected_values = {
+            'A' : values[0] - corrected_biases[0],
+            'B' : values[1] - corrected_biases[1],
+            'AB_union' : values[2] - corrected_biases[2]
+        }
+        return final_corrected_values
+    elif len(values)==7:
+        final_corrected_values = {
+            'A' : values[0] - corrected_biases[0],
+            'B' : values[1] - corrected_biases[1],
+            'C' : values[2] - corrected_biases[2],
+            'AB_union' : values[3] - corrected_biases[3],
+            'AC_union' : values[4] - corrected_biases[4],
+            'BC_union' : values[5] - corrected_biases[5],
+            'ABC_union' : values[6] - corrected_biases[6]
+        }
+        return final_corrected_values
 
 class Standarize():
     def __init__(

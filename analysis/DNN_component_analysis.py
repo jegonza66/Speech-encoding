@@ -4,30 +4,36 @@ For each DNN, it varies n_components and registers the average correlation value
 The idea is to plot many curves (one for each n_components), where the average correlation per layer is plotted.
 """
 import matplotlib.pyplot as plt
+from matplotlib import rc
 from pathlib import Path
+import scienceplots
 import numpy as np
+import imageio
 import shutil
 import json
+import mne
 import os
 
+rc('text', usetex=True)
+plt.style.use(['science'])
+
 import config
-from utils.general_functions import load_pickle, dump_pickle, convert_numpy_keys
+from utils.general_functions import (
+    load_pickle, dump_pickle, convert_numpy_keys
+)
 
 from load import main_parallel as main_load
 from validation import main as main_val
 from main import main as main_main
 
-from matplotlib import rc
-rc('text', usetex=True)
-import scienceplots
-plt.style.use(['science'])
-
-# Total: 3*4*23 = 276 analyses
 SAVE_PATH = Path("output/mtrf-ridge/analysis/DNN_component_analysis")
 BACKBONES = ["hubert", "wav2vec2", "wavlm"]#, 'whisper'] 
+
+EXTRA_COMPONENTS = np.array([64, 128, 200])
 COMPONENTS = np.array([12, 16, 21, 24, 32])
-extra_components_for_layer10 = np.array([64, 128, 200])
 LAYERS = np.arange(24) # 23 
+
+N_COMPONENTS_TO_PLOT = 32
 
 correlations = {
     backbone: {
@@ -38,13 +44,13 @@ correlations = {
 }
 for backbone in BACKBONES:
     if backbone == 'wav2vec2':
-        for n_components in extra_components_for_layer10:
+        for n_components in EXTRA_COMPONENTS:
             correlations[backbone][n_components] = {
                 6: None
             }
     # elif backbone != 'whisper':
     else:
-        for n_components in extra_components_for_layer10:
+        for n_components in EXTRA_COMPONENTS:
             correlations[backbone][n_components] = {
                 10: None
             }
@@ -75,13 +81,13 @@ try:
                             correlations[backbone][n_components][layer] = None
         # Special case for wav2vec2
         if backbone == 'wav2vec2':
-            for n_components in extra_components_for_layer10:
+            for n_components in EXTRA_COMPONENTS:
                 if n_components not in correlations[backbone]:
                     correlations[backbone][n_components] = {
                         6: None
                     }
         # elif backbone != 'whisper':
-        for n_components in extra_components_for_layer10:
+        for n_components in EXTRA_COMPONENTS:
             if n_components not in correlations[backbone]:
                 correlations[backbone][n_components] = {
                     10: None
@@ -89,11 +95,10 @@ try:
 except FileNotFoundError:
     print("No previous checkpoint found, starting from scratch.")
 
-# Compute missing entries
-components_to_use = COMPONENTS.copy()
-
 for backbone in BACKBONES:
-    components_to_use = np.concatenate((COMPONENTS, extra_components_for_layer10))
+    components_to_use = np.concatenate(
+        (COMPONENTS.copy(), EXTRA_COMPONENTS.copy())
+    )
     for n_components in components_to_use:  
         if n_components > 32:
             if backbone == 'wav2vec2':
@@ -106,15 +111,17 @@ for backbone in BACKBONES:
         else:
             layers_to_use = LAYERS.copy()
         for layer in layers_to_use:
+
             # Check if already computed
             stimuli = f'{n_components}DNNs{layer}-{backbone}'
             if correlations[backbone][n_components][layer] is not None:
                 print(f"Skipping already computed {stimuli}")
                 continue
-            print(
-                f'\n\n\n\tProcessing {n_components} COMPONENTS, layer {layer}, backbone {backbone}\n',
-                f'\n\tStimuli:\t{stimuli}\n'
-            )
+            else:
+                print(
+                    f'\n\n\n\tProcessing {n_components} COMPONENTS, layer {layer}, backbone {backbone}\n',
+                    f'\n\tStimuli:\t{stimuli}\n'
+                )
             
             # Load data (this will preprocess and save the data if not found)
             _ = main_load(
@@ -134,14 +141,6 @@ for backbone in BACKBONES:
                 n_folds=2 if n_components > 200 else 10,
                 recompute=False
             )['External']['Broad'][stimuli]
-
-            # # Get median alpha across sessions and subjects # ACA QUEREMOS MAXIMIZAR CORRELACIÓN, CADA SUJETO DEBERÍA TENER SU PROPIO ALPHA
-            # alphas_total = []
-            # for session in config.sessions:
-            #     for subject in [1, 2]:
-            #         alphas_total.append(alphas[session][subject])
-            # alphas_total = np.array(alphas_total)
-            # set_alpha = 10**(np.median(np.log10(alphas_total)))
             
             # Main results with optimal alpha
             main_results = main_main(
@@ -167,7 +166,7 @@ for backbone in BACKBONES:
                 rewrite=True,
                 verbose=True
             )
-            # Save json to legible format
+            # Legible format
             with open(SAVE_PATH / "checkpoint_DNN_component_correlations.json", 'w') as f:
                 json_data = {
                     "correlations": convert_numpy_keys(correlations),
@@ -195,8 +194,8 @@ for idx, backbone in enumerate(['hubert', 'wavlm', 'wav2vec2']):#, 'whisper']):
     for n_components in COMPONENTS:
         means = [correlations[backbone][n_components][layer].mean() for layer in LAYERS]
         sems = [correlations[backbone][n_components][layer].mean(axis=1).std(ddof=1)/np.sqrt(18) for layer in LAYERS]
-        linewidth = 3 if n_components == 21 else 1
-        alpha = 0.2 if n_components == 21 else 0.1
+        linewidth = 3 if n_components == 32 else 1
+        alpha = 0.2 if n_components == 32 else 0.1
         # alpha=.1
         if backbone == 'wavlm':
             ax.plot(LAYERS, means, label=f'{n_components} components', linewidth=linewidth)
@@ -208,14 +207,14 @@ for idx, backbone in enumerate(['hubert', 'wavlm', 'wav2vec2']):#, 'whisper']):
         ax.set_xlabel("DNN Layer")
         ax.set_title(f"{backbone.capitalize()}")
     if backbone == 'wav2vec2':
-        for n_components in extra_components_for_layer10:
+        for n_components in EXTRA_COMPONENTS:
             means = correlations[backbone][n_components][6].mean()
             sems = correlations[backbone][n_components][6].mean(axis=1).std(ddof=1)/np.sqrt(18)
             ax.scatter(6, means, label=f'{n_components} components')
             ax.errorbar(6, means, yerr=sems, capsize=5) 
             ax.grid(visible=True, which='major', linestyle='--', axis='y', linewidth=0.5)
     else:
-        for n_components in extra_components_for_layer10:
+        for n_components in EXTRA_COMPONENTS:
             means = correlations[backbone][n_components][10].mean()
             sems = correlations[backbone][n_components][10].mean(axis=1).std(ddof=1)/np.sqrt(18)
             ax.scatter(10, means)#, label=f'{n_components} components')
@@ -225,11 +224,12 @@ axes[0].set_ylabel("Average Correlation")
 legend = fig.legend(
     title="Number of components", 
     # loc='lower center', 
+    fontsize=12,
     frameon=True, 
-    bbox_to_anchor=(0.5, 0.45),
-    ncol=2
+    bbox_to_anchor=(0.679, 0.32),
+    ncol=4
 )
-fig_save_path = Path("figures/analysis/dnn_layer_correlation")
+fig_save_path = Path("figures/analysis/DNN_layer_correlation")
 fig_save_path.mkdir(parents=True, exist_ok=True)
 fig.savefig(
     fig_save_path / "hubert_wavlm_wav2vec2_all_components_layer_correlation.png",
@@ -240,10 +240,8 @@ fig.savefig(
 # =========
 # TOPOPLOTS
 
-# ===
-# Make topoplots of correlations for all layers at fix n_components
-n_components_to_plot = 32
-
+# ========================================================================
+# Make matrix correlations for all layers and channels at fix n_components
 fig, axes = plt.subplots(
     nrows=1, ncols=len(BACKBONES),
     figsize=(12, 5), 
@@ -256,7 +254,7 @@ for idx, backbone in enumerate(BACKBONES):
     axes[idx].tick_params(axis='both', labelsize=15)
     correlation_per_layer_matrix = np.zeros((128, len(LAYERS)))
     for layer in LAYERS:
-        correlation_per_layer_matrix[:, layer] = correlations[backbone][n_components_to_plot][layer].mean(axis=0)
+        correlation_per_layer_matrix[:, layer] = correlations[backbone][N_COMPONENTS_TO_PLOT][layer].mean(axis=0)
     correlations_matrices.append(correlation_per_layer_matrix)
 max_ = max([cm.max() for cm in correlations_matrices])
 min_ = min([cm.min() for cm in correlations_matrices])
@@ -276,51 +274,38 @@ cbar.ax.tick_params(labelsize=15)
 axes[0].set_ylabel("EEG Channels", fontsize=15)
 
 fig.savefig(
-    fig_save_path / f"matrix_topoplots_{n_components_to_plot}.png",
+    fig_save_path / f"matrix_topoplots_{N_COMPONENTS_TO_PLOT}.png",
     dpi=600,
     transparent=True
 )
-print(f"Topoplot figures saved in {fig_save_path}")
 
-
-# ===
-# Make GIF per bachbone, mne correlation topomap through layers at fix n_components
-n_components_to_plot = 32
-
-import mne
-import imageio
-
-# You need the montage for your EEG system, e.g. 'biosemi128'
-montage = mne.channels.make_standard_montage('biosemi128')
-info = mne.create_info(ch_names=montage.ch_names, sfreq=128, ch_types='eeg')
-info.set_montage(montage)
-
+# =================================================================================
+# Make GIF per backbone, mne correlation topomap through layers at fix n_components
 for backbone in BACKBONES:
     images = []
     for layer in LAYERS:
         # Get correlation values for this layer
-        data = correlations[backbone][n_components_to_plot][layer].mean(axis=0)  # shape: (128,)
+        data = correlations[backbone][N_COMPONENTS_TO_PLOT][layer].mean(axis=0)  # shape: (128,)
         # Plot topomap
         fig, ax = plt.subplots(figsize=(5, 5))
         mne.viz.plot_topomap(
-            data, info, axes=ax, show=False, cmap='Reds', vlim=(data.min(), data.max()),
+            data, config.info_mne, axes=ax, show=False, cmap='Reds', vlim=(data.min(), data.max()),
             contours=0, sensors=True
         )
         ax.set_title(f"{backbone.capitalize()} - Layer {layer} - Avg. Correlation {data.mean():.2f}", fontsize=14)
-        fname = fig_save_path / "aux" / f"{backbone}_layer{layer}_{n_components_to_plot}.png"
+        fname = fig_save_path / "aux" / f"{backbone}_layer{layer}_{N_COMPONENTS_TO_PLOT}.png"
         fname.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(fname, dpi=120, bbox_inches='tight')
         plt.close(fig)
         images.append(imageio.imread(fname))
     # Save GIF
-    gif_file = fig_save_path / f"{backbone}_{n_components_to_plot}_topomap_layers.gif"
-    imageio.mimsave(gif_file, images, fps=1.5, format='GIF')
-    print(f"Saved GIF for {backbone}: {gif_file}")
+    gif_file = fig_save_path / f"{backbone}_{N_COMPONENTS_TO_PLOT}_topomap_layers.gif"
+    imageio.mimsave(
+        gif_file, images, fps=1.5, format='GIF'
+    )
 
-# =========
-# Load classic attributes correlations for comparison 
-n_components_to_plot = 32
-# classic_attributes = ['Envelope', 'Pitch', 'Spectrogram-21', 'Phonemes-Discrete']
+# ======================================================================
+# Matrix comparison with classic attributes correlations across channels
 classic_attributes = ['Envelope', 'Spectrogram-21', 'Phonemes-Discrete']
 
 classic_correlations = {
@@ -341,7 +326,7 @@ for idx, backbone in enumerate(BACKBONES):
     axes[idx].tick_params(axis='both', labelsize=15)
     correlation_per_layer_matrix = np.zeros((128, len(LAYERS)))
     for layer in LAYERS:
-        correlation_per_layer_matrix[:, layer] = correlations[backbone][n_components_to_plot][layer].mean(axis=0)
+        correlation_per_layer_matrix[:, layer] = correlations[backbone][N_COMPONENTS_TO_PLOT][layer].mean(axis=0)
     
     # Add classic attributes as new columns
     n_classic = len(classic_attributes)
@@ -373,17 +358,13 @@ cbar.ax.tick_params(labelsize=15)
 axes[0].set_ylabel("EEG Channels", fontsize=15)
 
 fig.savefig(
-    fig_save_path / f"matrix_topoplots_{n_components_to_plot}_extended.png",
+    fig_save_path / f"matrix_topoplots_{N_COMPONENTS_TO_PLOT}_extended.png",
     dpi=600,
     transparent=True
 )
-print(f"Topoplot figures saved in {fig_save_path}")
 
-
-# =========
-# Comparisson through channels
-n_components_to_plot = 32
-# classic_attributes = ['Envelope', 'Pitch', 'Spectrogram-21', 'Phonemes-Discrete']
+# ===================
+# Explicit comparison
 classic_attributes = ['Envelope', 'Spectrogram-21', 'Phonemes-Discrete']
 mapping_attributes = {
     'Envelope': "#D87272",
@@ -413,7 +394,7 @@ for idx, backbone in enumerate(BACKBONES):
     axes[idx].tick_params(axis='both', labelsize=15)
     correlation_per_layer_matrix = np.zeros((128, len(LAYERS)))
     for layer in LAYERS:
-        correlation_per_layer_matrix[:, layer] = correlations[backbone][n_components_to_plot][layer].mean(axis=0)
+        correlation_per_layer_matrix[:, layer] = correlations[backbone][N_COMPONENTS_TO_PLOT][layer].mean(axis=0)
 
     correlations_matrices.append(correlation_per_layer_matrix)
 
@@ -440,7 +421,7 @@ for idx, (backbone, correlation_per_layer_matrix) in enumerate(zip(BACKBONES, co
     axes[idx].set_ylabel("Correlation through channels", fontsize=15)
     axes[idx].legend()
 fig.savefig(
-    fig_save_path / f"matrix_topoplots_{n_components_to_plot}_correlations_with_att.png",
+    fig_save_path / f"matrix_topoplots_{N_COMPONENTS_TO_PLOT}_correlations_with_att.png",
     dpi=600,
     transparent=True
 )

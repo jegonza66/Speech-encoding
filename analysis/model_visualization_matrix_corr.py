@@ -5,6 +5,8 @@ from matplotlib.collections import PathCollection
 from matplotlib_venn import venn3  
 import matplotlib.pyplot as plt
 import matplotlib.text as mtext
+import matplotlib
+matplotlib.use('TkAgg')
 from pathlib import Path
 import seaborn as sns
 import pandas as pd
@@ -13,8 +15,16 @@ import numpy as np
 import mne
 import os
 
-from utils.plot import define_ticks, clustering_by_correlation
-from utils.general_functions import dump_pickle, load_pickle, convert_numpy_keys
+from utils.general_functions import (
+    dump_pickle, load_pickle, convert_numpy_keys
+)
+from utils.plot import (
+    define_ticks, clustering_by_correlation
+)
+from utils.processing import (
+    correct_pearson_square,
+    calculate_partitions_3
+)
 from load import main_parallel as main_load
 from validation import main as main_val
 from main import main as main_main
@@ -25,6 +35,8 @@ rc('text', usetex=True)
 import scienceplots
 plt.style.use(['science'])
 
+# ================================
+# Boxplot across bands and stimuli
 stimuli = [
     'Envelope',
     'Pitch-Log-Raw',
@@ -48,7 +60,7 @@ bands = [
     'Beta'
 ]
 
-correlation_path = lambda stimulus, band: Path(rf"output\mtrf-ridge\External-External\correlations\same_alpha\tmin-0.2_tmax0.6\{band}\{stimulus}.pkl")
+correlation_path = lambda stimulus, band: Path(rf"output\mtrf-ridge\External\correlations\distinct_alpha\tmin-0.2_tmax0.6\{band}\{stimulus}.pkl")
 correlations = {}
 for band in bands:
     correlations[band] = {}
@@ -121,21 +133,25 @@ path_fig.parent.mkdir(parents=True, exist_ok=True)
 #     dpi=700
 # )
 fig.show()
-# ===============================
+
+# ======================================
 # Matrix topographical correlation plots
 n_stims, n_bands = len(stimuli), len(bands)
 
 # Get mean correlations across subjects and total max and min
-correlations = {(stim,band):load_pickle(path=correlation_path(stim, band))['average_correlation_subjects'].mean(axis=0) for stim in stimuli for band in bands}
+correlations = {
+    (stim,band):load_pickle(path=correlation_path(stim, band))['average_correlation_subjects'].mean(axis=0) 
+    for stim in stimuli for band in bands
+}
 
 # Create figure and title
 fig, axes = plt.subplots(
-        # figsize=(3*n_stims,1.5*n_bands), 
-        figsize=(11,7), 
-        nrows=n_bands, 
-        ncols=n_stims, 
-        layout="constrained"
-        )
+    # figsize=(3*n_stims,1.5*n_bands), 
+    figsize=(11,7), 
+    nrows=n_bands, 
+    ncols=n_stims, 
+    layout="constrained"
+)
 if n_stims==1:
     axes = axes.reshape(n_bands, 1)
 elif n_bands==1:
@@ -167,67 +183,12 @@ for i, band in enumerate(bands):
         # Add colorbar for each row
         cbar = fig.colorbar(im[0], ax=axes[i, j], orientation='vertical')
         cbar.ax.tick_params(labelsize=15)
-fig.savefig(
-    Path(config.figures_dir) / 'analysis' / 'model_visualization_matrix_corr' / 'model_visualization_matrix_corr_topo.png',
-    transparent=True, 
-    dpi=500
-)
-# fig.show()
-
-
-
-#TOPO CORR
-average_correlation_subjects_phonological = load_pickle(
-    rf'output\mtrf-ridge\External-External\correlations\same_alpha\tmin-0.2_tmax0.6\Broad\Phonological.pkl'
-)['average_correlation_subjects'] # shape (n_subjects, n_channels)
-average_correlation_subjects_phonemes = load_pickle(
-    rf'output\mtrf-ridge\External-External\correlations\same_alpha\tmin-0.2_tmax0.6\Broad\Phonemes-Discrete.pkl'
-)['average_correlation_subjects'] # shape (n_subjects, n_channels)
-
-# Create figure and title
-fig, ax = plt.subplots(nrows=1, ncols=2, layout='tight', figsize=(8, 5))
-# plt.suptitle(f'{stim} {coefficient_name} = ({mean_average_coefficient.mean():.3f}'+r'$\pm$'+f'{mean_average_coefficient.std():.3f})')
-for average_correlation_subjects, stimulus, axis in zip(
-    [average_correlation_subjects_phonemes, average_correlation_subjects_phonological],
-    ['Phonemes-Discrete', 'Phonological'],
-    ax
-):
-    vmin = average_correlation_subjects.mean(0).min()
-    vmax = average_correlation_subjects.mean(0).max()
-    
-    # Make topomap
-    im = mne.viz.plot_topomap(
-        data=average_correlation_subjects.mean(axis=0),  # Mean across subjects
-        pos=config.info_mne,
-        cmap='OrRd',
-        vlim=(vmin, vmax),
-        show=False,
-        sphere=0.07,
-        axes=axis
-    )
-    if stimulus=='Phonemes-Discrete':
-        ticks = [0.293,0.323,0.353,0.383,0.413,0.442]
-    else:
-        ticks = np.linspace(vmin, vmax, 6).round(3) if vmin != vmax else [vmin]
-    plt.colorbar(
-        im[0],
-        ax=axis,
-        shrink=0.85,
-        label='Mean Correlation (avg. across subjects)',
-        orientation='horizontal',
-        boundaries=np.linspace(vmin, vmax, 100) if vmin != vmax else None,
-        ticks=ticks
-    )
-    axis.set_title('Phonemes' if stimulus=='Phonemes-Discrete' else 'Phonological\nfeatures', fontsize=18)
-
-
-fig.savefig(
-    Path(config.figures_dir) / 'analysis' / 'model_visualization_matrix_corr' / 'model_visualization_matrix_corr_topo_corr.png',
-    transparent=True,
-    dpi=500
-)
-
-
+# fig.savefig(
+#     Path(config.figures_dir) / 'analysis' / 'model_visualization_matrix_corr' / 'model_visualization_matrix_corr_topo.png',
+#     transparent=True, 
+#     dpi=500
+# )
+fig.show()
 
 
 # models = [
@@ -240,17 +201,16 @@ fig.savefig(
 #     'Spectrogram-21_Phonemes-Discrete_Phonological'
 # ]
 models = [
-    'Phonemes-Discrete',
+    'Envelope',
     'Phonological',
-    'Spectrogram-21', 
-    'Spectrogram-21_Phonemes-Discrete',
-    'Spectrogram-21_Phonological',
-    'Phonemes-Discrete_Phonological',
-    'Spectrogram-21_Phonemes-Discrete_Phonological'
+    'Pitch-Log-Raw', 
+    'Pitch-Log-Raw_Envelope',
+    'Pitch-Log-Raw_Phonological',
+    'Envelope_Phonological',
+    'Pitch-Log-Raw_Envelope_Phonological'
 ]
 models = ['_'.join(sorted(model.split('_'))) for model in models]
-corr_path = lambda model: Path(f"output/mtrf-ridge/External-External/correlations/same_alpha/tmin-0.2_tmax0.6/Broad/{model}.pkl")
-
+corr_path = lambda model: Path(f"output/mtrf-ridge/External/correlations/distinct_alpha/tmin-0.2_tmax0.6/Broad/{model}.pkl")
 correlations = {
     model: load_pickle(corr_path(model))['average_correlation_subjects'].mean()
     for model in models
@@ -265,47 +225,28 @@ st1, st2, st3 = triple_combination.split('_')
 double_comb1 = '_'.join(sorted([st1, st2]))
 double_comb2 = '_'.join(sorted([st1, st3]))
 double_comb3 = '_'.join(sorted([st2, st3]))
+corrected_pearson = correct_pearson_square(
+    values=[
+        correlations[st1]**2, #A 
+        correlations[st2]**2, #B
+        correlations[st3]**2, #C
+        correlations[double_comb1]**2, #AB_Union
+        correlations[double_comb2]**2, #AC_Union
+        correlations[double_comb3]**2, #BC_Union
+        correlations[triple_combination]**2 #ABC_Union
+    ]
+)
+areas = calculate_partitions_3(
+    **corrected_pearson
+)
 
-# Simple variances
-variance_1 = correlations[st1]**2
-variance_2 = correlations[st2]**2
-variance_3 = correlations[st3]**2
-variance_12 = correlations[double_comb1]**2
-variance_13 = correlations[double_comb2]**2
-variance_23 = correlations[double_comb3]**2
-variance_123 = correlations[triple_combination]**2
-
-# Shared without each stimulus
-variance_shared_with_1 = variance_123 - variance_23 #100
-variance_shared_with_2 = variance_123 - variance_13 #010
-variance_shared_with_3 = variance_123 - variance_12 #001
-
-# Explained by subshared, but not by all shared model
-variance_shared_with_12 = variance_13 + variance_23 - variance_3 - variance_123 #110
-variance_shared_with_13 = variance_12 + variance_23 - variance_2 - variance_123 #101
-variance_shared_with_23 = variance_12 + variance_13 - variance_1 - variance_123 #011
-
-# Explained by one, two, three and full shared model but not by subshared models
-variance_int_complement_submodels = variance_123 + variance_1 + variance_2 + variance_3 - variance_12 - variance_13 - variance_23 #111
-
-# Get areas 
-areas = [ # the order should be(100, 010, 110, 001, 101, 011, 111)
-    variance_shared_with_1, 
-    variance_shared_with_2, 
-    variance_shared_with_12, 
-    variance_shared_with_3,
-    variance_shared_with_13, 
-    variance_shared_with_23,
-    variance_int_complement_submodels
-    ] 
+# areas = measured_areas
 total_area = sum(areas)
 
 # Normalize to give percentage of variance explained by full model
 areas = (np.array(areas)*100/total_area).round(2)
 
 # Create figure and title
-
-plt.ioff()
 plt.figure(layout='tight', figsize=(5, 5))
 
 # Make plot
@@ -314,16 +255,29 @@ venn=venn3(
     set_labels=(name_mapping[st1], name_mapping[st2], name_mapping[st3]), 
     set_colors=('blue', 'red', '#87CEEB'), # 'orange', '#87CEEB'), orange es phonemes, '#87CEEB' spectrogram, blue envelepoe, red pitch
     alpha=0.45
-    )
+)
 for label in venn.subset_labels:
     if label:  # Verificar que la etiqueta no sea None
         label.set_fontsize(15)
         label.set_text(label.get_text() + r' \%')
+        if triple_combination == 'Envelope_Phonemes-Discrete_Spectrogram-21':
+            if label.get_text().startswith('25'):
+                x, y = label.get_position()
+                x, y = x-0.1, y+.1
+                label.set_position((x, y))
+            elif label.get_text().startswith('0.03'):
+                x, y = label.get_position()
+                x, y = x-0.1, y
+                label.set_position((x, y))
 for label in venn.set_labels:
     if label:  # Verificar que la etiqueta no sea None
         label.set_fontsize(15)
+        if label.get_text() == name_mapping['Envelope']:
+            x, y = label.get_position()
+            x, y = x-0.25, y-0.25
+            label.set_position((x, y))
 plt.savefig(savefig_path / f'venn3_{triple_combination}.png', transparent=True, dpi=500)
-# plt.show()
+plt.show()
 # plt.close()
 
 

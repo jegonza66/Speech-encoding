@@ -2,11 +2,10 @@
 This script is designed to find which attributes correlate best with the different DNNs layers
 """
 from matplotlib_venn import venn3, venn2
-from pathlib import Path
-
-
 import matplotlib.pyplot as plt
+from matplotlib import rc
 from pathlib import Path
+import scienceplots
 import numpy as np
 import shutil
 import json
@@ -21,23 +20,22 @@ from main import main as main_main
 from utils.processing import (
     calculate_partitions_2, calculate_partitions_3, correct_pearson_square
 )
-import config
-
-from matplotlib import rc
-rc('text', usetex=True)
-import scienceplots
 plt.style.use(['science'])
-
+rc('text', usetex=True)
 
 SAVE_PATH = Path("output/mtrf-ridge/analysis/DNN_similarity")
+SAVE_FIG_PATH = Path("figures/analysis/DNN_similarity")
+SAVE_FIG_PATH.mkdir(parents=True, exist_ok=True)
 BACKBONES = ["wav2vec2", "wavlm", "hubert"]
 LAYERS = list(np.arange(24).astype(int))
 NUMBER_OF_DNN_COMPONENTS = 32
-total_correlations = {}
 
+total_correlations = {}
 for backbone in BACKBONES:
-    stimuli = ['Spectrogram-21', 'Phonemes-Discrete'] + [f'{NUMBER_OF_DNN_COMPONENTS}DNNs{layer}-{backbone}' for layer in LAYERS]
-    stimuli = sorted(stimuli)
+    stimuli = sorted(
+        ['Spectrogram-21', 'Phonemes-Discrete'] + [f'{NUMBER_OF_DNN_COMPONENTS}DNNs{layer}-{backbone}' for layer in LAYERS]
+    )
+    
     double_combinations = [
         '_'.join(sorted(['Spectrogram-21', 'Phonemes-Discrete'])),
     ]
@@ -52,11 +50,11 @@ for backbone in BACKBONES:
     triple_combinations = [
         '_'.join(sorted([f'{NUMBER_OF_DNN_COMPONENTS}DNNs{layer}-{backbone}', 'Spectrogram-21', 'Phonemes-Discrete'])) for layer in LAYERS
     ] 
-
+    
+    # 2+23+1+23+23+23 -> 95 total entries :S 
     correlations = {
         stimulus: None for stimulus in stimuli + double_combinations + triple_combinations
-    } # 2+23+1+23+23+23 -> 95 total entries :S 
-
+    } 
 
     # Sole correlations
     save_path_dnns_only = Path("output/mtrf-ridge/analysis/DNN_component_analysis/checkpoint_DNN_component_correlations.pkl")
@@ -64,11 +62,10 @@ for backbone in BACKBONES:
     save_path_phon_only = Path("output/mtrf-ridge/External-External/correlations/same_alpha/tmin-0.2_tmax0.6/Broad/Phonemes-Discrete.pkl")
     correlations['Phonemes-Discrete'] = load_pickle(path=save_path_phon_only)['average_correlation_subjects'].mean()
     correlations['Spectrogram-21'] = load_pickle(path=save_path_spectro_only)['average_correlation_subjects'].mean()
-    # 95 - 2 - 23 -> 70 total entries :S
-
     data_dnns_only = load_pickle(path=save_path_dnns_only)
     for layer in LAYERS:
         correlations[f'{NUMBER_OF_DNN_COMPONENTS}DNNs{layer}-{backbone}'] = data_dnns_only["correlations"][backbone][NUMBER_OF_DNN_COMPONENTS][layer].mean()
+    # 95 - 2 - 23 -> 70 entries :S
 
     # Save and compute double and triple combinations
     try:
@@ -77,24 +74,28 @@ for backbone in BACKBONES:
             raise FileNotFoundError
         correlations = load_pickle(path=checkpoint_path)
     except Exception as e:
+        SAVE_PATH.mkdir(parents=True, exist_ok=True)
         print(f"Error loading correlations: {e}\n")
 
     # Check if there are keys missing, and add them empty
     for stimulus in stimuli + double_combinations + triple_combinations:
         if stimulus not in correlations:
             correlations[stimulus] = None
+
     number_of_nans, l = sum([1 for v in correlations.values() if v is None]), 0
+
     for r, combination in enumerate(stimuli + double_combinations + triple_combinations):
-        
+        # Skip already computed combinations
         if correlations[combination] is not None:
             print(f"Skipping already computed {combination}")
             continue
-        l += 1
-        print(
-            f'\n\n\n\tProcessing combination {combination}\n',
-            f'\n\tStimuli:\t{combination}\n',
-            f'\n\tProgress:\t{l}/{number_of_nans}\n'
-        )
+        else:
+            l += 1
+            print(
+                f'\n\n\n\tProcessing combination {combination}\n',
+                f'\n\tStimuli:\t{combination}\n',
+                f'\n\tProgress:\t{l}/{number_of_nans}\n'
+            )
 
         # Run the validation script with arguments for backbone and n_components
         _ = main_load(
@@ -114,14 +115,6 @@ for backbone in BACKBONES:
             n_folds=10,
             recompute=False
         )['External']['Broad'][combination]
-
-        # # Get median alpha across sessions and subjects # ACA QUEREMOS MAXIMIZAR CORRELACIÓN, CADA SUJETO DEBERÍA TENER SU PROPIO ALPHA
-        # alphas_total = []
-        # for session in config.sessions:
-        #     for subject in [1, 2]:
-        #         alphas_total.append(alphas[session][subject])
-        # alphas_total = np.array(alphas_total)
-        # set_alpha = 10**(np.median(np.log10(alphas_total)))
         
         # Main results with optimal alpha
         main_results = main_main(
@@ -137,7 +130,6 @@ for backbone in BACKBONES:
         correlations[combination] = main_results['average_correlation_subjects'].mean()
         
         # Save checkpoint
-        SAVE_PATH.mkdir(parents=True, exist_ok=True)
         dump_pickle(
             path=SAVE_PATH / f"checkpoint_{NUMBER_OF_DNN_COMPONENTS}_DNN_{backbone}_similarity_correlations.pkl",
             obj=correlations,
@@ -157,39 +149,39 @@ for backbone in BACKBONES:
                 shutil.rmtree(dir_to_remove, ignore_errors=True)
         except Exception as e:
             raise(f"Could not remove directory {dir_to_remove}: {e}")
-
     total_correlations[backbone] = correlations
 
     # Get Venn diagrams for triple combinations
-    savefig_path = Path("figures/analysis/DNN_similarity")
-    savefig_path.mkdir(parents=True, exist_ok=True)
-    venn_fig_path = savefig_path / 'venn' 
-    venn_fig_path.mkdir(parents=True, exist_ok=True)
+    venn3_fig_path = SAVE_FIG_PATH / 'venn3' 
+    venn3_fig_path.mkdir(parents=True, exist_ok=True)
 
     for triple_combination in triple_combinations:
         st1, st2, st3 = triple_combination.split('_')
         double_comb1 = '_'.join(sorted([st1, st2]))
         double_comb2 = '_'.join(sorted([st1, st3]))
         double_comb3 = '_'.join(sorted([st2, st3]))
-        measured_areas = calculate_partitions_3(
-            A=correlations[st1]**2,
-            B=correlations[st2]**2,
-            C=correlations[st3]**2,
-            AB_union=correlations[double_comb1]**2,
-            AC_union=correlations[double_comb2]**2,
-            BC_union=correlations[double_comb3]**2,
-            ABC_union=correlations[triple_combination]**2
+        corrected_pearson = correct_pearson_square(
+            values=[
+                correlations[st1]**2, #A 
+                correlations[st2]**2, #B
+                correlations[st3]**2, #C
+                correlations[double_comb1]**2, #AB_Union
+                correlations[double_comb2]**2, #AC_Union
+                correlations[double_comb3]**2, #BC_Union
+                correlations[triple_combination]**2 #ABC_Union
+            ]
         )
-        areas = correct_pearson_square(
-            values=measured_areas
-            )
+        areas = calculate_partitions_3(
+            **corrected_pearson
+        )
+
+        # areas = measured_areas
         total_area = sum(areas)
-        
+
         # Normalize to give percentage of variance explained by full model
         areas = (np.array(areas)*100/total_area).round(2)
 
         # Create figure and title
-        plt.ioff()
         plt.figure(layout='tight')
         layer = int(triple_combination.split('DNNs')[-1].split('-')[0])
         # plt.title(f'Spectrogram-Phonemes-{backbone}-layer{layer}')
@@ -211,23 +203,25 @@ for backbone in BACKBONES:
                 # label.set_fontsize(15)
         # for label in venn.set_labels:
         #     if label:  # Verificar que la etiqueta no sea None
-        #         label.set_fontsize(18)
-        # from IPython import embed; embed()
-        
-        plt.savefig(venn_fig_path / f'venn3_{backbone}_layer{layer}.png')
+        #         label.set_fontsize(18)        
+        plt.savefig(venn3_fig_path / f'venn3_{backbone}_layer{layer}.png')
         plt.close()
 
     # Same for double combinations
+    venn2_fig_path = SAVE_FIG_PATH / 'venn2' 
+    venn2_fig_path.mkdir(parents=True, exist_ok=True)
     for double_combination in double_combinations:
         st1, st2 = double_combination.split('_')
-        measured_areas = calculate_partitions_2(
-            A=correlations[st1]**2,
-            B=correlations[st2]**2,
-            AB_union=correlations[double_combination]**2
+        corrected_pearson = correct_pearson_square(
+            values=[
+                correlations[st1]**2, #A 
+                correlations[st2]**2, #B
+                correlations[double_combination]**2 #ABC_Union
+            ]
         )
-        areas = correct_pearson_square(
-            values=measured_areas
-            )
+        areas = calculate_partitions_2(
+            **corrected_pearson
+        )
         total_area = sum(areas)
         
         # Normalize to give percentage of variance explained by full model
@@ -256,12 +250,11 @@ for backbone in BACKBONES:
             if label:  
                 label.set_text(label.get_text() + r' \%')
 
-        plt.savefig(venn_fig_path / f'venn2_{backbone}_{double_combination}.png')
+        plt.savefig(venn2_fig_path / f'venn2_{backbone}_{double_combination}.png')
         plt.close()
-
-    print("\nFigures saved in", venn_fig_path.resolve())
-
-# Plot shared variance of spectrogram and phonemes as a function of DNN layer separately for each backbone
+# ============================================================================
+# Plot shared variance of spectrogram and phonemes as a function of DNN layer 
+# separately for each backbone
 fig, axes = plt.subplots(
     nrows=2, 
     ncols=3, 
@@ -350,9 +343,9 @@ legend = fig.legend(
     fontsize=12
 )
 fig.savefig(
-    savefig_path / f'shared_over_layers.png',
+    SAVE_FIG_PATH / f'shared_over_layers.png',
     dpi=300,
     transparent=True
 )
 
-print(f"Figures saved in {savefig_path.resolve()}")
+print(f"Figures saved in {SAVE_FIG_PATH.resolve()}")
