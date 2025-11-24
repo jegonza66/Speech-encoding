@@ -3,6 +3,13 @@ This script performs an analysis of the effect of varying the number of Mel bins
 in spectrogram representations
 """
 import matplotlib.pyplot as plt
+from matplotlib import rc
+import scienceplots
+import matplotlib
+
+plt.style.use(['science'])
+rc('text', usetex=True)
+
 from pathlib import Path
 from tqdm import tqdm
 import numpy as np

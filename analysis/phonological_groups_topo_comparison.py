@@ -1,8 +1,12 @@
 from pathlib import Path
 import matplotlib.pyplot as plt
+from matplotlib import rc
+import scienceplots
 import matplotlib
-# matplotlib.use('Qt5Agg')  # Use the Qt5Agg backend for interactive plotting
-matplotlib.use('Agg')  # Use Agg backend for saving figures without display
+
+plt.style.use(['science'])
+rc('text', usetex=True)
+
 import numpy as np
 import mne 
 

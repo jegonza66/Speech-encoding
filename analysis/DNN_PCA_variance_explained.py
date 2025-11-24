@@ -8,8 +8,8 @@ from pathlib import Path
 import scienceplots
 import numpy as np
 
-rc('text', usetex=True)
 plt.style.use(['science'])
+rc('text', usetex=True)
 
 from load import main_parallel
 

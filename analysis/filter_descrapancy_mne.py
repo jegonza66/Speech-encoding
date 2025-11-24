@@ -4,8 +4,12 @@ import mne
 
 import matplotlib.pyplot as plt
 import matplotlib.text as mtext
+from matplotlib import rc
+import scienceplots
 import matplotlib
-matplotlib.use('Agg')  
+
+plt.style.use(['science'])
+rc('text', usetex=True)
 
 
 from utils.general_functions import load_pickle

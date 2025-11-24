@@ -74,7 +74,7 @@ def main(
     ROI:bool=config.ROI,
     validation_results:dict=None,
     load_results:dict=None
-):
+) -> dict:
     if set_alpha:
         logger_main.warning(f"\n\n\tWARNING: ALPHA IS BEING FORCE TO {set_alpha}\n\n")
     
@@ -164,7 +164,6 @@ def main(
                 # Store total number of subjects (18) to save figures and results just in this case
                 total_number_of_subjects = 0
 
-                # from IPython import embed; embed()
                 if same_validation_subjects and set_alpha is None:
                     alphas_total = []
                     if validation_results is not None:
@@ -283,7 +282,8 @@ def main(
                                     validation=False,
                                     subject=subject,                              
                                     session=session,
-                                    logger=logger_main
+                                    logger=logger_main,
+                                    solver=solver
                                 )
                             else:
                                 fold, weights_per_fold[fold], correlation_per_channel[fold], p_corr, null_correlation_per_channel= fold_model(
@@ -299,7 +299,8 @@ def main(
                                     validation=False,
                                     subject=subject,                              
                                     session=session,
-                                    logger=logger_main
+                                    logger=logger_main,
+                                    solver=solver
                                 )
 
                                 # p-values for significant channels (the rest are ones, i.e: not significant)

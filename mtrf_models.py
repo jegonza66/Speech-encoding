@@ -14,7 +14,6 @@ import gc
 
 # Modules
 from utils.processing import Normalize, Standarize, shifted_matrix
-# from utils.processing import band_freq, cheby2_bandpass_filter_torch
 import config
 
 class TorchMtrf:

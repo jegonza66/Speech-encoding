@@ -23,7 +23,8 @@ def fold_model(
     path_null:str=None, 
     session:int=None, 
     subject:int=None,
-    logger:any=None
+    logger:any=None,
+    solver:str=config.solver
     ) -> tuple:
     """
     Perform parallel fold model training and evaluation. 
@@ -77,7 +78,7 @@ def fold_model(
             fit_intercept=False,
             shuffle=True, 
             alpha=alpha,
-            solver=config.solver,
+            solver=solver,
             logger=logger
         )
             
@@ -99,7 +100,7 @@ def fold_model(
             validation=True,
             shuffle=False, 
             alpha=alpha, 
-            solver=config.solver,
+            solver=solver,
             logger=logger
         )
         # Returns directly correlations per alpha
@@ -131,7 +132,7 @@ def fold_model(
                 validation=False,
                 shuffle=False, 
                 alpha=alpha, 
-                solver=config.solver,
+                solver=solver,
                 logger=logger
             )
             

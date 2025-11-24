@@ -2,6 +2,13 @@
 ERPs paradigm to turn-taking task.
 """
 import matplotlib.pyplot as plt
+from matplotlib import rc
+import scienceplots
+import matplotlib
+
+plt.style.use(['science'])
+rc('text', usetex=True)
+
 from pathlib import Path
 from tqdm import tqdm
 import numpy as np

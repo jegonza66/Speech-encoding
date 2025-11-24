@@ -42,6 +42,7 @@ pylab.rcParams.update(
         'ytick.labelsize':16
     }
 )
+rc('text', usetex=True)
 
 # Relevant paths
 situation, band, alpha_choice = 'External', 'Broad', 'distinct_alpha'

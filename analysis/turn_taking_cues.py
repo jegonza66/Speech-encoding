@@ -12,7 +12,6 @@ External_BS/Internal_BS: samples where both subjects are speaking
 External: samples where interlocutor is speaking
 Internal: samples where the locutor is speaking
 """
-import matplotlib.pyplot as plt
 from pathlib import Path
 from tqdm import tqdm
 import numpy as np, json

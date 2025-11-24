@@ -1,7 +1,13 @@
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from matplotlib import rc
+import scienceplots
 import matplotlib
+
 matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
+plt.style.use(['science'])
+rc('text', usetex=True)
+
 import numpy as np
 np.random.seed(42)
 import mne

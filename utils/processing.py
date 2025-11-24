@@ -209,182 +209,124 @@ def shifted_matrix(
     # If loop completes without return, something went wrong
     raise RuntimeError("shifted_matrix failed on all devices")
 
-def butter_filter(
-    data:np.ndarray, 
-    frequencies:float, 
-    sampling_freq:float, 
-    btype:str='lowpass', 
-    order:int=3, 
-    axis:int=0, 
-    ftype:str='Causal'
-)->np.ndarray:
-    """
-    Apply a Butterworth filter to the input data.
-    
-    Parameters
-    ----------
-    data : np.ndarray
-        The input data to be filtered.
-    frequencies : float or list
-        The cutoff frequency (for 'lowpass' and 'highpass') or frequencies (for 'bandpass').
-    sampling_freq : float
-        The sampling frequency of the input data.
-    btype : str, optional
-        The type of filter to apply ('lowpass', 'highpass', 'bandpass'), by default 'lowpass'.
-    order : int, optional
-        The order of the filter, by default 3.
-    axis : int, optional
-        The axis along which to apply the filter, by default 0.
-    ftype : str, optional
-        The type of filtering ('Causal' or 'NonCausal'), by default 'Causal'.
-    
-    Returns
-    -------
-    np.ndarray
-        The filtered data.
-    
-    Raises
-    ------
-    ValueError
-        If an invalid filter type is provided.
-    """
-    if btype == 'lowpass' or btype == 'highpass':
-        frequency = frequencies / (sampling_freq / 2)
-        b, a = signal.butter(order, frequency, btype=btype)
-    elif btype == 'bandpass':
-        frequencies = [frequency / (sampling_freq / 2) for frequency in frequencies]
-        b, a = signal.butter(order, frequencies, btype=btype)
-
-    if ftype == 'Causal':
-        y = signal.lfilter(b, a, data, axis=axis)
-    elif ftype == 'NonCausal':
-        y = signal.filtfilt(b, a, data, axis=axis, padlen=None)
-    return y
-
-def cheby2_bandpass_filter_torch(
-    y : torch.Tensor, 
-    fs : float, 
-    lowcut : int=1, 
-    highcut : Union[float, int]=15, 
-    order : int=4, 
-    rs : float =20, 
-    device: Union[str, torch.device] = 'cuda',
-    axis : int = 0,
-    channel_idx=None
-)-> torch.Tensor:
-    """
-    Apply a Chebyshev Type II bandpass filter to the input tensor.
-
-    Parameters
-    ----------
-    y : torch.Tensor
-        Input tensor to be filtered, typically of shape (n_samples, n_channels).
-    fs : float
-        Sampling frequency of the input data.
-    lowcut : int, optional
-        Lower cutoff frequency for the bandpass filter, by default 1 Hz.
-    highcut : float or int, optional
-        Upper cutoff frequency for the bandpass filter, by default 15 Hz.
-    order : int, optional
-        Order of the Chebyshev Type II filter, by default 4.
-    rs : float, optional
-        Ripple in the stop band, by default 20 dB.
-    channel_idx : Optional[Union[int, Sequence[int]]], optional
-        Index or indices of channels to filter. If None, all channels are filtered.
-        If an int, filters only that channel. If a list, filters the specified channels.
-
-    Returns
-    -------
-    torch.Tensor
-        Filtered tensor with the same shape as the input tensor.
-    """
-    y_np = y.cpu().numpy()
-    sos = signal.cheby2(order, rs, [lowcut, highcut], btype='bandpass', fs=fs, output='sos')
-    y_filt = np.copy(y_np)
-    if channel_idx is None:
-        # Filter all channels at once (axis=0 is time)
-        y_filt = signal.sosfiltfilt(sos, y_np, axis=axis)
-    else:
-        # Filter only selected channel(s)
-        if isinstance(channel_idx, int):
-            channel_idx = [channel_idx]
-        for ch in channel_idx:
-            y_filt[:, ch] = signal.sosfiltfilt(sos, y_np[:, ch])
-    return torch.from_numpy(y_filt.copy()).to(y.device, dtype=y.dtype)
-
-def cheby2_bandpass_filter_np(
-    y: np.ndarray,
-    fs: float,
-    lowcut: int = 1,
-    highcut: float = 15,
-    order: int = 4,
-    rs: float = 20,
-    axis: int = 0,
-    channel_idx=None
+def n_taps_antialiasing(
+    original_sr: int, 
+    target_sr: int, 
+    cutoff_ratio:float=0.90
 ) -> np.ndarray:
     """
-    Apply a Chebyshev Type II bandpass filter to the input NumPy array.
-
-    Parameters
-    ----------
-    y : np.ndarray
-        Input array to be filtered, typically of shape (n_samples, n_channels).
-    fs : float
-        Sampling frequency of the input data.
-    lowcut : int, optional
-        Lower cutoff frequency for the bandpass filter, by default 1 Hz.
-    highcut : float, optional
-        Upper cutoff frequency for the bandpass filter, by default 15 Hz.
-    order : int, optional
-        Order of the Chebyshev Type II filter, by default 4.
-    rs : float, optional
-        Ripple in the stop band, by default 20 dB.
-    axis : int, optional
-        Axis along which to filter, by default 0 (time).
-    channel_idx : Optional[Union[int, Sequence[int]]], optional
-        Index or indices of channels to filter. If None, all channels are filtered.
-
-    Returns
-    -------
-    np.ndarray
-        Filtered array with the same shape as the input.
-    """
-    sos = signal.cheby2(order, rs, [lowcut, highcut], btype='bandpass', fs=fs, output='sos')
-    y_filt = np.copy(y)
-    if channel_idx is None:
-        # Filter all channels at once (axis=0 is time)
-        y_filt = signal.sosfiltfilt(sos, y, axis=axis)
-    else:
-        # Filter only selected channel(s)
-        if isinstance(channel_idx, int):
-            channel_idx = [channel_idx]
-        for ch in channel_idx:
-            y_filt[:, ch] = signal.sosfiltfilt(sos, y[:, ch])
-    return y_filt
-
-def subsample(
-    x:np.ndarray, 
-    step:int
-)->np.ndarray:
-    """
-    Subsamples the input array by selecting every `step`-th element.
+    Calculate FIR filter coefficients for anti-aliasing before downsampling.
+    It uses Kaiser window method to design the filter because it's specifically 
+    designed for controlling ripple and transition width. It's the Scipy standard
+    approach for such tasks.
     
     Parameters
     ----------
-    x : np.ndarray
+        original_sr: int
+            Original sampling rate in Hz (e.g., 44100)
+        target_sr: int
+            Target sampling rate in Hz (e.g., 128)
+        cutoff_ratio: float
+            What percentage of the target Nyquist frequency to preserve.
+                0.90 is safer for TRF than 0.99 (less ringing).
+        
+    Returns
+    -------
+    step : int
+        The integer step size for subsampling.
+    taps : np.ndarray
+        The FIR filter coefficients for anti-aliasing.
+    """
+    step = original_sr / target_sr
+    if not step.is_integer():
+        raise ValueError(
+            f"The step isn't an integer: {step}.", 
+            "\nIn this case is better to use scipy.signal.resample_poly directly."
+            )
+    nyquist_target = target_sr / 2.0
+    
+    # Limit specifications for the filter design: 
+    f_pass, f_stop = nyquist_target * cutoff_ratio, nyquist_target #(cutoff, 1)*nyquist_target
+    transition_width = f_stop - f_pass
+    
+    # The transition_width for for Hamming window is approx. 3.3 f_s/N 
+    # In Kaiser, the window it's specifically defined based on the 
+    # ripple (attenuation) and transition width
+    
+    # Desire attenuation (ripple)
+    gpass_db = 0.1  # Ripple in pass band in dB (almost negligible)
+    gstop_db = 53   # Rejection on stop band in dB (standard for Hamming window)
+    
+    # Calculate the order of the filter based on the specifications
+    numtaps, beta = signal.kaiserord(
+        ripple=gstop_db, 
+        width=transition_width / (0.5 * original_sr)
+    )
+    
+    # Ensure numtaps is odd for Type I FIR filter
+    if numtaps % 2 == 0:
+        numtaps += 1
+    
+    # Create the filter
+    taps = signal.firwin(
+        numtaps, 
+        f_pass, 
+        window=('kaiser', beta), 
+        fs=original_sr
+    )
+    return int(step), taps
+
+def subsample(
+    original_signal:np.ndarray, 
+    filter_coeffs:np.ndarray,
+    step:int,
+    zero_phase:bool=True,
+    axis:int=0
+)->np.ndarray:
+    """
+    Apply anti-aliasing FIR filter in both directions (if zero_phase) and subsample the signal
+    to reduce the sampling rate while minimizing aliasing artifacts.
+    
+    Parameters
+    ----------
+    original_signal : np.ndarray
         The input array to be subsampled.
+    filter_coeffs : np.ndarray
+        The FIR filter coefficients for anti-aliasing.
     step : int
         The step size for subsampling.
+    zero_phase : bool, optional
+        Whether to apply the filter in both directions to achieve zero phase distortion. Default is True.
+    axis : int, optional
+        The axis along which to apply the filter. Default is 0.
     
     Returns
     -------
     np.ndarray
         The subsampled array.
     """
-    if not isinstance(x, np.ndarray):
-        x = np.array(x)
-    indices = np.arange(0, len(x), int(step))
-    return x[indices]
+    if original_signal.shape[axis] < len(filter_coeffs)*3:
+        raise ValueError(
+            f"Signal length along axis {axis} is too short for the filter length.",
+            f" Signal length: {original_signal.shape[axis]}, Filter length: {len(filter_coeffs)}"
+        )
+    if zero_phase:
+        filtered_signal = signal.filtfilt(
+            b=filter_coeffs, 
+            a=np.array([1.0]), 
+            x=original_signal,
+            axis=axis
+        )
+    else:
+        filtered_signal = signal.lfilter(
+            b=filter_coeffs, 
+            a=np.array([1.0]), 
+            x=original_signal,
+            axis=axis
+        )
+    # Decimate
+    subsampled_signal = filtered_signal[::step]
+    return subsampled_signal
 
 def band_freq(
     band:str

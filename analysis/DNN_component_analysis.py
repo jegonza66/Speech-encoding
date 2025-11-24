@@ -14,8 +14,8 @@ import json
 import mne
 import os
 
-rc('text', usetex=True)
 plt.style.use(['science'])
+rc('text', usetex=True)
 
 import config
 from utils.general_functions import (

@@ -7,8 +7,12 @@ import seaborn as sns
 import numpy as np
 
 import matplotlib.pyplot as plt
+from matplotlib import rc
+import scienceplots
 import matplotlib
-matplotlib.use('Agg')
+
+plt.style.use(['science'])
+rc('text', usetex=True)
 
 from load import load_data
 import config

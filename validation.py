@@ -182,6 +182,7 @@ def main(
                         # Make the Kfold test
                         kf_test = KFold(n_folds, shuffle=False)
 
+
                         # Keep relevant indexes for eeg
                         if relevant_indexes is not None:
                             relevant_eeg = eeg[relevant_indexes]
@@ -200,7 +201,8 @@ def main(
                                 stims=stims,
                                 fold=fold,
                                 eeg=eeg,
-                                logger=logger_val
+                                logger=logger_val,
+                                solver=solver
                             )     
 
                         # Calculate mean correlation, and std

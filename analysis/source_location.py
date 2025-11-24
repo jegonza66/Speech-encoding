@@ -215,7 +215,7 @@ for j, (length, situation, time_course_mode, tmax_noise_cov) in tqdm(enumerate(c
                         tmax=tmax_noise_cov, 
                         method=['shrunk', 'empirical'],
                     )
-                else: # None
+                else: # None # TODO REVISAR 
                     noise_cov = mne.compute_raw_covariance(
                         raw, 
                         tmax=None, 
