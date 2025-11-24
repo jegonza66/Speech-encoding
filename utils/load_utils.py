@@ -1,15 +1,20 @@
+from fractions import Fraction
 from typing import Union
 import pandas as pd
 import numpy as np
+import mne
 import os
 
 # Set TensorFlow environment variables BEFORE any TensorFlow imports
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimizations warnings
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0=all, 1=info, 2=warnings, 3=errors only
 
+from sklearn.linear_model import LinearRegression
+from transformers import Wav2Vec2FeatureExtractor, WavLMModel
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
-from transformers import Wav2Vec2FeatureExtractor, WavLMModel
+from scipy import signal as sgn
+from scipy.io import wavfile
 import torch
 
 import utils.general_functions as general_functions
@@ -423,6 +428,129 @@ def get_dnn_reduced_representation(
         f.write(f"Explained variance ratio: {pca.explained_variance_ratio_}\n")
         f.write(f"Explained variance (cumulative): {pca.explained_variance_ratio_.sum()}\n")
     return scaler, pca
+
+
+def get_reduced_audio_representation(
+    wav_path_interlocutor:str
+)-> np.ndarray:
+    
+    ORIGINAL_SAMPLE_RATE = pad_width = 1024
+    DESIRED_SAMPLE_RATE = 512
+    SESSION = int(wav_path_interlocutor.split('S')[1][:2])
+    TRIAL = int(wav_path_interlocutor.split('objects.')[1][:2])
+    CHANNEL_INTERLOCUTOR = int(wav_path_interlocutor.split('channel')[1].split('.')[0])
+
+    audio_resampled_path = os.path.normpath(
+        f"data/resampled_audio_cache/session_{SESSION}_channel_{CHANNEL_INTERLOCUTOR}.npy"
+    )
+
+    if os.path.exists(audio_resampled_path):
+       final_wav=np.load(audio_resampled_path, allow_pickle=True)
+    else:
+        os.makedirs(os.path.dirname(audio_resampled_path), exist_ok=True)
+        audio_total = []
+        for trial in get_trials(SESSION):
+            wav_path_trial = wav_path_interlocutor.replace(f'objects.{TRIAL:02d}', f'objects.{trial:02d}')
+            sr_wav, wav = wavfile.read(wav_path_trial)
+            wav = wav.astype(np.float32)
+            audio_total.append(wav)
+        wav = np.concatenate(audio_total, axis=0)
+        wav = wav / np.max(np.abs(wav))
+
+        # Resample to match EEG original sampling rate
+        ratio = Fraction(ORIGINAL_SAMPLE_RATE, sr_wav)
+        up, down = ratio.numerator, ratio.denominator
+        wav = sgn.resample_poly(wav, up, down, padtype='reflect')
+        
+        # A. High-pass (0.1 Hz, Order 16896)
+        b_hp = sgn.firwin(
+            numtaps=16896 + 1, 
+            cutoff=0.1, 
+            fs=ORIGINAL_SAMPLE_RATE, 
+            pass_zero=False, 
+            window='hamming'
+        )
+        # B. Low-pass (100 Hz, Order 100)
+        b_lp = sgn.firwin(
+            numtaps=100 + 1, 
+            cutoff=100, 
+            fs=ORIGINAL_SAMPLE_RATE, 
+            pass_zero=True, 
+            window='hamming'
+        )
+        # C. Notch (49-51 Hz, Order 3380) -> Band-stop
+        b_notch = sgn.firwin(
+            numtaps=3380 + 1, 
+            cutoff=[49, 51], 
+            fs=ORIGINAL_SAMPLE_RATE, 
+            pass_zero=True, # Band-stop (pasa extremos, corta centro)
+            window='hamming'
+        )
+        wav = sgn.filtfilt(b_hp, 1.0, wav)
+        wav = sgn.filtfilt(b_lp, 1.0, wav)
+        wav = sgn.filtfilt(b_notch, 1.0, wav)
+        
+        # Resample to desired sample rate
+        ratio = Fraction(DESIRED_SAMPLE_RATE, ORIGINAL_SAMPLE_RATE)
+        up, down = ratio.numerator, ratio.denominator
+        final_wav = sgn.resample_poly(wav, up, down, padtype='reflect')
+        np.save(audio_resampled_path, final_wav)
+    
+    start_sample_target = 0
+    end_sample_target = 0
+    current_sample = 0
+    for trial in get_trials(SESSION):
+        wav_path_trial = wav_path_interlocutor.replace(f'objects.{TRIAL:02d}', f'objects.{trial:02d}')
+        sr_wav, wav_temp = wavfile.read(wav_path_trial, mmap=True) 
+        trial_time = wav_temp.shape[0]/sr_wav
+        len_target = int(round(trial_time * DESIRED_SAMPLE_RATE))
+        if trial == TRIAL:
+            start_sample_target = current_sample
+            end_sample_target = current_sample + len_target
+            break # Ya lo encontramos
+            
+        current_sample += len_target
+    return final_wav[int(start_sample_target):int(end_sample_target)]
+# # PARA AGILIZAR EL PROCESO DE LIMPIEZA DE CROSSTALK EN TODOS LOS AUDIOS CONVIENE CORRER ESTE CHUNK ANTES DEL LOAD.PY
+# import config 
+# from tqdm import tqdm
+# for session in tqdm(config.sessions, total=len(config.sessions)):
+#     for channel in [1, 2]:
+#         wav_path_interlocutor = f"data/wavs/S{session}/s{session}.objects.01.channel{channel}.wav"
+#         get_reduced_audio_representation(
+#             wav_path_interlocutor=wav_path_interlocutor
+#         )
+def clean_crosstalk(
+    audio_data:np.ndarray,
+    eeg_data:np.ndarray,
+) -> np.ndarray:
+    """
+    Elimina el crosstalk de audio del EEG mediante regresión lineal.
+    
+    Parameters:
+        audio_data:
+        np.ndarray: (n_samples, ) o (n_samples, 1) Señal de audio.
+        eeg_data:
+        np.ndarray: (n_samples, n_channels) Señal EEG.
+
+    Returns:
+        eeg_clean: (n_samples, n_channels) Señal limpia.
+    """
+    audio_data = audio_data.reshape(-1, 1) if audio_data.ndim == 1 else audio_data
+    minimum_length = min(eeg_data.shape[0], audio_data.shape[0])
+    eeg_data = eeg_data[:minimum_length]
+    audio_data = audio_data[:minimum_length]
+    
+    reg = LinearRegression(fit_intercept=True)
+    reg.fit(audio_data, eeg_data)
+    noise_prediction = reg.predict(audio_data)
+    eeg_clean = eeg_data - noise_prediction
+    # max_beta = np.max(np.abs(reg.coef_))
+    
+    # print(f"\nMax beta for crosstalk removal: {max_beta}")
+    # print(f"\nExplained variance for crosstalk removal: {reg.score(audio_data, eeg_data)}")
+    # print(f"\nAverage noise prediction power: {np.mean(noise_prediction)}\n\n")
+    return eeg_clean
 
 if __name__ == "__main__":
     import argparse

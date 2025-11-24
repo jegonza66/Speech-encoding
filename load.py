@@ -14,6 +14,7 @@ from praatio import pitch_and_intensity
 from scipy.interpolate import interp1d
 import scipy.io.wavfile as wavfile
 from scipy import signal as sgn
+from fractions import Fraction
 import textgrids
 import librosa
 import torch
@@ -30,22 +31,20 @@ from phonet.phonet import Phonet
 from transformers import (
     Wav2Vec2Model, Wav2Vec2Processor, Wav2Vec2FeatureExtractor,
     WhisperProcessor, WhisperModel,
-    HubertModel,
-    WavLMModel
+    HubertModel, WavLMModel
 )
 
 # Modules
 from utils.load_utils import (
     SEX_LIST, shifted_indexes_to_keep, match_lengths, 
     check_syntax, labeling, get_trials, get_export_paths,
-    sort_stimuli_based_on_situation, 
-    get_dnn_reduced_representation
+    sort_stimuli_based_on_situation, get_reduced_audio_representation,
+    get_dnn_reduced_representation, clean_crosstalk
 )
 from utils.phoneme_implementation_from_phonet import compute_phones
 import utils.general_functions as general_functions
 import utils.processing as processing
 import config
-# import umap
 
 # Logging
 from utils.logs import setup_logger, get_logger
@@ -67,13 +66,6 @@ except Exception as e:
 
 # Review this If we want to update packages
 mne.set_log_level(verbose='CRITICAL')
-
-# Extra parameters
-TRANSFORMER_MODEL = "openai/whisper-base"
-# TRANSFORMER_MODEL = "openai/whisper-tiny"
-# TRANSFORMER_MODEL = "facebook/wav2vec2-large-xlsr-53-distilled"
-# TRANSFORMER_MODEL = "facebook/wav2vec2-base"
-
 
 # Global cache for HF models to avoid re-loading on every call
 _PHONET_CACHE = {}
@@ -1613,7 +1605,7 @@ def load_samples_info(
         )
         samples_info['trial_lengths1'].append(minimum1)
         samples_info['trial_lengths2'].append(minimum2)
-
+        
         # Preprocessing: calaculates the relevant indexes for the apropiate analysis. Add sum of all previous trials length. This is because at the end, all trials previous to the actual will be concatenated
         shifted_1 = shifted_indexes_to_keep(speaker_labels=current_speaker_1, situation=situation)
         shifted_2 = shifted_indexes_to_keep(speaker_labels=current_speaker_2, situation=situation)
@@ -1782,17 +1774,6 @@ def load_stimuli(
             eeg_exists=eeg_exists,
             filter_eeg=filter_eeg if filter_eeg is not None else None
         )
-
-        # When using Internal, EEG prediction is based on own stimuli. 
-        if situation.startswith('Internal'):
-            trial_subject_1 = trial_channel_1.copy()
-            trial_subject_2 = trial_channel_2.copy()            
-        # When using External, EEG prediction is based on interlocutor stimuli
-        else:
-            trial_subject_1 = {key: trial_channel_2[key] for key in trial_channel_2 if key!='EEG'} 
-            trial_subject_2 = {key: trial_channel_1[key] for key in trial_channel_1 if key!='EEG'}
-            if not eeg_exists:
-                trial_subject_1['EEG'], trial_subject_2['EEG'] = trial_channel_1['EEG'], trial_channel_2['EEG']
         current_speaker_1 = labeling(
             session=session,
             trial=trial, 
@@ -1815,7 +1796,7 @@ def load_stimuli(
             dic=trial_channel_2,
             minimum=samples_info['trial_lengths2'][p+1]
         )
-        
+
         # Each subject with it's own data
         for key in trial_channel_1:
             if key not in subject_1:
