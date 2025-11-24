@@ -51,7 +51,7 @@ ALLOWED_STIMULI = [
     'Phonemes', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency', 
     'Phones', 'Phones-Envelope', 'Phones-Discrete',
     'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
-    'Hearing-Turn',
+    'Hearing-Turn', 'Audio-Resampled',
     'EEG-feature',
     'ROIs'
     # 'Jitter', 'Shimmer'
