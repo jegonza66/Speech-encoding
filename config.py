@@ -1,4 +1,6 @@
+stable_version = False
 import numpy as np, mne
+
 number_of_workers = 9
 saves_dir = 'saves'
 output_dir = 'output'
@@ -32,6 +34,8 @@ stimuli = [
 
         # # Combined 1st level features
         # 'Envelope_Pitch-Log-Raw',
+        # 'Spectrogram-21',
+        # 'Audio-Resampled',
         'Envelope',
         # 'Pitch-Log-Raw_Spectrogram',
         # 'Envelope_Pitch-Log-Raw_Spectrogram',
@@ -107,7 +111,7 @@ bands = [
         # 'Delta_Theta', # 1-8 Hz
         # 'Beta1', # 13-19 Hz
         # 'Beta2', # 19-25 Hz
-        # 'Unfiltered' # None
+        'Unfiltered' # None
 ]
 
 temporal_shift = None
@@ -125,7 +129,7 @@ display_interactive_mode, no_figures = False, False
 # MODEL AND NORMALIZATION OF STIMULI AND EEG
 ROI = False # whether to use ROI data or full EEG data
 external_validation = False # whether to use External hyperparameter or the one that maximize specific condition
-same_validation_subjects = False # same hyperparameter for all subjects 
+same_validation_subjects = True # same hyperparameter for all subjects 
 statistical_test, perform_tfce = False, False
 use_gpu = True
 
@@ -182,9 +186,18 @@ if ROI:
         ch_types='eeg'
    )
 else:
-    montage = mne.channels.make_standard_montage('biosemi128')
-    info_mne = mne.create_info(ch_names=montage.ch_names[:], sfreq=sr, ch_types='eeg').set_montage(montage)
-    relevant_channels = 12 # None
+        montage = mne.channels.make_standard_montage('biosemi128')
+        # relevant_channels = [f'C{i+1}' for i in range(32)] # frontal/ frontal right
+        # relevant_channels += [f'D{i+1}' for i in range(13)]# frontal left
+        #     relevant_channels = montage.ch_names
+        relevant_channels = ['C23']
+        info_mne = mne.create_info(
+        ch_names=relevant_channels, 
+        sfreq=sr, 
+        ch_types='eeg'
+        ).set_montage(montage)
+        channels_index = [info_mne.ch_names.index(ch) for ch in relevant_channels]
+
 # ============
 # PLOTS LABELS
 class Exp_info:

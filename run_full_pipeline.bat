@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 REM === User options: set to true or false ===
 set run_load=true
-set run_validation=false
+set run_validation=true
 set run_permutations=false
 set run_main=true
 set PARALLEL_LOAD=true
@@ -65,6 +65,20 @@ if /i "%run_main%"=="true" (
         exit /b 1
     )
 )
+REM === Run main.py DIFF VAL, NO EXTERNAL VAL, RIDGE
+if /i "%run_main%"=="true" (
+    echo Running main.py...
+    if "%run_permutations%"=="true" (
+        python main.py --no-same_validation_subjects --no-external_validation --solver "ridge" --statistical_test
+    ) else (
+        python main.py --no-same_validation_subjects --no-external_validation --solver "ridge" --no-statistical_test
+    )
+    if errorlevel 1 (
+        echo main.py failed. Exiting.
+        exit /b 1
+    )
+)
+
 @REM REM === Run main.py SAME VAL, EXTERNAL VAL, RIDGE-LAPLACIAN
 @REM if /i "%run_main%"=="true" (
 @REM     echo Running main.py...
@@ -93,19 +107,6 @@ if /i "%run_main%"=="true" (
 @REM     )
 @REM )
 
-REM === Run main.py DIFF VAL, NO EXTERNAL VAL, RIDGE
-if /i "%run_main%"=="true" (
-    echo Running main.py...
-    if "%run_permutations%"=="true" (
-        python main.py --no-same_validation_subjects --no-external_validation --solver "ridge" --statistical_test
-    ) else (
-        python main.py --no-same_validation_subjects --no-external_validation --solver "ridge" --no-statistical_test
-    )
-    if errorlevel 1 (
-        echo main.py failed. Exiting.
-        exit /b 1
-    )
-)
 
 echo Pipeline completed.
 exit /b 0

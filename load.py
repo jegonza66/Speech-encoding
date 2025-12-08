@@ -69,7 +69,8 @@ mne.set_log_level(verbose='CRITICAL')
 
 # Global cache for HF models to avoid re-loading on every call
 _PHONET_CACHE = {}
-def get_phonet_instance(logger=get_logger(__name__)):
+_DNN_MODEL_CACHE = {}
+def _get_phonet_instance(logger=get_logger(__name__)):
     """
     Get a cached Phonet instance to avoid reloading models
     """
@@ -81,8 +82,6 @@ def get_phonet_instance(logger=get_logger(__name__)):
         logger.debug("Phonet model loaded and cached")
     
     return _PHONET_CACHE['phonet']
-_DNN_MODEL_CACHE = {}
-
 def _get_dnn_model(backbone: str, model_id: str, device: str):
     bl = backbone.lower()
     key = (bl, model_id, device)
@@ -115,7 +114,8 @@ class GetTrialData:
         channel:int=1, 
         trial:int=1, 
         stimuli_length:int=None,
-        logger=get_logger(__name__)
+        logger=get_logger(__name__),
+        parallel_load:bool=False
     )->None: 
         """
         Initializes the TrialChannelData class with the given parameters.
@@ -143,6 +143,7 @@ class GetTrialData:
             If band is not allowed.
         """
         check_syntax(band=band)
+        self.parallel_load = parallel_load
         self.logger = logger if logger is not None else get_logger(__name__)
         self.stimuli_length = stimuli_length
         self.session = session
@@ -200,6 +201,21 @@ class GetTrialData:
             preload=True,
             verbose="CRITICAL"
         )
+        info = eeg.info.copy()
+        original_sfreq = eeg.info['sfreq']
+        
+        #TODO revisar si hace falta
+        # # Clean audio interference / crosstalk 
+        # sr_wav_res, wav = get_reduced_audio_representation(
+        #     wav_path_interlocutor=self.wav_fname.replace(f"channel{self.channel}", f"channel{int(3 - self.channel)}"),
+        #     parallel_load=self.parallel_load
+        # )
+        # assert sr_wav_res == original_sfreq, "Sampling rate of audio and EEG do not match for crosstalk removal."
+        # eeg = clean_crosstalk(
+        #     eeg_data=eeg.get_data().T, 
+        #     audio_data=wav,
+        # )
+        # eeg = mne.io.RawArray(eeg.T, info)
 
         # Apply a lowpass filter
         if filter_eeg is not None:
@@ -208,70 +224,45 @@ class GetTrialData:
                 h_freq=self.h_freq_eeg,
                 **filter_eeg
             )
+            eeg = eeg.get_data().T * 1e6 
         else:
+            eeg = eeg.get_data().T * 1e6
             if self.band != 'Unfiltered':
-                # iir_params = { #Nuevos exp de dili
-                #     "ftype": "butter",
-                #     "order": 2,
-                # }
-                eeg = eeg.filter(
-                    l_freq=self.l_freq_eeg,
-                    h_freq=self.h_freq_eeg,
-                    method="iir",
-                    iir_params={
-                        "ftype": "cheby2",       # Filter type: Chebyshev Type II
-                        "order": 4,              # Filter order
-                        "rs": 20,                # Stopband attenuation (dB)
-                    },
-                    phase='zero'
-                )
-            
-        # Get mne representation 
-        eeg = eeg.resample(
-            sfreq=self.sr, 
-            npad=0, 
-            window='hamming', 
-            method='fft'
-        )
-        eeg = eeg.get_data().T*1e6
-        return eeg
-    
-    def extract_eeg_feature(
-        self, 
-        eeg:np.ndarray
-    )-> np.ndarray:
-        """
-        Takes the EEG, computes the fft in polar representation, shuffles the phase and applies inverse transform, to get a stimulus
-        that preserves correlation structure of the EEG but not the temporal one.
-
-        Parameters
-        ----------
-        eeg : np.ndarray
-            The input EEG data.
-
-        Returns
-        -------
-        np.ndarray
-            The transformed EEG data.
-        """
-        # Compute the FFT
-        eeg_fft = np.fft.fft(
-            eeg, 
+                if config.stable_version:
+                    sos = sgn.iirfilter( 
+                        N=4, 
+                        Wn=[self.l_freq_eeg, self.h_freq_eeg], 
+                        rs=20,               # Stopband attenuation (dB)
+                        btype='bandpass', 
+                        analog=False, 
+                        ftype='cheby2',      # Filter type: Chebyshev Type II
+                        output='sos',        # Modern and stable format
+                        fs=original_sfreq             # Pass fs to avoid manual normalization
+                    )
+                    eeg = signal.sosfiltfilt(
+                        sos, 
+                        eeg, 
+                        axis=0
+                    )
+                else:
+                    eeg = processing.fir_delay_compensated(
+                        array=eeg,
+                        sfreq=original_sfreq,
+                        l_freq=self.l_freq_eeg,
+                        h_freq=self.h_freq_eeg,
+                        axis=0
+                    )
+        
+        # Resample 
+        eeg = processing.custom_resample(
+            array=eeg,
+            original_sr=original_sfreq, #512
+            target_sr=self.sr,     #128 
+            padtype='mean',
             axis=0
         )
-        # Convert to polar representation
-        magnitude = np.abs(eeg_fft)
-        phase = np.angle(eeg_fft)
-        
-        # Shuffle the phase (seed 42 for reproducibility)
-        np.random.seed(42)
-        np.random.shuffle(phase)
-        
-        # Reconstruct the signal
-        eeg_feature = magnitude * np.exp(1j * phase)
-        eeg_feature = np.fft.ifft(eeg_feature, axis=0)
-        return eeg_feature.real
-
+        return eeg
+    
     def extract_envelope(
         self,
         kind:str='Envelope'
@@ -298,53 +289,42 @@ class GetTrialData:
         envelope = np.abs(analytic_signal)
         
         # Resample 
-        # window_size, stride = int(self.audio_sr/self.sr), int(self.audio_sr/self.sr)
-        # envelope = np.array([#TODO REVISAR USAR SCIPY DECIMATE (TRANSFORMADA HAMMINH)
-        #     np.mean(envelope[i:i+window_size]) \
-        #     for i in range(0, len(envelope), stride)\
-        #     if i+window_size<=len(envelope)
-        #     ]
-        # )
-        downsampling_factor = int(self.audio_sr/self.sr)
-        filter_coeffs = sgn.firwin(
-            numtaps=3000, 
-            cutoff=(self.sr / 2.0)  *.99,  # Nyquist frequency of target sampling rate
-            fs=self.audio_sr, 
-            pass_zero='lowpass'
-        )
-
-        # Filter 
-        envelope = sgn.filtfilt(
-            b=filter_coeffs, 
-            a=np.array([1.0]), 
-            x=envelope,
+        envelope = processing.custom_resample(
+            array=envelope,
+            original_sr=self.audio_sr,
+            target_sr=self.sr,
+            padtype='mean',
             axis=0
         )
-
-        # Downsample 
-        envelope = envelope[::downsampling_factor]
+        return envelope.reshape(-1, 1)
         
-        if kind == 'Envelope2':
-            window_size, stride = int(self.audio_sr/self.sr), int(self.audio_sr/self.sr)
-            instantaneous_phase = np.unwrap(
-                np.angle(analytic_signal)
-            )
-            instantaneous_frequency = np.gradient(instantaneous_phase) * self.audio_sr / (2 * np.pi)
-            
-            # Resample
-            instantaneous_frequency = np.array([
-                np.mean(instantaneous_frequency[i:i+window_size]) \
-                for i in range(0, len(instantaneous_frequency), stride)\
-                if i+window_size<=len(instantaneous_frequency)
-                ]
-            )
-            total_envelope = np.hstack(
-                (envelope.reshape(-1,1), instantaneous_frequency.reshape(-1,1))
-                )
-            
-            return total_envelope
-        else:
-            return envelope.reshape(-1, 1)
+    def extract_audio_resampled(
+        self
+    )->np.ndarray:
+        """
+        Reads the audio data from a .wav file, and applies same preprocessing as EEG.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        np.ndarray
+            The EEG data as a numpy array with dimensions (samples, channels).
+        """
+        sr_feature, feature = get_reduced_audio_representation(
+            wav_path_interlocutor=self.wav_fname, # In this case wav is own audio
+            parallel_load=self.parallel_load
+        )
+        feature = sgn.resample_poly(
+            x=feature,
+            up=1,
+            down=int(sr_feature/self.sr), # 512 / 128 = 4,
+            padtype='reflect'
+        )
+        feature = feature.reshape(-1, 1) if feature.ndim == 1 else feature
+        return feature
 
     def extract_spectrogram(
         self,
@@ -651,7 +631,7 @@ class GetTrialData:
             labels_phonemes = config.exp_info.phonemes.copy()
             labels_phones = config.exp_info.phones.copy()
             posterior_prob = compute_phones(
-                phonet_obj=get_phonet_instance(logger=self.logger), 
+                phonet_obj=_get_phonet_instance(logger=self.logger), 
                 audio_file=self.wav_fname,
                 PLLR=True
             )
@@ -695,7 +675,7 @@ class GetTrialData:
             return pllr_without_silence
         else:
             sec_phones = compute_phones(
-                phonet_obj=get_phonet_instance(logger=self.logger), 
+                phonet_obj=_get_phonet_instance(logger=self.logger), 
                 audio_file=self.wav_fname
             )
         
@@ -731,7 +711,7 @@ class GetTrialData:
                 self.logger.warning("Frequency dictionary isn't Load. \n ---> loading it now...")
                 os.makedirs('data/phon_frequency_dict', exist_ok=True)
                 freq = general_functions.load_phon_frequency_dict(
-                    phonet_obj=get_phonet_instance(logger=self.logger),
+                    phonet_obj=_get_phonet_instance(logger=self.logger),
                     save_path='data/phon_frequency_dict',
                     plot_freq=True,
                 )
@@ -793,7 +773,7 @@ class GetTrialData:
             wav = wavfile.read(self.wav_fname)[1]
             wav = wav.astype("float")
             posterior_prob = compute_phones(
-                phonet_obj=get_phonet_instance(logger=self.logger), 
+                phonet_obj=_get_phonet_instance(logger=self.logger), 
                 audio_file=self.wav_fname,
                 PLLR=True
             )
@@ -831,7 +811,7 @@ class GetTrialData:
             return pllr_without_silence
         else:
             # Extract phones
-            phonet = get_phonet_instance(logger=self.logger)
+            phonet = _get_phonet_instance(logger=self.logger)
             sec_phones = compute_phones(
                 phonet_obj=phonet, 
                 audio_file=self.wav_fname
@@ -910,7 +890,7 @@ class GetTrialData:
             Matrix with phonological features with shape SAMPLES X FEATURES
         """
         # Use cached Phonet instance instead of creating new one
-        phonet = get_phonet_instance(logger=self.logger)
+        phonet = _get_phonet_instance(logger=self.logger)
         phon_features = phonet.get_PLLR(
             audio_file=self.wav_fname, 
             plot_flag=False
@@ -1252,167 +1232,22 @@ class GetTrialData:
         dnn_features = Z_t.astype(np.float32)
         return dnn_features
 
-    def extract_mistakes(
+    def extract_onsets(
         self, 
-        kind:str='Mistakes-Separated'
-        )->np.ndarray:
+        envelope:np.array=None
+    ) -> np.array:
         """
-        Calculates mistakes (lexical, articulatory, discursive) signal from annotated data
+        Extract the onset trial time vector for the trial.
 
         Returns
         -------
-        np.ndarray
-            stimuli_lengthX3 binary array if separated else stimuli_lengthX1 binary array
-            stimuli_lengthX3 binary array if separated else stimuli_lengthX1
+        np.array
+            Onset time vector.
         """
-        # Define kind
-        separated=True if kind.endswith('Separated') else False
-
-        # Read phrases to identify time of error inside phrases time
-        phrases = pd.read_table(self.phrases_fname, header=None, sep="\t")
-        start_time, end_time = phrases[0].iloc[0], phrases[1].iloc[-1]
-        phrases_time = np.arange(start_time, end_time, 1/self.sr)
-
-        # Identify start and end of error within mistake
-        mistake_code = {
-                        'A':0, # articulatorio
-                        'L':1, # léxico
-                        'D':2 # discursivo
-                        } if separated else {'A':0, 'L':0, 'D':0}
-        mistake_signal = np.zeros(shape=(len(phrases_time), 3)) if separated else np.zeros(shape=(len(phrases_time), 1))
-        
-        if os.path.isfile(self.mistakes_path):
-            # Read textgrid        
-            grid = textgrids.TextGrid(self.mistakes_path)[f"canal {int(self.mistakes_path.split('channel')[1][0])}"]
-            
-            # Identify onset, offset and type of mistake
-            mistake_taggs, mistake_count = np.unique([el.text.split('Palabra del error: ')[1] for el in grid], return_counts=True)
-            mistakes = {mistake:{'start':None, 'end':None, 'type':None} for mistake in mistake_taggs}
-            mistake_taggs = np.repeat(mistake_taggs, mistake_count)
-
-            for item, mistake in zip(grid, mistake_taggs):
-                # Identify time_intervals and mistake type
-                mistakes[mistake]['type'] = mistake_code[item.text.split('Etiqueta: ')[1][0]]
-                if int(item.text[0])==1:
-                    mistakes[mistake]['start'] = item.xpos
-                elif int(item.text[0])==2:
-                    mistakes[mistake]['end'] = item.xpos
-                # else:
-                #     nextword_start.append(item.xpos)
-
-            # Fill mistake_signal
-            for mistake in mistakes:
-                onset_filter = mistakes[mistake]['start']<=phrases_time
-                offset_filter = phrases_time<=mistakes[mistake]['end']
-                
-                mistake_signal[onset_filter&offset_filter, mistakes[mistake]['type']] = -np.ones(shape=np.sum(onset_filter&offset_filter))
-
-        # Match length of mistake signal with desired stimuli length
-        difference = len(mistake_signal)-self.stimuli_length
-        if difference>0:
-            mistake_signal = mistake_signal[:-difference]
-        elif difference<0:
-            mistake_signal = np.concatenate((mistake_signal, np.zeros(shape=(np.abs(difference), 3)))) if separated else np.concatenate((mistake_signal, np.zeros(shape=(np.abs(difference), 1))))
-
-        return mistake_signal
-    
-    def extract_mistakes_control(
-        self, 
-        kind:str='Control-Separated'
-        )->np.ndarray:
-        """
-        Calculates mistakes control (lexical, articulatory, discursive) signal from annotated data
-
-        Returns
-        -------
-        np.ndarray
-            stimuli_length X3 binary array if separated else stimuli_length X1
-        """
-        # Define kind
-        separated=True if kind.endswith('Separated') else False
-
-        # Read phrases to identify time of error inside phrases time
-        phrases = pd.read_table(self.phrases_fname, header=None, sep="\t")
-        start_time, end_time = phrases[0].iloc[0], phrases[1].iloc[-1]
-        phrases_time = np.arange(start_time, end_time, 1/self.sr)
-        
-        # Identify start and end of error within mistake
-        control_code = {
-                        'A':0, # articulatorio
-                        'L':1, # léxico
-                        'D':2 # discursivo
-                        } if separated else {'A':0, 'L':0, 'D':0}
-        control_signal = np.zeros(shape=(len(phrases_time), 3)) if separated else np.zeros(shape=(len(phrases_time), 1))
-        
-        if os.path.isfile(self.mistakes_control_path):
-            # Read textgrid        
-            grid = textgrids.TextGrid(self.mistakes_control_path)[f"canal {int(self.mistakes_control_path.split('channel')[1][0])}"]
-            
-            # Identify onset, offset and type of mistake
-            control_taggs, control_count = np.unique([el.text.split('Palabra del error: ')[1] for el in grid], return_counts=True)
-            controls = {control:{'start':None, 'end':None, 'type':None} for control in control_taggs}
-            control_taggs = np.repeat(control_taggs, control_count)
-
-            for item, control in zip(grid, control_taggs):
-                # Identify time_intervals and control type
-                controls[control]['type'] = control_code[item.text.split('Etiqueta: ')[1][0]]
-                controls[control]['score'] = float(item.text.split('normalizado: ')[1].split(',')[0])
-                
-                if int(item.text[0])==1:
-                    controls[control]['start'] = item.xpos
-                elif int(item.text[0])==2:
-                    controls[control]['end'] = item.xpos
-
-            # Fill control_signal
-            for control in controls:
-                onset_filter = controls[control]['start']<=phrases_time
-                offset_filter = phrases_time<=controls[control]['end']
-                control_signal[onset_filter&offset_filter, controls[control]['type']] = np.ones(shape=np.sum(onset_filter&offset_filter))#*controls[control]['score']
-        
-        # Match length of mistake signal with desired stimuli length
-        difference = len(control_signal)-self.stimuli_length         
-        if difference>0:
-            control_signal = control_signal[:-difference]
-        elif difference<0:
-            control_signal = np.concatenate((control_signal, np.zeros(shape=(np.abs(difference), 3)))) if separated else np.concatenate((control_signal, np.zeros(shape=(np.abs(difference), 1))))
-        return control_signal
-    
-    def extract_turn_taking(
-        self
-    ):
-        """
-        Extracts turn-taking features from the audio envelope.
-
-        Parameters
-        ----------
-        envelope : np.ndarray
-            Envelope of the audio signal using Hilbert transform.
-
-        Returns
-        -------
-        np.ndarray
-            Array with turn-taking features.
-        """
-        # Read json file
-        try: 
-            with open(self.turn_fname, 'r') as json_file:
-                turn_data_list = json.load(json_file)
-        except Exception as e:
-            self.logger.error(f"Error reading turn-taking file: {e}")
-            return np.zeros(shape=(self.stimuli_length, 1))
-
-        turn_feature = np.zeros(shape=(self.stimuli_length, 1))
-        for turn_data in turn_data_list:
-            start_sample = int(turn_data['ipu1_start_time'] * self.sr)
-            end_sample = int(turn_data['ipu1_end_time'] * self.sr)
-            turn_feature[start_sample:end_sample] = np.linspace(
-                0, 1, end_sample - start_sample
-            ).reshape(-1, 1)
-            
-        # Verify length
-        if turn_feature.shape[0] != self.stimuli_length:
-            raise ValueError(f"Turn feature length {turn_feature.shape[0]} does not match desired stimuli length {self.stimuli_length}")
-        return turn_feature
+        # Load offset times
+        onset = np.zeros(shape=envelope.shape)
+        onset[0, :] = 1
+        return onset
 
     def load_trial(
         self, 
@@ -1447,6 +1282,14 @@ class GetTrialData:
                 channel['Envelope'] = self.extract_envelope(
                     kind=stimulus
                 )
+            if stimulus=='Onsets':
+                if channel.get('Envelope') is None:
+                    envelope = self.extract_envelope(
+                        kind='Envelope'
+                    )
+                channel['Onsets'] = self.extract_onsets(
+                    envelope=envelope
+                )
             if stimulus.startswith('Mfccs') or stimulus.startswith('Deltas'):
                 channel[stimulus] = self.extract_mfccs( 
                     kind=stimulus
@@ -1457,14 +1300,6 @@ class GetTrialData:
                 )
             if stimulus.startswith('Phonological'):
                 channel[stimulus] = self.extract_phonological(
-                    kind=stimulus
-                )
-            if stimulus.startswith('Mistakes'):
-                channel[stimulus] = self.extract_mistakes(
-                    kind=stimulus
-                )
-            if stimulus.startswith('Control'):
-                channel[stimulus] = self.extract_mistakes_control(
                     kind=stimulus
                 )
             if 'DNNs' in stimulus:
@@ -1483,11 +1318,8 @@ class GetTrialData:
                 channel[stimulus] = self.extract_phones(
                     kind=stimulus
                 )
-            if stimulus == 'Offset':
-                channel[stimulus] = self.extract_offset(
-                )
-            if stimulus == 'Hearing-Turn':
-                channel[stimulus] = self.extract_turn_taking(
+            if stimulus == 'Audio-Resampled':
+                channel['Audio-Resampled'] = self.extract_audio_resampled(
                 )
 
         return channel
@@ -1676,7 +1508,8 @@ def load_stimuli(
     save_results:bool = True,
     overwrite:bool = False,
     logger=get_logger(__name__),
-    filter_eeg:dict=None
+    filter_eeg:dict=None,
+    parallel_load:bool=False
 )->tuple:
     """
     Loads and processes EEG and stimuli data for a given session.
@@ -1753,7 +1586,8 @@ def load_stimuli(
             trial=trial, 
             channel=1,
             stimuli_length=samples_info['trial_lengths1'][p+1],
-            logger=logger
+            logger=logger,
+            parallel_load=parallel_load
         )
         channel_2 = GetTrialData(
             band=band,
@@ -1761,7 +1595,8 @@ def load_stimuli(
             trial=trial,
             channel=2,
             stimuli_length=samples_info['trial_lengths2'][p+1],
-            logger=logger
+            logger=logger,
+            parallel_load=parallel_load
         )
         stimuli_to_load = stimuli.split('_')
         trial_channel_1 = channel_1.load_trial(
@@ -1838,7 +1673,8 @@ def load_data(
     filter_eeg:dict=None,
     save_results:bool=True,
     overwrite: bool=False,
-    logger:any = None
+    logger:any = None,
+    parallel_load:bool=False
 )->tuple:
     """
     Loads and processes EEG and stimuli data for a given session.
@@ -1861,7 +1697,9 @@ def load_data(
         If True, saves the results in the preprocessed_data_path. Default is False.
     overwrite : bool, optional
         If True, overwrites the existing preprocessed data, forcing load_raw. Default is True.
-
+    parallel_load : bool, optional
+        It's just an indicator to know if the function is being called within a parallel process. Default is False.
+        
     Returns
     -------
     tuple
@@ -1908,7 +1746,8 @@ def load_data(
         session=session,
         overwrite=overwrite, 
         save_results=save_results,
-        filter_eeg=filter_eeg if filter_eeg is not None else None
+        filter_eeg=filter_eeg if filter_eeg is not None else None,
+        parallel_load=parallel_load
     )    
     
     return session_1, session_2, samples_info
@@ -1974,7 +1813,8 @@ def main_one_process(
                         session=session,
                         band=band,
                         save_results=save_results,
-                        filter_eeg=filter_eeg if filter_eeg is not None else None
+                        filter_eeg=filter_eeg if filter_eeg is not None else None,
+                        parallel_load=False
                     )
                     
                     # Print the progress of the iteration
@@ -2043,7 +1883,8 @@ def main_parallel(
             session=params['session'],
             band=params['band'],
             save_results=save_results,
-            filter_eeg=params['filter_eeg']
+            filter_eeg=params['filter_eeg'],
+            parallel_load=True
         )
         return params, subject_1, subject_2, samples_info
     
@@ -2089,3 +1930,168 @@ if __name__ == "__main__":
         results = main_one_process(
             save_results=config.save_results
         )
+
+# =========================================================================
+# Attributes and methods related to mistakes extraction aren't used for now
+
+    # def extract_mistakes(
+    #     self, 
+    #     kind:str='Mistakes-Separated'
+    #     )->np.ndarray:
+    #     """
+    #     Calculates mistakes (lexical, articulatory, discursive) signal from annotated data
+
+    #     Returns
+    #     -------
+    #     np.ndarray
+    #         stimuli_lengthX3 binary array if separated else stimuli_lengthX1 binary array
+    #         stimuli_lengthX3 binary array if separated else stimuli_lengthX1
+    #     """
+    #     # Define kind
+    #     separated=True if kind.endswith('Separated') else False
+
+    #     # Read phrases to identify time of error inside phrases time
+    #     phrases = pd.read_table(self.phrases_fname, header=None, sep="\t")
+    #     start_time, end_time = phrases[0].iloc[0], phrases[1].iloc[-1]
+    #     phrases_time = np.arange(start_time, end_time, 1/self.sr)
+
+    #     # Identify start and end of error within mistake
+    #     mistake_code = {
+    #                     'A':0, # articulatorio
+    #                     'L':1, # léxico
+    #                     'D':2 # discursivo
+    #                     } if separated else {'A':0, 'L':0, 'D':0}
+    #     mistake_signal = np.zeros(shape=(len(phrases_time), 3)) if separated else np.zeros(shape=(len(phrases_time), 1))
+        
+    #     if os.path.isfile(self.mistakes_path):
+    #         # Read textgrid        
+    #         grid = textgrids.TextGrid(self.mistakes_path)[f"canal {int(self.mistakes_path.split('channel')[1][0])}"]
+            
+    #         # Identify onset, offset and type of mistake
+    #         mistake_taggs, mistake_count = np.unique([el.text.split('Palabra del error: ')[1] for el in grid], return_counts=True)
+    #         mistakes = {mistake:{'start':None, 'end':None, 'type':None} for mistake in mistake_taggs}
+    #         mistake_taggs = np.repeat(mistake_taggs, mistake_count)
+
+    #         for item, mistake in zip(grid, mistake_taggs):
+    #             # Identify time_intervals and mistake type
+    #             mistakes[mistake]['type'] = mistake_code[item.text.split('Etiqueta: ')[1][0]]
+    #             if int(item.text[0])==1:
+    #                 mistakes[mistake]['start'] = item.xpos
+    #             elif int(item.text[0])==2:
+    #                 mistakes[mistake]['end'] = item.xpos
+    #             # else:
+    #             #     nextword_start.append(item.xpos)
+
+    #         # Fill mistake_signal
+    #         for mistake in mistakes:
+    #             onset_filter = mistakes[mistake]['start']<=phrases_time
+    #             offset_filter = phrases_time<=mistakes[mistake]['end']
+                
+    #             mistake_signal[onset_filter&offset_filter, mistakes[mistake]['type']] = -np.ones(shape=np.sum(onset_filter&offset_filter))
+
+    #     # Match length of mistake signal with desired stimuli length
+    #     difference = len(mistake_signal)-self.stimuli_length
+    #     if difference>0:
+    #         mistake_signal = mistake_signal[:-difference]
+    #     elif difference<0:
+    #         mistake_signal = np.concatenate((mistake_signal, np.zeros(shape=(np.abs(difference), 3)))) if separated else np.concatenate((mistake_signal, np.zeros(shape=(np.abs(difference), 1))))
+
+    #     return mistake_signal
+    
+    # def extract_mistakes_control(
+    #     self, 
+    #     kind:str='Control-Separated'
+    #     )->np.ndarray:
+    #     """
+    #     Calculates mistakes control (lexical, articulatory, discursive) signal from annotated data
+
+    #     Returns
+    #     -------
+    #     np.ndarray
+    #         stimuli_length X3 binary array if separated else stimuli_length X1
+    #     """
+    #     # Define kind
+    #     separated=True if kind.endswith('Separated') else False
+
+    #     # Read phrases to identify time of error inside phrases time
+    #     phrases = pd.read_table(self.phrases_fname, header=None, sep="\t")
+    #     start_time, end_time = phrases[0].iloc[0], phrases[1].iloc[-1]
+    #     phrases_time = np.arange(start_time, end_time, 1/self.sr)
+        
+    #     # Identify start and end of error within mistake
+    #     control_code = {
+    #                     'A':0, # articulatorio
+    #                     'L':1, # léxico
+    #                     'D':2 # discursivo
+    #                     } if separated else {'A':0, 'L':0, 'D':0}
+    #     control_signal = np.zeros(shape=(len(phrases_time), 3)) if separated else np.zeros(shape=(len(phrases_time), 1))
+        
+    #     if os.path.isfile(self.mistakes_control_path):
+    #         # Read textgrid        
+    #         grid = textgrids.TextGrid(self.mistakes_control_path)[f"canal {int(self.mistakes_control_path.split('channel')[1][0])}"]
+            
+    #         # Identify onset, offset and type of mistake
+    #         control_taggs, control_count = np.unique([el.text.split('Palabra del error: ')[1] for el in grid], return_counts=True)
+    #         controls = {control:{'start':None, 'end':None, 'type':None} for control in control_taggs}
+    #         control_taggs = np.repeat(control_taggs, control_count)
+
+    #         for item, control in zip(grid, control_taggs):
+    #             # Identify time_intervals and control type
+    #             controls[control]['type'] = control_code[item.text.split('Etiqueta: ')[1][0]]
+    #             controls[control]['score'] = float(item.text.split('normalizado: ')[1].split(',')[0])
+                
+    #             if int(item.text[0])==1:
+    #                 controls[control]['start'] = item.xpos
+    #             elif int(item.text[0])==2:
+    #                 controls[control]['end'] = item.xpos
+
+    #         # Fill control_signal
+    #         for control in controls:
+    #             onset_filter = controls[control]['start']<=phrases_time
+    #             offset_filter = phrases_time<=controls[control]['end']
+    #             control_signal[onset_filter&offset_filter, controls[control]['type']] = np.ones(shape=np.sum(onset_filter&offset_filter))#*controls[control]['score']
+        
+    #     # Match length of mistake signal with desired stimuli length
+    #     difference = len(control_signal)-self.stimuli_length         
+    #     if difference>0:
+    #         control_signal = control_signal[:-difference]
+    #     elif difference<0:
+    #         control_signal = np.concatenate((control_signal, np.zeros(shape=(np.abs(difference), 3)))) if separated else np.concatenate((control_signal, np.zeros(shape=(np.abs(difference), 1))))
+    #     return control_signal
+    
+    # def extract_turn_taking(
+    #     self
+    # ):
+    #     """
+    #     Extracts turn-taking features from the audio envelope.
+
+    #     Parameters
+    #     ----------
+    #     envelope : np.ndarray
+    #         Envelope of the audio signal using Hilbert transform.
+
+    #     Returns
+    #     -------
+    #     np.ndarray
+    #         Array with turn-taking features.
+    #     """
+    #     # Read json file
+    #     try: 
+    #         with open(self.turn_fname, 'r') as json_file:
+    #             turn_data_list = json.load(json_file)
+    #     except Exception as e:
+    #         self.logger.error(f"Error reading turn-taking file: {e}")
+    #         return np.zeros(shape=(self.stimuli_length, 1))
+
+    #     turn_feature = np.zeros(shape=(self.stimuli_length, 1))
+    #     for turn_data in turn_data_list:
+    #         start_sample = int(turn_data['ipu1_start_time'] * self.sr)
+    #         end_sample = int(turn_data['ipu1_end_time'] * self.sr)
+    #         turn_feature[start_sample:end_sample] = np.linspace(
+    #             0, 1, end_sample - start_sample
+    #         ).reshape(-1, 1)
+            
+    #     # Verify length
+    #     if turn_feature.shape[0] != self.stimuli_length:
+    #         raise ValueError(f"Turn feature length {turn_feature.shape[0]} does not match desired stimuli length {self.stimuli_length}")
+    #     return turn_feature

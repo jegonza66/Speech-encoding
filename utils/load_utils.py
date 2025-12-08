@@ -1,8 +1,8 @@
-from fractions import Fraction
+from pathlib import Path
 from typing import Union
+from tqdm import tqdm
 import pandas as pd
 import numpy as np
-import mne
 import os
 
 # Set TensorFlow environment variables BEFORE any TensorFlow imports
@@ -18,7 +18,9 @@ from scipy.io import wavfile
 import torch
 
 import utils.general_functions as general_functions
-from utils.processing import shifted_matrix
+from utils.processing import (
+    shifted_matrix, custom_resample
+)
 import config
 
 SEX_LIST = ['M', 'M', 'M', 'F', 'F', 'F', 'F', 'M', 'M', 'M', 'F', 'F', 'F', 'F', 'M', 'M', 'M', 'F', 'F', 'M']
@@ -45,16 +47,16 @@ ALLOWED_SITUATIONS = [
     'All'
 ]
 ALLOWED_STIMULI = [
-    'Envelope', 'Envelope2', 'Phonological', 'Phonological1', 'Phonological2', 'Spectrogram', 
+    'Envelope', 'Phonological', 'Phonological1', 'Phonological2', 'Spectrogram', 
     'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 
     'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 
     'Phonemes', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency', 
-    'Phones', 'Phones-Envelope', 'Phones-Discrete',
-    'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
-    'Hearing-Turn', 'Audio-Resampled',
-    'EEG-feature',
+    'Phones', 'Phones-Envelope', 'Phones-Discrete', 'Onsets',
+    # 'Mistakes-Separated', 'Mistakes-Together', 'Control-Together', 'Control-Separated', 
+    # 'Jitter', 'Shimmer',
+    # 'Hearing-Turn', 
+    'Audio-Resampled',
     'ROIs'
-    # 'Jitter', 'Shimmer'
 ]
 
 def sort_stimuli_based_on_situation(
@@ -429,10 +431,10 @@ def get_dnn_reduced_representation(
         f.write(f"Explained variance (cumulative): {pca.explained_variance_ratio_.sum()}\n")
     return scaler, pca
 
-
 def get_reduced_audio_representation(
-    wav_path_interlocutor:str
-)-> np.ndarray:
+    wav_path_interlocutor:str, 
+    parallel_load:bool = False
+)-> tuple[int, np.ndarray]:
     
     ORIGINAL_SAMPLE_RATE = pad_width = 1024
     DESIRED_SAMPLE_RATE = 512
@@ -440,16 +442,43 @@ def get_reduced_audio_representation(
     TRIAL = int(wav_path_interlocutor.split('objects.')[1][:2])
     CHANNEL_INTERLOCUTOR = int(wav_path_interlocutor.split('channel')[1].split('.')[0])
 
-    audio_resampled_path = os.path.normpath(
+    audio_resampled_path = Path(
         f"data/resampled_audio_cache/session_{SESSION}_channel_{CHANNEL_INTERLOCUTOR}.npy"
     )
+    def aux_audio_pipeline(
+        audio_resampled_path:Path,
+        wav_path_interlocutor:str,
+        session:int,
+        original_sample_rate:int= ORIGINAL_SAMPLE_RATE,
+        desired_sample_rate:int = DESIRED_SAMPLE_RATE,
+        parallel_load:bool = False
+    ) -> np.ndarray:
+        """
+        Auxiliary function to process and cache resampled audio for a given session and interlocutor channel.
 
-    if os.path.exists(audio_resampled_path):
-       final_wav=np.load(audio_resampled_path, allow_pickle=True)
-    else:
-        os.makedirs(os.path.dirname(audio_resampled_path), exist_ok=True)
+        Parameters:
+        ----------
+        audio_resampled_path : Path
+            Path to save the resampled audio.
+        wav_path_interlocutor : str
+            Path to the interlocutor's wav file.
+        session : int
+            Session number.
+        original_sample_rate : int
+            Original sampling rate of the audio.
+        desired_sample_rate : int
+            Desired sampling rate after resampling.
+        parallel_load : bool
+            If True, raises an error to avoid excessive I/O operations.
+
+        Returns:
+        -------
+        np.ndarray
+            Resampled and filtered audio signal of the session.
+        """
+        audio_resampled_path.parent.mkdir(parents=True, exist_ok=True)
         audio_total = []
-        for trial in get_trials(SESSION):
+        for trial in get_trials(session):
             wav_path_trial = wav_path_interlocutor.replace(f'objects.{TRIAL:02d}', f'objects.{trial:02d}')
             sr_wav, wav = wavfile.read(wav_path_trial)
             wav = wav.astype(np.float32)
@@ -458,15 +487,19 @@ def get_reduced_audio_representation(
         wav = wav / np.max(np.abs(wav))
 
         # Resample to match EEG original sampling rate
-        ratio = Fraction(ORIGINAL_SAMPLE_RATE, sr_wav)
-        up, down = ratio.numerator, ratio.denominator
-        wav = sgn.resample_poly(wav, up, down, padtype='reflect')
+        wav = custom_resample(
+            array=wav, 
+            original_sr=sr_wav, 
+            target_sr=original_sample_rate,
+            padtype='mean',
+            axis=0
+        )
         
         # A. High-pass (0.1 Hz, Order 16896)
         b_hp = sgn.firwin(
             numtaps=16896 + 1, 
             cutoff=0.1, 
-            fs=ORIGINAL_SAMPLE_RATE, 
+            fs=original_sample_rate, 
             pass_zero=False, 
             window='hamming'
         )
@@ -474,7 +507,7 @@ def get_reduced_audio_representation(
         b_lp = sgn.firwin(
             numtaps=100 + 1, 
             cutoff=100, 
-            fs=ORIGINAL_SAMPLE_RATE, 
+            fs=original_sample_rate, 
             pass_zero=True, 
             window='hamming'
         )
@@ -482,7 +515,7 @@ def get_reduced_audio_representation(
         b_notch = sgn.firwin(
             numtaps=3380 + 1, 
             cutoff=[49, 51], 
-            fs=ORIGINAL_SAMPLE_RATE, 
+            fs=original_sample_rate, 
             pass_zero=True, # Band-stop (pasa extremos, corta centro)
             window='hamming'
         )
@@ -491,10 +524,42 @@ def get_reduced_audio_representation(
         wav = sgn.filtfilt(b_notch, 1.0, wav)
         
         # Resample to desired sample rate
-        ratio = Fraction(DESIRED_SAMPLE_RATE, ORIGINAL_SAMPLE_RATE)
-        up, down = ratio.numerator, ratio.denominator
-        final_wav = sgn.resample_poly(wav, up, down, padtype='reflect')
+        final_wav = custom_resample(
+            array=wav, 
+            original_sr=original_sample_rate, 
+            target_sr=desired_sample_rate,
+            padtype='mean',
+            axis=0
+        )
         np.save(audio_resampled_path, final_wav)
+        return final_wav
+
+    if audio_resampled_path.exists():
+       final_wav=np.load(audio_resampled_path, allow_pickle=True)
+    else:
+        if parallel_load:
+            raise MemoryError("WARNING: if parallel load an enourmous amount of I/O operations will be performed. Run on a single process first time to cache the resampled audio.")
+        # Load all sessions to cache the resampled audio
+        for session in tqdm(config.sessions, total=len(config.sessions)):
+            for channel in [1, 2]:
+                wav_path_interlocutor_aux = f"data/wavs/S{session}/s{session}.objects.01.channel{channel}.wav"
+                if wav_path_interlocutor_aux == wav_path_interlocutor:
+                    final_wav = aux_audio_pipeline(
+                        audio_resampled_path=audio_resampled_path,
+                        wav_path_interlocutor=wav_path_interlocutor_aux,
+                        session=session,
+                        original_sample_rate=ORIGINAL_SAMPLE_RATE,
+                        desired_sample_rate=DESIRED_SAMPLE_RATE
+                    )
+                else:
+                    _ = aux_audio_pipeline(
+                        audio_resampled_path=audio_resampled_path,
+                        wav_path_interlocutor=wav_path_interlocutor_aux,
+                        session=session,
+                        original_sample_rate=ORIGINAL_SAMPLE_RATE,
+                        desired_sample_rate=DESIRED_SAMPLE_RATE
+                    )
+        
     
     start_sample_target = 0
     end_sample_target = 0
@@ -510,16 +575,8 @@ def get_reduced_audio_representation(
             break # Ya lo encontramos
             
         current_sample += len_target
-    return final_wav[int(start_sample_target):int(end_sample_target)]
-# # PARA AGILIZAR EL PROCESO DE LIMPIEZA DE CROSSTALK EN TODOS LOS AUDIOS CONVIENE CORRER ESTE CHUNK ANTES DEL LOAD.PY
-# import config 
-# from tqdm import tqdm
-# for session in tqdm(config.sessions, total=len(config.sessions)):
-#     for channel in [1, 2]:
-#         wav_path_interlocutor = f"data/wavs/S{session}/s{session}.objects.01.channel{channel}.wav"
-#         get_reduced_audio_representation(
-#             wav_path_interlocutor=wav_path_interlocutor
-#         )
+    return DESIRED_SAMPLE_RATE, final_wav[int(start_sample_target):int(end_sample_target)]
+
 def clean_crosstalk(
     audio_data:np.ndarray,
     eeg_data:np.ndarray,

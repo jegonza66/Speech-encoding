@@ -75,7 +75,7 @@ average_correlation_across_subject = load_pickle(
 )['average_correlation_subjects'].mean(axis=0)
 
 # Take average across all subjects, then select specific channels and apply average across all the selection
-filter_best_chans = get_maximum_correlation_channels(average_correlation_across_subject=average_correlation_across_subject, number_of_lat_channels=config.relevant_channels)
+filter_best_chans = get_maximum_correlation_channels(average_correlation_across_subject=average_correlation_across_subject, number_of_lat_channels=12)
 average_weights = average_weights_subjects.mean(axis=0)[filter_best_chans].mean(axis=0) # n_feats, n_delays
 
 # Classify labels for categorization
@@ -403,7 +403,7 @@ average_correlation_across_subject = load_pickle(
 )['average_correlation_subjects'].mean(axis=0)
 
 # Take average across all subjects, then select specific channels and apply average across all the selection
-filter_best_chans = get_maximum_correlation_channels(average_correlation_across_subject=average_correlation_across_subject, number_of_lat_channels=config.relevant_channels)
+filter_best_chans = get_maximum_correlation_channels(average_correlation_across_subject=average_correlation_across_subject, number_of_lat_channels=12)
 average_weights = average_weights_subjects.mean(axis=0)[filter_best_chans].mean(axis=0) # n_feats, n_delays
 
 # Classify labels for categorization

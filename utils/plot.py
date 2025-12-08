@@ -537,7 +537,9 @@ def topomap(
             cmap='Greys', 
             vlim=(average_coefficient.min(), average_coefficient.max()),
             mask=mask,
-            mask_params=dict(marker='o', markerfacecolor='red', markeredgecolor='k', linewidth=0, markersize=4, alpha=.35)
+            mask_params=dict(marker='o', markerfacecolor='red', markeredgecolor='k', linewidth=0, markersize=4, alpha=.35),
+            extrapolate='local',  # Esto limita el dibujo al área donde hay sensores
+            border=0
         )
         # Make plot
         plt.colorbar(
@@ -562,7 +564,7 @@ def topomap(
     else:
         # Create figure and title
         fig, ax = plt.subplots(nrows=1, ncols=1, layout='tight')
-        plt.suptitle(f"Session{session} Subject{subject}\n{coefficient_name} = ({average_coefficient.mean():.3f}" +r'$\pm$'+ f"{average_coefficient.std():.3f})")
+        plt.suptitle(f"Session {session} Subject {subject}\n{coefficient_name} = ({average_coefficient.mean():.3f}" +r'$\pm$'+ f"{average_coefficient.std():.3f})")
         
         # Make topomap
         im = mne.viz.plot_topomap(
@@ -660,7 +662,9 @@ def average_topomap(
         vlim=(mean_average_coefficient.min(), mean_average_coefficient.max()),
         show=False, 
         sphere=0.07, 
-        axes=ax
+        axes=ax,
+        extrapolate='local',  # Esto limita el dibujo al área donde hay sensores
+        border=0
         )
     
     vmin = mean_average_coefficient.min()
@@ -825,7 +829,9 @@ def topo_average_pval(
         vlim=(0, topo_pval.max()),
         show=False, 
         sphere=0.07,
-        axes=ax
+        axes=ax,
+        extrapolate='local',  # Esto limita el dibujo al área donde hay sensores
+        border=0
     )
     # And colorbar
     # plt.colorbar(im[0], 
@@ -917,7 +923,9 @@ def topo_repeated_channels(
                 vlim=(0, n_sub),
                 show=False, 
                 sphere=0.07, 
-                axes=ax
+                axes=ax,
+                extrapolate='local',  # Esto limita el dibujo al área donde hay sensores
+                border=0
                 )
     # And colorbar
     plt.colorbar(
@@ -1035,7 +1043,9 @@ def topo_map_relevant_times(
                 show=False,
                 sphere=0.07, 
                 cmap=cmaps[j],
-                vlim=(chan_weight_j.min().round(3),chan_weight_j.max().round(3))
+                vlim=(chan_weight_j.min().round(3),chan_weight_j.max().round(3)),
+                extrapolate='local',  # Esto limita el dibujo al área donde hay sensores
+                border=0
                 )
             
             # # Configure colorbar
@@ -1133,7 +1143,9 @@ def channel_wise_correlation_topomap(
         show=False, 
         sphere=0.07,
         cmap='Greens', 
-        vlim=(absolute_correlation_per_channel.min(),absolute_correlation_per_channel.max())
+        vlim=(absolute_correlation_per_channel.min(),absolute_correlation_per_channel.max()),
+        extrapolate='local',  # Esto limita el dibujo al área donde hay sensores
+        border=0
         )
 
     # Make colorbar
@@ -1276,8 +1288,8 @@ def channel_weights(
         else:
             # Create evoked response as graph of weights averaged across all feats
             weights = average_weights[:, index_slice[0]:index_slice[1], :].mean(axis=1)
-            evoked = mne.EvokedArray(data=weights, info=info)
-        
+            evoked = mne.EvokedArray(data=weights-weights.mean(axis=0, keepdims=True), info=info)
+            # evoked = mne.EvokedArray(data=weights, info=info)
             # Relabel time 0
             evoked.shift_time(times[0], relative=True)
             
@@ -1291,7 +1303,7 @@ def channel_weights(
                 # unit=False, 
                 units='mTRF (a.u.)',
                 axes=ax[0, i_feat],
-                gfp=False
+                gfp=True
                 )
 
             # Add mean of all channels
@@ -1386,8 +1398,8 @@ def average_regression_weights(
             
             # Create evoked response as graph of weights averaged across all feats and subjects 
             weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1)
-            evoked = mne.EvokedArray(data=weights, info=info)
-        
+            evoked = mne.EvokedArray(data=weights-weights.mean(axis=0, keepdims=True), info=info)
+            # evoked = mne.EvokedArray(data=weights, info=info)
             # Relabel time 0
             evoked.shift_time(times[0], relative=True)
             
@@ -1401,7 +1413,7 @@ def average_regression_weights(
                 # unit=False, 
                 units='mTRF (a.u.)',
                 axes=axes[0],
-                gfp=False
+                gfp=True
                 )
             # Add mean of all channels
             axes[0].plot(
@@ -1460,8 +1472,8 @@ def average_regression_weights(
             fig.suptitle(f'{feat}')
             # Create evoked response as graph of weights averaged across all feats and subjects 
             weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1)
-            evoked = mne.EvokedArray(data=weights, info=info)
-        
+            evoked = mne.EvokedArray(data=weights-weights.mean(axis=0, keepdims=True), info=info)
+            # evoked = mne.EvokedArray(data=weights, info=info)
             # Relabel time 0
             evoked.shift_time(times[0], relative=True)
             
@@ -1475,7 +1487,7 @@ def average_regression_weights(
                 # unit=False, 
                 units='mTRF (a.u.)',
                 axes=ax,
-                gfp=False
+                gfp=True
                 )
             # Add mean of all channels
             ax.plot(
@@ -1769,8 +1781,8 @@ def plot_pvalue_tfce(
         else:
             # Create evoked response as graph of weights averaged across all feats and subjects 
             weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1)
-            evoked = mne.EvokedArray(data=weights, info=info)
-        
+            evoked = mne.EvokedArray(data=weights-weights.mean(axis=0, keepdims=True), info=info)
+            # evoked = mne.EvokedArray(data=weights, info=info)
             # Relabel time 0
             evoked.shift_time(times[0], relative=True)
             
@@ -1784,7 +1796,7 @@ def plot_pvalue_tfce(
                 # unit=False, 
                 units='mTRF (a.u.)',
                 axes=axes[0],
-                gfp=False
+                gfp=True
                 )
             # Add mean of all channels
             axes[0].plot(
@@ -2009,9 +2021,9 @@ def plot_pvalue_tfce(
 
 #             # Create evoked response as graph of weights averaged across all feats and all 
 #             weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1)
-#             evoked = mne.EvokedArray(data=weights, info=info)
-        
-#             # Relabel time 0
+# # #             evoked = mne.EvokedArray(data=weights-weights.mean(axis=0, keepdims=True), info=info)
+            evoked = mne.EvokedArray(data=weights-weights.mean(axis=0, keepdims=True), info=info)
+            # Relabel time 0
 #             evoked.shift_time(times[0], relative=True)
             
 #             # Plot
@@ -2023,7 +2035,7 @@ def plot_pvalue_tfce(
 #                 spatial_colors=True, 
 #                 units='mTRF (a.u.)',
 #                 axes=ax,
-#                 gfp=False)
+#                 gfp=True)
 
 #             # Add mean of all channels
 #             ax.plot(
@@ -2065,9 +2077,9 @@ def plot_pvalue_tfce(
 
 #             # Create evoked response as graph of weights averaged across all feats and all 
 #             weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1)
-#             evoked = mne.EvokedArray(data=weights, info=info)
-        
-#             # Relabel time 0
+# # #             evoked = mne.EvokedArray(data=weights-weights.mean(axis=0, keepdims=True), info=info)
+            evoked = mne.EvokedArray(data=weights-weights.mean(axis=0, keepdims=True), info=info)
+            # Relabel time 0
 #             evoked.shift_time(times[0], relative=True)
             
 #             # Plot
@@ -2079,7 +2091,7 @@ def plot_pvalue_tfce(
 #                 spatial_colors=True, 
 #                 units='mTRF (a.u.)',
 #                 axes=ax[0],
-#                 gfp=False)
+#                 gfp=True)
 
 #             # Add mean of all channels
 #             ax[0].plot(
