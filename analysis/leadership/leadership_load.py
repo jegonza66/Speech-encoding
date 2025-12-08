@@ -24,7 +24,7 @@ import utils.processing as processing, utils.general_functions as general_functi
 # Review this If we want to update packages
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 mne.set_log_level(verbose='CRITICAL')
-exp_info = config.Exp_info()
+exp_info = config.ExpInfo()
 
 TRANSFORMER_MODEL = "openai/whisper-base"
 # TRANSFORMER_MODEL = "openai/whisper-tiny"

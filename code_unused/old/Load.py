@@ -16,7 +16,7 @@ import setup
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-exp_info = setup.exp_info()
+exp_info = setup.ExpInfo()
 
 
 class Trial_channel:

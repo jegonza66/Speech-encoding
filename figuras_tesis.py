@@ -1519,7 +1519,7 @@ figformat, dpi = 'png', 350
 # phonemes_path = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/Phonemes-Discrete-Phonet'
 # spectrogram_path = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/Spectrogram'
 
-# phonemes = config.Exp_info().phonemes_phonet.copy()
+# phonemes = config.ExpInfo().phonemes_phonet.copy()
 # phonemes.remove('/sil/')
 
 # group1 = ['/a/', '/e/', '/i/', '/o/', '/u/', '/l/', '/m/', '/b/', '/R/']
@@ -1606,7 +1606,7 @@ figformat, dpi = 'png', 350
 # phonological_path = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/Phonological'
 # spectrogram_path = 'saves/preprocessed_data/External/tmin-0.2_tmax0.6/Spectrogram'
 
-# phonological = list(config.Exp_info().phonological_labels).copy()
+# phonological = list(config.ExpInfo().phonological_labels).copy()
 # phonological.remove('trill')
 # phonological.remove('pause')
 
@@ -1996,7 +1996,7 @@ figformat, dpi = 'png', 350
 # order_old, null_indexes = clustering_by_correlation(weights=average_weights_subjects.mean(axis=0).mean(axis=0))
 
 # # Classify labels for categorization
-# tags = list(config.Exp_info().phonological_labels).copy()
+# tags = list(config.ExpInfo().phonological_labels).copy()
 # tags_1 = ['labial', 'lateral', 'open', 'vocalic', 'back', 'voice', 'nasal']
 # tags_2 = ['dental', 'consonantal', 'pause', 'velar', 'flap', 'close', 'strident', 'continuant']
 # group1 = [tags.index(ph) for ph in  tags_1]
@@ -2276,7 +2276,7 @@ figformat, dpi = 'png', 350
 # order_old, null_indexes = clustering_by_correlation(weights=average_weights_subjects.mean(axis=0).mean(axis=0))
 
 # # Classify labels for categorization
-# tags = config.Exp_info().phonemes_phonet.copy()
+# tags = config.ExpInfo().phonemes_phonet.copy()
 # tags.remove('/sil/')
 # tags_1 = ['/a/', '/e/', '/i/', '/o/', '/u/', '/l/', '/m/', '/b/', '/R/']
 # tags_2 = ['/k/', '/f/', '/t/', '/s/', '/x/', '/tS/']
@@ -3162,7 +3162,7 @@ figformat, dpi = 'png', 350
 #     )
 
 # # Set figure configuration
-# tags = list(config.Exp_info().phonological_labels)
+# tags = list(config.ExpInfo().phonological_labels)
 # tags.remove('trill')
 # tags.remove('pause')
 
@@ -3463,7 +3463,7 @@ figformat, dpi = 'png', 350
 #     )
 
 # # Set figure configuration
-# tags = config.Exp_info().phonemes_phonet
+# tags = config.ExpInfo().phonemes_phonet
 # tags.remove('/sil/')
 # ticks = np.arange(feat_weights.shape[0])
 # tags = tags if order is None else [tags[i] for i in order]
@@ -3992,7 +3992,7 @@ figformat, dpi = 'png', 350
 #     )
 
 # # Set figure configuration
-# tags = config.Exp_info().phonemes_phonet
+# tags = config.ExpInfo().phonemes_phonet
 # tags.remove('/sil/')
 # ticks = np.arange(feat_weights.shape[0])
 # tags = tags if order is None else [tags[i] for i in order]
@@ -4800,12 +4800,12 @@ figformat, dpi = 'png', 350
 #     )
 
 # # # Set figure configuration
-# # ph_labels_phonet =  config.Exp_info().ph_labels_phonet.copy()
+# # ph_labels_phonet =  config.ExpInfo().ph_labels_phonet.copy()
 # # ph_labels_phonet.remove('sil')
 # # ph_labels_phonet.remove('<p:>')
 # # tags = []
 # # for phone in ph_labels_phonet:
-# #     tags.append(config.Exp_info().phones_to_phonemes[phone].replace('/', ''))
+# #     tags.append(config.ExpInfo().phones_to_phonemes[phone].replace('/', ''))
 # # order_tag, tags_counts = np.unique(tags, return_counts=True)
 # # tuples = order_tag[tags_counts==2].tolist()
 # # triples = order_tag[tags_counts==3].tolist()
@@ -4975,12 +4975,12 @@ figformat, dpi = 'png', 350
 #     )
 
 # # Set figure configuration
-# ph_labels_phonet =  config.Exp_info().ph_labels_phonet.copy()
+# ph_labels_phonet =  config.ExpInfo().ph_labels_phonet.copy()
 # ph_labels_phonet.remove('sil')
 # ph_labels_phonet.remove('<p:>')
 # tags = []
 # for phone in ph_labels_phonet:
-#     tags.append(config.Exp_info().phones_to_phonemes[phone].replace('/', ''))
+#     tags.append(config.ExpInfo().phones_to_phonemes[phone].replace('/', ''))
 # order_tag, tags_counts = np.unique(tags, return_counts=True)
 # tuples = order_tag[tags_counts==2].tolist()
 # triples = order_tag[tags_counts==3].tolist()
@@ -5557,7 +5557,7 @@ figformat, dpi = 'png', 350
 #     shading='auto',
 #     cmap='inferno'
 #     )
-# tags = config.Exp_info().phonemes_phonet
+# tags = config.ExpInfo().phonemes_phonet
 # tags.remove('/sil/')
 # axes[1].set(
 #     xlabel='Tiempo (ms)',
@@ -6093,13 +6093,13 @@ fig.show()
 # time_phones = np.arange(0, len(phones)/config.sr, 1/config.sr)
 # window_phones = (WindowLeft <= time_phones) & (time_phones <= WindowRight)
 
-# ph_labels_phonet =  config.Exp_info().ph_labels_phonet.copy()
+# ph_labels_phonet =  config.ExpInfo().ph_labels_phonet.copy()
 # ph_labels_phonet.remove('sil')
 # ph_labels_phonet.remove('<p:>')
 
 # tags = []
 # for phone in ph_labels_phonet:
-#     tags.append(config.Exp_info().phones_to_phonemes[phone].replace('/', ''))
+#     tags.append(config.ExpInfo().phones_to_phonemes[phone].replace('/', ''))
 
 # order_tag, tags_counts = np.unique(tags, return_counts=True)
 # tuples = order_tag[tags_counts==2].tolist()
@@ -6215,7 +6215,7 @@ fig.show()
 # time_phonemes = np.arange(0, len(phonemes)/config.sr, 1/config.sr)
 # window_phonemes = (WindowLeft <= time_phonemes) & (time_phonemes <= WindowRight)
 
-# tags = config.Exp_info().phonemes_phonet.copy()
+# tags = config.ExpInfo().phonemes_phonet.copy()
 # tags.remove('/sil/')
 
 # ticks = np.arange(0, NumberOfTicks, 1)+.5
@@ -6297,7 +6297,7 @@ fig.show()
 # time_phonological = np.arange(0, len(phonological)/config.sr, 1/config.sr)
 # window_phonological = (WindowLeft <= time_phonological) & (time_phonological <= WindowRight)
 
-# tags = list(config.Exp_info().phonological_labels.keys())
+# tags = list(config.ExpInfo().phonological_labels.keys())
 # tags.remove('trill')
 # tags.remove('pause')
 # ticks = np.arange(0, NumberOfTicks, 1)
@@ -7883,7 +7883,7 @@ im = ax01.pcolormesh(
     )
 
 # Set figure configuration
-tags = config.Exp_info().phonemes_phonet
+tags = config.ExpInfo().phonemes_phonet
 tags.remove('/sil/')
 ticks = np.arange(feat_weights.shape[0])
 tags = tags if order is None else [tags[i] for i in order]
@@ -8065,7 +8065,7 @@ im = ax01.pcolormesh(
     )
 
 # Set figure configuration
-tags = config.Exp_info().phonemes_phonet
+tags = config.ExpInfo().phonemes_phonet
 tags.remove('/sil/')
 ticks = np.arange(feat_weights.shape[0])
 tags = tags if order is None else [tags[i] for i in order]

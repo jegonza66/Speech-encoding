@@ -16,7 +16,7 @@ from scipy.stats import wilcoxon
 from utils.general_functions import load_pickle, cohen_d, all_possible_combinations, get_maximum_correlation_channels
 from utils.plot import save_figure
 import config
-exp_info = config.Exp_info()
+exp_info = config.ExpInfo()
 
 # Default size is 10 pts, the scalings (10pts*scale) are:
 #'xx-small':0.579,'x-small':0.694,'s

@@ -13,7 +13,7 @@ import Processing, Funciones, setup
 # Review this If we want to update packages
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 mne.set_log_level(verbose='CRITICAL')
-exp_info = setup.exp_info()
+exp_info = setup.ExpInfo()
 
 class Trial_channel:
     def __init__(self, s:int=21, trial:int=1, channel:int=1, Band:str='All', sr:float=128, tmin:float=-0.6,

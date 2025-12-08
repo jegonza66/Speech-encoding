@@ -439,7 +439,7 @@ def load_phon_frequency_dict(
     from utils.phoneme_implementation_from_phonet import compute_phones
     from utils.load_utils import get_trials
     from tqdm import tqdm
-    exp_info = config.Exp_info()
+    exp_info = config.ExpInfo()
     phon_frequency_dict = {key:0 for key in config.exp_info.phonemes.copy()}
     for session in tqdm(config.sessions, total=len(config.sessions), desc='Computing phoneme frequencies'):
         for trial in get_trials(session):

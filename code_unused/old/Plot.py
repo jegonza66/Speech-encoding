@@ -12,7 +12,7 @@ import librosa
 from statannot import add_stat_annotation
 from scipy.stats import wilcoxon
 import setup
-exp_info = setup.exp_info()
+exp_info = setup.ExpInfo()
 
 
 def highlight_cell(x, y, ax=None, **kwargs):
