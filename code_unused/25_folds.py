@@ -245,7 +245,7 @@ for Band in Bands:
                     Canales_repetidos_rmse_sujeto[Canales_sobrevivientes_rmse] += 1
 
                     # Grafico Shadows
-                    Plot.null_correlation_vs_correlation_good_channels(display_interactive_mode=Display_Ind_Figures, sesion=sesion, sujeto=sujeto,
+                    Plot.null_correlation_vs_correlation_good_channels(sesion=sesion, sujeto=sujeto,
                                               save_path=Run_graficos_path, good_channels_indexes=Canales_sobrevivientes_corr,
                                               average_correlation=Corr_promedio, save=Save_Ind_Figures, 
                                               correlaciones_por_canal=Corr_buenas_ronda_canal, null_correlation_per_channel=Correlaciones_fake)
@@ -257,10 +257,10 @@ for Band in Bands:
 
                 # Grafico cabezas y canales
                 Plot.topomap(good_channels_indexes=Canales_sobrevivientes_corr, average_coefficient=Corr_promedio, info=info,
-                             coefficient_name='correlation', save=Save_Ind_Figures, display_interactive_mode=Display_Ind_Figures, 
+                             coefficient_name='correlation', save=Save_Ind_Figures, 
                              save_path=Run_graficos_path, sujeto=sujeto, sesion=sesion)
                 Plot.topomap(good_channels_indexes=Canales_sobrevivientes_rmse, average_coefficient=Rmse_promedio, info=info,
-                             coefficient_name='RMSE', save=Save_Ind_Figures, display_interactive_mode=Display_Ind_Figures, 
+                             coefficient_name='RMSE', save=Save_Ind_Figures, 
                              save_path=Run_graficos_path, sujeto=sujeto, sesion=sesion)
                                 
                 # Grafico Pesos

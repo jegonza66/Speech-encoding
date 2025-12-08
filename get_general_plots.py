@@ -79,7 +79,6 @@ def main(
                 try:
                     # Plot shadows for each subject
                     plot.null_correlation_vs_correlation_good_channels(
-                        display_interactive_mode=config.display_interactive_mode, 
                         session=session, 
                         subject=subject,
                         save_path=path_figures, 
@@ -103,7 +102,6 @@ def main(
                     info=config.info_mne,
                     coefficient_name='Correlation', 
                     save=config.save_figures, 
-                    display_interactive_mode=config.display_interactive_mode,
                     save_path=path_figures, 
                     subject=subject, 
                     session=session, 
@@ -130,7 +128,6 @@ def main(
                         session=session, 
                         subject=subject, 
                         hierarchical_clustering=config.hierarchical_clustering,
-                        display_interactive_mode=config.display_interactive_mode, 
                         no_figures=config.no_figures
                         )
                     logger.debug(f"✓ Pesos completados para sesión {session}, sujeto {subject_in_session+1}")
@@ -150,7 +147,6 @@ def main(
     plot.average_topomap(
         average_coefficient_subjects=average_correlation_subjects, 
         stim=stim, 
-        display_interactive_mode=config.display_interactive_mode,
         info=config.info_mne, 
         save=config.save_figures, 
         save_path=path_figures,
@@ -167,7 +163,6 @@ def main(
         stim=stim, 
         save=config.save_figures,
         save_path=path_figures, 
-        display_interactive_mode=config.display_interactive_mode, 
         no_figures=config.no_figures
         )
     if same_validation_subjects:
@@ -182,7 +177,6 @@ def main(
             times=config.times, 
             n_feats=n_feats, 
             stim=stim, 
-            display_interactive_mode=config.display_interactive_mode,
             no_figures=config.no_figures
             )
         logger.debug("✓ Generando topomapa de tiempos relevantes...")
@@ -197,7 +191,6 @@ def main(
             sample_rate=config.sr, 
             save_path=path_figures, 
             save=config.save_figures, 
-            display_interactive_mode=config.display_interactive_mode, 
             no_figures=config.no_figures
             )
     logger.debug("✓ Generando matriz de correlación entre sujetos...")
@@ -208,7 +201,6 @@ def main(
         n_feats=n_feats, 
         save=config.save_figures,
         save_path=path_figures, 
-        display_interactive_mode=config.display_interactive_mode, 
         no_figures=config.no_figures
         )
 
@@ -220,7 +212,6 @@ def main(
         plot.topo_average_pval(
             pvalues_coefficient_subjects=pvalues_corr_subjects, 
             info=config.info_mne, 
-            display_interactive_mode=config.display_interactive_mode,
             save=config.save_figures, 
             save_path=path_figures,
             coefficient_name='correlation', 
@@ -233,7 +224,6 @@ def main(
         plot.topo_repeated_channels(
             repeated_good_coefficients_channels_subjects=repeated_good_correlation_channels_subjects,
             info=config.info_mne, 
-            display_interactive_mode=config.display_interactive_mode, 
             save=config.save_figures,
             save_path=path_figures,
             coefficient_name='correlation',
@@ -252,7 +242,6 @@ def main(
             info=config.info_mne, 
             significance=config.significance, 
             save_path=path_figures, 
-            display_interactive_mode=config.display_interactive_mode,
             save=config.save_figures, 
             no_figures=config.no_figures
             )

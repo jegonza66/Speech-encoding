@@ -57,7 +57,6 @@ def main(
     val_correlation_limit_percentage = config.val_correlation_limit_percentage,
     alphas_swept = config.alphas_swept,
     n_folds = config.n_folds,
-    just_load_data = config.just_load_data,
     save_results = config.save_results,
     save_figures = config.save_figures,
     recompute = True,
@@ -153,9 +152,6 @@ def main(
                         relevant_indexes_1 = samples_info['keep_indexes1'].copy()
                         relevant_indexes_2 = samples_info['keep_indexes2'].copy()
                     
-                    if just_load_data:
-                        continue
-
                     # Load stimuli by subject (i.e: concatenated stimuli features)
                     stims_subject_1 = np.hstack([subject_1[stimulus] for stimulus in stim.split('_')]) 
                     stims_subject_2 = np.hstack([subject_2[stimulus] for stimulus in stim.split('_')])

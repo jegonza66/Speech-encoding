@@ -44,6 +44,8 @@ from utils.processing import clustering_by_correlation
 import utils.general_functions as general_functions, config
 # plt.style.use([plt.style.available[23]])
 
+plt.ioff()
+
 # ===================
 # Auxiliary functions
 def define_ticks(
@@ -277,7 +279,6 @@ def null_correlation_vs_correlation_good_channels(
     # power_correlation:float,
     # power_rmse:float,
     save:bool=False, 
-    display_interactive_mode:bool=False, 
     session:int=21, 
     subject:int=1,
     no_figures:bool=False
@@ -301,8 +302,6 @@ def null_correlation_vs_correlation_good_channels(
         Statistical power of rmse
     save : bool, optional
         If True, figures are saved, by default False
-    display_interactive_mode : bool, optional
-        If True, figures are displayed, by default False
     session : int, optional
         Session number, by default 21
     subject : int, optional 
@@ -318,12 +317,6 @@ def null_correlation_vs_correlation_good_channels(
     plt.close()
     if no_figures:
         return
-
-    # Turn on/off interactive mode
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
     # Take average across folds
     average_correlation = correlation_per_channel.mean(axis=0)
     channels = np.arange(len(average_correlation))
@@ -403,7 +396,6 @@ def lateralized_channels(
     save_path:str, 
     channels_right:list=['B27', 'B28', 'B29', 'B30', 'C4', 'C5', 'C6', 'C7', 'C9', 'C10', 'B31', 'C3'], 
     channels_left:list=['D8', 'D9', 'D10', 'D11', 'D7', 'D6', 'D5', 'D4', 'C31', 'C32', 'D12', 'D3'], 
-    display_interactive_mode:bool=False, 
     save:bool=True,
     no_figures:bool=False
     )->None:
@@ -420,8 +412,6 @@ def lateralized_channels(
         Channels on the right hemisphere, by default ['B27', 'B28', 'B29', 'B30', 'C4', 'C5', 'C6', 'C7', 'C9', 'C10', 'B31', 'C3']
     channels_left : list, optional
         Channels on the left hemisphere, by default ['D8', 'D9', 'D10', 'D11', 'D7', 'D6', 'D5', 'D4', 'C31', 'C32', 'D12', 'D3']
-    display_interactive_mode : bool, optional
-        If True, figures are displayed, by default False
     save : bool, optional
         If True, figures are saved, by default True
 
@@ -434,12 +424,6 @@ def lateralized_channels(
     if no_figures:
         return
 
-    # Turn on/off interactive mode
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
-
     # Get lateralized channels
     lateralized_channels = [i in channels_right + channels_left for i in info['ch_names']]
     
@@ -451,7 +435,7 @@ def lateralized_channels(
     mne.viz.plot_topomap(
         data=np.zeros(info['nchan']),
         pos=info, 
-        show=display_interactive_mode, 
+        show=False, 
         sphere=0.07, 
         mask=np.array(lateralized_channels),
         mask_params=dict(marker='o', markerfacecolor='k', markeredgecolor='k', linewidth=0, markersize=12), 
@@ -474,7 +458,6 @@ def topomap(
     coefficient_name:str, 
     save:bool, 
     save_path:str, 
-    display_interactive_mode:bool=False,
     session:int=21, 
     subject:int=1,
     no_figures:bool=False
@@ -496,8 +479,6 @@ def topomap(
         If True, figures are saved
     save_path : str
         Path to save the figures
-    display_interactive_mode : bool, optional
-        If True, figures are displayed, by default False
     session : int, optional
         Session number, by default 21
     subject : int, optional
@@ -513,12 +494,6 @@ def topomap(
     plt.close('all')
     if no_figures:
         return
-    
-    # Turn on/off interactive mode
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
 
     # Plot head correlation
     if len(good_channels_indexes):
@@ -602,7 +577,6 @@ def average_topomap(
     save_path:str, 
     coefficient_name:str, 
     number_of_lat_channels:int=12,
-    display_interactive_mode:bool=False,
     test_result:bool=False,
     no_figures:bool=False
 )->None:
@@ -623,8 +597,6 @@ def average_topomap(
         Name of the coefficient
     number_of_lat_channels : int, optional
         Number of lateralized channels to show, by default 12
-    display_interactive_mode : bool, optional
-        If True, figures are displayed, by default False
     test_result : bool, optional
         If True, make Wilcoxon test, by default False
     no_figures : bool, optional
@@ -640,12 +612,6 @@ def average_topomap(
     plt.close()
     if no_figures:
         return
-
-    # Turn on/off interactive mode
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
 
     # Take mean over all subjects
     mean_average_coefficient = average_coefficient_subjects.mean(axis=0)
@@ -747,7 +713,6 @@ def average_topomap(
                     channels_right=sorted_chs_right, 
                     channels_left=sorted_chs_left, 
                     save_path=save_path,
-                    display_interactive_mode=display_interactive_mode,
                     save=save
                     )
 
@@ -769,7 +734,6 @@ def topo_average_pval(
     save:bool, 
     save_path:str, 
     coefficient_name:str,
-    display_interactive_mode:bool=False,
     no_figures:bool=False
     )->None:
     """
@@ -787,8 +751,6 @@ def topo_average_pval(
         Path to save the figures
     coefficient_name : str
         Name of the coefficient
-    display_interactive_mode : bool, optional
-        If True, figures are displayed, by default False
     no_figures : bool, optional
         If True, no figures are displayed, by default False
         
@@ -800,12 +762,6 @@ def topo_average_pval(
     plt.close()
     if no_figures:
         return    
-
-    # Turn on/off interactive mode
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
 
     # Take mean across all subjects
     topo_pval = pvalues_coefficient_subjects.mean(axis=0)
@@ -863,7 +819,6 @@ def topo_repeated_channels(
     save:bool, 
     save_path:str, 
     coefficient_name:str, 
-    display_interactive_mode:bool=False,
     no_figures:bool=False
     )->None:
     """
@@ -881,8 +836,6 @@ def topo_repeated_channels(
         Path to save the figures
     coefficient_name : str
         Name of the coefficient
-    display_interactive_mode : bool, optional
-        If True, figures are displayed, by default False
     no_figures : bool, optional
         If True, no figures are displayed, by default False
     
@@ -894,12 +847,6 @@ def topo_repeated_channels(
     plt.close()
     if no_figures:
         return    
-        
-    # Turn on/off interactive mode
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
 
     # Take mean across all subjects 
     
@@ -952,7 +899,6 @@ def topo_map_relevant_times(
     sample_rate:int, 
     save_path:int, 
     save:bool=True, 
-    display_interactive_mode:bool=False,
     no_figures:bool=False
     )->None:
     """
@@ -978,8 +924,6 @@ def topo_map_relevant_times(
         Path to save the figures
     save : bool, optional
         If True, figures are saved, by default True
-    display_interactive_mode : bool, optional
-        If True, figures are displayed, by default False
     
     Returns
     -------
@@ -1014,10 +958,6 @@ def topo_map_relevant_times(
 
         # Turn on/off interactive mode
         plt.close()
-        if display_interactive_mode:
-            plt.ion()
-        else:
-            plt.ioff()
 
         # Create color map for each time
         blues_map = plt.cm.get_cmap('Blues').reversed()
@@ -1079,7 +1019,6 @@ def channel_wise_correlation_topomap(
     stim:str,
     save:bool, 
     save_path:str,
-    display_interactive_mode:bool=False,
     no_figures:bool=False
     )->None:
     """
@@ -1095,8 +1034,6 @@ def channel_wise_correlation_topomap(
         If True, figures are saved
     save_path : str
         Path to save the figures
-    display_interactive_mode : bool, optional
-        If True, figures are displayed, by default False
     no_figures : bool, optional
         If True, no figures are displayed, by default False
     
@@ -1124,12 +1061,6 @@ def channel_wise_correlation_topomap(
     for channel in range(n_chan):
         channel_corr_values = correlation_matrices[channel][np.tril_indices(n_subjects, k=-1)]
         absolute_correlation_per_channel[channel] = np.mean(np.abs(channel_corr_values))
-
-    # Turn on/off interactive mode
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
 
     # Create figure and title
     fig, ax = plt.subplots(nrows=1, ncols=1, layout='tight')
@@ -1175,7 +1106,6 @@ def channel_weights(
     times:np.ndarray, 
     n_feats:list, 
     stim:str,
-    display_interactive_mode:bool=False,
     session:int=21, 
     subject:int=1,
     no_figures:bool=False,
@@ -1204,8 +1134,6 @@ def channel_weights(
         Number of features within each attribute
     stim : str
         Stimuli used in the model
-    display_interactive_mode : bool, optional
-        Whether to activate interactive mode, by default False
     session : int, optional
         Number of session, by default 21
     subject : int, optional
@@ -1223,12 +1151,6 @@ def channel_weights(
     plt.close()
     if no_figures:
         return   
-
-    # Turn on/off interactive mode
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
 
     # Get best correlation and rmse
     best_correlation = average_correlation.max()
@@ -1338,7 +1260,6 @@ def average_regression_weights(
     times:np.ndarray,
     n_feats:list,
     stim:str,
-    display_interactive_mode:bool=False,
     no_figures:bool=False,
     hierarchical_clustering:bool=True
     )->None:
@@ -1361,8 +1282,6 @@ def average_regression_weights(
         Number of features within each attribute
     stim : str
         Stimuli used in the model
-    display_interactive_mode : bool, optional
-        Whether to activate interactive mode, by default False
     no_figures : bool, optional
         If True, no figures are displayed, by default False
     hierarchical_clustering : bool, optional
@@ -1376,12 +1295,6 @@ def average_regression_weights(
     plt.close()
     if no_figures:
         return  
-
-    # Turn on/off interactive mode
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
 
     # Take mean over all subjects
     mean_average_weights_subjects = average_weights_subjects.mean(axis=0)
@@ -1517,7 +1430,6 @@ def correlation_matrix_subjects(
     n_feats:list, 
     save:bool, 
     save_path:str,
-    display_interactive_mode:bool=False,
     no_figures:bool=False
     )->None:
     """
@@ -1535,8 +1447,6 @@ def correlation_matrix_subjects(
         Whether to store the figure
     save_path : str
         Path to store the figure
-    display_interactive_mode : bool, optional
-        Whether to activate interactive mode, by default False
     no_figures : bool, optional
         If True, no figures are displayed, by default False
     
@@ -1552,12 +1462,6 @@ def correlation_matrix_subjects(
     # Relevant parameters
     stimuli = stim.split('_')
     n_subjects, n_chan, _, n_delays = average_weights_subjects.shape
-
-    # Turn on/off interactive mode
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
 
     for i_feat, (feat, n_feat) in enumerate(zip(stimuli, n_feats)):
         # Make slicing to get corresponding features of given feat
@@ -1654,7 +1558,6 @@ def plot_pvalue_tfce(
     n_feats:list,
     stim:str,
     significance:float=0.05,
-    display_interactive_mode:bool=False,
     no_figures:bool=False,
     hierarchical_clustering:bool=True
     )->None:
@@ -1679,8 +1582,6 @@ def plot_pvalue_tfce(
         Number of features within each attribute
     stim : str
         Stimuli used in the model
-    display_interactive_mode : bool, optional
-        Whether to activate interactive mode, by default False
     no_figures : bool, optional
         If True, no figures are displayed, by default False
     hierarchical_clustering : bool, optional
@@ -1694,12 +1595,6 @@ def plot_pvalue_tfce(
     plt.close()
     if no_figures:
         return  
-
-    # Turn on/off interactive mode
-    if display_interactive_mode:
-        plt.ion()
-    else:
-        plt.ioff()
 
     # Take mean over all subjects
     mean_average_weights_subjects = average_weights_subjects.mean(axis=0)
@@ -1877,7 +1772,6 @@ def plot_pvalue_tfce(
 #                 n_feats:list, 
 #                 pval_tresh:float, 
 #                 save_path:str, 
-#                 display_interactive_mode:bool=False, 
 #                 save:bool=True,
 #                 no_figures:bool=False):
 
@@ -2620,7 +2514,6 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 #                   n_feats:list, 
 #                   pval_tresh:float, 
 #                   save_path:str, 
-#                   display_interactive_mode:bool=False, 
 #                   save:bool=True,
 #                   no_figures:bool=False):
 
@@ -2758,7 +2651,6 @@ def gradient_fill_density_based(x, y_lower, y_upper, metric_random, fill_color, 
 #                   stim:str, 
 #                   n_permutations:int,  
 #                   pval_trhesh:float, 
-#                   display_interactive_mode:bool=False, 
 #                   save:bool=True):
     
 #     # Turn on/off interactive mode

@@ -108,9 +108,6 @@ for situation in ['External']:
                 eeg_leader_1, eeg_leader_2, eeg_follower_1, eeg_follower_2, info = leader_1['EEG'], leader_2['EEG'], follower_1['EEG'], follower_2['EEG'], leader_1['info']
                 
 
-                if config.just_load_data:
-                    continue
-
                 # Load stimuli by subject (i.e: concatenated stimuli features)
                 stims_follower_1 = np.hstack([follower_1[stimulus] for stimulus in stim.split('_')])
                 stims_leader_1 = np.hstack([leader_1[stimulus] for stimulus in stim.split('_')])
@@ -257,7 +254,6 @@ for situation in ['External']:
 
                         # # Plot shadows for each subject
                         # plot.null_correlation_vs_correlation_good_channels(
-                        #     display_interactive_mode=config.display_interactive_mode,
                         #     session=session,
                         #     subject=sujeto,
                         #     save_path=path_figures,
@@ -281,7 +277,6 @@ for situation in ['External']:
                         info=info,
                         coefficient_name='Correlation',
                         save=config.save_figures,
-                        display_interactive_mode=config.display_interactive_mode,
                         save_path=path_figures,
                         subject=sujeto,
                         session=session,
@@ -293,7 +288,6 @@ for situation in ['External']:
                         info=info,
                         coefficient_name='RMSE',
                         save=config.save_figures,
-                        display_interactive_mode=config.display_interactive_mode,
                         save_path=path_figures,
                         subject=sujeto,
                         session=session,
@@ -315,7 +309,6 @@ for situation in ['External']:
                         session=session,
                         subject=sujeto,
                         hierarchical_clustering=config.hierarchical_clustering,
-                        display_interactive_mode=config.display_interactive_mode,
                         no_figures=config.no_figures
                         )
                     if sujeto in [1,2]:
@@ -346,9 +339,6 @@ for situation in ['External']:
 
                 # Print the progress of the iteration
                 iteration_percentage(txt=f'\n------->\tEnd of session {session}\n', i=config.sessions.index(session), length_of_iterator=len(config.sessions))
-
-            if config.just_load_data:
-                continue
 
             # Get desire shape n_subject, shape of array. For ex.: shape(average_weights_subjects) = n_subj, n_chans, n_feats, n_delays
             average_weights_subjects_leader = np.stack(average_weights_subjects_leader, axis=0) # n_subj, n_chans, n_feats, n_delays
@@ -399,7 +389,6 @@ for situation in ['External']:
                     average_coefficient_subjects=average_rmse_subjects,
                     stim=stim,
                     info=info,
-                    display_interactive_mode=config.display_interactive_mode,
                     save=config.save_figures,
                     save_path=path_figures,
                     coefficient_name='RMSE',
@@ -408,7 +397,6 @@ for situation in ['External']:
                 plot.average_topomap(
                     average_coefficient_subjects=average_correlation_subjects,
                     stim=stim,
-                    display_interactive_mode=config.display_interactive_mode,
                     info=info,
                     save=config.save_figures,
                     save_path=path_figures,
@@ -428,7 +416,6 @@ for situation in ['External']:
                     sample_rate=config.sr,
                     save_path=path_figures,
                     save=config.save_figures,
-                    display_interactive_mode=config.display_interactive_mode,
                     no_figures=config.no_figures
                     )
 
@@ -439,7 +426,6 @@ for situation in ['External']:
                     stim=stim,
                     save=config.save_figures,
                     save_path=path_figures,
-                    display_interactive_mode=config.display_interactive_mode,
                     no_figures=config.no_figures
                     )
 
@@ -453,7 +439,6 @@ for situation in ['External']:
                     times=config.times,
                     n_feats=n_feats,
                     stim=stim,
-                    display_interactive_mode=config.display_interactive_mode,
                     no_figures=config.no_figures
                     )
 
@@ -464,15 +449,12 @@ for situation in ['External']:
                     n_feats=n_feats,
                     save=config.save_figures,
                     save_path=path_figures,
-                    display_interactive_mode=config.display_interactive_mode,
                     no_figures=config.no_figures
                     )
 
     # Get run time
     run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
     text = f'\n\n\t\t\tPARAMETERS  \n\n\tModel: ' + config.model +f'\n\tBands: {config.bands}'+'\n\tStimuli: ' + f'{config.stimuli}'+'\n\tCondition: ' +situation+f'\n\tTime interval: ({config.tmin},{config.tmax})s'+f'\n\tNumber of subjects analyzed: {total_number_of_subjects_leader}. \n\tSessions: {config.sessions}'
-    if config.just_load_data:
-        text += '\n\n\t\t\tJUST LOADING DATA'
     text += '\n\n\t\t\tmain.py'
     text += f'\n\n\t\t\tRUN TIME:{run_time}'
 
@@ -489,10 +471,10 @@ for situation in ['External']:
                 rewrite=True
                 )
 
-    # Send text to telegram bot
-    with Suppress_print():
-        mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=text)
-    print(text)
+    # # Send text to telegram bot
+    # with Suppress_print():
+    #     mensaje_tel(api_token=api_token,chat_id=chat_id, mensaje=text)
+    # print(text)
     
 if __name__=='__main__':
     # ===========================

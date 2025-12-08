@@ -1,18 +1,56 @@
 import numpy as np
 import mne
+
+# General configuration
 stable_version = False
+parallel_load, number_of_workers = True, 9
+use_gpu = True
 
-parallel_load = True
-number_of_workers = 9
-save_dir = "saves"
-output_dir = "output"
-figures_dir = "figures"
+same_validation_subjects = True # same hyperparameter for all subjects 
+external_validation = False # whether to use External hyperparameter or the one that maximize specific condition
+default_alpha, set_alpha = 400, None
 
-# Logging configuration
+solver = 'ridge' # "ridge-laplacian"
+n_folds = 10 # with 5 folds (remain 20% as validation set, then interchange to cross validate)
+
+statistical_test, perform_tfce = False, False
+
+# Logging and directory configuration
 LOG_LEVEL = "INFO"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
-LOG_TO_FILE = False
-LOG_DIR = "saves/detailed_logs"
+figures_dir = "figures"
+output_dir = "output"
+save_dir = "saves"
+save_results, save_figures = True, True
+no_figures = False
 
+# Time lags and delays
+tmin, tmax, sr = -.2, .6, 128
+delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
+times = (delays/sr)
+
+
+ROI = False # whether to use Regions of Interest (ROI) data or full EEG data
+if ROI:
+    info_mne = mne.create_info(
+        ch_names=['ROI1', 'ROI2', 'ROI3', 'ROI4', 'ROI5', 'ROI6', 'ROI7', 'ROI8', 'ROI9', 'ROI10', 'ROI11', 'ROI12', 'ROI13', 'ROI14', 'ROI15', 'ROI16'], 
+        sfreq=sr, 
+        ch_types='eeg'
+    )
+else:
+    montage = mne.channels.make_standard_montage('biosemi128')
+    # relevant_channels = [f'C{i+1}' for i in range(32)] # frontal/ frontal right
+    # relevant_channels += [f'D{i+1}' for i in range(13)]# frontal left
+    # relevant_channels = montage.ch_names
+    relevant_channels = ['C23','C2', 'A1', 'D1']
+    info_mne = mne.create_info(
+        ch_names=relevant_channels, 
+        sfreq=sr, 
+        ch_types='eeg'
+    ).set_montage(montage)
+    channels_index = [info_mne.ch_names.index(ch) for ch in relevant_channels]
+
+# =======================
+# Configurable parameters
 sessions = [
     21,
     22,
@@ -55,29 +93,22 @@ bands = [
     # 'Delta_Theta' # 1-8 Hz
 ]
 
-temporal_shift = None
-praat_executable_path = r"C:\Users\jocta\Downloads\programas\Praat.exe"
-save_results, save_figures = True, True
-hierarchical_clustering = True
-just_load_data = False
-figure_format = '.png'
-display_interactive_mode, no_figures = False, False
+# =================
+# Static parameters
 
-ROI = False # whether to use ROI data or full EEG data
-external_validation = False # whether to use External hyperparameter or the one that maximize specific condition
-same_validation_subjects = True # same hyperparameter for all subjects 
-statistical_test, perform_tfce = False, False
-use_gpu = True
+# Logging parameters
+LOG_DIR = "saves/detailed_logs"
+LOG_TO_FILE = False
 
 stims_preprocess, eeg_preprocess = 'Standarize', 'Standarize'
 model = 'mtrf' # 'mtrf_ridge'
-solver = 'ridge' # "ridge-laplacian"
 
-correlation_limit_percentage = 0.05
-n_folds = 10 # with 5 folds (remain 20% as validation set, then interchange to cross validate)
-default_alpha, set_alpha = 400, None
-min_order, max_order, steps, base_log = -4, 8, 48, 10
+# TFCE parameters
+n_permutations, significance, number_of_jobs = 4096, .05, -1
+
+# Validation parameters
 val_correlation_limit_percentage = 0.01
+min_order, max_order, steps, base_log = -4, 8, 48, 10
 alphas_swept = np.logspace(
         min_order, 
         max_order, 
@@ -86,35 +117,17 @@ alphas_swept = np.logspace(
 )
 alpha_step = np.diff(np.log(alphas_swept))[0]
 
-n_permutations, significance, number_of_jobs = 4096, .05, -1
-
+# Permutation test and statistical parameters
 random_permutations = 3000
 correlation_length_samples = 104
 power_n_bootstrap_samples = 1000
 significance_threshold = 0.05/128 # Bonferroni correction (the test is in # channels) #TODO
 
-tmin, tmax, sr = -.2, .6, 128
-delays = np.arange(int(np.round(tmin * sr)), int(np.round(tmax * sr) + 1))
-times = (delays/sr)
-
-if ROI:
-    info_mne = mne.create_info(
-        ch_names=['ROI1', 'ROI2', 'ROI3', 'ROI4', 'ROI5', 'ROI6', 'ROI7', 'ROI8', 'ROI9', 'ROI10', 'ROI11', 'ROI12', 'ROI13', 'ROI14', 'ROI15', 'ROI16'], 
-        sfreq=sr, 
-        ch_types='eeg'
-    )
-else:
-    montage = mne.channels.make_standard_montage('biosemi128')
-    # relevant_channels = [f'C{i+1}' for i in range(32)] # frontal/ frontal right
-    # relevant_channels += [f'D{i+1}' for i in range(13)]# frontal left
-    # relevant_channels = montage.ch_names
-    relevant_channels = ['C23','C2', 'A1', 'D1']
-    info_mne = mne.create_info(
-        ch_names=relevant_channels, 
-        sfreq=sr, 
-        ch_types='eeg'
-    ).set_montage(montage)
-    channels_index = [info_mne.ch_names.index(ch) for ch in relevant_channels]
+# Other parameters
+hierarchical_clustering = True
+temporal_shift = None
+praat_executable_path = r"C:\Users\jocta\Downloads\programas\Praat.exe"
+figure_format = '.png'
 
 class ExpInfo:
     def __init__(self):
@@ -160,6 +173,7 @@ class ExpInfo:
         self.phonological_labels2 = ['dental', 'consonantal', 'velar', 'flap', 'close', 'strident', 'continuant']
 exp_info = ExpInfo()
 
+# ===========
 # Old configs
 leadership_kind_of_subsampling = 'optimized_trials' #'ordered_trials' #'random_trials'
 tollerance = 0.1

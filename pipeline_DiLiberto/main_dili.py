@@ -151,7 +151,6 @@ for subject in [10]:
         info=config.info_mne,
         coefficient_name='Correlation', 
         save=config.save_figures, 
-        display_interactive_mode=config.display_interactive_mode,
         save_path=path_figures, 
         subject=subject, 
         session=subject, 
@@ -163,7 +162,6 @@ for subject in [10]:
         info=config.info_mne,
         coefficient_name='RMSE', 
         save=config.save_figures, 
-        display_interactive_mode=config.display_interactive_mode,
         save_path=path_figures, 
         subject=subject, 
         session=subject, 
@@ -185,7 +183,6 @@ for subject in [10]:
         session=subject, 
         subject=subject, 
         hierarchical_clustering=config.hierarchical_clustering,
-        display_interactive_mode=config.display_interactive_mode, 
         no_figures=config.no_figures
         )
 
@@ -233,7 +230,6 @@ plot.average_topomap(
     average_coefficient_subjects=average_rmse_subjects, 
     stim=stimi, 
     info=config.info_mne, 
-    display_interactive_mode=config.display_interactive_mode,
     save=config.save_figures, 
     save_path=path_figures, 
     coefficient_name='RMSE', 
@@ -242,7 +238,6 @@ plot.average_topomap(
 plot.average_topomap(
     average_coefficient_subjects=average_correlation_subjects, 
     stim=stimi, 
-    display_interactive_mode=config.display_interactive_mode,
     info=config.info_mne, 
     save=config.save_figures, 
     save_path=path_figures,
@@ -262,7 +257,6 @@ plot.topo_map_relevant_times(
     sample_rate=config.sr, 
     save_path=path_figures, 
     save=config.save_figures, 
-    display_interactive_mode=config.display_interactive_mode, 
     no_figures=config.no_figures
     )
 
@@ -273,7 +267,6 @@ plot.channel_wise_correlation_topomap(
     stim=stimi, 
     save=config.save_figures,
     save_path=path_figures, 
-    display_interactive_mode=config.display_interactive_mode, 
     no_figures=config.no_figures
     )
 
@@ -287,7 +280,6 @@ plot.average_regression_weights(
     times=config.times, 
     n_feats=n_feats, 
     stim=stimi, 
-    display_interactive_mode=config.display_interactive_mode,
     no_figures=config.no_figures
     )
 
@@ -298,15 +290,12 @@ plot.correlation_matrix_subjects(
     n_feats=n_feats, 
     save=config.save_figures,
     save_path=path_figures, 
-    display_interactive_mode=config.display_interactive_mode, 
     no_figures=config.no_figures
     )
 
 # Get run time
 run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
 text = f'\n\n\t\t\tPARAMETERS  \n\n\tModel: ' + config.model +f'\n\tBands: {config.bands}'+'\n\tStimuli: ' + f'{config.stimuli}'+'\n\tCondition: ' f'\n\tTime interval: ({config.tmin},{config.tmax})s'+f'\n\tNumber of subjects analyzed: {total_number_of_subjects}. \n\tSessions: {subjects}'
-if config.just_load_data:
-    text += '\n\n\t\t\tJUST LOADING DATA'
 text += '\n\n\t\t\tmain_dili.py'
 text += f'\n\n\t\t\tRUN TIME:{run_time}'
 
