@@ -161,10 +161,7 @@ if config.save_alphas:
 # Get run time            
 run_time = datetime.now().replace(microsecond=0) - start_time.replace(microsecond=0)
 text = rf'PARAMETERS  \nModel: ' + config.model +f'\nBands: {config.bands}'+'\nStimuli: ' + f'{config.stimuli}'+'\nCondition: ' +f'\nTime interval: ({config.tmin},{config.tmax})s'
-if config.just_load_data:
-    text += '\n\n\tJUST LOADING DATA'
-else:
-    text += fr'\n\n_dili.py'
+text += fr'\n\n_dili.py'
 text += f'\n\n\t\t RUN TIME \n\n\t\t{run_time} hours'
 print(text)
 

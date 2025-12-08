@@ -128,11 +128,6 @@ def generate_completion_message(
     else:
         text += f"\n• TFCE: ✗"
 
-    if config.just_load_data:
-        text += f"\n• Modo: 📁 Solo carga"
-    else:
-        text += f"\n• Modo: 🔬 Completo"
-
     text += f"""
 
 \n⏱️ \t TIEMPOS DE EJECUCIÓN:"""

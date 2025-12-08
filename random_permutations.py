@@ -87,9 +87,6 @@ for situation in config.situations:
                 
                 eeg_subject_1, eeg_subject_2 = subject_1['EEG'], subject_2['EEG']
 
-                if config.just_load_data:
-                    continue
-
                 # Load stimuli by subject (i.e: concatenated stimuli features)
                 stims_subject_1 = np.hstack([subject_1[stimulus] for stimulus in stim.split('_')]) 
                 stims_subject_2 = np.hstack([subject_2[stimulus] for stimulus in stim.split('_')])
