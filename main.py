@@ -57,7 +57,6 @@ def main(
     saves_dir = config.saves_dir,
     val_correlation_limit_percentage = config.val_correlation_limit_percentage,
     n_folds = config.n_folds,
-    just_load_data = config.just_load_data,
     save_results = config.save_results,
     no_figures = config.no_figures,
     same_validation_subjects = config.same_validation_subjects,
@@ -65,6 +64,7 @@ def main(
     default_alpha = config.default_alpha,
     set_alpha = config.set_alpha,
     info_mne = config.info_mne,
+    channels_index = config.channels_index if not config.ROI else None,
     statistical_test = config.statistical_test,
     significance_threshold = config.significance_threshold,
     perform_tfce = config.perform_tfce,
@@ -212,12 +212,9 @@ def main(
                         relevant_indexes_2 = np.arange(eeg_subject_2.shape[0])
                         logger_main.info("Using ROI data for EEG")
                     else:
-                        eeg_subject_1, eeg_subject_2 = subject_1['EEG'], subject_2['EEG']
+                        eeg_subject_1, eeg_subject_2 = subject_1['EEG'][:, channels_index], subject_2['EEG'][:, channels_index]
                         relevant_indexes_1 = samples_info['keep_indexes1'].copy()
                         relevant_indexes_2 = samples_info['keep_indexes2'].copy()
-
-                    if just_load_data:
-                        continue
 
                     # Load stimuli by subject (i.e: concatenated stimuli features)
                     n_feats = [subject_1[stimulus].shape[1] for stimulus in stim.split('_')]
@@ -366,9 +363,6 @@ def main(
                         length_of_iterator=len(sessions),
                         logger=logger_main
                     )
-
-                if just_load_data:
-                    continue
                 
                 # Get desire shape n_subject, shape of array. For ex.: shape(average_weights_subjects) = n_subj, n_chans, n_feats, n_delays
                 average_correlation_subjects = np.stack(average_correlation_subjects , axis=0) # n_subj, n_chans

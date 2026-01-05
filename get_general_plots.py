@@ -128,7 +128,8 @@ def main(
                         session=session, 
                         subject=subject, 
                         hierarchical_clustering=config.hierarchical_clustering,
-                        no_figures=config.no_figures
+                        no_figures=config.no_figures,
+                        substract_mean=config.substract_mean
                         )
                     logger.debug(f"✓ Pesos completados para sesión {session}, sujeto {subject_in_session+1}")
                 except Exception as e:
@@ -177,7 +178,8 @@ def main(
             times=config.times, 
             n_feats=n_feats, 
             stim=stim, 
-            no_figures=config.no_figures
+            no_figures=config.no_figures,
+            substract_mean=config.substract_mean
             )
         logger.debug("✓ Generando topomapa de tiempos relevantes...")
         # Plot topomap with relevant times

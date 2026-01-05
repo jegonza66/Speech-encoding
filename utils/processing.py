@@ -444,6 +444,9 @@ def band_freq(
         elif band == 'Alpha_Delta_Theta':
             l_freq = 1
             h_freq = 13
+        elif band == 'Gamma':
+            l_freq = 30
+            h_freq = 45
         elif band.startswith('Custom'):
             limits = band.split('Custom-')[1].split('#')
             l_freq = float(limits[0])

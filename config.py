@@ -9,6 +9,7 @@ use_gpu = True
 same_validation_subjects = True # same hyperparameter for all subjects 
 external_validation = False # whether to use External hyperparameter or the one that maximize specific condition
 default_alpha, set_alpha = 400, None
+substract_mean = True
 
 solver = 'ridge' # "ridge-laplacian"
 n_folds = 10 # with 5 folds (remain 20% as validation set, then interchange to cross validate)
@@ -19,7 +20,7 @@ statistical_test, perform_tfce = False, False
 LOG_LEVEL = "INFO"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
 figures_dir = "figures"
 output_dir = "output"
-save_dir = "saves"
+saves_dir = "saves"
 save_results, save_figures = True, True
 no_figures = False
 
@@ -38,10 +39,10 @@ if ROI:
     )
 else:
     montage = mne.channels.make_standard_montage('biosemi128')
-    # relevant_channels = [f'C{i+1}' for i in range(32)] # frontal/ frontal right
+    relevant_channels = [f'C{i+1}' for i in range(32)] # frontal/ frontal right
     # relevant_channels += [f'D{i+1}' for i in range(13)]# frontal left
+    # relevant_channels = ['C23','C2', 'A1', 'D1']
     # relevant_channels = montage.ch_names
-    relevant_channels = ['C23','C2', 'A1', 'D1']
     info_mne = mne.create_info(
         ch_names=relevant_channels, 
         sfreq=sr, 
@@ -90,6 +91,7 @@ bands = [
     # 'Beta', # 13-25 Hz
     # 'Beta1', # 13-19 Hz
     # 'Beta2', # 19-25 Hz
+    # 'Gamma', # 30-45 Hz
     # 'Delta_Theta' # 1-8 Hz
 ]
 

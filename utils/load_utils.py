@@ -35,6 +35,7 @@ ALLOWED_BANDS = [
     'Delta_Theta',
     'Alpha_Delta_Theta',
     'Broad',
+    'Gamma',
     'Unfiltered'
 ]
 ALLOWED_SITUATIONS = [

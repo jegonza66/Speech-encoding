@@ -659,70 +659,74 @@ def average_topomap(
 
     # Make Lateralization comparison
     if coefficient_name == 'Correlation':
-        # Left and right channels
-        all_channels_right = ['B27','B28','B29','B30','B31','B32','C1','C2','C3','C4','C5','C6','C7','C8','C9','C10','C11','C12','C13','C14','C15','C16']
-        all_channels_left = ['D1','D2','D3','D4','D5','D6','D7','D8','D9','D10','D11','D12','D13','C24','C25','C26','C27','C28','C29','C30','C31','C32']
+        try:
+            # Left and right channels
+            all_channels_right = ['B27','B28','B29','B30','B31','B32','C1','C2','C3','C4','C5','C6','C7','C8','C9','C10','C11','C12','C13','C14','C15','C16']
+            all_channels_left = ['D1','D2','D3','D4','D5','D6','D7','D8','D9','D10','D11','D12','D13','C24','C25','C26','C27','C28','C29','C30','C31','C32']
 
-        # Get channels right and left that are used in the experiment
-        ordered_chs_right = [i for i in info['ch_names'] if i in all_channels_right]
-        ordered_chs_left = [i for i in info['ch_names'] if i in all_channels_left]
+            # Get channels right and left that are used in the experiment
+            ordered_chs_right = [i for i in info['ch_names'] if i in all_channels_right]
+            ordered_chs_left = [i for i in info['ch_names'] if i in all_channels_left]
 
-        # Get filter coefficient to get respective correlations
-        corr_right = mean_average_coefficient[[i in all_channels_right for i in info['ch_names']]]
-        corr_left = mean_average_coefficient[[i in all_channels_left for i in info['ch_names']]]
+            # Get filter coefficient to get respective correlations
+            corr_right = mean_average_coefficient[[i in all_channels_right for i in info['ch_names']]]
+            corr_left = mean_average_coefficient[[i in all_channels_left for i in info['ch_names']]]
 
-        # Now get relevant indexes, sorted by correlation
-        sorted_chs_right = [x for _, x in sorted(zip(corr_right, ordered_chs_right))]
-        sorted_chs_left = [x for _, x in sorted(zip(corr_left, ordered_chs_left))]
+            # Now get relevant indexes, sorted by correlation
+            sorted_chs_right = [x for _, x in sorted(zip(corr_right, ordered_chs_right))]
+            sorted_chs_left = [x for _, x in sorted(zip(corr_left, ordered_chs_left))]
 
-        # Get most correlated channels for lateralization
-        if number_of_lat_channels:
-            corr_right = np.sort(corr_right)[-number_of_lat_channels:]
-            corr_left = np.sort(corr_left)[-number_of_lat_channels:]
-            sorted_chs_right = sorted_chs_right[-number_of_lat_channels:]
-            sorted_chs_left = sorted_chs_left[-number_of_lat_channels:]
+            # Get most correlated channels for lateralization
+            if number_of_lat_channels:
+                corr_right = np.sort(corr_right)[-number_of_lat_channels:]
+                corr_left = np.sort(corr_left)[-number_of_lat_channels:]
+                sorted_chs_right = sorted_chs_right[-number_of_lat_channels:]
+                sorted_chs_left = sorted_chs_left[-number_of_lat_channels:]
 
-        # Make figure and data to plot
-        fig = plt.figure(layout='tight')
-        data = pd.DataFrame({'Left': corr_left, 'Right': corr_right})
-        
-        # Make boxplot and swarmplot
-        ax = sns.boxplot(data=data, width=0.35)
-        for patch in ax.artists:
-            r, g, b, alpha = patch.get_facecolor()
-            patch.set_facecolor((r, g, b, .8))
-        sns.swarmplot(data=data, color=".25")
+            # Make figure and data to plot
+            fig = plt.figure(layout='tight')
+            data = pd.DataFrame({'Left': corr_left, 'Right': corr_right})
+            
+            # Make boxplot and swarmplot
+            ax = sns.boxplot(data=data, width=0.35)
+            for patch in ax.artists:
+                r, g, b, alpha = patch.get_facecolor()
+                patch.set_facecolor((r, g, b, .8))
+            sns.swarmplot(data=data, color=".25")
 
-        # Figure properties
-        ax.set_ylabel('Correlation')
+            # Figure properties
+            ax.set_ylabel('Correlation')
 
-        # Make Wilcoxon test for comparison
-        test_results = wilcoxon(data['Left'], data['Right'])
-        p_value = test_results.pvalue
+            # Make Wilcoxon test for comparison
+            test_results = wilcoxon(data['Left'], data['Right'])
+            p_value = test_results.pvalue
 
-        # Agregar texto del p-value directamente
-        y_max = max(data['Left'].max(), data['Right'].max())
-        y_offset = (y_max - min(data['Left'].min(), data['Right'].min())) * 0.1
-        ax.text(0.5, y_max + y_offset, f'p = {p_value:.4f}', 
-                ha='center', va='bottom', fontsize='xx-large',
-                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
-        
-        # PLot and save lateralized channels used
-        lateralized_channels(
-                    info=info, 
-                    channels_right=sorted_chs_right, 
-                    channels_left=sorted_chs_left, 
-                    save_path=save_path,
-                    save=save
+            # Agregar texto del p-value directamente
+            y_max = max(data['Left'].max(), data['Right'].max())
+            y_offset = (y_max - min(data['Left'].min(), data['Right'].min())) * 0.1
+            ax.text(0.5, y_max + y_offset, f'p = {p_value:.4f}', 
+                    ha='center', va='bottom', fontsize='xx-large',
+                    bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
+            
+            # PLot and save lateralized channels used
+            lateralized_channels(
+                        info=info, 
+                        channels_right=sorted_chs_right, 
+                        channels_left=sorted_chs_left, 
+                        save_path=save_path,
+                        save=save
+                        )
+
+            if save:
+                save_figure(
+                    cwd=current_working_directory,
+                    save_path=os.path.join(save_path, 'lateralization'),
+                    file_name=f'left_vs_right_{coefficient_name.lower()}_{len(sorted_chs_right)}_channels', 
+                    fig=fig
                     )
-
-        if save:
-            save_figure(
-                cwd=current_working_directory,
-                save_path=os.path.join(save_path, 'lateralization'),
-                file_name=f'left_vs_right_{coefficient_name.lower()}_{len(sorted_chs_right)}_channels', 
-                fig=fig
-                )
+        except Exception as e:
+            print(f"Could not perform lateralization comparison: {e}")
+            test_results = None
     else:
         test_results = None
     if test_result:
@@ -1109,7 +1113,8 @@ def channel_weights(
     session:int=21, 
     subject:int=1,
     no_figures:bool=False,
-    hierarchical_clustering:bool=True
+    hierarchical_clustering:bool=True,
+    substract_mean:bool=True
     ):
     """
     Plot weights of features as an evoked response. If multidimensional features are used, a colormesh is used.
@@ -1210,8 +1215,9 @@ def channel_weights(
         else:
             # Create evoked response as graph of weights averaged across all feats
             weights = average_weights[:, index_slice[0]:index_slice[1], :].mean(axis=1)
-            evoked = mne.EvokedArray(data=weights-weights.mean(axis=0, keepdims=True), info=info)
-            # evoked = mne.EvokedArray(data=weights, info=info)
+            if substract_mean:
+                weights = weights - weights.mean(axis=0, keepdims=True)
+            evoked = mne.EvokedArray(data=weights, info=info)
             # Relabel time 0
             evoked.shift_time(times[0], relative=True)
             
@@ -1261,7 +1267,8 @@ def average_regression_weights(
     n_feats:list,
     stim:str,
     no_figures:bool=False,
-    hierarchical_clustering:bool=True
+    hierarchical_clustering:bool=True,
+    substract_mean:bool=True
     )->None:
     """
     Plot average weights of features as an evoked response. If colormesh_form is passed, a colormesh graph is performed in case of multifeature attribute are used.
@@ -1311,8 +1318,9 @@ def average_regression_weights(
             
             # Create evoked response as graph of weights averaged across all feats and subjects 
             weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1)
-            evoked = mne.EvokedArray(data=weights-weights.mean(axis=0, keepdims=True), info=info)
-            # evoked = mne.EvokedArray(data=weights, info=info)
+            if substract_mean:
+                weights = weights - weights.mean(axis=0, keepdims=True)
+            evoked = mne.EvokedArray(data=weights, info=info)
             # Relabel time 0
             evoked.shift_time(times[0], relative=True)
             
@@ -1385,8 +1393,9 @@ def average_regression_weights(
             fig.suptitle(f'{feat}')
             # Create evoked response as graph of weights averaged across all feats and subjects 
             weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1)
-            evoked = mne.EvokedArray(data=weights-weights.mean(axis=0, keepdims=True), info=info)
-            # evoked = mne.EvokedArray(data=weights, info=info)
+            if substract_mean:
+                weights = weights - weights.mean(axis=0, keepdims=True)
+            evoked = mne.EvokedArray(data=weights, info=info)
             # Relabel time 0
             evoked.shift_time(times[0], relative=True)
             
@@ -1559,7 +1568,8 @@ def plot_pvalue_tfce(
     stim:str,
     significance:float=0.05,
     no_figures:bool=False,
-    hierarchical_clustering:bool=True
+    hierarchical_clustering:bool=True,
+    substract_mean:bool=True
     )->None:
     """
     Plot p-values over weights across 
@@ -1676,8 +1686,10 @@ def plot_pvalue_tfce(
         else:
             # Create evoked response as graph of weights averaged across all feats and subjects 
             weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1)
-            evoked = mne.EvokedArray(data=weights-weights.mean(axis=0, keepdims=True), info=info)
-            # evoked = mne.EvokedArray(data=weights, info=info)
+            if substract_mean:
+                weights = weights - weights.mean(axis=0, keepdims=True)
+            
+            evoked = mne.EvokedArray(data=weights, info=info)
             # Relabel time 0
             evoked.shift_time(times[0], relative=True)
             
@@ -1915,9 +1927,9 @@ def plot_pvalue_tfce(
 
 #             # Create evoked response as graph of weights averaged across all feats and all 
 #             weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1)
-# # #             evoked = mne.EvokedArray(data=weights-weights.mean(axis=0, keepdims=True), info=info)
-            evoked = mne.EvokedArray(data=weights-weights.mean(axis=0, keepdims=True), info=info)
-            # Relabel time 0
+# # # #             evoked = mne.EvokedArray(data=weights-weights.mean(axis=0, keepdims=True), info=info)
+            # # # # evoked = mne.EvokedArray(data=weights-weights.mean(axis=0, keepdims=True), info=info)
+            # # # # # Relabel time 0
 #             evoked.shift_time(times[0], relative=True)
             
 #             # Plot
@@ -1971,9 +1983,9 @@ def plot_pvalue_tfce(
 
 #             # Create evoked response as graph of weights averaged across all feats and all 
 #             weights = mean_average_weights_subjects[:, index_slice[0]:index_slice[1], :].mean(axis=1)
-# # #             evoked = mne.EvokedArray(data=weights-weights.mean(axis=0, keepdims=True), info=info)
-            evoked = mne.EvokedArray(data=weights-weights.mean(axis=0, keepdims=True), info=info)
-            # Relabel time 0
+# # # #             evoked = mne.EvokedArray(data=weights-weights.mean(axis=0, keepdims=True), info=info)
+            # # # # evoked = mne.EvokedArray(data=weights-weights.mean(axis=0, keepdims=True), info=info)
+            # # # Relabel time 0
 #             evoked.shift_time(times[0], relative=True)
             
 #             # Plot

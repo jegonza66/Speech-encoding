@@ -55,6 +55,7 @@ def main(
     output_dir = config.output_dir,
     saves_dir = config.saves_dir,
     val_correlation_limit_percentage = config.val_correlation_limit_percentage,
+    channels_index = config.channels_index if not config.ROI else None,
     alphas_swept = config.alphas_swept,
     n_folds = config.n_folds,
     save_results = config.save_results,
@@ -148,7 +149,7 @@ def main(
                         relevant_indexes_2 = np.arange(eeg_subject_2.shape[0])
                         logger_val.info("Using ROI data for EEG")
                     else:
-                        eeg_subject_1, eeg_subject_2 = subject_1['EEG'], subject_2['EEG']
+                        eeg_subject_1, eeg_subject_2 = subject_1['EEG'][:, channels_index], subject_2['EEG'][:, channels_index]
                         relevant_indexes_1 = samples_info['keep_indexes1'].copy()
                         relevant_indexes_2 = samples_info['keep_indexes2'].copy()
                     
