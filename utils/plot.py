@@ -86,7 +86,10 @@ def define_ticks(
         axes.tick_params(axis='both', labelsize='medium')
         tags = [np.str_('aɪ'), np.str_('aʊ'), np.str_('b'), np.str_('d'), np.str_('eɪ'), np.str_('f'), np.str_('g'), np.str_('h'), np.str_('i'), np.str_('j'), np.str_('k'), np.str_('l'), np.str_('m'), np.str_('n'), np.str_('oʊ'), np.str_('p'), np.str_('s'), np.str_('t'), np.str_('tʃ'), np.str_('u'), np.str_('v'), np.str_('w'), np.str_('z'), np.str_('æ'), np.str_('ð'), np.str_('ŋ'), np.str_('ɑː'), np.str_('ɔɪ'), np.str_('ɔː'), np.str_('ɛ'), np.str_('ɜːr'), np.str_('ɪ'), np.str_('ɹ'), np.str_('ʃ'), np.str_('ʊ'), np.str_('ʌ'), np.str_('θ')]
         ticks = np.arange(number_of_ticks)
-        
+    if ylabel=='Bin-Envelope':    
+        tags = np.load(config.saves_dir+r'\preprocessed_data\tmin-0.2_tmax0.6\stimuli_labels\bin_edges.npy')
+        tags = (tags+(tags[-1]-tags[-2])//2)[:-1]
+        ticks = np.arange(number_of_ticks)
     if ylabel=='Phonological':
         axes.tick_params(axis='both', labelsize='medium') 
         tags = [t for t in list(config.exp_info.phonological_labels.copy()) if t not in ['pause', 'trill']]
@@ -153,6 +156,9 @@ def define_ticks(
         ticks = np.arange(0, number_of_ticks, 2)
         ylabel= f"{ylabel}'s Index"
         tags = tags[::2]
+    elif ylabel=='Bin-Envelope':  
+        ylabel = 'Envelope Bin Centers (dB)'
+        tags = tags if zeros_index is None else [tags[i] for i in range(len(tags)) if i not in zeros_index]
     else:
         # Filter zeros and reorder tags
         tags = tags if zeros_index is None else [tags[i] for i in range(len(tags)) if i not in zeros_index]

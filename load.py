@@ -264,17 +264,15 @@ class GetTrialData:
         return eeg
     
     def extract_envelope(
-        self,
-        kind:str='Envelope'
+        self
         )->np.ndarray: 
         """
         Takes the low pass filtered -butterworth-, downsample and smoothened envelope of .wav file. Then matches in length to the EEG
 
         Parameters
         ----------
-        kind : str, optional
-            Kind of envelope to use, by default 'Envelope'. Available kinds are:
-            ['Envelope', 'Envelope2']. Envelope2 is the same as Envelope but it has an extra dimension with frequency shift
+        None
+                
         Returns
         -------
         np.ndarray
@@ -297,6 +295,106 @@ class GetTrialData:
             axis=0
         )
         return envelope.reshape(-1, 1)
+    
+    def extract_bin_envelope(
+        self,
+        n_bins:int = 10
+        )->np.ndarray: 
+        """
+        Takes the low pass filtered -butterworth-, downsample and smoothened envelope of .wav file. Then matches in length to the EEG
+
+        Parameters
+        ----------
+        n_bins : int, optional
+            Number of bins to use, by default 10
+        Returns
+        -------
+        np.ndarray
+            Envelope of wav signal with desire dimensions, using Hilbert transform
+        """
+        # Read file
+        wav = wavfile.read(self.wav_fname)[1]
+        wav = wav.astype("float")
+
+        # Calculate envelope and change zeros to machine epsilon
+        analytic_signal = sgn.hilbert(wav)
+        envelope = np.abs(analytic_signal)
+        envelope[envelope == 0] = np.finfo(float).eps 
+        
+        # Normalize and convert to dB
+        env_db = 20 * np.log10(envelope)
+
+        # Binning hyper-parameters
+        MIN_DB, MAX_DB = -8, 72
+        bin_edges = np.arange(MIN_DB, MAX_DB + (MAX_DB-MIN_DB) // n_bins, (MAX_DB-MIN_DB) // n_bins)
+        counts, edges = np.histogram(env_db, bins=bin_edges)
+
+        labels_path = config.saves_dir+r'\preprocessed_data\tmin-0.2_tmax0.6\stimuli_labels\bin_edges.npy'
+        if not os.path.exists(labels_path):
+            os.makedirs(os.path.dirname(labels_path), exist_ok=True)
+            np.save(labels_path, bin_edges)
+
+        num_bins = len(bin_edges) - 1
+        bin_envelope = np.zeros(
+            (len(envelope), num_bins)
+        )
+        
+        # Assign values to bins and normalize each bin
+        for i in range(num_bins):
+            mask = (env_db >= bin_edges[i]) & (env_db < bin_edges[i+1])
+            bin_envelope[mask, i] = envelope[mask]
+            bin_max = np.max(np.abs(bin_envelope[:, i]))
+            if bin_max > 0:
+                bin_envelope[:, i] /= bin_max
+        
+        # Resample 
+        bin_envelope = processing.custom_resample(
+            array=bin_envelope,
+            original_sr=self.audio_sr,
+            target_sr=self.sr,
+            padtype='mean',
+            axis=0
+        )
+        return bin_envelope
+    
+    def extract_onset_envelope(
+        self
+        )->np.ndarray: 
+        """
+        Takes the onset envelope of .wav file. Then matches in length to the EEG
+
+        Parameters
+        ----------
+        None
+                
+        Returns
+        -------
+        np.ndarray
+            Onset envelope of wav signal with desire dimensions
+        """
+        # Read file
+        wav = wavfile.read(self.wav_fname)[1]
+        wav = wav.astype("float")
+
+        # Calculate envelope
+        analytic_signal = sgn.hilbert(wav)
+        envelope = np.abs(analytic_signal)
+
+        # Calculate onset envelope
+        onset_env = np.diff(envelope, prepend=envelope[0])
+
+        # Set negative values to zero (mimics half-wave rectification)
+        onset_env[onset_env < 0] = 0
+
+        # Resample 
+        onset_env = processing.custom_resample(
+            array=onset_env,
+            original_sr=self.audio_sr,
+            target_sr=self.sr,
+            padtype='mean',
+            axis=0
+        )
+        return onset_env.reshape(-1, 1)
         
     def extract_audio_resampled(
         self
@@ -1279,17 +1377,19 @@ class GetTrialData:
                     eeg=eeg_data
                 )
             if stimulus.startswith('Envelope'):
-                channel['Envelope'] = self.extract_envelope(
-                    kind=stimulus
-                )
+                channel['Envelope'] = self.extract_envelope()
             if stimulus=='Onsets':
                 if channel.get('Envelope') is None:
-                    envelope = self.extract_envelope(
-                        kind='Envelope'
-                    )
+                    envelope = self.extract_envelope()
                 channel['Onsets'] = self.extract_onsets(
                     envelope=envelope
                 )
+            if stimulus=='Bin-Envelope':
+                channel['Bin-Envelope'] = self.extract_bin_envelope()
+            
+            if stimulus=='Onset-Envelope':
+                channel['Onset-Envelope'] = self.extract_onset_envelope()
+
             if stimulus.startswith('Mfccs') or stimulus.startswith('Deltas'):
                 channel[stimulus] = self.extract_mfccs( 
                     kind=stimulus

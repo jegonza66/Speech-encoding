@@ -48,7 +48,7 @@ ALLOWED_SITUATIONS = [
     'All'
 ]
 ALLOWED_STIMULI = [
-    'Envelope', 'Phonological', 'Phonological1', 'Phonological2', 'Spectrogram', 
+    'Envelope', 'Bin-Envelope', 'Onset-Envelope', 'Phonological', 'Phonological1', 'Phonological2', 'Spectrogram', 
     'Mfccs', 'Mfccs-Deltas', 'Mfccs-Deltas-Deltas', 'Deltas', 'Deltas-Deltas', 
     'Pitch-Log-Quad', 'Pitch-Raw', 'Pitch-Manual', 'Pitch-Phonemes', 'Pitch-Log-Raw', 'Pitch-Log-Manual', 
     'Phonemes', 'Phonemes-Envelope', 'Phonemes-Discrete', 'Phonemes-Onset', 'Phonemes-Frequency', 

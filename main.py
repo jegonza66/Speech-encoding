@@ -171,7 +171,10 @@ def main(
                             for subject in [1, 2]:
                                 alphas_total.append(validation_results[situation][band][stim][session][subject])
                     else:
-                        alphas = load_pickle(path=alphas_path)
+                        try:
+                            alphas = load_pickle(path=alphas_path)
+                        except:
+                            alphas = {session: {1: default_alpha, 2: default_alpha} for session in sessions}
                         for session in sessions:
                             for subject in [1, 2]:
                                 alphas_total.append(alphas[session][subject])

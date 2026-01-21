@@ -9,7 +9,7 @@ use_gpu = True
 same_validation_subjects = True # same hyperparameter for all subjects 
 external_validation = False # whether to use External hyperparameter or the one that maximize specific condition
 default_alpha, set_alpha = 400, None
-substract_mean = True
+substract_mean = False
 
 solver = 'ridge' # "ridge-laplacian"
 n_folds = 10 # with 5 folds (remain 20% as validation set, then interchange to cross validate)
@@ -39,10 +39,10 @@ if ROI:
     )
 else:
     montage = mne.channels.make_standard_montage('biosemi128')
-    relevant_channels = [f'C{i+1}' for i in range(32)] # frontal/ frontal right
+    # relevant_channels = [f'C{i+1}' for i in range(32)] # frontal/ frontal right
     # relevant_channels += [f'D{i+1}' for i in range(13)]# frontal left
     # relevant_channels = ['C23','C2', 'A1', 'D1']
-    # relevant_channels = montage.ch_names
+    relevant_channels = montage.ch_names
     info_mne = mne.create_info(
         ch_names=relevant_channels, 
         sfreq=sr, 
@@ -64,7 +64,9 @@ sessions = [
     30
 ]
 stimuli = [
-    'Envelope',
+    # 'Envelope',
+    # 'Bin-Envelope',
+    'Onset-Envelope',
     # 'Pitch-Log-Raw',
     # 'Spectrogram-21',
     # 'Phonemes-Discrete',
@@ -82,7 +84,7 @@ situations = [
     # 'External_Silence_80' # Predicts own EEG from interlocutor speech adding XX% of total silence
 ]
 bands = [
-    'Unfiltered', # No filtering
+    # 'Unfiltered', # No filtering
     # 'All', # 1-40 Hz
     'Broad', # 1-15 Hz
     # 'Delta', # 1-4 Hz
